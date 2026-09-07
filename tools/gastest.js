@@ -58,6 +58,7 @@ class Sheet {
     return new Range(this, a, b, c, d);
   }
   getDataRange() { return new Range(this, 1, 1, Math.max(1, this.getLastRow()), Math.max(1, this.getLastColumn())); }
+  getIndex() { return this.ss.sheets.indexOf(this) + 1; }
   getLastRow() { let m = 0; for (const k of this.cells.keys()) m = Math.max(m, +k.split(':')[0]); return m; }
   getLastColumn() { let m = 0; for (const k of this.cells.keys()) m = Math.max(m, +k.split(':')[1]); return m; }
   getMaxRows() { return this.maxR; } getMaxColumns() { return this.maxC; }
@@ -94,6 +95,16 @@ class SS {
   getName() { return 'Test sheet'; }
   getId() { return 'FAKE_SHEET_ID'; }
   getSheetByName(n) { return this.sheets.find(s => s.name === n) || null; }
+  getSheets() { return this.sheets.slice(); }
+  getActiveSheet() { return this._active || this.sheets[0] || null; }
+  setActiveSheet(sh) { this._active = sh; return sh; }
+  /* Moves the active sheet to position pos (1-based), as the real thing does. */
+  moveActiveSheet(pos) {
+    const sh = this.getActiveSheet(); if (!sh) return;
+    const at = this.sheets.indexOf(sh); if (at < 0) return;
+    this.sheets.splice(at, 1);
+    this.sheets.splice(Math.max(0, Math.min(pos - 1, this.sheets.length)), 0, sh);
+  }
   insertSheet(n) { const s = new Sheet(this, n); this.sheets.push(s); return s; }
   deleteSheet(s) { this.sheets = this.sheets.filter(x => x !== s); }
   toast() {}
@@ -419,6 +430,35 @@ ok &= run('refreshDashboard twice running is the same', () => {
 });
 
 console.log('\ntabs built: ' + ss.sheets.map(s => s.name).join(', '));
+ok &= run('the tabs end up in syllabus order, however they started', () => {
+  /* Shuffle them the way a real sheet drifts: the general tabs scattered, Digestion before
+     Classification because it was built first, and the newest labs stuck on the end. */
+  const shuffled = ss.getSheets().slice().reverse();
+  ss.sheets.length = 0; shuffled.forEach(x => ss.sheets.push(x));
+  const before = ss.getSheets().map(x => x.name).join(', ');
+
+  const moved = _orderTabs();
+
+  const got = ss.getSheets().map(x => x.name);
+  const want = ['Setup', 'Labs', 'Students']
+                 .concat(LABS.map(l => l.name))
+                 .concat(['Rejected'])
+                 .filter(n => ss.getSheetByName(n));
+  if (JSON.stringify(got.slice(0, want.length)) !== JSON.stringify(want)) {
+    throw new Error('order is wrong.\n   was:  ' + before + '\n   want: ' + want.join(', ') +
+                    '\n   got:  ' + got.join(', '));
+  }
+  if (got[0] !== 'Setup' || got[1] !== 'Labs' || got[2] !== 'Students') {
+    throw new Error('the general tabs are not first: ' + got.slice(0, 3).join(', '));
+  }
+  if (got[got.length - 1] !== 'Rejected') throw new Error('Rejected is not last: ' + got[got.length - 1]);
+  if (!moved) throw new Error('nothing was moved, yet the order had been reversed');
+});
+
+ok &= run('running it again moves nothing', () => {
+  if (_orderTabs() !== 0) throw new Error('it moved tabs that were already in place');
+});
+
 const st = ss.getSheetByName('Students');
 console.log('Students: ' + (st.getLastRow() - 1) + ' rows × ' + st.getLastColumn() + ' cols');
 const dg = ss.getSheetByName('Digestion');
