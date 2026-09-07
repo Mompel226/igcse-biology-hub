@@ -329,6 +329,40 @@
   }
   showProgress();
 
+  /* ---------- bringing back what was handed in ----------
+     A student's working lives in their browser and dies with it. What they HANDED IN, while
+     signed in, is in the teacher's spreadsheet — so ask for it back. The token is one the
+     labs already hold; it is sent in a POST body as text/plain, which is a "simple" request,
+     so there is no preflight. Only the holder's own row comes back: the endpoint takes the
+     email from the token, never from what we send.
+
+     Everything here is best-effort. No token, no endpoint, no network, an old deployment, a
+     teacher not collecting marks at all — every one of those just leaves the page showing
+     what the browser knows, which is what it showed a moment ago anyway. */
+  function serverProgress() {
+    var url = REG.submitUrl;
+    if (!url || !P || !LABS.length) return;
+
+    var tok = null;
+    for (var i = 0; i < LABS.length && !tok; i++) {
+      var sv = P.read(LABS[i].id + '.signin');
+      if (sv && sv.token && sv.exp * 1000 > Date.now() + 60000) tok = sv.token;
+    }
+    if (!tok) return;                       /* not signed in anywhere — nothing to ask with */
+
+    fetch(url, { method: 'POST', mode: 'cors',
+                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                 body: JSON.stringify({ action: 'progress', token: tok }) })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok || !j.labs) return;
+        window.__SERVER_PROGRESS = j.labs;
+        showProgress();                     /* redraw with whichever is further on */
+      })
+      .catch(function () {});               /* offline, or an older deployment: say nothing */
+  }
+  serverProgress();
+
   /* ---------- 6. credits ----------
      Both editions ship this file, so the link to the full credits works out which
      repository it is in from the address rather than being told: a GitHub Pages URL
