@@ -257,31 +257,77 @@
     if (cnt) cnt.textContent = (OPEN.length - nIB) + ' open' + (nIB ? ' · ' + nIB + ' more with IB' : '');
   }
 
-  /* Progress across labs. Every app on mompel226.github.io shares one origin,
-     so a lab's own record is readable from here — read, never written. */
-  function digestionProgress() {
-    var rec = null, sub = null;
-    try {
-      rec = JSON.parse(localStorage.getItem('digestion-lab.v2') || 'null');
-      sub = JSON.parse(localStorage.getItem('digestion-lab.submitted') || 'null');
-    } catch (e) {}
-    if (rec && rec.mastery && !rec.stations) rec = rec.mastery;
-    var started = 0, right = 0;
-    if (rec && typeof rec === 'object') {
-      Object.keys(rec).forEach(function (id) {
-        var r = rec[id]; if (!r || typeof r !== 'object' || !r.done) return;
-        var n = 0; Object.keys(r.done).forEach(function (k) { if (r.done[k]) n++; });
-        if (n || (r.tried && Object.keys(r.tried).length)) started++;
-        right += n;
-      });
-    }
-    var bits = [];
-    if (started) bits.push(started + ' station' + (started === 1 ? '' : 's') + ' started · ' + right + ' right');
-    if (sub && sub.code) bits.push('handed in');
-    return bits.join(' · ');
+  /* ---------- progress ----------
+     Every app is on one origin, so each lab's own record is readable from here. HOW to read it
+     lives in js/progress.js, shared with every hub; WHICH labs exist lives in js/data/labs.js,
+     generated from labs-shared/labs.json. So adding a lab means editing that one file and
+     rebuilding — no hub changes. Nothing here writes to a lab's record. */
+  var REG  = window.LABS_REGISTER || {};
+  var LABS = REG.labs || [];
+  var P    = window.LabProgress;
+
+  function bar(done, total, accent) {
+    var w = total ? Math.round(100 * done / total) : 0;
+    return '<span class="pbar"><span class="pbar__fill" style="width:' + w + '%;background:' +
+           (accent || 'var(--cyan)') + '"></span></span>';
   }
-  var pe = document.getElementById('prog-digestion');
-  if (pe) { var t = digestionProgress(); if (t) pe.textContent = t; else pe.parentNode.removeChild(pe); }
+  function accentOf(id) {
+    var d = DOORS.filter(function (x) { return x.id === id; })[0];
+    return d ? d.accent : 'var(--cyan)';
+  }
+
+  function showProgress() {
+    var sec = document.getElementById('prog');
+    if (!sec || !P || !LABS.length) return;
+    var res = P.all(LABS, window.__SERVER_PROGRESS || null);
+    if (!P.any(res)) { sec.hidden = true; return; }
+    sec.hidden = false;
+
+    var shelves = (REG.shelves || []).filter(function (sh) { return res.byShelf[sh.id]; });
+    document.getElementById('progGrid').innerHTML = shelves.map(function (sh) {
+      var t = res.byShelf[sh.id], acc = accentOf(sh.id);
+      var mine = LABS.filter(function (l) { return l.shelf === sh.id && res.byLab[l.id]; });
+      return '<div class="pshelf" style="--acc:' + acc + '">' +
+        '<div class="pshelf__top"><span class="pshelf__name">' + esc(sh.name) + '</span>' +
+        '<span class="pshelf__n">' + t.done + ' / ' + t.total + '</span></div>' +
+        bar(t.done, t.total, acc) +
+        '<ul class="plabs">' + mine.map(function (l) {
+          var p = res.byLab[l.id];
+          var on = p.started || p.handedIn;
+          return '<li class="plab' + (on ? '' : ' plab--cold') + '">' +
+            '<a href="' + l.url + '"><span class="plab__name">' + esc(l.short) + '</span>' +
+            '<span class="plab__n">' + (on ? p.done + ' / ' + p.total : 'not started') + '</span></a>' +
+            (p.handedIn ? '<span class="plab__in">handed in</span>' : '') + '</li>';
+        }).join('') + '</ul></div>';
+    }).join('');
+
+    var w = res.whole;
+    document.getElementById('progCount').textContent =
+      w.done + ' of ' + w.total + ' right · ' + P.pct(w) + '% · ' + w.started + ' of ' + w.labs +
+      ' lab' + (w.labs === 1 ? '' : 's') + ' started';
+
+    var signedIn = LABS.some(function (l) { return P.read(l.id + '.signin'); });
+    var note = 'Counted in <b>this browser</b>. Clearing your history or site data erases it, and another device starts from nothing.';
+    if (w.handedIn) {
+      note += signedIn
+        ? ' What you handed in <b>while signed in</b> is also in your teacher\u2019s records, so it can be brought back \u2014 if your teacher is collecting them.'
+        : ' You have handed work in, but <b>not signed in</b>, so there is nothing to bring it back from. Sign in before you hand in next time.';
+    } else {
+      note += ' Nothing handed in yet, so there is no copy anywhere else.';
+    }
+    document.getElementById('progNote').innerHTML = note;
+
+    Object.keys(res.byShelf).forEach(function (id) {
+      var el = doorEls[id]; if (!el) return;
+      var t = res.byShelf[id], foot = el.querySelector('.door__foot');
+      if (!foot || foot.querySelector('.door__prog')) return;
+      var sp = document.createElement('span');
+      sp.className = 'door__prog';
+      sp.innerHTML = bar(t.done, t.total, 'var(--accent)') + '<span>' + t.done + '/' + t.total + '</span>';
+      foot.insertBefore(sp, foot.querySelector('.door__go'));
+    });
+  }
+  showProgress();
 
   /* ---------- 6. credits ----------
      Both editions ship this file, so the link to the full credits works out which

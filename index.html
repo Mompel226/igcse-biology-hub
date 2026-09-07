@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1788774356">
+<link rel="stylesheet" href="css/hub.css?v=1788778819">
 </head>
 <body>
 
@@ -37,6 +37,12 @@
 
   <section class="beyond" id="beyond" aria-label="Beyond the syllabus"></section>
 
+  <section class="prog" id="prog" hidden aria-labelledby="progH">
+    <div class="band"><span class="eyebrow" id="progH">Your progress</span><span class="count" id="progCount"></span></div>
+    <div class="prog__grid" id="progGrid"></div>
+    <p class="prog__note" id="progNote"></p>
+  </section>
+
   <section class="open" aria-labelledby="openH">
     <div class="band"><span class="eyebrow" id="openH">Open now</span><span class="count" id="openCount"></span></div>
     <ul class="open__list" id="openList"></ul>
@@ -58,8 +64,10 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/shelves.js?v=1788774356"></script>
-<script src="js/local.js?v=1788774356"></script>
-<script src="js/hub.js?v=1788774356"></script>
+<script src="js/data/labs.js?v=1788778819"></script>
+<script src="js/progress.js?v=1788778819"></script>
+<script src="js/shelves.js?v=1788778819"></script>
+<script src="js/local.js?v=1788778819"></script>
+<script src="js/hub.js?v=1788778819"></script>
 </body>
 </html>
