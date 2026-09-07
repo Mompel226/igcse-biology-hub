@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Biology Hub — IGCSE Biology 0610</title>
+<meta name="author" content="Dr Daniel Mompel Riera">
+<meta name="copyright" content="Dr Daniel Mompel Riera">
+<meta name="theme-color" content="#0A141C">
+<meta name="description" content="Interactive revision for Cambridge IGCSE Biology 0610 behind four doors — Foundations, the human body, Plants, Life on Earth. Free, no sign-up, with IB as a layer.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧬</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/hub.css?v=1788702509">
+</head>
+<body>
+
+<div class="hub">
+
+  <header class="masthead">
+    <div class="masthead__l">
+      <span class="eyebrow" id="siteEyebrow">Cambridge IGCSE Biology 0610</span>
+      <h1>Biology <em>Hub</em></h1>
+      <p class="lede">Four doors, one for each part of the subject. Behind each door is a map you can point at;
+         behind the map are the labs, where you practise.</p>
+      <p class="maker" id="siteMaker">Made by <strong>Dr Daniel Mompel Riera</strong></p>
+    </div>
+    <div class="masthead__r">
+      <div class="years" id="years"></div>
+      <button type="button" class="ibtg" id="ibToggle" aria-pressed="false"
+              title="IB is a layer on the same labs, not a separate site">IB extension</button>
+    </div>
+  </header>
+
+  <main class="doors" id="doors" aria-label="The four shelves"></main>
+
+  <section class="beyond" id="beyond" aria-label="Beyond the syllabus"></section>
+
+  <section class="open" aria-labelledby="openH">
+    <div class="band"><span class="eyebrow" id="openH">Open now</span><span class="count" id="openCount"></span></div>
+    <ul class="open__list" id="openList"></ul>
+  </section>
+
+  <footer class="foot">
+    <p class="byline" id="siteByline">Made by <strong>Dr Daniel Mompel Riera</strong></p>
+    <p class="colophon" id="credits"></p>
+  </footer>
+
+  <noscript>
+    <p>This page needs JavaScript to stand the doors up. The apps themselves:
+       <a href="https://mompel226.github.io/human-body-hub/">Human Body Hub</a> ·
+       <a href="https://mompel226.github.io/life-on-earth-hub/">Life on Earth Hub</a> ·
+       <a href="https://mompel226.github.io/digestion-lab/">Digestion Lab</a> ·
+       <a href="https://mompel226.github.io/protein-enzyme-sim/">Protein &amp; Enzyme Sim</a></p>
+  </noscript>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/shelves.js?v=1788702509"></script>
+<script src="js/local.js?v=1788702509"></script>
+<script src="js/hub.js?v=1788702509"></script>
+</body>
+</html>
