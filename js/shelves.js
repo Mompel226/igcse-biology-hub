@@ -111,7 +111,7 @@ window.HUB = {
       sub:'Topics 1 and 17–21 on a tree of life, from the first cells — the map above',
       url:'https://mompel226.github.io/life-on-earth-hub/' },
     { title:'Classification Lab',   kind:'lab',       shelf:'life-on-earth',
-      sub:'Topic 1 · Characteristics and classification · 10 stations, 61 questions',
+      sub:'Topic 1 · Characteristics and classification · 10 stations, 64 questions',
       url:'https://mompel226.github.io/classification-lab/' },
     { title:'Digestion Lab',        kind:'lab',       shelf:'human-body',
       sub:'Topic 7 · Human nutrition · 14 stations, 123 activities',

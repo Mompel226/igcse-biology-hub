@@ -34,4 +34,22 @@
    and .webp. Everything else is optional. Keep the credit for
    any picture you add, in `credits` and in assets/doors/CREDITS.md.
    ============================================================ */
-window.HUB_LOCAL = { site:null, doors:[], open:[], credits:[] };
+window.HUB_LOCAL = {
+
+  /* ── PUT YOUR OWN ADDRESS HERE ────────────────────────────
+     Leave it empty and everything still works: students get a completion code to hand in
+     however you like, and this page shows the progress their own browser remembers.
+
+     Fill it in and, for students on your class list who sign in, their handed-in scores are
+     also kept in YOUR spreadsheet — and come back to them here after a cleared browser or on
+     another device.
+
+     What goes here is the /exec address of your own deployed Apps Script, which looks like
+       https://script.google.com/macros/s/AKfy…long…/exec
+     The README explains how to get one, under "Would you like to see how your students are
+     doing?". It must be YOUR deployment: sending marks to somebody else's records them
+     nowhere, because your students are not on their class list.                            */
+  submitUrl: '',
+
+  site: null, doors: [], open: [], credits: []
+};

@@ -11,10 +11,12 @@ window.LABS_REGISTER = {
     "store   the localStorage key the lab keeps its progress under. It is NOT always <id>.v2:",
     "        the Classification Lab uses .v1. Always read it from here.",
     "shelf   which hub the lab sits behind, so progress can be rolled up.",
-    "node tools/status.mjs reports anything that disagrees with this file."
+    "node tools/status.mjs reports anything that disagrees with this file.",
+    "",
+    "NOTHING THAT BELONGS TO ONE SCHOOL GOES IN HERE — this file is shared by every",
+    "edition. The address marks are sent to is each school's own, so it lives in",
+    "js/local.js beside the doors and the site name."
   ],
-  "submitUrl": "https://script.google.com/macros/s/AKfycbzwjMHaa88OL_GzR8wZ2mV6a8rs1CKYahbW5iOTQPyzWzCGIrAZPApGsP2oujK34tRc/exec",
-
   "labs": [
     { "id": "digestion-lab", "name": "Digestion Lab", "short": "Digestion",
       "topicNo": 7, "topic": "Human nutrition", "shelf": "human-body",

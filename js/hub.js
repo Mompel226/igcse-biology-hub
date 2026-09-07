@@ -340,7 +340,7 @@
      teacher not collecting marks at all — every one of those just leaves the page showing
      what the browser knows, which is what it showed a moment ago anyway. */
   function serverProgress() {
-    var url = REG.submitUrl;
+    var url = L.submitUrl || (L.site && L.site.submitUrl) || '';   /* each school's own — js/local.js */
     if (!url || !P || !LABS.length) return;
 
     var tok = null;
