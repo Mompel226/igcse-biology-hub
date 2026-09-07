@@ -289,22 +289,25 @@
       var mine = LABS.filter(function (l) { return l.shelf === sh.id && res.byLab[l.id]; });
       return '<div class="pshelf" style="--acc:' + acc + '">' +
         '<div class="pshelf__top"><span class="pshelf__name">' + esc(sh.name) + '</span>' +
-        '<span class="pshelf__n">' + t.done + ' / ' + t.total + '</span></div>' +
+        '<span class="pshelf__n">' + P.pct(t) + '%</span></div>' +
         bar(t.done, t.total, acc) +
+        '<p class="pshelf__of">' + t.done + ' of ' + t.total + ' questions answered correctly</p>' +
         '<ul class="plabs">' + mine.map(function (l) {
           var p = res.byLab[l.id];
           var on = p.started || p.handedIn;
           return '<li class="plab' + (on ? '' : ' plab--cold') + '">' +
             '<a href="' + l.url + '"><span class="plab__name">' + esc(l.short) + '</span>' +
-            '<span class="plab__n">' + (on ? p.done + ' / ' + p.total : 'not started') + '</span></a>' +
+            '<span class="plab__n">' + (on ? P.pct(p) + '%<small> · ' + p.done + ' of ' + p.total + '</small>'
+                                          : 'not started') + '</span></a>' +
             (p.handedIn ? '<span class="plab__in">handed in</span>' : '') + '</li>';
         }).join('') + '</ul></div>';
     }).join('');
 
     var w = res.whole;
-    document.getElementById('progCount').textContent =
-      w.done + ' of ' + w.total + ' right · ' + P.pct(w) + '% · ' + w.started + ' of ' + w.labs +
-      ' lab' + (w.labs === 1 ? '' : 's') + ' started';
+    document.getElementById('progCount').innerHTML =
+      '<b>' + P.pct(w) + '% correct so far</b> · ' + w.done + ' of ' + w.total +
+      ' questions in ' + w.labs + ' lab' + (w.labs === 1 ? '' : 's') +
+      ' · ' + w.started + ' started';
 
     var signedIn = LABS.some(function (l) { return P.read(l.id + '.signin'); });
     var note = 'Counted in <b>this browser</b>. Clearing your history or site data erases it, and another device starts from nothing.';
@@ -323,7 +326,8 @@
       if (!foot || foot.querySelector('.door__prog')) return;
       var sp = document.createElement('span');
       sp.className = 'door__prog';
-      sp.innerHTML = bar(t.done, t.total, 'var(--accent)') + '<span>' + t.done + '/' + t.total + '</span>';
+      sp.title = t.done + ' of ' + t.total + ' questions answered correctly';
+      sp.innerHTML = bar(t.done, t.total, 'var(--accent)') + '<span>' + P.pct(t) + '%</span>';
       foot.insertBefore(sp, foot.querySelector('.door__go'));
     });
   }
