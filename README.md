@@ -18,6 +18,8 @@ by **Dr Daniel Mompel Riera**
 
 </div>
 
+![The Biology Hub: four doors, with Life on Earth open](docs/img/screen.jpg)
+
 ---
 
 ## For your students — there is nothing to set up
