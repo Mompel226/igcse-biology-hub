@@ -1,0 +1,312 @@
+/* ============================================================
+   Biology Hub — the front door
+   All specimen, no paper: the page is ink, and the doors carry
+   the colour. Point at a door and it opens a little; leave the
+   page alone and the doors take turns.
+   ============================================================ */
+:root{
+  --ink-0:#0A141C; --ink-1:#0D1E29; --ink-2:#10222C;
+  --paper:#F7F6F2; --chalk:#EDF4F8; --chalk-dim:#A9BECB; --chalk-mute:#7F94A2;
+  --text:#1B2226; --text-2:#515D68; --rule:rgba(255,255,255,.08);
+  --cyan:#4FC3F7; --amber:#F5A623; --green:#4ADE80; --violet:#B388FF; --teal:#2DD4BF; --blue:#5CC8FF;
+
+  --serif:Fraunces,"Iowan Old Style",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --gutter:clamp(14px,1.8vw,28px);
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--sans);font-size:15px;line-height:1.55;color:var(--chalk);
+  -webkit-font-smoothing:antialiased;background:var(--ink-0);
+  background-image:
+    radial-gradient(60% 50% at 20% -10%, rgba(72,152,182,.16), transparent 70%),
+    radial-gradient(40% 40% at 90% 110%, rgba(45,212,191,.08), transparent 70%);
+  background-attachment:fixed;
+}
+h1,h2,h3{margin:0;font-weight:400;line-height:1.12}
+p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.eyebrow{
+  font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--chalk-dim)
+}
+
+/* ============ the shell ============ */
+.hub{min-height:100dvh;display:flex;flex-direction:column;gap:10px;padding:0 var(--gutter) 10px}
+
+/* ============ masthead ============ */
+.masthead{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px 32px;align-items:end;
+  padding:clamp(14px,2.4vh,28px) 4px 4px
+}
+.masthead h1{font-family:var(--serif);font-size:clamp(32px,3.6vw,50px);letter-spacing:-.018em;margin-top:6px}
+.masthead h1 em{font-style:italic;color:var(--cyan)}
+.lede{margin-top:8px;max-width:58ch;color:#C5D4DD;font-size:15px}
+.masthead__r{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
+
+.maker{margin-top:10px;font-size:13.5px;color:#C5D4DD;display:flex;align-items:center;gap:10px}
+.maker::before{content:"";width:22px;height:1px;background:var(--cyan);opacity:.8;flex:none}
+.maker strong{font-weight:500;color:var(--chalk)}
+
+/* your year — three tabs, then that year's topics */
+.years{display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:600px}
+.ytabs{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px}
+.ytab{
+  font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#D7E3EA;
+  border:1px solid rgba(150,190,215,.28);border-radius:3px;padding:6px 11px;background:rgba(7,15,21,.55);
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;line-height:1.2;
+  transition:border-color .2s,background .2s,color .2s
+}
+.ytab small{font-size:9px;font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--chalk-mute)}
+.ytab:hover,.ytab:focus-visible{border-color:rgba(150,215,240,.7);color:#fff}
+.ytab[aria-pressed="true"]{background:rgba(120,200,230,.16);border-color:rgba(150,215,240,.75);color:#fff}
+.ytab[aria-pressed="true"] small{color:#BFE3F5}
+.path{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px}
+.path:empty{display:none}
+.path__lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim);margin-right:6px}
+.path__arrow{font-family:var(--mono);font-size:11px;color:var(--chalk-mute)}
+.step{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:#D7E3EA;
+  border:1px solid rgba(150,190,215,.28);border-radius:999px;padding:5px 10px 5px 8px;
+  background:rgba(7,15,21,.55);transition:border-color .2s,background .2s,color .2s;white-space:nowrap
+}
+.step b{font-weight:500;color:var(--cyan);margin-right:6px}
+.step:hover,.step:focus-visible,.step.is-on{border-color:rgba(150,215,240,.7);background:rgba(120,200,230,.16);color:#fff}
+
+.ibtg{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#A9BECB;
+  border:1px solid rgba(150,190,215,.3);border-radius:2px;padding:5px 10px;background:rgba(7,15,21,.6);transition:.18s;
+  display:inline-flex;align-items:center;gap:8px
+}
+.ibtg::before{content:"";width:8px;height:8px;border-radius:50%;background:rgba(169,190,203,.45);transition:.18s}
+.ibtg[aria-pressed="true"]{background:rgba(179,136,255,.18);color:#E7DCFF;border-color:rgba(179,136,255,.6)}
+.ibtg[aria-pressed="true"]::before{background:var(--violet);box-shadow:0 0 10px var(--violet)}
+
+/* ============ the doors ============ */
+.doors{display:flex;gap:8px;flex:1 1 0;min-height:380px}
+.door{
+  position:relative;display:block;flex:1 1 0;min-width:0;overflow:hidden;border-radius:8px;
+  isolation:isolate;color:var(--chalk);background:var(--ink-1);
+  transition:flex-grow .75s var(--ease);will-change:flex-grow;cursor:pointer;
+  -webkit-tap-highlight-color:transparent
+}
+.door::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:4;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);transition:box-shadow .6s
+}
+.door.is-on{flex-grow:2.4}
+.door.is-year::after{box-shadow:inset 0 0 0 1px rgba(237,244,248,.5),0 0 30px rgba(237,244,248,.1)}
+.door.is-on::after{
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 65%,transparent),
+             0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent),
+             0 14px 60px color-mix(in srgb,var(--accent) 22%,transparent)
+}
+.door picture,.door__img{position:absolute;inset:0;width:100%;height:100%;display:block}
+.door__img{
+  object-fit:cover;object-position:var(--focus,50% 50%);
+  transform:scale(1.03);filter:saturate(.82) brightness(.74);
+  transition:transform 1.8s var(--ease),filter .8s var(--ease);will-change:transform
+}
+.door.is-on .door__img{transform:scale(1.1);filter:saturate(1.04) brightness(1)}
+.door__veil{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to top,rgba(7,15,21,.9) 0,rgba(7,15,21,.5) 24%,rgba(7,15,21,.1) 50%,rgba(7,15,21,0) 100%);
+  transition:opacity .6s
+}
+/* a soft light that follows the pointer across the open door */
+.door__light{
+  position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;mix-blend-mode:screen;
+  background:radial-gradient(360px circle at var(--mx,50%) var(--my,40%),rgba(255,255,255,.16),transparent 62%);
+  transition:opacity .6s
+}
+.door.is-on .door__light{opacity:1}
+/* every shelf door: the words carry a feathered, lightly frosted panel of the door's own ground
+   (ink here, paper on a light door), so the picture stays visible beside and above them */
+.door:not(.door--wide) .door__body{right:auto;max-width:min(100%,54ch)}
+.door:not(.door--wide) .door__body::before{
+  content:"";position:absolute;z-index:-1;pointer-events:none;left:-70px;right:-110px;top:-80px;bottom:-40px;
+  background:radial-gradient(130% 130% at 0% 100%,rgba(7,15,21,.9) 0%,rgba(7,15,21,.82) 46%,rgba(7,15,21,.42) 68%,rgba(7,15,21,0) 100%);
+  -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
+  -webkit-mask-image:radial-gradient(130% 130% at 0% 100%,#000 50%,transparent 100%);
+          mask-image:radial-gradient(130% 130% at 0% 100%,#000 50%,transparent 100%)
+}
+
+.door__body{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:clamp(14px,1.8vw,26px)}
+.door__no{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--chalk-dim)}
+.door__title{
+  font-family:var(--serif);font-size:clamp(21px,2.1vw,34px);letter-spacing:-.012em;margin-top:6px;
+  text-wrap:balance;transition:text-shadow .6s
+}
+.door__title em{font-style:italic;color:var(--accent)}
+.door.is-on .door__title{text-shadow:0 0 28px color-mix(in srgb,var(--accent) 45%,transparent)}
+.door__lede{
+  max-height:0;opacity:0;overflow:hidden;margin-top:0;max-width:46ch;font-size:14px;color:#D7E3EA;
+  transition:max-height .7s var(--ease),opacity .5s .08s,margin-top .5s
+}
+.door.is-on .door__lede{max-height:160px;opacity:1;margin-top:8px}
+.door__chips{
+  display:flex;flex-wrap:wrap;gap:5px;max-height:0;opacity:0;overflow:hidden;margin-top:0;
+  transition:max-height .7s var(--ease),opacity .5s .14s,margin-top .5s
+}
+.door.is-on .door__chips{max-height:120px;opacity:1;margin-top:12px}
+.chip{
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#E3ECF1;
+  padding:4px 9px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(7,15,21,.5);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);white-space:nowrap
+}
+.chip b{font-weight:500;color:var(--accent);margin-right:5px}
+.door__foot{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-top:12px}
+.door__status{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:2px;
+  color:var(--chalk-dim);border:1px solid rgba(169,190,203,.35)
+}
+.door__status--live{color:var(--green);border-color:rgba(74,222,128,.5);background:rgba(74,222,128,.12)}
+.door__status--build{color:var(--amber);border-color:rgba(245,166,35,.5);background:rgba(245,166,35,.12)}
+.door__status--local{color:var(--blue);border-color:rgba(92,200,255,.5);background:rgba(92,200,255,.12)}
+.door__detail{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--chalk-dim)}
+.door__go{
+  margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);border-bottom:1px solid color-mix(in srgb,var(--accent) 45%,transparent);
+  opacity:0;transform:translateX(-6px);transition:opacity .5s .1s,transform .5s var(--ease)
+}
+.door__go::after{content:" →"}
+.door.is-on .door__go{opacity:1;transform:none}
+.door--closed .door__go{color:var(--chalk-dim);border-bottom-color:rgba(169,190,203,.4)}
+
+/* a light door: the type goes to ink and the veil to paper */
+.door--light{color:var(--text)}
+.door--light .door__veil{background:linear-gradient(to top,rgba(243,241,235,.9) 0,rgba(243,241,235,.5) 22%,rgba(243,241,235,.1) 48%,rgba(243,241,235,0) 100%)}
+/* the light door's panel is paper */
+.door--light:not(.door--wide) .door__body::before{
+  background:radial-gradient(130% 130% at 0% 100%,rgba(243,241,235,.96) 0%,rgba(243,241,235,.9) 46%,rgba(243,241,235,.5) 68%,rgba(243,241,235,0) 100%)
+}
+.door--light .door__img{filter:saturate(.92) brightness(.88)}
+.door--light.is-on .door__img{filter:saturate(1.02) brightness(1)}
+.door--light .door__light{mix-blend-mode:multiply;background:radial-gradient(360px circle at var(--mx,50%) var(--my,40%),color-mix(in srgb,var(--accent) 14%,transparent),transparent 62%)}
+.door--light .door__no,.door--light .door__detail{color:#2A343C;text-shadow:0 0 10px rgba(243,241,235,1),0 0 3px rgba(243,241,235,1)}
+.door--light .door__lede{color:#2A343C}
+.door--light .chip{color:var(--text);border-color:rgba(27,34,38,.3);background:rgba(255,255,255,.82)}
+.door--light .door__status{color:#2A343C;border-color:rgba(27,34,38,.45);background:rgba(255,255,255,.6)}
+.door--light .door__status--local{color:#0B6A8C;border-color:rgba(11,106,140,.45);background:rgba(11,106,140,.08)}
+.door--light.is-on .door__title{text-shadow:0 0 28px rgba(247,246,242,.9)}
+
+/* the wide door beneath the shelves */
+.beyond{display:flex;flex-direction:column;gap:8px}
+.beyond:empty{display:none}   /* the open edition has no CCA door */
+/* idle: a short door, the banner running underneath the words at full width.
+   open: the door grows and the banner slides right into a box of exactly its own shape —
+   --bw is that box's width, the open height × the banner's 1800/628 — so it sits whole, just
+   past the words. Both states crop with cover, so the slide is one smooth motion. */
+.door--wide{
+  /* the open height rises faster than the width does, so a big screen gets a banner wide enough
+     to reach the words, and a 1440 laptop keeps enough room for the words themselves.
+     --bw is always that height × the banner's 1800/614. */
+  --bh:clamp(240px,min(calc(34vw - 180px),42dvh),560px);
+  --bw:clamp(704px,min(calc(99.7vw - 528px),123.1dvh),1642px);
+  flex:none;height:clamp(120px,9.5vw,190px);cursor:pointer;background:#F7EBD5;
+  transition:height .75s var(--ease)
+}
+/* open, the door is as tall as the words need or the banner needs, whichever is more */
+.door--wide.is-on{height:max(var(--bh),320px)}
+.door--wide picture{left:auto;right:0;top:50%;bottom:auto;transform:translateY(-50%);height:100%;width:100%;transition:width .75s var(--ease),height .75s var(--ease)}
+.door--wide.is-on picture{width:var(--bw);height:var(--bh)}
+.door--wide .door__img,.door--wide.is-on .door__img{object-fit:cover;object-position:50% 50%;transform:none;filter:none}
+.door--wide .door__body{right:auto;max-width:min(60%,700px)}
+.door--wide.is-on .door__body{max-width:calc(100% - var(--bw) - 10px)}
+.door--wide .door__lede{font-size:13px;line-height:1.5;max-width:none}
+.door--wide .door__veil{background:linear-gradient(to right,#F7EBD5 0,#F7EBD5 24%,rgba(247,235,213,.55) 33%,rgba(243,241,235,0) 42%)}
+.door--wide.is-on .door__veil{background:none}
+.door--wide .door__title{font-size:clamp(19px,1.7vw,27px)}
+
+.band{display:flex;align-items:center;gap:12px;padding:6px 4px 0}
+.band::after{content:"";flex:1;height:1px;background:var(--rule)}
+.band .count{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--chalk-mute)}
+
+/* ============ open now ============ */
+.open{padding-top:14px}
+.open__list{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px;margin-top:10px}
+.open__item--ib{display:none}
+body.ib .open__item--ib{display:block}
+.ib-note{display:none;color:var(--violet)}
+body.ib .ib-note{display:inline}
+.open__link{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:5px;height:100%;
+  border:1px solid var(--rule);background:rgba(255,255,255,.03);transition:border-color .2s,background .2s,transform .2s
+}
+.open__link:hover,.open__link:focus-visible{border-color:rgba(150,190,215,.45);background:rgba(255,255,255,.06);transform:translateY(-1px)}
+.kind{
+  flex:none;font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+  padding:4px 7px;border-radius:2px;color:#08121A;background:var(--chalk-dim)
+}
+.kind--hub{background:var(--cyan)} .kind--lab{background:var(--amber)} .kind--sim{background:var(--violet)} .kind--practical{background:var(--green)}
+.open__txt{min-width:0;display:flex;flex-direction:column;gap:2px}
+.open__title{font-family:var(--serif);font-size:17px;color:var(--chalk)}
+.open__sub{font-size:12.5px;color:var(--chalk-dim)}
+.open__prog{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--green);margin-top:2px}
+.open__go{margin-left:auto;font-family:var(--mono);color:var(--chalk-mute);transition:color .2s,transform .2s}
+.open__link:hover .open__go{color:var(--chalk);transform:translateX(3px)}
+
+/* ============ foot ============ */
+.foot{margin-top:auto;padding:18px 4px 8px;border-top:1px solid var(--rule);display:flex;flex-direction:column;gap:8px}
+.byline{font-size:12.5px;color:var(--chalk)}
+.byline strong{font-weight:500}
+.byline a{color:var(--cyan);border-bottom:1px solid rgba(79,195,247,.4)}
+.colophon{font-family:var(--mono);font-size:9px;letter-spacing:.04em;line-height:1.9;color:var(--chalk-mute)}
+.colophon b{font-weight:500;color:var(--chalk-dim)}
+.colophon a{color:var(--chalk-dim);border-bottom:1px solid rgba(169,190,203,.35)}
+.colophon a:hover{color:var(--chalk)}
+.cr{white-space:nowrap}
+
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);z-index:30;max-width:min(92vw,520px);
+  background:#F7F6F2;color:var(--text);padding:11px 18px;border-radius:3px;font-size:13.5px;line-height:1.45;
+  box-shadow:0 10px 40px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .22s,transform .22s
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+noscript p{padding:20px}
+
+/* ============ narrow: the doors stack, and stay open ============ */
+@media (max-width:900px){
+  .hub{gap:12px;padding-bottom:16px}
+  .masthead{grid-template-columns:1fr;align-items:start;gap:12px;padding-top:16px}
+  .masthead__r{align-items:flex-start}
+  .years{align-items:flex-start;max-width:none}
+  .ytabs,.path{justify-content:flex-start}
+  .doors{flex-direction:column;flex:none;min-height:0;gap:10px}
+  .door{flex:none;height:auto;min-height:0;transition:none}
+  .door__body{position:relative;padding-top:clamp(120px,32vw,170px)}
+  .chip{font-size:9px;padding:3px 7px}
+  .door.is-on{flex-grow:1}
+  .door__img,.door.is-on .door__img{transform:none;filter:saturate(1) brightness(.9)}
+  .door--light .door__img{filter:none}
+  .door__veil{background:linear-gradient(to top,rgba(7,15,21,.96) 0,rgba(7,15,21,.7) 40%,rgba(7,15,21,.2) 72%,rgba(7,15,21,0) 100%)}
+  .door--light .door__veil{background:linear-gradient(to top,rgba(243,241,235,1) 0,rgba(243,241,235,.95) 42%,rgba(243,241,235,.35) 72%,rgba(243,241,235,0) 100%)}
+  .door:not(.door--wide) .door__body{max-width:none}
+  .door:not(.door--wide) .door__body::before{display:none}
+  .door__lede,.door__chips{max-height:none;opacity:1}
+  .door__lede{margin-top:6px} .door__chips{margin-top:10px}
+  .door__go{opacity:1;transform:none}
+  .door__light{display:none}
+  .door__title{font-size:clamp(22px,6vw,30px)}
+  .door--wide,.door--wide.is-on{height:auto}
+  .door--wide .door__body{padding-top:clamp(110px,30vw,150px)}
+  .door--wide picture,.door--wide.is-on picture{left:0;right:0;top:0;transform:none;width:100%;height:100%;transition:none}
+  .door--wide .door__img,.door--wide.is-on .door__img{object-fit:contain}
+  .door--wide .door__body,.door--wide.is-on .door__body{max-width:none}
+  .door--wide .door__img,.door--wide.is-on .door__img{object-position:50% 0}
+  .door--wide .door__body{right:0;max-width:none}
+  .door--wide .door__veil{background:linear-gradient(to top,#F7EBD5 0,#F7EBD5 40%,rgba(243,241,235,0) 62%)}
+  .open__list{grid-template-columns:1fr}
+  .cr{white-space:normal}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .door__img,.door.is-on .door__img{transform:none}
+}

@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+*.pyc
+__pycache__/
+
+# OneDrive conflict copies — never commit these
+*-Daniel Mompel Riera.*
+*[Cc]onflicted copy*
