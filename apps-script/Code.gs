@@ -13,7 +13,7 @@
  *   • Formats every tab so it is readable: nothing truncated, nothing too narrow,
  *     frozen headers, filters, banding. Re-apply it any time from the menu.
  *
- * SET UP  (five minutes, once, for all nine labs)
+ * SET UP  (five minutes, once, for every lab)
  *   1. Make one new Google Sheet. The name does not matter.
  *   2. From that Sheet: Extensions ▸ Apps Script. Delete what is there, paste this file in.
  *      You do NOT need to paste any id: the script is inside the Sheet, so it works out
@@ -41,16 +41,27 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
    is too low flags every hand-in and fails to verify any code above it. The counts are
    kept in labs-shared/labs.json, written by each lab's own build. */
 var LABS = [
-  { id:'digestion-lab',     name:'Digestion',        topic:'7 · Human nutrition',       questions:123 },
-  { id:'classification-lab', name:'Classification',  topic:'1 · Characteristics and classification', questions:64 },
-  { id:'circulation-lab',   name:'Circulation',      topic:'9 · Transport in animals',  questions:0 },
-  { id:'immunity-lab',      name:'Immunity',         topic:'10 · Diseases and immunity',questions:0 },
-  { id:'gas-exchange-lab',  name:'Gas exchange',     topic:'11 · Gas exchange',         questions:0 },
-  { id:'respiration-lab',   name:'Respiration',      topic:'12 · Respiration',          questions:0 },
-  { id:'excretion-lab',     name:'Excretion',        topic:'13 · Excretion',            questions:0 },
-  { id:'coordination-lab',  name:'Coordination',     topic:'14 · Coordination',         questions:0 },
-  { id:'drugs-lab',         name:'Drugs & AMR',      topic:'15 · Drugs',                questions:0 },
-  { id:'reproduction-lab',  name:'Reproduction',     topic:'16 · Reproduction',         questions:0 }
+  { id:'classification-lab',  name:'Classification',   topic:'1 · Characteristics and classification', questions:64 },
+  { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:0 },
+  { id:'cell-transport-lab',  name:'In and out of cells', topic:'3 · Movement into and out of cells', questions:0 },
+  { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
+  { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
+  { id:'plant-nutrition-lab', name:'Plant nutrition',  topic:'6 · Plant nutrition',                questions:0 },
+  { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
+  { id:'plant-transport-lab', name:'Transport in plants', topic:'8 · Transport in plants',         questions:0 },
+  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:0 },
+  { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
+  { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
+  { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
+  { id:'excretion-lab',       name:'Excretion',        topic:'13 · Excretion in humans',           questions:0 },
+  { id:'coordination-lab',    name:'Coordination',     topic:'14 · Coordination and response',     questions:0 },
+  { id:'drugs-lab',           name:'Drugs & AMR',      topic:'15 · Drugs',                         questions:0 },
+  { id:'reproduction-lab',    name:'Reproduction',     topic:'16 · Reproduction',                  questions:0 },
+  { id:'inheritance-lab',     name:'Inheritance',      topic:'17 · Inheritance',                   questions:0 },
+  { id:'variation-lab',       name:'Variation',        topic:'18 · Variation and selection',       questions:0 },
+  { id:'ecology-lab',         name:'Ecology',          topic:'19 · Organisms and their environment', questions:0 },
+  { id:'human-influences-lab', name:'Human influences', topic:'20 · Human influences on ecosystems', questions:0 },
+  { id:'biotechnology-lab',   name:'Biotechnology',    topic:'21 · Biotechnology and genetic modification', questions:0 }
 ];
 
 var T_SETUP = 'Setup', T_LABS = 'Labs', T_STUDENTS = 'Students', T_REJECTED = 'Rejected';
@@ -234,7 +245,7 @@ function _studentOf(email) {
   if (!email) return null;
   var sh = _sheet(T_STUDENTS), last = sh.getLastRow();
   if (last < 2) return null;
-  var EMAIL_COL = 3 + LABS.length + 2;
+  var EMAIL_COL = _emailCol(sh);
   var vals = sh.getRange(2, 1, last - 1, EMAIL_COL).getValues();
   for (var i = 0; i < vals.length; i++) {
     if (String(vals[i][EMAIL_COL - 1] || '').toLowerCase() === email) {
@@ -375,7 +386,7 @@ function _publish(jobId, results, done) {
    the key is the school email. */
 function _upsertStudents(students, classCode, courseName, courseId) {
   var sh = _sheet(T_STUDENTS);
-  var EMAIL_COL = 3 + LABS.length + 2;                  /* Name, Class, the labs, started, average, then email */
+  var EMAIL_COL = _emailCol(sh);
   var rows = sh.getDataRange().getValues();
   var seen = {}, rowOf = {};
   for (var i = 1; i < rows.length; i++) {
@@ -539,6 +550,7 @@ function checkSetup() {
    spreadsheet built, dressed and up to date — there is nothing else to press. */
 function _buildAndStyle() {
   _sheet(T_SETUP); _sheet(T_LABS); _sheet(T_STUDENTS);
+  _repairStudentColumns();          /* a lab added since this sheet was built gets its column */
   LABS.forEach(function (l) { _seedLab(l); });     /* every lab: a tab, and a row per student */
   var gone = _ss().getSheetByName('Summary');
   if (gone && gone.getLastRow() < 2) _ss().deleteSheet(gone);      /* the Students tab is the summary now */
@@ -846,14 +858,17 @@ function _styleStudents() {
     { h:'Class', w:88, align:'center', bold:true, edit:true, list:_classList(),
       note:'Which class they are in. Used by the filter, and shown on every hand-in.' }
   ];
-  LABS.forEach(function (l, i) {
+  /* In the order the sheet already has them, not the order LABS happens to be in. A sheet
+     built before a lab existed has its own order, and relabelling a column would write one
+     lab's heading over another lab's marks. Labs the sheet has never seen go on the end. */
+  _labOrderOnSheet(sh).forEach(function (l, i) {
     cols.push({ h:l.name, w:_wide(l.name, 108), align:'center', fmt:'0%', group: i === 0,
                 head: built[l.id] ? HDR_AUTO : HDR_SOON,
                 note:'Topic ' + l.topic + '.\n\nTheir best score in this lab so far.' +
                      (built[l.id] ? '' : '\n\nThis lab is not built yet, so the column stays empty.') });
   });
   cols.push({ h:'Labs started', w:112, align:'center', fmt:'0', group:true,
-              note:'How many of the nine labs they have handed in at least once.' });
+              note:'How many labs they have handed in at least once.' });
   cols.push({ h:'Average', w:94, align:'center', fmt:'0%', bold:true,
               note:'The average of the labs they have started. Labs they have not touched are not counted against them.' });
   cols.push({ h:'School email', w:240, hide:true, note:'From Classroom. This is what stops a student being imported twice.' });
@@ -892,7 +907,7 @@ function refreshDashboard() {
   var rows = Math.max(0, sh.getLastRow() - 1);
   if (!rows) { _styleStudents(); return; }
 
-  var EMAIL_COL = 3 + LABS.length + 2;
+  var EMAIL_COL = _emailCol(sh);
   var emails = sh.getRange(2, EMAIL_COL, rows, 1).getValues();
   var rowOf = {};
   emails.forEach(function (r, i) { var e = String(r[0] || '').toLowerCase(); if (e) rowOf[e] = i; });
@@ -1000,10 +1015,75 @@ function _sheet(name) {
     var head = ['Name', 'Class'].concat(LABS.map(function (l) { return l.name; }))
                .concat(['Labs started', 'Average', 'School email', 'Classroom course',
                         'Imported', 'Classroom user id', 'Course id']);
+    /* A new sheet has 26 columns and there are more headings than that once every topic has
+       a lab, so make room before writing or the write is outside the grid. */
+    if (sh.getMaxColumns() < head.length) {
+      sh.insertColumnsAfter(sh.getMaxColumns(), head.length - sh.getMaxColumns());
+    }
     sh.getRange(1, 1, 1, head.length).setValues([head]);
   }
   return sh;
 }
+/* Where the school email actually is on the Students tab.
+   It used to be worked out as 3 + LABS.length + 2 — Name, Class, one column per lab, then
+   Labs started and Average. That is right for a sheet built by THIS version of the script,
+   and wrong for one built before a lab was added: the sheet still has the old number of lab
+   columns, so the count points a column too far and nobody is found on the roster. Every
+   hand-in then comes back "not on this class list", with nothing to say why.
+   So: read the heading row and find it. Falls back to the old arithmetic only if the sheet
+   has no heading yet. */
+/* The labs in the order this sheet already lists them, then any it has not seen. */
+function _labOrderOnSheet(sh) {
+  var out = [], seen = {}, n = sh.getLastColumn();
+  if (n > 0) {
+    sh.getRange(1, 1, 1, n).getValues()[0].forEach(function (h) {
+      var name = String(h || '').replace(/^✎\s*/, '').trim();
+      for (var i = 0; i < LABS.length; i++) {
+        if (LABS[i].name === name && !seen[LABS[i].id]) { seen[LABS[i].id] = 1; out.push(LABS[i]); }
+      }
+    });
+  }
+  LABS.forEach(function (l) { if (!seen[l.id]) { seen[l.id] = 1; out.push(l); } });
+  return out;
+}
+
+function _emailCol(sh) {
+  var n = sh.getLastColumn();
+  if (n > 0) {
+    var head = sh.getRange(1, 1, 1, n).getValues()[0];
+    for (var i = 0; i < head.length; i++) {
+      if (String(head[i] || '').replace(/^✎\s*/, '').trim() === 'School email') return i + 1;
+    }
+  }
+  return 3 + LABS.length + 2;
+}
+
+/* A lab added since the Students tab was built has no column there. Insert one in its proper
+   place so the existing data moves with it, instead of relabelling columns over the top of
+   values that belong to something else. */
+function _repairStudentColumns() {
+  var sh = _sheet(T_STUDENTS);
+  var n = sh.getLastColumn();
+  if (n < 3) return 0;
+  var head = sh.getRange(1, 1, 1, n).getValues()[0]
+               .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); });
+  if (head.indexOf('Labs started') < 0 && head.indexOf('School email') < 0) return 0;
+  var added = 0;
+  /* In LABS order, so the columns end up in the order the styling expects. Anything else and
+     Tidy up would relabel a lab's column with a different lab's name, over its figures. */
+  for (var i = 0; i < LABS.length; i++) {
+    if (head.indexOf(LABS[i].name) >= 0) continue;
+    var at = head.indexOf('Labs started');      /* on the end of the labs already there, so no
+                                                   existing column is ever moved or relabelled */
+    if (at < 0) at = head.indexOf('School email');
+    sh.insertColumnBefore(at + 1);
+    sh.getRange(1, at + 1).setValue(LABS[i].name);
+    head.splice(at, 0, LABS[i].name);
+    added++;
+  }
+  return added;
+}
+
 function _labById(id) {
   for (var i = 0; i < LABS.length; i++) if (LABS[i].id === id) return LABS[i];
   return null;
@@ -1026,7 +1106,7 @@ function _seedLab(lab) {
   var sh = _labSheet(lab);
   var roster = _sheet(T_STUDENTS);
   if (roster.getLastRow() < 2) return sh;
-  var EMAIL_COL = 3 + LABS.length + 2;
+  var EMAIL_COL = _emailCol(roster);      /* the ROSTER's email column, not this lab tab's */
   var people = roster.getRange(2, 1, roster.getLastRow() - 1, EMAIL_COL).getValues();
 
   var have = {};

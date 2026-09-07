@@ -62,6 +62,21 @@ class Sheet {
   getLastColumn() { let m = 0; for (const k of this.cells.keys()) m = Math.max(m, +k.split(':')[1]); return m; }
   getMaxRows() { return this.maxR; } getMaxColumns() { return this.maxC; }
   insertColumnsAfter(a, n) { this.maxC += n; return this; }
+  /* Inserting a column shifts everything at or right of it one to the right, and the sheet
+     grows by one — the same as the real thing. Cells are keyed "row:col", so move them from
+     the right-hand end inwards or one would overwrite the next. Without this the column-repair
+     path could not be tested at all. */
+  insertColumnBefore(c) {
+    const moves = [];
+    for (const [k, v] of this.cells) {
+      const [r, col] = k.split(':').map(Number);
+      if (col >= c) moves.push([r, col, v]);
+    }
+    moves.sort((a, b) => b[1] - a[1]);
+    for (const [r, col, v] of moves) { this.cells.delete(this.key(r, col)); this.cells.set(this.key(r, col + 1), v); }
+    this.maxC += 1;
+    return this;
+  }
   deleteColumns(at, n) { if (at + n - 1 > this.maxC) throw new Error(`deleteColumns past the end on "${this.name}"`); this.maxC -= n; return this; }
   deleteRows(at, n) { if (at + n - 1 > this.maxR) throw new Error(`deleteRows past the end on "${this.name}"`); this.maxR -= n; return this; }
   appendRow(v) { const r = this.getLastRow() + 1; if (r > this.maxR) this.maxR = r; v.forEach((x, i) => this.put(r, i + 1, x)); return this; }
@@ -183,16 +198,20 @@ CLIENT_ID = 'CID';
 const hand = (o) => String(doPost({ postData: { contents: JSON.stringify(Object.assign({
   app: 'digestion-lab', name: 'Ana Lee', form: '9A', token: 'tok', complete: true,
   from: new Date(Date.now() - 3 * 864e5).toISOString(), stations: { mouth: '8/8 in 11' } }, o)) } }));
+/* However many questions the Digestion Lab actually asks. Hard-coding it meant every code
+   test broke the day the real count was corrected, which looked like a bug in the script. */
+const QN = LABS.filter(l => l.id === 'digestion-lab')[0].questions;
+
 const anaRow = () => ss.getSheetByName('Digestion').getRange(2, 1, 1, LAB_COLS.length).getValues()[0];
 
 ok &= run('a hand-in fills the row that was waiting', () => {
-  const out = hand({ score: 90, total: 113, checks: 214, firstTime: 71, code: _code('digestion-lab', 'Ana Lee', '9A', '90/113') });
+  const out = hand({ score: 90, total: QN, checks: 214, firstTime: 71, code: _code('digestion-lab', 'Ana Lee', '9A', '90/' + QN) });
   if (!/^recorded/.test(out)) throw new Error(out);
   const sh = ss.getSheetByName('Digestion');
   if (sh.getLastRow() !== 3) throw new Error('a row was added instead of filled');
   const r = anaRow();
-  if (r[2] !== 90 || r[3] !== 113) throw new Error('score not written: ' + r.slice(2, 5));
-  if (Math.abs(r[4] - 90 / 113) > 1e-9) throw new Error('percentage wrong: ' + r[4]);
+  if (r[2] !== 90 || r[3] !== QN) throw new Error('score not written: ' + r.slice(2, 5));
+  if (Math.abs(r[4] - 90 / QN) > 1e-9) throw new Error('percentage wrong: ' + r[4]);
   if (r[5] !== 'complete') throw new Error('finished flag wrong: ' + r[5]);
   if (r[9] !== 1) throw new Error('hand-ins should read 1, reads ' + r[9]);
   if (!(r[10] instanceof Date)) throw new Error('no date on the hand-in');
@@ -203,7 +222,7 @@ ok &= run('nobody else was touched', () => {
 });
 ok &= run('a worse second go keeps the better score but still counts', () => {
   const was = anaRow()[10];
-  const out = hand({ score: 40, total: 113, checks: 300, firstTime: 20, code: _code('digestion-lab', 'Ana Lee', '9A', '40/113') });
+  const out = hand({ score: 40, total: QN, checks: 300, firstTime: 20, code: _code('digestion-lab', 'Ana Lee', '9A', '40/' + QN) });
   const r = anaRow();
   if (r[2] !== 90) throw new Error('a worse run overwrote the best score: ' + r[2]);
   if (r[6] !== 214) throw new Error('the rest of the worse run leaked in');
@@ -212,9 +231,9 @@ ok &= run('a worse second go keeps the better score but still counts', () => {
   if (!/higher/.test(out)) throw new Error('should say an earlier one still scores higher: ' + out);
 });
 ok &= run('a better go replaces it', () => {
-  hand({ score: 113, total: 113, checks: 118, firstTime: 99, code: _code('digestion-lab', 'Ana Lee', '9A', '113/113') });
+  hand({ score: QN, total: QN, checks: 118, firstTime: 99, code: _code('digestion-lab', 'Ana Lee', '9A', QN + '/' + QN) });
   const r = anaRow();
-  if (r[2] !== 113 || r[6] !== 118 || r[7] !== 99) throw new Error('the better run was not kept: ' + r.slice(2, 8));
+  if (r[2] !== QN || r[6] !== 118 || r[7] !== 99) throw new Error('the better run was not kept: ' + r.slice(2, 8));
   if (r[9] !== 3) throw new Error('hand-ins should read 3, reads ' + r[9]);
 });
 ok &= run('handing in part-way through says so', () => {
@@ -228,7 +247,7 @@ ok &= run('handing in part-way through says so', () => {
 ok &= run('a student who joined after the import gets a row', () => {
   _upsertStudents([{ name: 'Chae Won', email: 'chae@x.kr', userId: 'u3' }], '9A', 'Y9 Biology', 'c1');
   TOKEN_EMAIL = 'chae@x.kr';
-  hand({ name: 'Chae Won', score: 50, total: 113, code: _code('digestion-lab', 'Chae Won', '9A', '50/113') });
+  hand({ name: 'Chae Won', score: 50, total: QN, code: _code('digestion-lab', 'Chae Won', '9A', '50/' + QN) });
   TOKEN_EMAIL = 'ana@x.kr';
   const sh = ss.getSheetByName('Digestion');
   if (sh.getLastRow() !== 4) throw new Error('rows: ' + (sh.getLastRow() - 1));
@@ -240,7 +259,7 @@ ok &= run('somebody not on the roster leaves no trace', () => {
   TOKEN_EMAIL = 'stranger@elsewhere.com';
   const before = ss.getSheetByName('Digestion').getLastRow();
   const rejBefore = ss.getSheetByName('Rejected') ? ss.getSheetByName('Rejected').getLastRow() : 0;
-  const out = hand({ name: 'A Stranger', score: 113, total: 113, code: _code('digestion-lab', 'A Stranger', '9A', '113/113') });
+  const out = hand({ name: 'A Stranger', score: QN, total: QN, code: _code('digestion-lab', 'A Stranger', '9A', QN + '/' + QN) });
   TOKEN_EMAIL = 'ana@x.kr';
   if (!/not on this class list/.test(out)) throw new Error('should have been turned away: ' + out);
   if (ss.getSheetByName('Digestion').getLastRow() !== before) throw new Error('a stranger was recorded');
@@ -251,14 +270,14 @@ ok &= run('somebody not on the roster leaves no trace', () => {
 });
 ok &= run('an unsigned hand-in leaves no trace', () => {
   const before = ss.getSheetByName('Digestion').getLastRow();
-  const out = String(doPost({ postData: { contents: JSON.stringify({ app: 'digestion-lab', name: 'X', score: 1, total: 113 }) } }));
+  const out = String(doPost({ postData: { contents: JSON.stringify({ app: 'digestion-lab', name: 'X', score: 1, total: QN }) } }));
   if (!/not signed in/.test(out)) throw new Error(out);
   if (ss.getSheetByName('Digestion').getLastRow() !== before) throw new Error('recorded anyway');
 });
 ok &= run('a student with a broken code is quarantined, not marked', () => {
   const rej = ss.getSheetByName('Rejected') ? ss.getSheetByName('Rejected').getLastRow() : 0;
   const best = anaRow()[2];
-  hand({ score: 999, total: 113, code: 'DL-XX-YY' });
+  hand({ score: 999, total: QN, code: 'DL-XX-YY' });
   if (ss.getSheetByName('Rejected').getLastRow() <= rej) throw new Error('not quarantined');
   if (anaRow()[2] !== best) throw new Error('a rejected hand-in still changed the mark');
 });
@@ -275,22 +294,22 @@ const askAbout = (code) => {
   return String(setupSheet().getRange(CODE_ROW + 1, 2).getValue());
 };
 ok &= run("a student's own code resolves to their name and score", () => {
-  const answer = askAbout(_code('digestion-lab', 'Ana Lee', '', '113/113'));
+  const answer = askAbout(_code('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
   if (!/Ana Lee/.test(answer)) throw new Error('did not name her: ' + answer);
-  if (!/113\/113/.test(answer)) throw new Error('did not give the score: ' + answer);
+  if (!new RegExp(QN + '\\/' + QN).test(answer)) throw new Error('did not give the score: ' + answer);
   if (!/finished/.test(answer)) throw new Error('did not say it was complete: ' + answer);
 });
 ok &= run('a part-way code resolves too, and says so', () => {
-  const answer = askAbout(_code('digestion-lab', 'Bo Kim', '9A', '20/113'));
-  if (!/Bo Kim/.test(answer) || !/20\/113/.test(answer)) throw new Error(answer);
+  const answer = askAbout(_code('digestion-lab', 'Bo Kim', '9A', '20/' + QN));
+  if (!/Bo Kim/.test(answer) || !new RegExp('20\\/' + QN).test(answer)) throw new Error(answer);
   if (!/part way/.test(answer)) throw new Error('should say part way: ' + answer);
 });
 ok &= run('it says whether the hand-in actually arrived', () => {
-  const answer = askAbout(_code('digestion-lab', 'Ana Lee', '', '113/113'));
+  const answer = askAbout(_code('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
   if (!/Already in the Digestion tab/.test(answer)) throw new Error(answer);
 });
 ok &= run("a stranger's code cannot be read, and it says why", () => {
-  const answer = askAbout(_code('digestion-lab', 'Someone In Peru', '', '113/113'));
+  const answer = askAbout(_code('digestion-lab', 'Someone In Peru', '', QN + '/' + QN));
   if (!/Could not read that code/.test(answer)) throw new Error(answer);
 });
 ok &= run('an invented code is refused', () => {
@@ -304,7 +323,7 @@ ok &= run('a code already in a lab tab is looked up, not guessed at', () => {
      Riera", so the code can never be reconstructed from the roster name — but it is sitting
      in the Code column of his row, and that is where it is found. */
   const sh = ss.getSheetByName('Digestion');
-  const code = _code('digestion-lab', 'Ana Lee Full Name From Google', '', '113/113');
+  const code = _code('digestion-lab', 'Ana Lee Full Name From Google', '', QN + '/' + QN);
   sh.getRange(2, 12).setValue(code);
   const answer = askAbout(code);
   if (!/Ana Lee/.test(answer)) throw new Error('did not find the row it is written on: ' + answer);
@@ -314,13 +333,13 @@ ok &= run('a Google name seen on a hand-in is remembered and tried', () => {
   const sh = ss.getSheetByName('Digestion');
   sh.getRange(3, LAB_GNAME).setValue('Bo Kim As Google Spells It');
   sh.getRange(3, 12).setValue('');                       /* so it cannot just be looked up */
-  const answer = askAbout(_code('digestion-lab', 'Bo Kim As Google Spells It', '', '77/113'));
+  const answer = askAbout(_code('digestion-lab', 'Bo Kim As Google Spells It', '', '77/' + QN));
   if (!/Bo Kim As Google Spells It/.test(answer)) throw new Error(answer);
-  if (!/77\/113/.test(answer)) throw new Error(answer);
+  if (!new RegExp('77\\/' + QN).test(answer)) throw new Error(answer);
 });
 ok &= run('clearing the code clears the answer under it', () => {
   const sh = setupSheet();
-  askAbout(_code('digestion-lab', 'Ana Lee', '', '113/113'));
+  askAbout(_code('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
   if (!String(sh.getRange(CODE_ROW + 1, 2).getValue())) throw new Error('no answer to clear');
   sh.getRange(CODE_ROW, 2).setValue('');                       /* he deletes the code */
   onButtonTicked({ range: sh.getRange(CODE_ROW, 2) });
@@ -329,7 +348,7 @@ ok &= run('clearing the code clears the answer under it', () => {
 });
 ok &= run('typing a new code replaces the old answer with a prompt', () => {
   const sh = setupSheet();
-  askAbout(_code('digestion-lab', 'Ana Lee', '', '113/113'));
+  askAbout(_code('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
   sh.getRange(CODE_ROW, 2).setValue('DL-ZZZZ-ZZZZ');
   onButtonTicked({ range: sh.getRange(CODE_ROW, 2) });
   const now = String(sh.getRange(CODE_ROW + 1, 2).getValue());
@@ -338,7 +357,7 @@ ok &= run('typing a new code replaces the old answer with a prompt', () => {
 });
 ok &= run('editing anything else on Setup is left alone', () => {
   const sh = setupSheet();
-  askAbout(_code('digestion-lab', 'Ana Lee', '', '113/113'));
+  askAbout(_code('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
   const before = String(sh.getRange(CODE_ROW + 1, 2).getValue());
   onButtonTicked({ range: sh.getRange(URL_ROW, 2) });          /* he edits the web app URL */
   if (String(sh.getRange(CODE_ROW + 1, 2).getValue()) !== before) throw new Error('an unrelated edit wiped it');
@@ -373,11 +392,17 @@ console.log('— and afterwards —');
 ok &= run('the dashboard shows the marks', () => {
   refreshDashboard();
   const sh = ss.getSheetByName('Students');
-  const row = sh.getRange(2, 1, 1, 3 + LABS.length + 2).getValues()[0];
+  /* By heading, not by position: which column a lab occupies depends on the order of LABS
+     and on what the sheet already had, and a test that counts columns breaks the day a lab
+     is added — while telling you the mark is missing rather than that the test is wrong. */
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                 .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const col = n => { const i = head.indexOf(n); if (i < 0) throw new Error('no column "' + n + '"'); return i; };
+  const row = sh.getRange(2, 1, 1, sh.getLastColumn()).getValues()[0];
   if (row[0] !== 'Ana Lee') throw new Error('wrong student first');
-  if (Math.abs(row[2] - 1) > 1e-9) throw new Error("Ana's digestion mark is " + row[2]);
-  if (row[3] !== '') throw new Error('a lab nobody has done shows a mark');
-  if (row[2 + LABS.length] !== 1) throw new Error('labs-done count is ' + row[2 + LABS.length]);
+  if (Math.abs(row[col('Digestion')] - 1) > 1e-9) throw new Error("Ana's digestion mark is " + row[col('Digestion')]);
+  if (row[col('Immunity')] !== '') throw new Error('a lab nobody has done shows a mark');
+  if (row[col('Labs started')] !== 1) throw new Error('labs-done count is ' + row[col('Labs started')]);
 });
 ok &= run('tidy up leaves every mark alone', () => {
   const before = JSON.stringify(ss.getSheetByName('Digestion').getRange(1, 1, 4, LAB_COLS.length).getValues());
