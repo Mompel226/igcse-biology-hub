@@ -283,14 +283,23 @@
   var pe = document.getElementById('prog-digestion');
   if (pe) { var t = digestionProgress(); if (t) pe.textContent = t; else pe.parentNode.removeChild(pe); }
 
-  /* ---------- 6. credits ---------- */
+  /* ---------- 6. credits ----------
+     Both editions ship this file, so the link to the full credits works out which
+     repository it is in from the address rather than being told: a GitHub Pages URL
+     is <user>.github.io/<repo>/. Off Pages, fall back to the file beside the page. */
+  function creditsHref() {
+    var m = /^https?:\/\/([^.]+)\.github\.io\/([^/]+)/.exec(location.href);
+    return m ? 'https://github.com/' + m[1] + '/' + m[2] + '/blob/main/assets/doors/CREDITS.md'
+             : 'assets/doors/CREDITS.md';
+  }
+
   var cr = document.getElementById('credits');
   if (cr && CREDITS.length) {
     cr.innerHTML = 'Doors: ' + CREDITS.map(function (c) {
       var t = c.url ? '<a href="' + c.url + '" target="_blank" rel="noopener">' + esc(c.text) + '</a>' : esc(c.text);
       return '<span class="cr"><b>' + esc(c.door) + '</b> — ' + t + (c.licence ? ' (' + esc(c.licence) + ')' : '') + '</span>';
     }).join(' · ') +
-    '. <a href="https://github.com/Mompel226/biology-hub/blob/main/assets/doors/CREDITS.md" target="_blank" rel="noopener">Full credits</a>.';
+    '. <a href="' + creditsHref() + '" target="_blank" rel="noopener">Full credits</a>.';
   }
 
   /* ---------- 7. toast ---------- */
