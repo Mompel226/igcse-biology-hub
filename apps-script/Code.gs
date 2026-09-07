@@ -557,6 +557,7 @@ function _buildAndStyle() {
   _installButtons();
   restyleAll();
   refreshDashboard();
+  _orderTabs();                     /* left to right, topic 1 to topic 21 */
 }
 
 function setup() {
@@ -1082,6 +1083,32 @@ function _repairStudentColumns() {
     added++;
   }
   return added;
+}
+
+/* Put the tabs in the order of the syllabus: Setup, Labs, Students, then topic 1 to topic 21,
+   then Rejected. A tab is only ever created when a lab is added, so it lands on the end and the
+   order becomes the order labs happened to be built in. This moves them instead of rebuilding
+   anything, so no data is touched. Any tab of your own that is not in this list is left where
+   it is, after the ones that are. */
+function _orderTabs() {
+  var ss = _ss();
+  var want = [T_SETUP, T_LABS, T_STUDENTS]
+             .concat(LABS.map(function (l) { return l.name; }))
+             .concat([T_REJECTED]);
+  var looking = null;
+  try { looking = ss.getActiveSheet(); } catch (e) {}     /* put the teacher back where they were */
+  var pos = 0, moved = 0;
+  for (var i = 0; i < want.length; i++) {
+    var sh = ss.getSheetByName(want[i]);
+    if (!sh) continue;                                    /* a lab with no tab yet */
+    pos++;
+    if (sh.getIndex() === pos) continue;                  /* already in the right place */
+    ss.setActiveSheet(sh);
+    ss.moveActiveSheet(pos);
+    moved++;
+  }
+  if (looking) { try { ss.setActiveSheet(looking); } catch (e) {} }
+  return moved;
 }
 
 function _labById(id) {
