@@ -13,6 +13,8 @@ window.LABS_REGISTER = {
     "shelf   which hub the lab sits behind, so progress can be rolled up.",
     "node tools/status.mjs reports anything that disagrees with this file."
   ],
+  "submitUrl": "https://script.google.com/macros/s/AKfycbzwjMHaa88OL_GzR8wZ2mV6a8rs1CKYahbW5iOTQPyzWzCGIrAZPApGsP2oujK34tRc/exec",
+
   "labs": [
     { "id": "digestion-lab", "name": "Digestion Lab", "short": "Digestion",
       "topicNo": 7, "topic": "Human nutrition", "shelf": "human-body",
