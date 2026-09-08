@@ -17,6 +17,25 @@ class Range {
     return this;
   }
   setValue(x) { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sheet.put(this.r + i, this.c + j, x); return this; }
+  /* The grid-at-a-time setters. They are checked for shape exactly like setValues, because a
+     wrong-sized grid is the whole reason to batch carefully rather than call in a loop. */
+  _grid(name, v) {
+    if (!Array.isArray(v) || v.length !== this.nr) throw new Error(`${name}: expected ${this.nr} rows, got ${v && v.length} on "${this.sheet.name}"`);
+    for (const row of v) {
+      if (!Array.isArray(row) || row.length !== this.nc) throw new Error(`${name}: expected ${this.nc} cols, got ${row && row.length} on "${this.sheet.name}" at r${this.r}c${this.c}`);
+    }
+    return this;
+  }
+  setBackgrounds(v) { return this._grid('setBackgrounds', v); }
+  setNotes(v) {
+    this._grid('setNotes', v);
+    for (const row of v) for (const n of row) if (n != null && typeof n !== 'string') throw new Error('setNotes wants strings');
+    return this;
+  }
+  setWraps(v) { return this._grid('setWraps', v); }
+  setNumberFormats(v) { return this._grid('setNumberFormats', v); }
+  setHorizontalAlignments(v) { return this._grid('setHorizontalAlignments', v); }
+  setDataValidations(v) { return this._grid('setDataValidations', v); }
   getValues() {
     const out = [];
     for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sheet.get(this.r + i, this.c + j)); out.push(row); }
@@ -50,6 +69,11 @@ class Sheet {
   }
   get(r, c) { const v = this.cells.get(this.key(r, c)); return v === undefined ? '' : v; }
   getName() { return this.name; }
+  setRowHeights(start, num, h) {
+    if (start < 1 || num < 1) throw new Error(`setRowHeights out of bounds on "${this.name}": start ${start}, num ${num}`);
+    if (start + num - 1 > this.maxR) throw new Error(`setRowHeights past the end of "${this.name}": rows ${start}..${start + num - 1} of ${this.maxR}`);
+    return this;
+  }
   getRange(a, b, c, d) {
     if (typeof a === 'string') { const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(a); if (!m) throw new Error('bad A1: ' + a);
       const col = s => s.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
@@ -78,7 +102,23 @@ class Sheet {
     this.maxC += 1;
     return this;
   }
-  deleteColumns(at, n) { if (at + n - 1 > this.maxC) throw new Error(`deleteColumns past the end on "${this.name}"`); this.maxC -= n; return this; }
+  /* Really removes the cells and slides everything to the right of them left, the way the real
+     thing does. Only shrinking maxC would have let a repair "delete" a column while its data
+     stayed exactly where it was, and the test would have passed on a lie. */
+  deleteColumns(at, n) {
+    if (at + n - 1 > this.maxC) throw new Error(`deleteColumns past the end on "${this.name}"`);
+    const moves = [];
+    for (const [k, v] of this.cells) {
+      const [r, col] = k.split(':').map(Number);
+      if (col >= at && col < at + n) this.cells.delete(k);
+      else if (col >= at + n) moves.push([r, col, v]);
+    }
+    moves.sort((a, b) => a[1] - b[1]);
+    for (const [r, col, v] of moves) { this.cells.delete(this.key(r, col)); this.cells.set(this.key(r, col - n), v); }
+    this.maxC -= n;
+    return this;
+  }
+  deleteColumn(c) { return this.deleteColumns(c, 1); }
   deleteRows(at, n) { if (at + n - 1 > this.maxR) throw new Error(`deleteRows past the end on "${this.name}"`); this.maxR -= n; return this; }
   appendRow(v) { const r = this.getLastRow() + 1; if (r > this.maxR) this.maxR = r; v.forEach((x, i) => this.put(r, i + 1, x)); return this; }
   getBandings() { return this._bandings.map(() => ({ remove: () => {} })); }
@@ -457,6 +497,221 @@ ok &= run('the tabs end up in syllabus order, however they started', () => {
 
 ok &= run('running it again moves nothing', () => {
   if (_orderTabs() !== 0) throw new Error('it moved tabs that were already in place');
+});
+
+
+/* ============================================================================
+   THE AUDIT — every lab in the register, not only the two that exist yet, and a
+   Students tab that has been knocked about the way a real one gets knocked about.
+   ============================================================================ */
+console.log('— every lab in the register —');
+
+const rowOf = (tab, email) => {
+  const sh = ss.getSheetByName(tab);
+  if (!sh || sh.getLastRow() < 2) return null;
+  const v = sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues();
+  for (const r of v) if (String(r[LAB_EMAIL - 1]).toLowerCase() === email) return r;
+  return null;
+};
+
+ok &= run('the register agrees with what the labs were actually built with', () => {
+  const reg = JSON.parse(fs.readFileSync('../../labs-shared/labs.json', 'utf8'));
+  const list = Array.isArray(reg) ? reg : (reg.labs || []);
+  const wrong = [];
+  list.forEach(r => {
+    const mine = LABS.filter(l => l.id === r.id)[0];
+    if (!mine) { wrong.push(r.id + ' is in labs.json but not in LABS'); return; }
+    const want = Number(r.questions || 0), got = Number(mine.questions || 0);
+    if (want && want !== got) wrong.push(r.id + ': labs.json says ' + want + ', Code.gs says ' + got);
+  });
+  /* A disagreement here does not refuse a hand-in — it flags every one of them "NOT ALL
+     QUESTIONS", which is worse, because it looks like the student's fault. */
+  if (wrong.length) throw new Error(wrong.join('; '));
+});
+
+global.TOKEN_EMAIL = 'zed@x.kr';
+ok &= run('a fresh student can be added for the audit', () => {
+  _upsertStudents([{ name: 'Zed Audit', email: 'zed@x.kr', userId: 'u9' }], '9A', 'Y9 Biology', 'c1');
+  if (!rowOf('Digestion', 'zed@x.kr')) throw new Error('no row waiting in Digestion');
+});
+
+/* Each lab's page stamps its own letters on a code: DL- for Digestion, CL- for Classification,
+   and a lab built next term will bring its own. Only the body is ever compared, so every lab
+   here deliberately uses a different prefix, including a three-letter one and none at all.
+   The script used to demand "DL-" and silently refused every Classification hand-in. */
+const PREFIXES = ['DL-', 'CL-', 'BIO-', '', 'X-'];
+
+ok &= run('every lab records a hand-in, whatever letters its codes carry', () => {
+  const failed = [];
+  LABS.forEach((lab, i) => {
+    const total = lab.questions || 50;
+    const score = Math.max(1, Math.floor(total / 3));
+    const code = PREFIXES[i % PREFIXES.length] + _code(lab.id, 'Zed Audit', '9A', score + '/' + total);
+    const out = hand({ app: lab.id, name: 'Zed Audit', score, total, complete: false, code });
+    if (!/^recorded/.test(out)) { failed.push(lab.name + ' [' + PREFIXES[i % PREFIXES.length] + ']: ' + out); return; }
+    const row = rowOf(lab.name, 'zed@x.kr');
+    if (!row) { failed.push(lab.name + ': recorded, but no row carries the address'); return; }
+    if (Number(row[2]) !== score || Number(row[3]) !== total) {
+      failed.push(lab.name + ': tab says ' + row[2] + '/' + row[3] + ', wanted ' + score + '/' + total);
+    }
+  });
+  if (failed.length) throw new Error(failed.length + ' of ' + LABS.length + ' labs failed:\n   ' + failed.join('\n   '));
+});
+
+ok &= run('a wrong code is still refused, for every lab', () => {
+  const slipped = [];
+  LABS.forEach(lab => {
+    const total = lab.questions || 50;
+    const out = hand({ app: lab.id, name: 'Zed Audit', score: 7, total, complete: false,
+                       code: 'DL-AAAA-AAAA' });
+    if (!/^rejected/.test(out)) slipped.push(lab.name + ': ' + out);
+  });
+  if (slipped.length) throw new Error('accepted a made-up code for: ' + slipped.join(', '));
+});
+
+ok &= run('a hand-in for every lab can be read back from its code', () => {
+  const unreadable = [];
+  LABS.forEach((lab, i) => {
+    if (!lab.questions) return;                 /* a lab with no questions issues no codes to guess at */
+    const total = lab.questions;
+    const score = Math.max(1, Math.floor(total / 3));
+    const code = PREFIXES[i % PREFIXES.length] + _code(lab.id, 'Zed Audit', '9A', score + '/' + total);
+    const answer = askAbout(code);
+    if (!/Zed Audit/.test(answer)) unreadable.push(lab.name + ': ' + answer.slice(0, 90));
+  });
+  if (unreadable.length) throw new Error(unreadable.join('\n   '));
+});
+
+console.log('— a Students tab that has been knocked about —');
+
+ok &= run('Tidy up clears repeated columns, keeps ones with data, and cleans addresses', () => {
+  const sh = ss.getSheetByName('Students');
+  const head = () => sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                       .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const emailCol = () => head().indexOf('School email') + 1;
+  const marksBefore = ss.getSheetByName('Digestion')
+    .getRange(2, 1, ss.getSheetByName('Digestion').getLastRow() - 1, LAB_COLS.length).getValues();
+
+  /* the damage, exactly as it turned up on the real sheet */
+  const n = sh.getLastColumn();
+  sh.insertColumnsAfter(sh.getMaxColumns(), 4);          /* room to make a mess in */
+  sh.getRange(1, n + 1).setValue('Classroom user id');     /* a repeat, with nothing under it */
+  sh.getRange(1, n + 2).setValue('Course id');             /* the same */
+  sh.getRange(1, n + 3).setValue('Old Topic 22');          /* a lab taken out of LABS... */
+  sh.getRange(2, n + 3).setValue('41');                    /* ...that still holds a mark */
+  const ec = emailCol();
+  /* Zed's OWN row, found by name. One student's address on another's row is a different
+     fault, and the roster check is what catches that one. Note the space here is a
+     non-breaking one, which is what a paste from a web page actually carries. */
+  const names = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().map(r => String(r[0]));
+  const zedRow = names.indexOf('Zed Audit') + 2;
+  if (zedRow < 2) throw new Error('cannot find Zed on the roster');
+  sh.getRange(zedRow, ec).setValue('  ZED@x.kr ');         /* pasted, with a space each side */
+
+  const report = setup();
+
+  const h = head();
+  const count = (name) => h.filter(x => x === name).length;
+  if (count('Classroom user id') !== 1) throw new Error('the repeated column is still there: ' + h.join(' | '));
+  if (count('Course id') !== 1) throw new Error('the repeated Course id is still there');
+  if (count('Old Topic 22') !== 1) throw new Error('a column holding a mark was deleted — that must never happen');
+  if (!/Kept, because there is still something/.test(report)) throw new Error('it did not say what it kept: ' + report);
+  if (!/Old Topic 22/.test(report)) throw new Error('it kept the column but did not name it: ' + report);
+
+  const cleaned = String(sh.getRange(zedRow, emailCol()).getValue());
+  if (cleaned !== 'zed@x.kr') throw new Error('the address was not cleaned: ' + JSON.stringify(cleaned));
+  if (!/address/.test(report)) throw new Error('it cleaned an address without saying so: ' + report);
+
+  const marksAfter = ss.getSheetByName('Digestion')
+    .getRange(2, 1, ss.getSheetByName('Digestion').getLastRow() - 1, LAB_COLS.length).getValues();
+  if (JSON.stringify(marksAfter) !== JSON.stringify(marksBefore)) throw new Error('a mark moved during Tidy up');
+});
+
+ok &= run('a cleaned address still finds the same row — no duplicate is made', () => {
+  const dg = ss.getSheetByName('Digestion');
+  const before = dg.getLastRow();
+  const out = hand({ app: 'digestion-lab', name: 'Zed Audit', score: QN, total: QN, complete: true,
+                     code: 'DL-' + _code('digestion-lab', 'Zed Audit', '9A', QN + '/' + QN) });
+  if (!/^recorded/.test(out)) throw new Error('refused after the address was cleaned: ' + out);
+  if (dg.getLastRow() !== before) throw new Error('it made a second row for the same student');
+});
+
+ok &= run('two rows sharing one address are reported, and nothing is deleted', () => {
+  /* This is not hypothetical: it is what happens when a name is added by hand and the address
+     is copied from the row above. The first row wins every hand-in, and the second student's
+     name is written over the first one's on every lab tab — marks appearing to move between
+     people. Nothing can be deleted safely, so it has to be said out loud. */
+  const sh = ss.getSheetByName('Students');
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                 .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const ec = head.indexOf('School email') + 1;
+  const rows = sh.getLastRow() - 1;
+  const before = sh.getRange(2, ec, rows, 1).getValues();
+  const mine = String(before[0][0]);
+
+  sh.getRange(3, ec).setValue(mine);                 /* row 3 now claims row 2's address */
+  const report = setup();
+
+  if (!/TWO ROWS SHARE ONE ADDRESS/.test(report)) throw new Error('it said nothing: ' + report);
+  if (!new RegExp(mine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(report)) {
+    throw new Error('it did not name the address: ' + report);
+  }
+  if (sh.getLastRow() - 1 !== rows) throw new Error('a row was removed — that must never happen');
+
+  sh.getRange(2, ec, rows, 1).setValues(before);     /* put the roster back */
+  setup();
+});
+
+console.log('— a lab added in the middle of the year —');
+
+ok &= run('adding a lab keeps every mark exactly where it was', () => {
+  refreshDashboard();          /* settle the dashboard first, or its own catching-up looks like damage */
+  const dg = ss.getSheetByName('Digestion');
+  const marksBefore = dg.getRange(2, 1, dg.getLastRow() - 1, LAB_COLS.length).getValues();
+  const stu = ss.getSheetByName('Students');
+  const headBefore = stu.getRange(1, 1, 1, stu.getLastColumn()).getValues()[0]
+                        .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const digCol = headBefore.indexOf('Digestion');
+  const digBefore = stu.getRange(2, digCol + 1, stu.getLastRow() - 1, 1).getValues();
+
+  LABS.push({ id: 'brand-new-lab', name: 'Brand New', topic: '22 · Something new', questions: 0 });
+  setup();
+
+  const headAfter = stu.getRange(1, 1, 1, stu.getLastColumn()).getValues()[0]
+                       .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  if (headAfter.indexOf('Brand New') < 0) throw new Error('the new lab got no column');
+  if (!ss.getSheetByName('Brand New')) throw new Error('the new lab got no tab');
+
+  const digAfter = stu.getRange(2, headAfter.indexOf('Digestion') + 1, stu.getLastRow() - 1, 1).getValues();
+  if (JSON.stringify(digAfter) !== JSON.stringify(digBefore)) {
+    throw new Error('the Digestion column moved but its figures did not follow it');
+  }
+  const marksAfter = dg.getRange(2, 1, dg.getLastRow() - 1, LAB_COLS.length).getValues();
+  if (JSON.stringify(marksAfter) !== JSON.stringify(marksBefore)) {
+    const diff = [];
+    marksAfter.forEach((row, r) => row.forEach((v, c) => {
+      const was = (marksBefore[r] || [])[c];
+      if (JSON.stringify(v) !== JSON.stringify(was)) {
+        diff.push('row ' + (r + 2) + ' "' + LAB_COLS[c].h + '": ' +
+                  JSON.stringify(was) + ' -> ' + JSON.stringify(v));
+      }
+    }));
+    throw new Error('a mark changed:\n   ' + diff.join('\n   '));
+  }
+
+  LABS.pop();                                   /* leave the register as it was found */
+});
+
+ok &= run('a lab taken back out leaves its marks alone and says so', () => {
+  const report = setup();
+  const stu = ss.getSheetByName('Students');
+  const h = stu.getRange(1, 1, 1, stu.getLastColumn()).getValues()[0]
+               .map(x => String(x || '').replace(/^✎\s*/, '').trim());
+  /* Brand New has no marks under it, so it is cleared away quietly. Old Topic 22 has one, so
+     it stays — that is the rule the whole repair works to. */
+  if (h.indexOf('Brand New') >= 0) throw new Error('an empty column for a removed lab was left behind');
+  if (h.indexOf('Old Topic 22') < 0) throw new Error('a column holding a mark was removed');
+  if (!/Old Topic 22/.test(report)) throw new Error('it stopped naming what it kept: ' + report);
 });
 
 const st = ss.getSheetByName('Students');
