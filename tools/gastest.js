@@ -87,6 +87,7 @@ class Sheet {
   getLastColumn() { let m = 0; for (const k of this.cells.keys()) m = Math.max(m, +k.split(':')[1]); return m; }
   getMaxRows() { return this.maxR; } getMaxColumns() { return this.maxC; }
   insertColumnsAfter(a, n) { this.maxC += n; return this; }
+  insertRowsAfter(a, n) { this.maxR += n; return this; }
   /* Inserting a column shifts everything at or right of it one to the right, and the sheet
      grows by one — the same as the real thing. Cells are keyed "row:col", so move them from
      the right-hand end inwards or one would overwrite the next. Without this the column-repair
@@ -119,7 +120,22 @@ class Sheet {
     return this;
   }
   deleteColumn(c) { return this.deleteColumns(c, 1); }
-  deleteRows(at, n) { if (at + n - 1 > this.maxR) throw new Error(`deleteRows past the end on "${this.name}"`); this.maxR -= n; return this; }
+  /* Really removes the cells and slides what is below them up, the same as deleteColumns.
+     Only shrinking maxR let a "deleted" row keep its data exactly where it was. */
+  deleteRows(at, n) {
+    if (at + n - 1 > this.maxR) throw new Error(`deleteRows past the end on "${this.name}"`);
+    const moves = [];
+    for (const [k, v] of this.cells) {
+      const [r, col] = k.split(':').map(Number);
+      if (r >= at && r < at + n) this.cells.delete(k);
+      else if (r >= at + n) moves.push([r, col, v]);
+    }
+    moves.sort((a, b) => a[0] - b[0]);
+    for (const [r, col, v] of moves) { this.cells.delete(this.key(r, col)); this.cells.set(this.key(r - n, col), v); }
+    this.maxR -= n;
+    return this;
+  }
+  deleteRow(r) { return this.deleteRows(r, 1); }
   appendRow(v) { const r = this.getLastRow() + 1; if (r > this.maxR) this.maxR = r; v.forEach((x, i) => this.put(r, i + 1, x)); return this; }
   getBandings() { return this._bandings.map(() => ({ remove: () => {} })); }
   getFilter() { return this._filter ? { remove: () => { this._filter = false; } } : null; }
@@ -163,7 +179,15 @@ global.SpreadsheetApp = {
 };
 const props = new Map();
 global.PropertiesService = { getScriptProperties: () => ({ getProperty: k => props.get(k) || null, setProperty: (k, v) => props.set(k, v) }) };
-global.CacheService = { getScriptCache: () => ({ put: () => {}, get: () => null }) };  /* never a hit, so each call re-verifies */
+/* A real cache, EXCEPT for verified tokens: those keys stay a miss so every hand-in
+   re-verifies rather than passing on a cached yes. The import's progress does need to come
+   back out again, or the dialog has nothing to read. */
+const cacheStore = new Map();
+const cacheWrites = [];                    /* every put, in order — the dialog's whole view */
+global.CacheService = { getScriptCache: () => ({
+  put: (k, v) => { if (!/^ID_/.test(k)) { cacheStore.set(k, v); cacheWrites.push([k, v]); } },
+  get: (k) => (/^ID_/.test(k) ? null : (cacheStore.get(k) || null))
+}) };
 global.ContentService = { createTextOutput: t => ({ setMimeType: () => t }), MimeType: { TEXT: 1, JSON: 2, JAVASCRIPT: 3 } };
 global.HtmlService = { createHtmlOutputFromFile: () => ({ setWidth: () => ({ setHeight: () => ({}) }) }) };
 global.ScriptApp = { getProjectTriggers: () => [], newTrigger: () => ({ forSpreadsheet: () => ({ onEdit: () => ({ create: () => {} }) }) }) };
@@ -660,6 +684,154 @@ ok &= run('two rows sharing one address are reported, and nothing is deleted', (
 
   sh.getRange(2, ec, rows, 1).setValues(before);     /* put the roster back */
   setup();
+});
+
+console.log('— taking somebody off the Students tab —');
+
+const studentsRowOf = (name) => {
+  const sh = ss.getSheetByName('Students');
+  const v = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().map(r => String(r[0]));
+  return v.indexOf(name) + 2;
+};
+
+ok &= run('TEST is always an accepted class', () => {
+  const list = _classList();
+  if (list.indexOf('TEST') < 0) throw new Error('TEST is not offered: ' + list.join(', '));
+});
+
+ok &= run('a row of your own with class TEST survives Tidy up', () => {
+  const sh = ss.getSheetByName('Students');
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                 .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const ec = head.indexOf('School email') + 1;
+  const r = sh.getLastRow() + 1;
+  sh.getRange(r, 1).setValue('Dr Tester');
+  sh.getRange(r, 2).setValue('TEST');
+  sh.getRange(r, ec).setValue('tester@x.kr');
+  setup();
+  const back = studentsRowOf('Dr Tester');
+  if (back < 2) throw new Error('the row was removed');
+  if (String(sh.getRange(back, 2).getValue()) !== 'TEST') throw new Error('the class was changed');
+  /* and the point of adding a row by hand: it reaches every lab tab */
+  const missing = LABS.filter(l => !rowOf(l.name, 'tester@x.kr')).map(l => l.name);
+  if (missing.length) throw new Error('no row on: ' + missing.join(', '));
+});
+
+ok &= run('removing them from Students removes them from every lab tab', () => {
+  const sh = ss.getSheetByName('Students');
+  const r = studentsRowOf('Dr Tester');
+  if (r < 2) throw new Error('setup for this test is wrong');
+  sh.deleteRows(r, 1);
+  const report = setup();
+  const left = LABS.filter(l => rowOf(l.name, 'tester@x.kr')).map(l => l.name);
+  if (left.length) throw new Error('still on: ' + left.join(', '));
+  if (!/removed from/.test(report)) throw new Error('it did not say it had done it: ' + report);
+});
+
+ok &= run('somebody removed from Students but holding marks is KEPT and named', () => {
+  const sh = ss.getSheetByName('Students');
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                 .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const ec = head.indexOf('School email') + 1;
+  const r = sh.getLastRow() + 1;
+  sh.getRange(r, 1).setValue('Left School');
+  sh.getRange(r, 2).setValue('9A');
+  sh.getRange(r, ec).setValue('gone@x.kr');
+  setup();
+
+  global.TOKEN_EMAIL = 'gone@x.kr';
+  const out = hand({ app: 'digestion-lab', name: 'Left School', score: 12, total: QN,
+                     complete: false, code: 'DL-' + _code('digestion-lab', 'Left School', '9A', '12/' + QN) });
+  if (!/^recorded/.test(out)) throw new Error('could not set the test up: ' + out);
+  global.TOKEN_EMAIL = 'zed@x.kr';
+
+  sh.deleteRows(studentsRowOf('Left School'), 1);
+  const report = setup();
+
+  const stillThere = rowOf('Digestion', 'gone@x.kr');
+  if (!stillThere) throw new Error('a row holding marks was deleted — that must never happen');
+  if (Number(stillThere[2]) !== 12) throw new Error('the mark changed: ' + stillThere[2]);
+  if (!/Left School/.test(report)) throw new Error('it kept the row but did not say so: ' + report);
+  /* and the empty rows on every other lab did go */
+  const emptyLeft = LABS.filter(l => l.name !== 'Digestion' && rowOf(l.name, 'gone@x.kr')).map(l => l.name);
+  if (emptyLeft.length) throw new Error('empty rows left behind on: ' + emptyLeft.join(', '));
+});
+
+ok &= run('a second class can be imported after the sheet has been trimmed', () => {
+  /* Formatting trims every tab to six spare rows. A fresh sheet's thousand rows hide this,
+     so it only shows up on the SECOND import: writing past the last row throws, and the
+     import dies part way with some tabs done and some not. */
+  setup();                                     /* trim everything down first */
+  const dg = ss.getSheetByName('Digestion');
+  const spare = dg.getMaxRows() - dg.getLastRow();
+  if (spare > 20) throw new Error('the tab was not trimmed, so this proves nothing: ' + spare + ' spare rows');
+
+  const newLot = [];
+  for (let i = 0; i < 25; i++) newLot.push({ name: 'New Kid ' + i, email: 'new' + i + '@x.kr', userId: 'n' + i });
+  _upsertStudents(newLot, '9Z', 'Y9 Biology Z', 'cz');
+
+  const missing = LABS.filter(l => !rowOf(l.name, 'new24@x.kr')).map(l => l.name);
+  if (missing.length) throw new Error('the last of them never reached: ' + missing.join(', '));
+  setup();
+  const stillMissing = LABS.filter(l => !rowOf(l.name, 'new24@x.kr')).map(l => l.name);
+  if (stillMissing.length) throw new Error('Tidy up lost them again: ' + stillMissing.join(', '));
+
+  /* put the roster back so the later tests see what they expect */
+  const sh = ss.getSheetByName('Students');
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                 .map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const ec = head.indexOf('School email') + 1;
+  const addr = sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues().map(r => String(r[0]));
+  for (let i = addr.length - 1; i >= 0; i--) if (/^new\d+@x\.kr$/.test(addr[i])) sh.deleteRows(i + 2, 1);
+  setup();
+});
+
+console.log('— importing from Classroom —');
+
+ok &= run('an import says what it is doing, and only says done when it is', () => {
+  /* The complaint this fixes: the dialog was told the job had finished BEFORE the long part
+     started, so it sat there looking done while the script formatted twenty tabs in silence. */
+  cacheWrites.length = 0;
+  global.Classroom = {
+    Courses: {
+      list: () => ({ courses: [{ id: 'c7', name: 'Y9 Biology', section: 'Set 3' }] }),
+      Students: { list: () => ({ students: [
+        { userId: 'i1', profile: { name: { fullName: 'Imported One' }, emailAddress: ' Imp1@X.KR ' } },
+        { userId: 'i2', profile: { name: { fullName: 'Imported Two' }, emailAddress: 'imp2@x.kr' } }
+      ] }) }
+    }
+  };
+  let out;
+  try {
+    out = executeBatchImportAll([{ courseId: 'c7', classCode: '9Y', courseName: 'Y9 Biology' }], 'job1');
+  } finally {
+    global.Classroom = undefined;
+  }
+
+  /* exactly what the dialog would have read, in the order it would have read it */
+  const seen = cacheWrites
+    .filter(([k]) => k === 'BATCH_IMPORT_job1')
+    .map(([, v]) => JSON.parse(v))
+    .map(o => ({ done: !!o.done, phase: o.phase || '' }));
+  if (!seen.length) throw new Error('the dialog was told nothing at all');
+
+  if (!out || out[0].status !== 'success') throw new Error('the import itself failed: ' + JSON.stringify(out));
+  const last = seen[seen.length - 1];
+  if (!last.done) throw new Error('it never said it had finished');
+  const doneEarly = seen.slice(0, -1).filter(x => x.done);
+  if (doneEarly.length) throw new Error('it said done ' + doneEarly.length + ' time(s) before it had finished');
+  if (!seen.some(x => !x.done && /formatting/i.test(x.phase))) {
+    throw new Error('it never said it was formatting: ' + JSON.stringify(seen.map(x => x.phase)));
+  }
+  if (!seen.some(x => !x.done && /Giving everyone a row/.test(x.phase))) {
+    throw new Error('the per-lab steps never reached the dialog: ' + JSON.stringify(seen.map(x => x.phase)));
+  }
+
+  const p = getBatchImportProgress('job1');
+  if (!p || !p.done) throw new Error('the dialog could not read the finished state back');
+
+  /* and the addresses came in clean, spaces and capitals and all */
+  if (!rowOf('Digestion', 'imp1@x.kr')) throw new Error('a pasted-looking address did not land clean');
 });
 
 console.log('— a lab added in the middle of the year —');
