@@ -120,6 +120,21 @@ var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
    -------------------------------------------------------------------------- */
 var CLIENT_ID = '';
 
+/* Pasting a fresh copy of this file used to wipe the Client ID typed in above, and every
+   hand-in then came back "not recorded: sign-in is not set up" — silently, until a mark went
+   missing. So it is remembered the same way SHEET_ID is: fill the line above once, and from
+   then on an empty line means "use the one you remembered", not "forget it". */
+function _clientId() {
+  var props;
+  try { props = PropertiesService.getScriptProperties(); } catch (e) { return CLIENT_ID; }
+  if (CLIENT_ID) {
+    try { if (props.getProperty('CLIENT_ID') !== CLIENT_ID) props.setProperty('CLIENT_ID', CLIENT_ID); }
+    catch (e) {}
+    return CLIENT_ID;
+  }
+  return props.getProperty('CLIENT_ID') || '';
+}
+
 /* House colours, so the Sheet looks like the labs it collects. */
 var INK = '#14572B', INK_SOFT = '#E4EFE7', LINE = '#C9D8CD', WARN = '#B8860B', BAD = '#B03A2E';
 
@@ -152,17 +167,19 @@ function doPost(e) {
     /* Only this teacher's students are recorded. Anyone else in the world who works through
        a lab and presses Hand in gets their completion code and leaves no trace here at all —
        no row, no name, no email, nowhere. */
-    if (!CLIENT_ID) return _text('not recorded: sign-in is not set up');
+    if (!_clientId()) return _text('not recorded: sign-in is not set up');
     var who = _whoIs(d.token);
     if (!who) return _text('not recorded: not signed in');
     var student = _studentOf(who.email);
-    if (!student) return _text('not recorded: not on this class list');
+    /* The list is matched on the EMAIL column, never on the name. Adding a name and no
+       address looks like being on the list and is not, so the address is named back. */
+    if (!student) return _text('not recorded: not on this class list (' + who.email + ')');
 
     var score = Number(d.score) || 0, total = Number(d.total) || 0;
 
     /* the code was made in the page from what it showed, so it is checked against that */
     var genuine = (_code(lab.id, String(d.name || '').trim(), String(d.form || '').trim(),
-                         score + '/' + total) === String(d.code || ''));
+                         score + '/' + total) === _codeBody(d.code));
     var wrong = [];
     if (!genuine) wrong.push('code does not match');
     if (score > total) wrong.push('score above the total');
@@ -220,7 +237,7 @@ function doPost(e) {
    answer is cached briefly so two hand-ins in a row do not ask twice. Anything we cannot
    stand behind comes back null. */
 function _whoIs(idToken) {
-  if (!CLIENT_ID || !idToken) return null;
+  if (!_clientId() || !idToken) return null;
   var cache = CacheService.getScriptCache();
   var key = 'ID_' + Utilities.base64EncodeWebSafe(
               Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, idToken)).slice(0, 40);
@@ -236,7 +253,7 @@ function _whoIs(idToken) {
 
   var t;
   try { t = JSON.parse(res.getContentText()); } catch (e) { return null; }
-  if (String(t.aud) !== CLIENT_ID) return null;               /* a token for somebody else's app */
+  if (String(t.aud) !== _clientId()) return null;             /* a token for somebody else's app */
   if (Number(t.exp) * 1000 < Date.now()) return null;         /* expired */
   if (String(t.email_verified) !== 'true') return null;
 
@@ -521,16 +538,20 @@ function checkSetup() {
   }
 
   /* The one that decides whether anything is recorded at all, so it says so plainly. */
-  if (!CLIENT_ID) {
-    lines.push('❌  sign-in is NOT set up — CLIENT_ID at the top of this script is empty, so ' +
-               'NOTHING is being recorded, however green everything above is. Every hand-in ' +
-               'comes back “not recorded: sign-in is not set up”. See “Sign-in: what the ' +
+  var cid = _clientId();
+  if (!cid) {
+    lines.push('❌  sign-in is NOT set up — CLIENT_ID at the top of this script is empty and ' +
+               'none has been remembered, so NOTHING is being recorded, however green ' +
+               'everything above is. Every hand-in comes back “not recorded: sign-in is not ' +
+               'set up”. Type it into the CLIENT_ID line once and run this again; from then ' +
+               'on pasting a fresh copy of the script cannot lose it. See “Sign-in: what the ' +
                'Client ID is” in the README.');
-  } else if (!/\.apps\.googleusercontent\.com$/.test(CLIENT_ID)) {
+  } else if (!/\.apps\.googleusercontent\.com$/.test(cid)) {
     lines.push('❌  CLIENT_ID does not look like a Client ID — it should end ' +
                '.apps.googleusercontent.com. This looks like something else was pasted in.');
   } else {
-    lines.push('✅  sign-in is set up (…' + CLIENT_ID.slice(-32) + ')');
+    lines.push('✅  sign-in is set up (…' + cid.slice(-32) + ')' +
+               (CLIENT_ID ? '' : ' — remembered from an earlier paste, the line above is empty'));
     lines.push('•  the SAME id must also be googleClientId in every lab\'s js/config.js, or ' +
                'that lab can never record anything.');
   }
@@ -1267,7 +1288,7 @@ function checkCode() {
       for (var fi = 0; fi < forms.length; fi++) {
         if (fi === 1 && forms[1] === forms[0]) continue;
         for (var sc = 0; sc <= lab.questions; sc++) {
-          if (_code(lab.id, name, forms[fi], sc + '/' + lab.questions) !== code) continue;
+          if (_code(lab.id, name, forms[fi], sc + '/' + lab.questions) !== _codeBody(code)) continue;
           var pct = Math.round(1000 * sc / lab.questions) / 10;
           var where = _rowSaysWhat(lab, name);
           return say(name + ' · ' + lab.name + ' · ' + sc + '/' + lab.questions +
@@ -1301,6 +1322,19 @@ function _rowSaysWhat(lab, name) {
   return 'They have no row in the ' + lab.name + ' tab.';
 }
 
+/* Every lab stamps its own letters on the front of a code — DL- for Digestion, CL- for
+   Classification, and a new lab will bring its own. Only the body is ever compared: the lab's
+   id is already inside the hash, so the letters prove nothing the body does not. Comparing the
+   whole string meant this script expected DL- on every lab, and quietly refused every
+   Classification hand-in as "code does not match". */
+function _codeBody(code) {
+  /* Anchored on the shape, not on the prefix: a code ends in two four-character groups, and
+     those are the body. Stripping "letters up to the first dash" would have eaten the first
+     group of a code typed without its prefix, since a group can be all letters. */
+  var s = String(code || '').trim().toUpperCase();
+  var m = s.match(/([A-Z0-9]{4})-([A-Z0-9]{4})$/);
+  return m ? m[1] + '-' + m[2] : s;
+}
 function _code(labId, name, form, score) {
   var raw = String(name).trim().toLowerCase() + '|' + form + '|' + score + '|' + labId;
   var s1 = 0, s2 = 0;
@@ -1314,7 +1348,7 @@ function _code(labId, name, form, score) {
     for (var i = 0; i < 4; i++) { o += A.charAt(n % A.length); n = Math.floor(n / A.length); }
     return o;
   }
-  return 'DL-' + chunk(s1) + '-' + chunk(s2);
+  return chunk(s1) + '-' + chunk(s2);          /* body only — see _codeBody */
 }
 function _tidy(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim(); }
 /* ============================================================
@@ -1328,7 +1362,7 @@ function _tidy(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, '')
    nothing about the class, the roster or another student is returned.
    ============================================================ */
 function _ownProgress(d) {
-  if (!CLIENT_ID) return _json({ ok: false, why: 'sign-in is not set up' });
+  if (!_clientId()) return _json({ ok: false, why: 'sign-in is not set up' });
   var who = _whoIs(d.token);
   if (!who) return _json({ ok: false, why: 'not signed in' });
 
