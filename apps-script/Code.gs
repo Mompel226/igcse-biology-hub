@@ -46,9 +46,7 @@ var LABS = [
   { id:'cell-transport-lab',  name:'In and out of cells', topic:'3 · Movement into and out of cells', questions:0 },
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
-  { id:'plant-nutrition-lab', name:'Plant nutrition',  topic:'6 · Plant nutrition',                questions:0 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
-  { id:'plant-transport-lab', name:'Transport in plants', topic:'8 · Transport in plants',         questions:0 },
   { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:0 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
@@ -57,6 +55,7 @@ var LABS = [
   { id:'coordination-lab',    name:'Coordination',     topic:'14 · Coordination and response',     questions:0 },
   { id:'drugs-lab',           name:'Drugs & AMR',      topic:'15 · Drugs',                         questions:0 },
   { id:'reproduction-lab',    name:'Reproduction',     topic:'16 · Reproduction',                  questions:0 },
+  { id:'plants-lab',          name:'Plants',           topic:'6 · Plants: 6, 8, 14.5, 16.3, 18.2', questions:0 },
   { id:'inheritance-lab',     name:'Inheritance',      topic:'17 · Inheritance',                   questions:0 },
   { id:'variation-lab',       name:'Variation',        topic:'18 · Variation and selection',       questions:0 },
   { id:'ecology-lab',         name:'Ecology',          topic:'19 · Organisms and their environment', questions:0 },
@@ -85,10 +84,13 @@ var LAB_COLS = [
   { h:'Flags', w:230, note:'Anything worth a second look.' },
   { h:'Per station', w:460, note:'Their score at each station, and how many checks it took there.' },
   { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
-  { h:'Signed in as', w:200, hide:true, note:'The name on the Google account they signed in with. Their completion code is made from THIS name, not the one on the Students tab — which is why it is kept.' }
+  { h:'Signed in as', w:200, hide:true, note:'The name on the Google account they signed in with. Their completion code is made from THIS name, not the one on the Students tab — which is why it is kept.' },
+  { h:'Carried between devices', w:200, hide:true,
+    note:'Which questions they had right, so signing in on another computer brings their work back. About 370 characters, written by the lab. Not marks — the marks are in the columns you can see. Do not edit.' }
 ];
 var LAB_EMAIL = 15;
 var LAB_GNAME = 16;        /* the column that ties a row to a person */
+var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
 
 /* ---- Signing in ----------------------------------------------------------
    The labs are public web pages: anyone in the world can open one, work through it and
@@ -192,6 +194,9 @@ function doPost(e) {
 
       sh.getRange(r, 1, 1, 2).setValues([[student.name, student.cls]]);
       sh.getRange(r, LAB_GNAME).setValue(who.name || '');
+      /* Kept on every hand-in, not only a better one: this is what lets them carry on
+         somewhere else, and the newest is always the fullest — it can only have grown. */
+      if (d.snap) sh.getRange(r, LAB_SNAP).setValue(String(d.snap).slice(0, 45000));
       sh.getRange(r, 10, 1, 2).setValues([[seen + 1, new Date()]]);
       if (beaten) {
         sh.getRange(r, 3, 1, 7).setValues([[
@@ -1350,7 +1355,8 @@ function _ownProgress(d) {
         firstTime: Number(vals[r][7]) || 0,
         handIns:   Number(vals[r][9]) || 0,
         handedIn:  true,
-        at:        vals[r][10] ? new Date(vals[r][10]).toISOString() : null
+        at:        vals[r][10] ? new Date(vals[r][10]).toISOString() : null,
+        snap:      String(vals[r][LAB_SNAP - 1] || '')
       };
       break;
     }

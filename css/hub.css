@@ -108,7 +108,7 @@ a{color:inherit;text-decoration:none}
              0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent),
              0 14px 60px color-mix(in srgb,var(--accent) 22%,transparent)
 }
-.door picture,.door__img{position:absolute;inset:0;width:100%;height:100%;display:block}
+.door picture,.door__img,.door__motion{position:absolute;inset:0;width:100%;height:100%;display:block}
 .door__img{
   object-fit:cover;object-position:var(--focus,50% 50%);
   transform:scale(1.03);filter:saturate(.82) brightness(.74);
@@ -120,6 +120,28 @@ a{color:inherit;text-decoration:none}
   background:linear-gradient(to top,rgba(7,15,21,.9) 0,rgba(7,15,21,.5) 24%,rgba(7,15,21,.1) 50%,rgba(7,15,21,0) 100%);
   transition:opacity .6s
 }
+/* The moving part of a banner, drawn live over the printed one (js/hub.js, `motion`).
+   It sits below the veil on purpose: the shut door's own words have to keep covering it. */
+.door__motion{
+  /* overflow MUST stay hidden: preserveAspectRatio="slice" scales the drawing to cover the
+     box, and anything visible would then be painted right across the door — over the words */
+  pointer-events:none;overflow:hidden;
+  -webkit-mask-image:var(--mo-mask,none);mask-image:var(--mo-mask,none)
+}
+.door--wide.is-on .door__motion{-webkit-mask-image:none;mask-image:none}
+/* a light running the length of a line: one sweep is one beat. The path declares its own
+   length, so the dash is read in thousandths of it and the beat is the same at every size. */
+.mo-trace{
+  fill:none;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:92 908;stroke-dashoffset:1000;
+  filter:drop-shadow(0 0 7px rgba(237,28,36,.95)) drop-shadow(0 0 18px rgba(237,28,36,.5));
+  animation:beat var(--beat,2s) cubic-bezier(.45,0,.5,1) infinite
+}
+@keyframes beat{to{stroke-dashoffset:0}}
+/* an electron on a ring. The ring itself is printed on the banner; only the dot moves. */
+.mo-e{animation:spark 2.6s ease-in-out infinite}
+@keyframes spark{0%,100%{opacity:.85}50%{opacity:1}}
+
 /* a soft light that follows the pointer across the open door */
 .door__light{
   position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;mix-blend-mode:screen;
@@ -197,31 +219,42 @@ a{color:inherit;text-decoration:none}
 .door--light .door__status--local{color:#0B6A8C;border-color:rgba(11,106,140,.45);background:rgba(11,106,140,.08)}
 .door--light.is-on .door__title{text-shadow:0 0 28px rgba(247,246,242,.9)}
 
-/* the wide door beneath the shelves */
+/* the wide doors beneath the shelves, in bands — the clubs, then the societies */
 .beyond{display:flex;flex-direction:column;gap:8px}
-.beyond:empty{display:none}   /* the open edition has no CCA door */
+.beyond:empty{display:none}   /* the open edition has no doors of its own */
+.beyond .band{margin-top:10px}
+.beyond .band:first-child{margin-top:2px}
 /* idle: a short door, the banner running underneath the words at full width.
    open: the door grows and the banner slides right into a box of exactly its own shape —
    --bw is that box's width, the open height × the banner's 1800/628 — so it sits whole, just
    past the words. Both states crop with cover, so the slide is one smooth motion. */
 .door--wide{
-  /* the open height rises faster than the width does, so a big screen gets a banner wide enough
-     to reach the words, and a 1440 laptop keeps enough room for the words themselves.
-     --bw is always that height × the banner's 1800/614. */
-  --bh:clamp(240px,min(calc(34vw - 180px),42dvh),560px);
-  --bw:clamp(704px,min(calc(99.7vw - 528px),123.1dvh),1642px);
-  flex:none;height:clamp(120px,9.5vw,190px);cursor:pointer;background:#F7EBD5;
+  /* --bw is the width the open banner takes; the words get what is left, so it rises with the
+     screen and a 1440 laptop still keeps enough room for them. The height simply follows the
+     banner's own shape: --ar is its width ÷ its height, set per door by js/hub.js from the
+     register's `plate`, because a banner drawn short (Medical Review) must not be given the
+     tall box a banner drawn deep (BioGuardians) needs. */
+  --ar:2.9316;
+  --minh:320px;                              /* what the open door's words need */
+  --bw:clamp(704px,min(calc(99.7vw - 528px),calc(42dvh * var(--ar))),1642px);
+  --fit:calc(var(--bw) / var(--ar));         /* the height that shows the banner whole */
+  --bh:var(--fit);
+  /* the banner's own ground, as channels so a gradient can fade it to nothing without
+     drifting through grey. js/hub.js sets it per door from the register's `ground`. */
+  --ground-rgb:247 235 213;
+  flex:none;height:clamp(120px,9.5vw,190px);cursor:pointer;background:rgb(var(--ground-rgb));
   transition:height .75s var(--ease)
 }
 /* open, the door is as tall as the words need or the banner needs, whichever is more */
-.door--wide.is-on{height:max(var(--bh),320px)}
-.door--wide picture{left:auto;right:0;top:50%;bottom:auto;transform:translateY(-50%);height:100%;width:100%;transition:width .75s var(--ease),height .75s var(--ease)}
-.door--wide.is-on picture{width:var(--bw);height:var(--bh)}
+.door--bleed{--bh:max(var(--fit),var(--minh))}
+.door--wide.is-on{height:max(var(--bh),var(--minh))}
+.door--wide picture,.door--wide .door__motion{left:auto;right:0;top:50%;bottom:auto;transform:translateY(-50%);height:100%;width:100%;transition:width .75s var(--ease),height .75s var(--ease)}
+.door--wide.is-on picture,.door--wide.is-on .door__motion{width:var(--bw);height:var(--bh)}
 .door--wide .door__img,.door--wide.is-on .door__img{object-fit:cover;object-position:50% 50%;transform:none;filter:none}
 .door--wide .door__body{right:auto;max-width:min(60%,700px)}
 .door--wide.is-on .door__body{max-width:calc(100% - var(--bw) - 10px)}
 .door--wide .door__lede{font-size:13px;line-height:1.5;max-width:none}
-.door--wide .door__veil{background:linear-gradient(to right,#F7EBD5 0,#F7EBD5 24%,rgba(247,235,213,.55) 33%,rgba(243,241,235,0) 42%)}
+.door--wide .door__veil{background:linear-gradient(to right,rgb(var(--ground-rgb)) 0,rgb(var(--ground-rgb)) 24%,rgb(var(--ground-rgb)/.55) 33%,rgb(var(--ground-rgb)/0) 42%)}
 .door--wide.is-on .door__veil{background:none}
 .door--wide .door__title{font-size:clamp(19px,1.7vw,27px)}
 
@@ -327,17 +360,19 @@ noscript p{padding:20px}
   .door__light{display:none}
   .door__title{font-size:clamp(22px,6vw,30px)}
   .door--wide,.door--wide.is-on{height:auto}
-  .door--wide .door__body{padding-top:clamp(110px,30vw,150px)}
+  .door--wide .door__body{padding-top:max(110px,calc((100vw - 2 * var(--gutter)) / var(--ar) + 6px))}
   .door--wide picture,.door--wide.is-on picture{left:0;right:0;top:0;transform:none;width:100%;height:100%;transition:none}
   .door--wide .door__img,.door--wide.is-on .door__img{object-fit:contain}
+  .door--wide .door__motion{display:none}  /* contain, not cover — it would miss the printed art */
   .door--wide .door__body,.door--wide.is-on .door__body{max-width:none}
   .door--wide .door__img,.door--wide.is-on .door__img{object-position:50% 0}
   .door--wide .door__body{right:0;max-width:none}
-  .door--wide .door__veil{background:linear-gradient(to top,#F7EBD5 0,#F7EBD5 40%,rgba(243,241,235,0) 62%)}
+  .door--wide .door__veil{background:linear-gradient(to top,rgb(var(--ground-rgb)) 0,rgb(var(--ground-rgb)) 40%,rgb(var(--ground-rgb)/0) 62%)}
   .open__list{grid-template-columns:1fr}
   .cr{white-space:normal}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
+  .door__motion{display:none}
   .door__img,.door.is-on .door__img{transform:none}
 }

@@ -56,9 +56,10 @@ window.HUB = {
     { id:'plants', kind:'shelf', eyebrow:'03 · Plants',
       title:'Root, stem, <em>leaf</em>, flower',
       blurb:'Here you move through a plant the way you move through the body: root, stem, leaf, flower. How a plant makes its own food, moves water up from the ground, and grows the next generation. The leaf behind this door is rolled up to keep its water in.',
-      topics:[ {no:6,t:'Plant nutrition'}, {no:8,t:'Transport in plants'}, {no:16,t:'Reproduction in plants'} ],
+      topics:[ {no:6,t:'Plant nutrition'}, {no:8,t:'Transport in plants'}, {no:'14.5',t:'Tropic responses'},
+               {no:'16.3',t:'Plant reproduction'}, {no:'18.2',t:'Adaptive features'} ],
       status:'planned', url:null,
-      note:'Plants is planned — the same engine as the body, on a plant.',
+      note:'Plants is planned — one lab for the whole plant: topics 6 and 8, tropic responses, plant reproduction and adaptive features.',
       accent:'#1C7442', tone:'light', focus:'50% 50%',
       alt:'Cross-section of a rolled marram-grass leaf at 100 times magnification' },
 
@@ -90,11 +91,12 @@ window.HUB = {
       { no:'14', t:'Coordination and response', shelf:'human-body' },
       { no:'15', t:'Drugs',                 shelf:'human-body' },
       { no:'16', t:'Reproduction',          shelf:'human-body' } ] },
-    { id:'y11', label:'Year 11', sub:'Topics 6, 8, 17–21', steps:[
+    { id:'y11', label:'Year 11', sub:'Plants, and topics 17–21', steps:[
       { no:'6',    t:'Plant nutrition',       shelf:'plants' },
       { no:'8',    t:'Transport in plants',   shelf:'plants' },
       { no:'14.5', t:'Tropic responses',      shelf:'plants' },
       { no:'16.3', t:'Plant reproduction',    shelf:'plants' },
+      { no:'18.2', t:'Adaptive features',     shelf:'plants' },
       { no:'17',   t:'Inheritance',           shelf:'life-on-earth' },
       { no:'18',   t:'Variation and selection', shelf:'life-on-earth' },
       { no:'19',   t:'Organisms and their environment', shelf:'life-on-earth' },
