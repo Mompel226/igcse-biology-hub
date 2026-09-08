@@ -466,29 +466,49 @@
      Everything here is best-effort. No token, no endpoint, no network, an old deployment, a
      teacher not collecting marks at all — every one of those just leaves the page showing
      what the browser knows, which is what it showed a moment ago anyway. */
-  function serverProgress() {
+  function serverProgress(loud) {
     var url = L.submitUrl || (L.site && L.site.submitUrl) || '';   /* each school's own — js/local.js */
-    if (!url || !P || !LABS.length) return;
+    if (!url || !P || !LABS.length) { if (loud) toast('This hub is not set up to keep marks.'); return; }
 
     var tok = null;
     for (var i = 0; i < LABS.length && !tok; i++) {
       var sv = P.read(LABS[i].id + '.signin');
       if (sv && sv.token && sv.exp * 1000 > Date.now() + 60000) tok = sv.token;
     }
-    if (!tok) return;                       /* not signed in anywhere — nothing to ask with */
+    if (!tok) {                             /* no token here: they must sign in inside a lab */
+      if (loud) toast('Open a lab, sign in when you hand in, and your work will follow you here.');
+      return;
+    }
+    var btn = document.getElementById('btnSync');
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+    function done(msg) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sync my work'; }
+      if (loud && msg) toast(msg);
+    }
 
     fetch(url, { method: 'POST', mode: 'cors',
                  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                  body: JSON.stringify({ action: 'progress', token: tok }) })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        if (!j || !j.ok || !j.labs) return;
+        if (!j || !j.ok || !j.labs) { done('Could not reach your teacher\u2019s records just now.'); return; }
         window.__SERVER_PROGRESS = j.labs;
         showProgress();                     /* redraw with whichever is further on */
+        var n = Object.keys(j.labs).length;
+        done(n ? 'Brought back what you have handed in — ' + n + ' lab' + (n === 1 ? '' : 's') +
+                 '. Open a lab and press Sync there to get the answers themselves back.'
+               : 'Nothing has been handed in yet, so there is nothing to bring back.');
       })
-      .catch(function () {});               /* offline, or an older deployment: say nothing */
+      .catch(function () { done('Could not reach your teacher\u2019s records just now.'); });
   }
-  serverProgress();
+  (function () {
+    var btn = document.getElementById('btnSync');
+    if (btn && (L.submitUrl || (L.site && L.site.submitUrl))) {
+      btn.hidden = false;
+      btn.addEventListener('click', function () { serverProgress(true); });
+    }
+  })();
+  serverProgress(false);
 
   /* ---------- 6. credits ----------
      Both editions ship this file, so the link to the full credits works out which
