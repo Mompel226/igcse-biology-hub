@@ -17,6 +17,27 @@
   var OPEN    = (H.open || []).concat(L.open || []);
   var CREDITS = (H.credits || []).concat(L.credits || []);
 
+  /* Under the shelves stand the wide doors — the school's own clubs and societies, each
+     with a website of its own. js/local.js names them and tags each one with a kind; this
+     says which kinds there are, what each band is called, and the order they stand in.
+     A school with none of a kind simply gets no band. Adding a band is one line here;
+     adding a club or a society is one entry in js/local.js. */
+  var BANDS = [
+    { kind:'cca',     label:'Co-curricular activities' },
+    { kind:'society', label:'Societies' }
+  ];
+  function isWide(d) {
+    return BANDS.some(function (b) { return b.kind === d.kind; });
+  }
+  /* "#F7EBD5" → "247 235 213", so a gradient can fade a banner's own ground away to
+     nothing instead of drifting through grey on the way out. */
+  function rgbOf(hex) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    if (h.length !== 6) return null;
+    return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }).join(' ');
+  }
+
   /* the strings that name the school, if this edition has one */
   (function (site) {
     if (!site) return;
@@ -51,7 +72,7 @@
 
   function picture(d, eager) {
     var b = 'assets/doors/' + d.id;
-    var sizes = d.kind === 'cca' ? '100vw' : '(max-width:900px) 100vw, 45vw';
+    var sizes = isWide(d) ? '100vw' : '(max-width:900px) 100vw, 45vw';
     var set = function (ext) { return [900, 1400, 1800].map(function (w) { return b + '-' + w + '.' + ext + ' ' + w + 'w'; }).join(', '); };
     return '<picture>' +
       '<source type="image/webp" srcset="' + set('webp') + '" sizes="' + sizes + '">' +
@@ -60,26 +81,118 @@
       (eager ? ' fetchpriority="high"' : '') + ' decoding="async" draggable="false">' +
       '</picture>';
   }
+  /* ---------- a banner that moves ----------
+     A picture cannot beat, so a banner may hand over the geometry of what is printed on it
+     and the page draws the moving part live on top. The overlay is an SVG cropped exactly
+     the way the picture is — "slice" is what object-fit: cover does — so it lands on the
+     printed art at every width, in the shut strip and the open plate alike. Only the banner
+     knows its own coordinates, which is why they sit in the register beside it.
+
+       motion.trace   a light runs along a line: the pulse on the Medical Review plate
+       motion.orbits  electrons run round an atom: the three rings on the Science NHS plate
+
+     The overlay sits above the picture, so it has to stop where the printed art does, and
+     two different things stop it. `fadeOut` is a pair of banner x-coordinates where the
+     printed art itself goes behind something — the Science NHS rings pass behind the
+     society's name — so it holds in both states. `underWords` is where a *shut* door lays
+     its own words over the plate, and a light at full strength there would read as a line
+     struck through them; that one is lifted the moment the door opens and the words move
+     off the banner.
+
+     Nothing is drawn at all for a reader who has asked for less movement. */
+  function tracePart(t, id) {
+    if (!t || !t.d) return '';
+    return '<path class="mo-trace" pathLength="1000" d="' + esc(t.d) + '" ' +
+      'stroke="' + esc(t.colour || '#fff') + '" stroke-width="' + (t.width || 5) + '" ' +
+      'style="--beat:' + (t.seconds || 2) + 's"/>';
+  }
+  /* the shut door's words lie over the left of the plate. In that state the picture is
+     width-bound, so a percentage across the door is a percentage across the banner. */
+  function underWordsMask(m, w) {
+    if (!m.underWords) return null;
+    return 'linear-gradient(to right,transparent ' + (100 * m.underWords[0] / w).toFixed(2) +
+           '%,#000 ' + (100 * m.underWords[1] / w).toFixed(2) + '%)';
+  }
+  function orbitPart(o, id) {
+    if (!o || !o.rx) return '';
+    var secs = o.seconds || 7, dot = o.r || 6, out = '';
+    /* the same three rings the crest carries, and one electron on each, evenly spread */
+    [0, 60, 120].forEach(function (deg, i) {
+      var ref = 'o-' + id + '-' + i;
+      out += '<g transform="translate(' + o.cx + ' ' + o.cy + ') rotate(' + deg + ')">' +
+        '<path id="' + ref + '" fill="none" d="M' + (-o.rx) + ' 0' +
+          'a' + o.rx + ' ' + o.ry + ' 0 1 0 ' + (2 * o.rx) + ' 0' +
+          'a' + o.rx + ' ' + o.ry + ' 0 1 0 ' + (-2 * o.rx) + ' 0"/>' +
+        '<g class="mo-e">' +
+          '<circle r="' + (dot * 3.4) + '" fill="' + esc(o.glow || o.colour) + '" opacity=".16"/>' +
+          '<circle r="' + (dot * 1.9) + '" fill="' + esc(o.glow || o.colour) + '" opacity=".24"/>' +
+          '<circle r="' + dot + '" fill="' + esc(o.colour) + '"/>' +
+          '<animateMotion dur="' + secs + 's" repeatCount="indefinite" ' +
+            'begin="-' + (secs / 3 * i).toFixed(2) + 's">' +
+            '<mpath href="#' + ref + '" xlink:href="#' + ref + '"/>' +
+          '</animateMotion>' +
+        '</g></g>';
+    });
+    return out;
+  }
+  /* the banner's own pixel size — everything the register says about a banner, the path it
+     hands over included, is in these coordinates */
+  function plateOf(d) { return d.plate || [1800, 614]; }
+
+  /* one gradient mask across the plate, from the fades the banner asked for */
+  function fadeMask(m, w, id) {
+    if (!m.fadeOut) return ['', ''];
+    var stops = [[0, '#fff'], [m.fadeOut[0], '#fff'], [m.fadeOut[1], '#000']];
+    return ['<defs><linearGradient id="g-' + id + '" gradientUnits="userSpaceOnUse" ' +
+      'x1="0" x2="' + w + '" y1="0" y2="0">' +
+      stops.map(function (st) {
+        return '<stop offset="' + (st[0] / w).toFixed(4) + '" stop-color="' + st[1] + '"/>';
+      }).join('') +
+      '</linearGradient><mask id="mk-' + id + '"><rect width="100%" height="100%" ' +
+      'fill="url(#g-' + id + ')"/></mask></defs>', ' mask="url(#mk-' + id + ')"'];
+  }
+  function motion(d) {
+    var m = d.motion;
+    if (!m || still) return '';
+    var body = tracePart(m.trace, d.id) + orbitPart(m.orbits, d.id);
+    if (!body) return '';
+    var p = plateOf(d), mk = fadeMask(m, p[0], d.id);
+    return '<svg class="door__motion" viewBox="0 0 ' + p[0] + ' ' + p[1] + '" ' +
+      'preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false" ' +
+      'xmlns:xlink="http://www.w3.org/1999/xlink">' +
+      mk[0] + '<g' + mk[1] + '>' + body + '</g></svg>';
+  }
   function chips(d) {
     if (!d.topics || !d.topics.length) return '';
     return '<ul class="door__chips" aria-label="Topics">' + d.topics.map(function (t) {
       return '<li class="chip">' + (t.no != null ? '<b>' + t.no + '</b>' : '') + esc(t.t) + '</li>';
     }).join('') + '</ul>';
   }
-  function build(d, i) {
+  function build(d, eager) {
     var a = document.createElement('a');
     var closed = !(d.url && (d.status === 'live' || d.status === 'local'));
     a.className = 'door door--' + d.id +
       (d.tone === 'light' ? ' door--light' : '') +
-      (d.kind === 'cca' ? ' door--wide' : '') +
+      (isWide(d) ? ' door--wide' : '') +
+      (d.bleed ? ' door--bleed' : '') +
       (closed ? ' door--closed' : '');
     a.href = d.url || '#';
     a.dataset.id = d.id;
     a.style.setProperty('--accent', d.accent);
     a.style.setProperty('--focus', d.focus || '50% 50%');
+    /* a wide door's box is cut to its banner's own shape, so a short banner is not given a
+       deep box with the picture floating in the middle of it */
+    if (isWide(d)) a.style.setProperty('--ar', (plateOf(d)[0] / plateOf(d)[1]).toFixed(5));
+    if (d.motion) {
+      var mask = underWordsMask(d.motion, plateOf(d)[0]);
+      if (mask) a.style.setProperty('--mo-mask', mask);
+    }
+    /* a wide door's words sit on a fade of the banner's own ground, so each banner brings
+       the colour its fade is made of */
+    if (rgbOf(d.ground)) a.style.setProperty('--ground-rgb', rgbOf(d.ground));
     if (d.status === 'local') { a.target = '_blank'; a.rel = 'noopener'; }
     a.setAttribute('aria-label', plain(d.title) + ' — ' + STATUS[d.status]);
-    a.innerHTML = picture(d, i < 2) +
+    a.innerHTML = picture(d, eager) + motion(d) +
       '<span class="door__veil" aria-hidden="true"></span><span class="door__light" aria-hidden="true"></span>' +
       '<div class="door__body">' +
         '<span class="door__no">' + esc(d.eyebrow) + '</span>' +
@@ -89,7 +202,7 @@
         '<div class="door__foot">' +
           '<span class="door__status door__status--' + d.status + '">' + STATUS[d.status] + '</span>' +
           (d.detail ? '<span class="door__detail">' + esc(d.detail) + '</span>' : '') +
-          '<span class="door__go">' + (closed ? 'Not yet' : (d.kind === 'cca' ? 'Visit' : 'Enter')) + '</span>' +
+          '<span class="door__go">' + (closed ? 'Not yet' : (isWide(d) ? 'Visit' : 'Enter')) + '</span>' +
         '</div>' +
       '</div>';
     wire(a, d);
@@ -122,9 +235,19 @@
   function on(id)  { Object.keys(doorEls).forEach(function (k) { doorEls[k].classList.toggle('is-on', k === id); }); }
   function off(id) { if (doorEls[id]) doorEls[id].classList.remove('is-on'); }
 
-  DOORS.forEach(function (d, i) {
-    var a = build(d, i);
-    (d.kind === 'cca' && wideEl ? wideEl : doorsEl).appendChild(a);
+  DOORS.filter(function (d) { return !isWide(d); })
+       .forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
+
+  /* each band, in the order declared, with its own doors beneath it. Nothing is written
+     when a band has no doors, so the open edition's section stays empty and hides itself. */
+  if (wideEl) BANDS.forEach(function (b) {
+    var mine = DOORS.filter(function (d) { return d.kind === b.kind; });
+    if (!mine.length) return;
+    var band = document.createElement('div');
+    band.className = 'band';
+    band.innerHTML = '<h2 class="eyebrow">' + esc(b.label) + '</h2>';
+    wideEl.appendChild(band);
+    mine.forEach(function (d) { wideEl.appendChild(build(d, false)); });
   });
 
   /* ---------- 2. the idle tour ----------
@@ -133,7 +256,7 @@
      picks up again after a long pause. Not on a phone, where every
      door already stands open. */
   var tour = null, resume = null, i = 0;
-  var TOURABLE = DOORS.filter(function (d) { return d.kind !== 'cca'; });
+  var TOURABLE = DOORS.filter(function (d) { return !isWide(d); });
   var TOUR_MS = 5200;
   function canTour() { return !still && !narrow.matches && TOURABLE.length > 1; }   /* an iPad in landscape gets the tour too */
   function startTour() { if (tour || !canTour()) return; step(); tour = setInterval(step, TOUR_MS); }
