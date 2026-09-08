@@ -29,7 +29,7 @@ input[type="text"].err { border-color: #f85149; }
 .badge-have { background: #23863633; color: #3fb950; }
 .badge-dup  { background: #f8514933; color: #f85149; }
 .status { font-size: 12px; white-space: nowrap; min-width: 130px; }
-.status .spin { display: inline-block; animation: spin .8s linear infinite; }
+.spin { display: inline-block; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .btn { padding: 8px 20px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
 .btn-primary { background: #238636; color: #fff; }
@@ -180,13 +180,15 @@ function startImport() {
 
   document.getElementById('bar').insertAdjacentHTML('afterbegin',
     '<div id="close-hint" style="font-size:11px;color:#8b949e;margin-bottom:6px">' +
-    'You can close this window — the import keeps running. Re-open the sheet to see the result.</div>');
+    'You can close this window — the import keeps running. Re-open the sheet to see the result.</div>' +
+    '<div id="phase" style="font-size:12px;color:#58a6ff;margin-bottom:8px"></div>');
 
   var jobId = 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
   google.script.run
     .withSuccessHandler(function (results) {
       stopPolling();
+      showPhase('');
       applyResults(sels, results);
       if (!pollFinished) showFinalSummary(sels);
       pollFinished = true;
@@ -215,6 +217,7 @@ function startPolling(jobId, sels) {
       .withSuccessHandler(function (p) {
         if (!p) return;
         applyResults(sels, p.results);
+        showPhase(p.phase);
         if (p.done) {
           stopPolling();
           if (!pollFinished) showFinalSummary(sels);
@@ -226,6 +229,16 @@ function startPolling(jobId, sels) {
   }, POLL_INTERVAL_MS);
 }
 function stopPolling() { if (pollHandle) { clearInterval(pollHandle); pollHandle = null; } }
+
+/* Fetching the names is the quick part. Building and formatting twenty-odd tabs afterwards
+   is the long one, and with nothing on the screen it looked like the window had hung. This
+   is the server saying what it is on. */
+function showPhase(text) {
+  var el = document.getElementById('phase');
+  if (!el) return;
+  if (!text) { el.textContent = ''; return; }
+  el.innerHTML = '<span class="spin">⏳</span> ' + esc(text);
+}
 
 function applyResults(sels, results) {
   if (!Array.isArray(results)) return;

@@ -401,11 +401,16 @@ function executeBatchImportAll(sels, jobId) {
     _publish(jobId, results, false);
   });
 
-  _publish(jobId, results, true);
-  /* An import is the first thing anyone does, so it leaves the spreadsheet finished:
-     every tab that should exist exists and the whole thing is dressed. Nothing else to
-     press. */
-  _buildAndStyle();
+  /* An import is the first thing anyone does, so it leaves the spreadsheet finished: every
+     tab that should exist exists and the whole thing is dressed. That part takes far longer
+     than fetching the names, and it used to run AFTER the dialog had been told the job was
+     done — so the window sat there looking finished while the script worked on in silence,
+     and nothing could be seen happening for a minute or more. The dialog is now told the
+     truth: still working, and what it is working on. */
+  _publish(jobId, results, false, 'Names imported. Building and formatting every tab\u2026');
+  _PROGRESS_JOB = { id: jobId, results: results };
+  try { _buildAndStyle(); } finally { _PROGRESS_JOB = null; }
+  _publish(jobId, results, true, 'Finished.');
   return results;
 }
 
@@ -413,10 +418,10 @@ function getBatchImportProgress(jobId) {
   var raw = CacheService.getScriptCache().get('BATCH_IMPORT_' + jobId);
   return raw ? JSON.parse(raw) : null;
 }
-function _publish(jobId, results, done) {
+function _publish(jobId, results, done, phase) {
   try {
     CacheService.getScriptCache().put('BATCH_IMPORT_' + jobId,
-      JSON.stringify({ results: results, done: done }), 600);
+      JSON.stringify({ results: results, done: done, phase: phase || '' }), 600);
   } catch (e) {}
 }
 
@@ -445,6 +450,7 @@ function _upsertStudents(students, classCode, courseName, courseId) {
   });
   if (add.length) {
     var at = sh.getLastRow() + 1;
+    _room(sh, at + add.length - 1);
     sh.getRange(at, 1, add.length, 2).setValues(add.map(function (a) { return [a[0], a[1]]; }));
     sh.getRange(at, EMAIL_COL, add.length, 5).setValues(add.map(function (a) { return a.slice(2); }));
   }
@@ -601,7 +607,7 @@ function _buildAndStyle() {
                         ' added to the Students tab.');
   LABS.forEach(function (l, i) {                   /* every lab: a tab, and a row per student */
     _step('Giving everyone a row: ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
-    _seedLab(l);
+    _seedLab(l, notes);
   });
   _step('Checking the addresses on every lab tab…');
   notes = notes.concat(_repairLabEmails());
@@ -772,10 +778,13 @@ function _dressRows(sh, cols, from, rows) {
   });
 }
 
-/* the classes actually in use, for the dropdowns */
+/* The classes actually in use, for the dropdowns. TEST is always offered: trying a lab as
+   yourself, on a row of your own, is the ordinary way to check the whole chain works, and it
+   should not be marked wrong for it. Anything else typed here is accepted too — the dropdown
+   only warns, it never blocks — and it joins this list the next time Tidy up runs. */
 function _classList() {
   var sh = _ss().getSheetByName(T_STUDENTS);
-  var out = {}, list = [];
+  var out = { TEST: 1 }, list = ['TEST'];
   if (sh && sh.getLastRow() > 1) {
     sh.getRange(2, 2, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
       var v = String(r[0] || '').trim().toUpperCase();
@@ -928,9 +937,15 @@ function _codeAnswer(text) {
    script that has died, so each step says what it is on and how far along it is, written into
    the sheet beside the button and flushed so it appears at once rather than at the end. */
 var _PROGRESS_ROW = null;
+var _PROGRESS_JOB = null;      /* an import in progress, so the dialog can be told as well */
+var _PROGRESS_SEEN = null;
 function _step(msg) {
-  if (!_PROGRESS_ROW) return;
-  try { _btnSays(_PROGRESS_ROW, '\u23F3  ' + msg); SpreadsheetApp.flush(); } catch (e) {}
+  if (_PROGRESS_ROW) {
+    try { _btnSays(_PROGRESS_ROW, '\u23F3  ' + msg); SpreadsheetApp.flush(); } catch (e) {}
+  }
+  if (_PROGRESS_JOB) {
+    try { _publish(_PROGRESS_JOB.id, _PROGRESS_JOB.results, false, msg); } catch (e) {}
+  }
 }
 
 /* The line beside a button. It stays until that button is used again. */
@@ -950,7 +965,10 @@ function _styleStudents() {
     { h:'Name', w:210, edit:true,
       note:'The student, as Google Classroom spells it. Correct a spelling here and it follows them into every lab tab the next time you import or Tidy up. Hand-ins are matched by school email, not by this, so a correction cannot lose anybody\'s work.' },
     { h:'Class', w:88, align:'center', bold:true, edit:true, list:_classList(),
-      note:'Which class they are in. Used by the filter, and shown on every hand-in.' }
+      note:'Which class they are in. Used by the filter, and shown on every hand-in.\n\n' +
+           'TEST is always here, for a row of your own used to check a lab end to end.\n\n' +
+           'A class not on this list still works — the box only warns. Press Tidy up and it ' +
+           'joins the list.' }
   ];
   /* In the order the sheet already has them, not the order LABS happens to be in. A sheet
      built before a lab existed has its own order, and relabelling a column would write one
@@ -1286,6 +1304,15 @@ function _labOrderOnSheet(sh) {
   return out;
 }
 
+/* Formatting trims a tab down to six spare rows, so a fresh sheet's thousand are long gone by
+   the time a second class is imported. Writing past the last row throws, and the import dies
+   part way with some tabs done and some not. Every append asks for room first. */
+function _room(sh, needRow) {
+  var have = sh.getMaxRows();
+  if (needRow > have) sh.insertRowsAfter(have, needRow - have + 10);
+  return sh;
+}
+
 function _emailCol(sh) {
   var n = sh.getLastColumn();
   if (n > 0) {
@@ -1367,7 +1394,7 @@ function _labSheet(lab) {
 
 /* Give every student on the roster a row here, and leave the ones already present alone.
    Safe to run as often as you like — it is keyed on the school email. */
-function _seedLab(lab) {
+function _seedLab(lab, notes) {
   var sh = _labSheet(lab);
   var roster = _sheet(T_STUDENTS);
   if (roster.getLastRow() < 2) return sh;
@@ -1379,6 +1406,38 @@ function _seedLab(lab) {
     sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues()
       .forEach(function (r, i) { var e = _cleanEmail(r[0]); if (e) have[e] = i + 2; });
   }
+  /* Somebody taken off the Students tab should not linger on a lab tab. Their row goes only
+     if they never handed anything in. A row with marks on it is kept and named instead:
+     deleting it would destroy the only record that the work was ever done, and a name can be
+     removed from a roster by accident far more easily than a term of marks can be got back. */
+  var onRoster = {};
+  people.forEach(function (p) {
+    var e = _cleanEmail(p[EMAIL_COL - 1]);
+    if (e) onRoster[e] = true;
+  });
+  if (sh.getLastRow() > 1) {
+    var all = sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues();
+    var gone = 0, held = [];
+    for (var k = all.length - 1; k >= 0; k--) {          /* bottom up, so a delete cannot shift the rest */
+      var em = _cleanEmail(all[k][LAB_EMAIL - 1]);
+      if (!em || onRoster[em]) continue;
+      var handedIn = String(all[k][2]).trim() !== '' || Number(all[k][9]) > 0;
+      if (handedIn) { held.push(String(all[k][0] || em)); continue; }
+      sh.deleteRows(k + 2, 1);
+      gone++;
+      delete have[em];
+    }
+    if (notes && gone) {
+      notes.push(gone + ' row' + (gone === 1 ? '' : 's') + ' removed from ' + lab.name +
+                 ' for people no longer on the Students tab.');
+    }
+    if (notes && held.length) {
+      notes.push('Still on ' + lab.name + ' though no longer on the Students tab, because ' +
+                 (held.length === 1 ? 'there are marks' : 'there are marks') + ' against ' +
+                 (held.length === 1 ? 'them' : 'them') + ': ' + held.join(', ') + '.');
+    }
+  }
+
   var add = [];
   people.forEach(function (p) {
     var email = _cleanEmail(p[EMAIL_COL - 1]);
@@ -1394,7 +1453,11 @@ function _seedLab(lab) {
     row[LAB_EMAIL - 1] = email;
     add.push(row);
   });
-  if (add.length) sh.getRange(sh.getLastRow() + 1, 1, add.length, LAB_COLS.length).setValues(add);
+  if (add.length) {
+    var at2 = sh.getLastRow() + 1;
+    _room(sh, at2 + add.length - 1);
+    sh.getRange(at2, 1, add.length, LAB_COLS.length).setValues(add);
+  }
   return sh;
 }
 /** "mouth 9/9 in 14 · stomach 8/9 in 21" — readable in one cell. */
@@ -1409,6 +1472,7 @@ function _rowFor(sh, email, student) {
   }
   var row = new Array(LAB_COLS.length).fill('');
   row[0] = student.name; row[1] = student.cls; row[LAB_EMAIL - 1] = email;
+  _room(sh, last + 1);
   sh.getRange(last + 1, 1, 1, LAB_COLS.length).setValues([row]);
   return last + 1;
 }
