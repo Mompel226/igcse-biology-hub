@@ -173,7 +173,11 @@ function doPost(e) {
     var student = _studentOf(who.email);
     /* The list is matched on the EMAIL column, never on the name. Adding a name and no
        address looks like being on the list and is not, so the address is named back. */
-    if (!student) return _text('not recorded: not on this class list (' + who.email + ')');
+    if (!student) {
+      var onList = Math.max(0, _sheet(T_STUDENTS).getLastRow() - 1);
+      return _text('not recorded: not on this class list (' + who.email +
+                   '; ' + onList + ' on the list)');
+    }
 
     var score = Number(d.score) || 0, total = Number(d.total) || 0;
 
@@ -257,9 +261,21 @@ function _whoIs(idToken) {
   if (Number(t.exp) * 1000 < Date.now()) return null;         /* expired */
   if (String(t.email_verified) !== 'true') return null;
 
-  var who = { email: String(t.email || '').toLowerCase(), name: String(t.name || '') };
+  var who = { email: _cleanEmail(t.email), name: String(t.name || '') };
   cache.put(key, JSON.stringify(who), 240);
   return who;
+}
+
+/* An address typed or pasted into the Sheet carries what came with it: a trailing space from
+   a copy, a non-breaking space from a web page, a zero-width character from a document, or a
+   "mailto:" from a pasted link. Every comparison below lowercased but did not trim, so an
+   address that LOOKS right sat on the roster and matched nothing, and the hand-in was refused
+   as "not on this class list". Both sides go through here now. */
+function _cleanEmail(v) {
+  return String(v == null ? '' : v)
+    .replace(/^\s*mailto:/i, '')
+    .replace(/[\u00A0\u1680\u2000-\u200D\u202F\u205F\u3000\uFEFF]/g, '')
+    .trim().toLowerCase();
 }
 
 /* What the roster knows about them — and whether they are on it at all. */
@@ -270,7 +286,7 @@ function _studentOf(email) {
   var EMAIL_COL = _emailCol(sh);
   var vals = sh.getRange(2, 1, last - 1, EMAIL_COL).getValues();
   for (var i = 0; i < vals.length; i++) {
-    if (String(vals[i][EMAIL_COL - 1] || '').toLowerCase() === email) {
+    if (_cleanEmail(vals[i][EMAIL_COL - 1]) === email) {
       return { name: String(vals[i][0] || ''), cls: String(vals[i][1] || '').toUpperCase() };
     }
   }
@@ -370,7 +386,7 @@ function executeBatchImportAll(sels, jobId) {
         (r.students || []).forEach(function (st) {
           students.push({
             name: st.profile.name.fullName,
-            email: (st.profile.emailAddress || '').toLowerCase(),
+            email: _cleanEmail(st.profile.emailAddress),
             userId: st.userId
           });
         });
@@ -412,7 +428,7 @@ function _upsertStudents(students, classCode, courseName, courseId) {
   var rows = sh.getDataRange().getValues();
   var seen = {}, rowOf = {};
   for (var i = 1; i < rows.length; i++) {
-    var em = String(rows[i][EMAIL_COL - 1] || '').toLowerCase();
+    var em = _cleanEmail(rows[i][EMAIL_COL - 1]);
     if (em) { seen[em] = true; rowOf[em] = i + 1; }
   }
   var add = [], skipped = 0, moved = 0, now = new Date();
@@ -481,7 +497,7 @@ function pushGradesFor(labId, courseId, courseWorkId) {
   do {
     var r = Classroom.Courses.Students.list(courseId, { pageSize: 100, pageToken: page });
     (r.students || []).forEach(function (s) {
-      var em = String((s.profile || {}).emailAddress || '').toLowerCase();
+      var em = _cleanEmail((s.profile || {}).emailAddress);
       if (em) byEmail[em] = s.userId;
       byName[_tidy(s.profile.name.fullName)] = s.userId;
     });
@@ -493,7 +509,7 @@ function pushGradesFor(labId, courseId, courseWorkId) {
   rows.forEach(function (row) {
     var score = row[2];
     if (score === '' || score === null) { waiting++; return; }   /* has not handed in yet */
-    var name = String(row[0] || ''), email = String(row[LAB_EMAIL - 1] || '').toLowerCase();
+    var name = String(row[0] || ''), email = _cleanEmail(row[LAB_EMAIL - 1]);
     var uid = byEmail[email] || byName[_tidy(name)];
     if (!uid) { missing.push(name); return; }
     var subs = Classroom.Courses.CourseWork.StudentSubmissions.list(courseId, courseWorkId, { userId: uid });
@@ -937,7 +953,7 @@ function refreshDashboard() {
   var EMAIL_COL = _emailCol(sh);
   var emails = sh.getRange(2, EMAIL_COL, rows, 1).getValues();
   var rowOf = {};
-  emails.forEach(function (r, i) { var e = String(r[0] || '').toLowerCase(); if (e) rowOf[e] = i; });
+  emails.forEach(function (r, i) { var e = _cleanEmail(r[0]); if (e) rowOf[e] = i; });
 
   var L = LABS.length, first = 3;
   var grid = emails.map(function () { var a = []; for (var i = 0; i < L + 2; i++) a.push(''); return a; });
@@ -949,7 +965,7 @@ function refreshDashboard() {
     var pct = tab.getRange(2, 5, n, 1).getValues();
     var mail = tab.getRange(2, LAB_EMAIL, n, 1).getValues();
     for (var i = 0; i < n; i++) {
-      var e = String(mail[i][0] || '').toLowerCase();
+      var e = _cleanEmail(mail[i][0]);
       if (!e || !(e in rowOf) || pct[i][0] === '') continue;
       grid[rowOf[e]][c] = Number(pct[i][0]) || 0;
     }
@@ -1165,11 +1181,11 @@ function _seedLab(lab) {
   var have = {};
   if (sh.getLastRow() > 1) {
     sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues()
-      .forEach(function (r, i) { var e = String(r[0] || '').toLowerCase(); if (e) have[e] = i + 2; });
+      .forEach(function (r, i) { var e = _cleanEmail(r[0]); if (e) have[e] = i + 2; });
   }
   var add = [];
   people.forEach(function (p) {
-    var email = String(p[EMAIL_COL - 1] || '').toLowerCase();
+    var email = _cleanEmail(p[EMAIL_COL - 1]);
     if (!email) return;
     if (have[email]) {                             /* already here: keep the name and class true to the roster */
       var r = have[email], cur = sh.getRange(r, 1, 1, 2).getValues()[0];
@@ -1192,7 +1208,7 @@ function _rowFor(sh, email, student) {
   if (last > 1) {
     var col = sh.getRange(2, LAB_EMAIL, last - 1, 1).getValues();
     for (var i = 0; i < col.length; i++) {
-      if (String(col[i][0] || '').toLowerCase() === email) return i + 2;
+      if (_cleanEmail(col[i][0]) === email) return i + 2;
     }
   }
   var row = new Array(LAB_COLS.length).fill('');
@@ -1237,7 +1253,7 @@ function checkCode() {
   var code = String(sh.getRange(CODE_ROW, 2).getValue() || '').trim().toUpperCase();
   var say = function (t) { _codeAnswer(t); SpreadsheetApp.getActive().toast(t, 'Completion code', 30); };
 
-  if (!/^[A-Z]{2}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+  if (!/^[A-Z]{1,5}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
     return say('Paste a completion code into the cell above, then tick the box. They look like DL-3CL9-Q3MP.');
   }
   /* First, simply look for it. Every hand-in that arrived wrote its code into the lab's tab,
@@ -1281,19 +1297,35 @@ function checkCode() {
   for (var li = 0; li < LABS.length; li++) {
     var lab = LABS[li];
     if (!lab.questions) continue;                 /* a lab with no questions yet issues no codes */
+    /* A code carries the total the lab had ON THE DAY it was issued. Add a question to a lab
+       and every code handed out before that stops being readable, because only the new total
+       is tried. The totals students actually handed in against are sitting in the lab's own
+       "Out of" column, so those are tried too. */
+    var totals = [lab.questions];
+    var tab = _ss().getSheetByName(lab.name);
+    if (tab && tab.getLastRow() > 1) {
+      tab.getRange(2, 4, tab.getLastRow() - 1, 1).getValues().forEach(function (r) {
+        var t = Number(r[0]);
+        if (t > 0 && t <= 1000 && totals.indexOf(t) < 0) totals.push(t);
+      });
+    }
     for (var pi = 0; pi < people.length; pi++) {
       var name = String(people[pi][0] || '').trim();
       if (!name) continue;
       var forms = ['', String(people[pi][1] || '').trim()];
       for (var fi = 0; fi < forms.length; fi++) {
         if (fi === 1 && forms[1] === forms[0]) continue;
-        for (var sc = 0; sc <= lab.questions; sc++) {
-          if (_code(lab.id, name, forms[fi], sc + '/' + lab.questions) !== _codeBody(code)) continue;
-          var pct = Math.round(1000 * sc / lab.questions) / 10;
-          var where = _rowSaysWhat(lab, name);
-          return say(name + ' · ' + lab.name + ' · ' + sc + '/' + lab.questions +
-                     ' (' + pct + '%) · ' + (sc === lab.questions ? 'finished' : 'part way') +
-                     '.  ' + where);
+        for (var ti = 0; ti < totals.length; ti++) {
+          var out = totals[ti];
+          for (var sc = 0; sc <= out; sc++) {
+            if (_code(lab.id, name, forms[fi], sc + '/' + out) !== _codeBody(code)) continue;
+            var pct = Math.round(1000 * sc / out) / 10;
+            var where = _rowSaysWhat(lab, name);
+            return say(name + ' · ' + lab.name + ' · ' + sc + '/' + out +
+                       ' (' + pct + '%) · ' + (sc === out ? 'finished' : 'part way') +
+                       (out === lab.questions ? '' : ' · from when this lab had ' + out + ' questions') +
+                       '.  ' + where);
+          }
         }
       }
     }
@@ -1378,7 +1410,7 @@ function _ownProgress(d) {
 
     var vals = sh.getRange(2, 1, last - 1, LAB_COLS.length).getValues();
     for (var r = 0; r < vals.length; r++) {
-      if (String(vals[r][LAB_EMAIL - 1] || '').toLowerCase() !== who.email) continue;
+      if (_cleanEmail(vals[r][LAB_EMAIL - 1]) !== who.email) continue;
       var score = Number(vals[r][2]);              /* Score */
       if (!(score > 0)) break;                     /* a row exists but nothing handed in yet */
       out[lab.id] = {
