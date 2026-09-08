@@ -591,27 +591,48 @@ function checkSetup() {
    Tidy up and the end of an import call this, so importing a class leaves the whole
    spreadsheet built, dressed and up to date — there is nothing else to press. */
 function _buildAndStyle() {
+  var notes = [];
+  _step('Checking the Setup, Labs and Students tabs…');
   _sheet(T_SETUP); _sheet(T_LABS); _sheet(T_STUDENTS);
-  _repairStudentColumns();          /* a lab added since this sheet was built gets its column */
-  LABS.forEach(function (l) { _seedLab(l); });     /* every lab: a tab, and a row per student */
+  _step('Repairing the Students tab: repeated, unused and untidy columns…');
+  notes = notes.concat(_repairStudentSheet());     /* repeated, stray and dirty columns first */
+  var added = _repairStudentColumns();             /* a lab added since this sheet was built gets its column */
+  if (added) notes.push(added + ' new lab column' + (added === 1 ? '' : 's') +
+                        ' added to the Students tab.');
+  LABS.forEach(function (l, i) {                   /* every lab: a tab, and a row per student */
+    _step('Giving everyone a row: ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
+    _seedLab(l);
+  });
+  _step('Checking the addresses on every lab tab…');
+  notes = notes.concat(_repairLabEmails());
   var gone = _ss().getSheetByName('Summary');
   if (gone && gone.getLastRow() < 2) _ss().deleteSheet(gone);      /* the Students tab is the summary now */
+  _step('Putting the buttons back on the Setup tab…');
   _installButtons();
   restyleAll();
+  _step('Working out everyone\u2019s progress…');
   refreshDashboard();
+  _step('Putting the tabs in syllabus order…');
   _orderTabs();                     /* left to right, topic 1 to topic 21 */
+  return notes;
 }
 
 function setup() {
-  _buildAndStyle();
-  SpreadsheetApp.getActive().toast('Every tab is built and styled.', 'Biology Labs', 6);
+  var notes = _buildAndStyle();
+  var said = notes.length ? notes.join('  ')
+           : 'Every tab is built and styled. Nothing needed repairing.';
+  SpreadsheetApp.getActive().toast(said, 'Biology Labs', 20);
+  return said;
 }
 
 function restyleAll() {
+  _step('Formatting the Setup, Labs and Students tabs…');
   _styleSetup(); _styleLabs(); _styleStudents();
-  LABS.forEach(function (l) {
+  LABS.forEach(function (l, i) {
     var sh = _ss().getSheetByName(l.name);
-    if (sh) _styleLab(sh);
+    if (!sh) return;
+    _step('Formatting ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
+    _styleLab(sh);
   });
 }
 
@@ -665,10 +686,12 @@ function _dress2(sh, cols, opts) {
       .setFontWeight('bold').setFontColor('#FFFFFF').setFontSize(10)
       .setVerticalAlignment('middle').setHorizontalAlignment('left')
       .setWrap(false);
+  /* One write for the whole heading row rather than three per column. */
+  head.setBackgrounds([cols.map(function (c) { return c.head || (c.edit ? HDR_EDIT : HDR_AUTO); })]);
+  head.setNotes([cols.map(function (c) {
+    return (c.note || '') + (c.edit ? '\n\nYou can change this.' : '\n\nFilled in for you.');
+  })]);
   cols.forEach(function (c, i) {
-    var cell = sh.getRange(1, i + 1);
-    cell.setBackground(c.head || (c.edit ? HDR_EDIT : HDR_AUTO));
-    cell.setNote((c.note || '') + (c.edit ? '\n\nYou can change this.' : '\n\nFilled in for you.'));
     sh.setColumnWidth(i + 1, c.w || _wide((c.edit ? '  ' : '') + c.h));
   });
   sh.setRowHeight(1, 30);
@@ -693,7 +716,9 @@ function _dress2(sh, cols, opts) {
       .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false);
     try { band.setHeaderRowColor(HDR_AUTO).setFirstRowColor(BAND_A).setSecondRowColor(BAND_B); } catch (e) {}
     sh.getRange(1, 1, last, n).createFilter();
-    for (var r = 2; r <= last; r++) sh.setRowHeight(r, 24);
+    /* setRowHeight is one round trip per row: 130 students across 20 tabs was 2,600 of them,
+       and it is the single reason Tidy up took minutes. setRowHeights does the lot in one. */
+    sh.setRowHeights(2, last - 1, 24);
 
     /* a hairline where one group of columns ends and the next begins */
     cols.forEach(function (c, i) {
@@ -716,20 +741,34 @@ function _dress2(sh, cols, opts) {
 function _dressRows(sh, cols, from, rows) {
   if (!rows || rows < 1) return;
   sh.getRange(from, 1, rows, cols.length).setVerticalAlignment('middle').setFontColor('#26332A');
-  for (var r = from; r < from + rows; r++) sh.setRowHeight(r, 24);
+  sh.setRowHeights(from, rows, 24);
+  /* Wrapping and dropdowns were set one column at a time — every column, every tab, every
+     Tidy up. Both take a grid, so both are one call now. A number format or an alignment is
+     still per column, because only a few columns ask for one and skipping the rest leaves
+     what is already there alone. */
+  var rule = {};
   cols.forEach(function (c, i) {
+    if (c.list && c.list.length) {
+      rule[i] = SpreadsheetApp.newDataValidation()
+        .requireValueInList(c.list, true).setAllowInvalid(true)
+        .setHelpText('One of: ' + c.list.join(', ')).build();
+    }
+  });
+  var wrapGrid = [], ruleGrid = [];
+  for (var r = 0; r < rows; r++) {
+    var wr = [], rr = [];
+    for (var i = 0; i < cols.length; i++) { wr.push(!!cols[i].wrap); rr.push(rule[i] || null); }
+    wrapGrid.push(wr); ruleGrid.push(rr);
+  }
+  var body2 = sh.getRange(from, 1, rows, cols.length);
+  body2.setWraps(wrapGrid);
+  body2.setDataValidations(ruleGrid);
+  cols.forEach(function (c, i) {
+    if (!c.fmt && !c.align && !c.bold) return;
     var col = sh.getRange(from, i + 1, rows, 1);
     if (c.fmt) col.setNumberFormat(c.fmt);
     if (c.align) col.setHorizontalAlignment(c.align);
-    col.setWrap(!!c.wrap);
     if (c.bold) col.setFontWeight('bold');
-    if (c.list && c.list.length) {
-      col.setDataValidation(SpreadsheetApp.newDataValidation()
-        .requireValueInList(c.list, true).setAllowInvalid(true)
-        .setHelpText('One of: ' + c.list.join(', ')).build());
-    } else {
-      col.setDataValidation(null);
-    }
   });
 }
 
@@ -855,13 +894,16 @@ function onButtonTicked(e) {
 
   try {
     var did = '';
+    _PROGRESS_ROW = row;
     if (row === BTN_ROW.refresh) { refreshDashboard(); did = 'Progress refreshed'; }
-    else if (row === BTN_ROW.restyle) { setup(); did = 'Tidied up — every tab rebuilt and reformatted'; }
+    else if (row === BTN_ROW.restyle) { did = 'Tidied up. ' + setup(); }
     else if (row === BTN_ROW.code) { checkCode(); did = 'Code checked — the answer is in the cell below'; }
     else { _btnSays(row, ''); return; }
+    _PROGRESS_ROW = null;
     var secs = Math.round((new Date() - started) / 1000);
     _btnSays(row, '✅  ' + did + ' at ' + _hhmm(new Date()) + ' (took ' + secs + 's)');
   } catch (err) {
+    _PROGRESS_ROW = null;
     _btnSays(row, '❌  That did not work: ' + err);
     SpreadsheetApp.getActive().toast('That button failed: ' + err, 'Biology Labs', 30);
   }
@@ -880,6 +922,15 @@ function _codeAnswer(text) {
     .setFontColor(hint ? '#8A8F8A' : '#3D7A54')
     .setFontWeight(hint ? 'normal' : 'bold')
     .setFontStyle(hint ? 'italic' : 'normal');
+}
+
+/* A long job talks while it works. "Working…" for two minutes is indistinguishable from a
+   script that has died, so each step says what it is on and how far along it is, written into
+   the sheet beside the button and flushed so it appears at once rather than at the end. */
+var _PROGRESS_ROW = null;
+function _step(msg) {
+  if (!_PROGRESS_ROW) return;
+  try { _btnSays(_PROGRESS_ROW, '\u23F3  ' + msg); SpreadsheetApp.flush(); } catch (e) {}
 }
 
 /* The line beside a button. It stays until that button is used again. */
@@ -1031,18 +1082,27 @@ function _styleLab(sh) {
    its own the first time you run anything from the Sheet, and remembers it — so pasting a
    fresh copy of this file never breaks the deployment. SHEET_ID is only needed for a
    stand-alone script, or to point it at a different Sheet. */
+var _SHEET_ID_CACHE = null;
 function _sheetId() {
   if (SHEET_ID && SHEET_ID !== 'PASTE_YOUR_SHEET_ID_HERE') return SHEET_ID;
+  if (_SHEET_ID_CACHE) return _SHEET_ID_CACHE;
   var props = PropertiesService.getScriptProperties();
   var kept = props.getProperty('SHEET_ID');
-  if (kept) return kept;
+  if (kept) { _SHEET_ID_CACHE = kept; return kept; }
   var active = SpreadsheetApp.getActiveSpreadsheet();      /* null in a web app; set from the Sheet */
-  if (active) { props.setProperty('SHEET_ID', active.getId()); return active.getId(); }
+  if (active) { props.setProperty('SHEET_ID', active.getId()); _SHEET_ID_CACHE = active.getId(); return active.getId(); }
   throw new Error('This script does not know which spreadsheet to use. Open the Sheet and run ' +
                   '🧪 Biology Labs ▸ Check the set-up once — that remembers it — then Deploy ▸ ' +
                   'Manage deployments ▸ pencil ▸ New version ▸ Deploy.');
 }
-function _ss() { return SpreadsheetApp.openById(_sheetId()); }
+/* openById is a round trip to the Sheets service, and this is called from inside loops over
+   every lab, so Tidy up was paying for it hundreds of times. One call per execution is enough:
+   a script run is short-lived, and the handle stays good for all of it. */
+var _SS_CACHE = null;
+function _ss() {
+  if (!_SS_CACHE) _SS_CACHE = SpreadsheetApp.openById(_sheetId());
+  return _SS_CACHE;
+}
 function _sheet(name) {
   var ss = _ss(), sh = ss.getSheetByName(name);
   if (sh) return sh;
@@ -1067,6 +1127,142 @@ function _sheet(name) {
   }
   return sh;
 }
+
+/* ------------------------------------------------------------
+   Tidy up has to be safe to press in November, on a sheet holding a term of marks. Everything
+   below works to one rule:
+
+       NOTHING THAT HOLDS DATA IS MOVED, RELABELLED OR DELETED.
+
+   A column is removed only when every cell under its heading is empty. A column with figures
+   in it is kept and named in the report instead. So anything unexpected is something you read
+   straight away, not something you find in a mark book months later. The report is written
+   beside the button and stays there.
+   ------------------------------------------------------------ */
+function _studentHeadings() {
+  return ['Name', 'Class']
+         .concat(LABS.map(function (l) { return l.name; }))
+         .concat(['Labs started', 'Average', 'School email', 'Classroom course',
+                  'Imported', 'Classroom user id', 'Course id']);
+}
+
+function _repairStudentSheet() {
+  var sh = _sheet(T_STUDENTS), notes = [];
+  if (sh.getLastColumn() < 3) return notes;
+
+  function heads() {
+    return sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+             .map(function (h) { return String(h || '').replace(/^\u270E\s*/, '').trim(); });
+  }
+  function rowCount() { return Math.max(0, sh.getLastRow() - 1); }
+  function isEmpty(c) {
+    var rows = rowCount();
+    if (!rows) return true;
+    var v = sh.getRange(2, c, rows, 1).getValues();
+    for (var i = 0; i < v.length; i++) {
+      if (String(v[i][0] === null || v[i][0] === undefined ? '' : v[i][0]).trim() !== '') return false;
+    }
+    return true;
+  }
+  /* Right to left, so deleting one column cannot shift the next one still to be looked at. */
+  function dropEmpty(cols, what) {
+    var head = heads(), gone = 0, kept = [];
+    cols.sort(function (a, b) { return b - a; }).forEach(function (c) {
+      if (isEmpty(c)) { sh.deleteColumn(c); gone++; }
+      else kept.push(head[c - 1]);
+    });
+    if (gone) notes.push(gone + ' empty ' + what + ' column' + (gone === 1 ? '' : 's') + ' removed.');
+    if (kept.length) {
+      notes.push('Kept, because there is still something in ' +
+                 (kept.length === 1 ? 'it' : 'them') + ': ' + kept.join(', ') +
+                 '. Move what you want out of the way, then press Tidy up again.');
+    }
+  }
+
+  /* 1. the same heading twice. The leftmost is the real one — it is where the script writes. */
+  var head = heads(), firstAt = {}, dupes = [];
+  head.forEach(function (h, i) {
+    if (!h) return;
+    if (firstAt[h] === undefined) firstAt[h] = i; else dupes.push(i + 1);
+  });
+  if (dupes.length) dropEmpty(dupes, 'repeated');
+
+  /* 2. a heading this script no longer knows: a lab taken out of LABS, a renamed lab under its
+        old name, or something typed in by hand. */
+  head = heads();
+  var known = _studentHeadings(), strays = [];
+  head.forEach(function (h, i) { if (h && known.indexOf(h) < 0) strays.push(i + 1); });
+  if (strays.length) dropEmpty(strays, 'unrecognised');
+
+  /* 3. an address carries whatever was pasted with it, and a hand-in is matched on the address.
+        A trailing space is invisible and loses every mark that student ever hands in. */
+  head = heads();
+  var ec = head.indexOf('School email') + 1, rows = rowCount(), fixed = 0;
+  if (ec > 0 && rows > 0) {
+    var v = sh.getRange(2, ec, rows, 1).getValues(), out = [];
+    for (var i = 0; i < v.length; i++) {
+      var was = String(v[i][0] === null || v[i][0] === undefined ? '' : v[i][0]);
+      var now = _cleanEmail(was);
+      if (now && now.indexOf('@') > 0 && now !== was) { out.push([now]); fixed++; }
+      else out.push([was]);
+    }
+    if (fixed) {
+      sh.getRange(2, ec, rows, 1).setValues(out);
+      notes.push(fixed + ' school address' + (fixed === 1 ? '' : 'es') +
+                 ' had spaces or hidden characters around ' + (fixed === 1 ? 'it' : 'them') +
+                 ', which stops a hand-in being matched. Cleaned.');
+    }
+  }
+  /* 4. two rows sharing one address. Nothing is deleted, because either row might be the right
+        one, but it has to be said: a hand-in is matched on the address and the first row wins,
+        so the other student's name is written over theirs on every lab tab the next time this
+        runs. On the sheet it looks like marks moving between people. */
+  head = heads();
+  ec = head.indexOf('School email') + 1;
+  rows = rowCount();
+  if (ec > 0 && rows > 0) {
+    var addr = sh.getRange(2, ec, rows, 1).getValues();
+    var who = sh.getRange(2, 1, rows, 1).getValues();
+    var at = {}, clashes = [];
+    for (var j = 0; j < addr.length; j++) {
+      var a = _cleanEmail(addr[j][0]);
+      if (!a) continue;
+      if (at[a] === undefined) { at[a] = j; continue; }
+      clashes.push(a + ' (rows ' + (at[a] + 2) + ' and ' + (j + 2) + ': ' +
+                   String(who[at[a]][0]) + ', ' + String(who[j][0]) + ')');
+    }
+    if (clashes.length) {
+      notes.push('TWO ROWS SHARE ONE ADDRESS, so one student\u2019s marks will be filed under ' +
+                 'the other: ' + clashes.join('; ') + '. Nothing was changed \u2014 correct the ' +
+                 'address and press Tidy up again.');
+    }
+  }
+
+  return notes;
+}
+
+/* The same on every lab tab: a student's row is found by the address in it, so a stray space
+   there loses their marks just as surely. */
+function _repairLabEmails() {
+  var fixed = 0, tabs = 0;
+  LABS.forEach(function (l) {
+    var sh = _ss().getSheetByName(l.name);
+    if (!sh || sh.getLastRow() < 2) return;
+    var rows = sh.getLastRow() - 1;
+    var v = sh.getRange(2, LAB_EMAIL, rows, 1).getValues(), out = [], n = 0;
+    for (var i = 0; i < v.length; i++) {
+      var was = String(v[i][0] === null || v[i][0] === undefined ? '' : v[i][0]);
+      var now = _cleanEmail(was);
+      if (now && now.indexOf('@') > 0 && now !== was) { out.push([now]); n++; }
+      else out.push([was]);
+    }
+    if (n) { sh.getRange(2, LAB_EMAIL, rows, 1).setValues(out); fixed += n; tabs++; }
+  });
+  if (!fixed) return [];
+  return [fixed + ' address' + (fixed === 1 ? '' : 'es') + ' on ' + tabs + ' lab tab' +
+          (tabs === 1 ? '' : 's') + ' had spaces or hidden characters around them. Cleaned.'];
+}
+
 /* Where the school email actually is on the Students tab.
    It used to be worked out as 3 + LABS.length + 2 — Name, Class, one column per lab, then
    Labs started and Average. That is right for a sheet built by THIS version of the script,
@@ -1253,7 +1449,9 @@ function checkCode() {
   var code = String(sh.getRange(CODE_ROW, 2).getValue() || '').trim().toUpperCase();
   var say = function (t) { _codeAnswer(t); SpreadsheetApp.getActive().toast(t, 'Completion code', 30); };
 
-  if (!/^[A-Z]{1,5}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
+  /* The letters in front are the lab's own — DL for Digestion, CL for Classification — and a
+     code is just as readable without them, since only the body is ever compared. */
+  if (!/^([A-Z]{1,5}-)?[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
     return say('Paste a completion code into the cell above, then tick the box. They look like DL-3CL9-Q3MP.');
   }
   /* First, simply look for it. Every hand-in that arrived wrote its code into the lab's tab,
