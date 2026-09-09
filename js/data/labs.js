@@ -26,12 +26,17 @@ window.LABS_REGISTER = {
     { "id": "classification-lab", "name": "Classification Lab", "short": "Classification",
       "topicNo": 1, "topic": "Characteristics and classification", "shelf": "life-on-earth",
       "url": "https://mompel226.github.io/classification-lab/",
-      "store": "classification-lab.v1", "stations": 10, "questions": 64, "status": "live" }
+      "store": "classification-lab.v1", "stations": 10, "questions": 64, "status": "live" },
+
+    { "id": "plants-lab", "name": "Plants Lab", "short": "Plants",
+      "topicNo": 6, "topic": "Plants: 6, 8, 14.5, 16.3, 18.2", "shelf": "plants",
+      "url": "https://mompel226.github.io/plants-lab/",
+      "store": "plants-lab.v1", "stations": 11, "questions": 80, "status": "live" }
   ],
   "shelves": [
     { "id": "foundations",   "name": "Foundations",    "url": null },
     { "id": "human-body",    "name": "The human body", "url": "https://mompel226.github.io/human-body-hub/" },
-    { "id": "plants",        "name": "Plants",         "url": null },
+    { "id": "plants",        "name": "Plants",         "url": "https://mompel226.github.io/plants-hub/" },
     { "id": "life-on-earth", "name": "Life on Earth",  "url": "https://mompel226.github.io/life-on-earth-hub/" }
   ]
 };
