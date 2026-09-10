@@ -329,6 +329,18 @@ body.ib .ib-note{display:inline}
 .byline{font-size:12.5px;color:var(--chalk)}
 .byline strong{font-weight:500}
 .byline a{color:var(--cyan);border-bottom:1px solid rgba(79,195,247,.4)}
+/* the credits are owed, not read: one small button, and the list only when it is pressed */
+.credits{font-size:0}
+.credits__btn{
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;list-style:none;width:max-content;
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#A9BECB;
+  border:1px solid rgba(150,190,215,.3);border-radius:2px;padding:5px 10px;background:rgba(7,15,21,.6);transition:.18s
+}
+.credits__btn::-webkit-details-marker{display:none}
+.credits__btn::before{content:"+";font-size:12px;color:var(--chalk-mute)}
+.credits[open] .credits__btn::before{content:"\2013"}
+.credits__btn:hover,.credits[open] .credits__btn{background:rgba(120,200,230,.16);color:#DCEAF2;border-color:rgba(150,215,240,.6)}
+.credits .colophon{margin-top:10px}
 .colophon{font-family:var(--mono);font-size:9px;letter-spacing:.04em;line-height:1.9;color:var(--chalk-mute)}
 .colophon b{font-weight:500;color:var(--chalk-dim)}
 .colophon a{color:var(--chalk-dim);border-bottom:1px solid rgba(169,190,203,.35)}
@@ -426,8 +438,12 @@ body[data-view="entry"] .lede{max-width:70ch}
 .door--hero .door__go,.door--hero.is-on .door__go{opacity:1;transform:none}
 .door--hero .door__img{transform:scale(1.02)}
 .door--hero.is-on .door__img{transform:scale(1.06)}
-/* an entry tile: the same door as a shelf, a touch quieter until pointed at */
-.door--entry:not(.door--hero) .door__title{font-size:clamp(20px,1.9vw,30px)}
+/* an entry tile: the name of the section is the big word, and under it, in the accent, what
+   the section is — always out, since these four are what a student is choosing between */
+.door--entry:not(.door--hero) .door__title{font-size:clamp(24px,2.3vw,38px)}
+.door__sub{font-family:var(--serif);font-style:italic;font-size:clamp(15px,1.3vw,21px);line-height:1.25;color:var(--accent);margin-top:3px}
+.door--hero .door__sub{font-size:clamp(17px,1.5vw,24px)}
+.band--entry{padding-top:2px;margin-top:-2px}
 .door--entry .door__detail{color:var(--chalk-dim)}
 .door--light.door--entry .door__detail{color:#2A343C}
 
