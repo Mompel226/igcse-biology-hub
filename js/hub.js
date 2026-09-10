@@ -166,16 +166,19 @@
        marks  [{ cx, cy, r, colour, fill, width, at }]  discs that pop in
        text   [{ x, y, text, size, family, style, weight, spacing, fill, at }]  words that fade up
      `at` is seconds after the door opens; left out, each follows the one before. Strokes keep
-     their width whatever the group's scale, so a small shut mark is not drawn in hairlines. */
+     their width whatever the group's scale, so a small shut mark is not drawn in hairlines —
+     unless the mark says `scaleStrokes`, when its lines scale with the drawing, because their
+     weight is part of its proportion (the Veterinary Society's horse). */
   function drawPart(dr, id) {
     if (!dr) return '';
     var groups = dr.groups || [ { paths: dr.paths, marks: dr.marks, text: dr.text } ];
+    var ve = dr.scaleStrokes ? '' : ' vector-effect="non-scaling-stroke"';
     var out = '';
     groups.forEach(function (g) {
       var t = 0, inner = '';
       (g.paths || []).forEach(function (p) {
         var secs = p.seconds || 1.2, at = (p.at != null) ? p.at : t; t = at + secs;
-        inner += '<path class="mo-draw" pathLength="1000" vector-effect="non-scaling-stroke" d="' + esc(p.d) + '" ' +
+        inner += '<path class="mo-draw" pathLength="1000"' + ve + ' d="' + esc(p.d) + '" ' +
           'fill="none" stroke="' + esc(p.colour || '#fff') + '" stroke-width="' + (p.width || 8) + '" ' +
           'stroke-linecap="round" stroke-linejoin="round"' + (p.opacity != null ? ' opacity="' + p.opacity + '"' : '') +
           ' style="--t:' + secs + 's;--wait:' + at.toFixed(2) + 's"/>';
@@ -184,7 +187,7 @@
         var at = (m.at != null) ? m.at : t + 0.12 * i;
         inner += '<g class="mo-pop" style="--wait:' + at.toFixed(2) + 's">' +
           '<circle cx="' + m.cx + '" cy="' + m.cy + '" r="' + m.r + '" fill="' + esc(m.fill || 'none') + '" ' +
-          'stroke="' + esc(m.colour || 'none') + '" stroke-width="' + (m.width || 0) + '" vector-effect="non-scaling-stroke"/></g>';
+          'stroke="' + esc(m.colour || 'none') + '" stroke-width="' + (m.width || 0) + '"' + ve + '/></g>';
       });
       (g.text || []).forEach(function (x, i) {
         var at = (x.at != null) ? x.at : t + 0.35 + 0.15 * i;
