@@ -18,25 +18,59 @@ window.LABS_REGISTER = {
     "js/local.js beside the doors and the site name."
   ],
   "labs": [
-    { "id": "digestion-lab", "name": "Digestion Lab", "short": "Digestion",
-      "topicNo": 7, "topic": "Human nutrition", "shelf": "human-body",
+    { "id": "digestion-lab",
+      "name": "Digestion Lab",
+      "short": "Digestion",
+      "topicNo": 7,
+      "topic": "Human nutrition",
+      "shelf": "human-body",
       "url": "https://mompel226.github.io/digestion-lab/",
-      "store": "digestion-lab.v2", "stations": 14, "questions": 123, "status": "live" },
-
-    { "id": "classification-lab", "name": "Classification Lab", "short": "Classification",
-      "topicNo": 1, "topic": "Characteristics and classification", "shelf": "life-on-earth",
+      "store": "digestion-lab.v2",
+      "stations": 14,
+      "questions": 123,
+      "status": "live"
+    },
+    { "id": "classification-lab",
+      "name": "Classification Lab",
+      "short": "Classification",
+      "topicNo": 1,
+      "topic": "Characteristics and classification",
+      "shelf": "life-on-earth",
       "url": "https://mompel226.github.io/classification-lab/",
-      "store": "classification-lab.v1", "stations": 10, "questions": 64, "status": "live" },
-
-    { "id": "plants-lab", "name": "Plants Lab", "short": "Plants",
-      "topicNo": 6, "topic": "Plants: 6, 8, 14.5, 16.3, 18.2", "shelf": "plants",
+      "store": "classification-lab.v1",
+      "stations": 10,
+      "questions": 64,
+      "status": "live"
+    },
+    { "id": "plants-lab",
+      "name": "Plants Lab",
+      "short": "Plants",
+      "topicNo": 6,
+      "topic": "Plants: 6, 8, 14.5, 16.3, 18.2",
+      "shelf": "plants",
       "url": "https://mompel226.github.io/plants-lab/",
-      "store": "plants-lab.v1", "stations": 11, "questions": 80, "status": "live" }
+      "store": "plants-lab.v1",
+      "stations": 12,
+      "questions": 86,
+      "status": "live"
+    }
   ],
   "shelves": [
-    { "id": "foundations",   "name": "Foundations",    "url": null },
-    { "id": "human-body",    "name": "The human body", "url": "https://mompel226.github.io/human-body-hub/" },
-    { "id": "plants",        "name": "Plants",         "url": "https://mompel226.github.io/plants-hub/" },
-    { "id": "life-on-earth", "name": "Life on Earth",  "url": "https://mompel226.github.io/life-on-earth-hub/" }
+    { "id": "foundations",
+      "name": "Foundations",
+      "url": null
+    },
+    { "id": "human-body",
+      "name": "The human body",
+      "url": "https://mompel226.github.io/human-body-hub/"
+    },
+    { "id": "plants",
+      "name": "Plants",
+      "url": "https://mompel226.github.io/plants-hub/"
+    },
+    { "id": "life-on-earth",
+      "name": "Life on Earth",
+      "url": "https://mompel226.github.io/life-on-earth-hub/"
+    }
   ]
 };
