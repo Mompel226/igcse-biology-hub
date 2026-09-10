@@ -383,3 +383,60 @@ noscript p{padding:20px}
   .door__motion{display:none}
   .door__img,.door.is-on .door__img{transform:none}
 }
+
+/* ============ the front of the building ============
+   A school's own edition may stand a page of doors in front of the hub (js/local.js, `entry`).
+   This is that page: one wide door across the top for revision, the rest in a row beneath.
+   The ground shifts from the hub's blue-black to a deeper green, so it reads as the front of
+   the building and not as another shelf. The open edition never sets data-view="entry". */
+[hidden]{display:none!important}
+body[data-view="entry"]{
+  background-color:#0A1712;
+  background-image:
+    radial-gradient(70% 55% at 12% -8%, rgba(46,140,110,.22), transparent 70%),
+    radial-gradient(42% 42% at 96% 108%, rgba(217,154,43,.12), transparent 70%)
+}
+.crumb{
+  display:flex;width:max-content;align-items:center;gap:8px;margin-bottom:12px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim);
+  transition:color .18s
+}
+.crumb::before{content:"\2190";font-size:13px;color:var(--chalk-mute)}
+.crumb:hover,.crumb:focus-visible{color:var(--chalk)}
+/* the hub's own controls only make sense in the hub */
+body[data-view="entry"] .masthead__r,body[data-view="ccas"] .masthead__r,
+body:not([data-view="revision"])[data-view] .masthead__r{display:none}
+body:not([data-view="revision"])[data-view] .masthead{grid-template-columns:minmax(0,1fr)}
+
+.doors--entry{flex:1 0 auto;flex-direction:column;gap:8px;min-height:0}
+.doors--row{display:flex;gap:8px;flex:1 1 0;min-height:250px}
+/* the hero: full width, and its words always out, since this is the first thing anyone reads.
+   Its words are in the flow, not pinned to the bottom, so a long paragraph makes the door
+   taller instead of climbing out of the top of it; the picture sits behind at whatever height
+   that is. Kept to about a third of a laptop screen otherwise, so the four doors beneath show
+   their titles without a scroll; they take whatever height is left. */
+.door--hero{flex:none;display:flex;flex-direction:column;justify-content:flex-end;height:auto;min-height:clamp(280px,36vh,460px)}
+.door--hero .door__body{position:relative;left:auto;right:auto;bottom:auto}
+body[data-view="entry"] .masthead{padding-top:clamp(10px,1.6vh,20px)}
+body[data-view="entry"] .lede{max-width:70ch}
+.door--hero .door__body{max-width:min(100%,66ch)}
+.door--hero .door__title{font-size:clamp(26px,2.8vw,44px)}
+.door--hero .door__lede,.door--hero.is-on .door__lede{max-height:none;opacity:1;margin-top:8px;font-size:14.5px;max-width:64ch}
+.door--hero .door__chips,.door--hero.is-on .door__chips{max-height:none;opacity:1;margin-top:12px}
+.door--hero .door__go,.door--hero.is-on .door__go{opacity:1;transform:none}
+.door--hero .door__img{transform:scale(1.02)}
+.door--hero.is-on .door__img{transform:scale(1.06)}
+/* an entry tile: the same door as a shelf, a touch quieter until pointed at */
+.door--entry:not(.door--hero) .door__title{font-size:clamp(20px,1.9vw,30px)}
+.door--entry .door__detail{color:var(--chalk-dim)}
+.door--light.door--entry .door__detail{color:#2A343C}
+
+/* a section page: the wide doors stand alone under the masthead */
+body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
+
+@media (max-width:900px){
+  .doors--row{flex-direction:column;flex:none;min-height:0;gap:10px}
+  .door--hero{height:auto;min-height:0}
+  .door--hero .door__body{padding-top:clamp(150px,40vw,220px)}
+  .door--hero .door__title{font-size:clamp(26px,7vw,36px)}
+}
