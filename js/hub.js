@@ -151,6 +151,38 @@
     });
     return out;
   }
+  /* motion.draw — a mark that draws itself when the door opens and stands finished when the
+     door is shut. Unlike a trace or an orbit it has an end state, so it is also shown on a
+     narrow screen and to a reader who asked for less movement, just without the drawing.
+       paths  [{ d, width, colour, seconds }]  drawn one after another, in this order
+       marks  [{ cx, cy, r, colour, fill, width }]  discs that pop in once the lines are drawn
+       text   [{ x, y, text, size, family, style, weight, spacing, fill }]  words that fade in last
+     Everything is in the plate's own coordinates. */
+  function drawPart(dr, id) {
+    if (!dr || !dr.paths) return '';
+    var t = 0, out = '';
+    dr.paths.forEach(function (p) {
+      var secs = p.seconds || 1.2;
+      out += '<path class="mo-draw" pathLength="1000" d="' + esc(p.d) + '" fill="none" ' +
+        'stroke="' + esc(p.colour || '#fff') + '" stroke-width="' + (p.width || 8) + '" ' +
+        'stroke-linecap="round" stroke-linejoin="round" ' +
+        'style="--t:' + secs + 's;--wait:' + t.toFixed(2) + 's"/>';
+      t += secs;
+    });
+    (dr.marks || []).forEach(function (m, i) {
+      out += '<g class="mo-pop" style="--wait:' + (t + 0.12 * i).toFixed(2) + 's">' +
+        '<circle cx="' + m.cx + '" cy="' + m.cy + '" r="' + m.r + '" fill="' + esc(m.fill || 'none') + '" ' +
+        'stroke="' + esc(m.colour || 'none') + '" stroke-width="' + (m.width || 0) + '"/></g>';
+    });
+    (dr.text || []).forEach(function (x, i) {
+      out += '<text class="mo-fade" style="--wait:' + (t + 0.35 + 0.15 * i).toFixed(2) + 's" ' +
+        'x="' + x.x + '" y="' + x.y + '" font-family="' + esc(x.family || 'serif') + '" ' +
+        'font-size="' + (x.size || 60) + '" font-style="' + esc(x.style || 'normal') + '" ' +
+        'font-weight="' + (x.weight || 400) + '" letter-spacing="' + (x.spacing || 0) + '" ' +
+        'fill="' + esc(x.fill || '#fff') + '">' + esc(x.text) + '</text>';
+    });
+    return out;
+  }
   /* the banner's own pixel size — everything the register says about a banner, the path it
      hands over included, is in these coordinates */
   function plateOf(d) { return d.plate || [1800, 614]; }
@@ -169,11 +201,12 @@
   }
   function motion(d) {
     var m = d.motion;
-    if (!m || still) return '';
-    var body = tracePart(m.trace, d.id) + orbitPart(m.orbits, d.id);
+    if (!m) return '';
+    if (still && !m.draw) return '';        /* less movement: no lights or orbits, but a mark still stands */
+    var body = tracePart(m.trace, d.id) + orbitPart(m.orbits, d.id) + drawPart(m.draw, d.id);
     if (!body) return '';
     var p = plateOf(d), mk = fadeMask(m, p[0], d.id);
-    return '<svg class="door__motion" viewBox="0 0 ' + p[0] + ' ' + p[1] + '" ' +
+    return '<svg class="door__motion' + (m.draw ? ' door__motion--still' : '') + '" viewBox="0 0 ' + p[0] + ' ' + p[1] + '" ' +
       'preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false" ' +
       'xmlns:xlink="http://www.w3.org/1999/xlink">' +
       mk[0] + '<g' + mk[1] + '>' + body + '</g></svg>';
@@ -234,7 +267,7 @@
     /* a wide door's words sit on a fade of the banner's own ground, so each banner brings
        the colour its fade is made of */
     if (rgbOf(d.ground)) a.style.setProperty('--ground-rgb', rgbOf(d.ground));
-    if (d.status === 'local') { a.target = '_blank'; a.rel = 'noopener'; }
+    if (d.status === 'local' || d.newTab) { a.target = '_blank'; a.rel = 'noopener'; }
     a.setAttribute('aria-label', plain(d.title) + ' — ' + STATUS[d.status]);
     a.innerHTML = picture(d, eager) + motion(d) +
       '<span class="door__veil" aria-hidden="true"></span><span class="door__light" aria-hidden="true"></span>' +
@@ -285,6 +318,15 @@
 
   DOORS.filter(isShelf).forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
 
+  /* A still overlay is shown on a narrow screen too, where the picture is fitted whole and
+     top-aligned rather than cropped, so the overlay is fitted the same way there. */
+  function fitStillOverlays() {
+    var v = narrow.matches ? 'xMidYMin meet' : 'xMidYMid slice';
+    Array.prototype.forEach.call(document.querySelectorAll('.door__motion--still'), function (el) {
+      el.setAttribute('preserveAspectRatio', v);
+    });
+  }
+
   /* the front of the building: the hero door across the top, the rest in a row beneath */
   var entryEl = document.getElementById('entryDoors'), rowEl = null;
   if (ENTRY && entryEl) {
@@ -305,6 +347,8 @@
     });
   }
 
+  narrow.addEventListener('change', fitStillOverlays);
+
   /* each band, in the order declared, with its own doors beneath it. Nothing is written
      when a band has no doors, so the open edition's section stays empty and hides itself.
      With sections, each band is a page of its own and only shows when that page is open. */
@@ -319,6 +363,7 @@
     wideEl.appendChild(band);
     mine.forEach(function (d) { var a = build(d, false); a.dataset.section = b.section || ''; wideEl.appendChild(a); });
   });
+  fitStillOverlays();
 
   /* ---------- 2. the idle tour ----------
      Left alone, the doors take turns opening, so anyone glancing at
@@ -368,12 +413,22 @@
     if (doc) document.title = doc;
     if (mastEl.desc && desc) mastEl.desc.setAttribute('content', plain(desc));
   }
+  /* the page a door lives on: a section's page for a door that carries its kind, else the hub */
+  function pageOf(id) {
+    var d = DOORS.filter(function (x) { return x.id === id; })[0];
+    if (!d || d.kind === 'entry') return null;
+    var b = BANDS.filter(function (x) { return x.kind === d.kind; })[0];
+    return b && b.section ? b.section : 'revision';
+  }
   function viewFor(hash) {
     var h = String(hash || '').replace(/^#/, '');
     if (!ENTRY) return 'revision';
     if (!h || h === 'entry') return 'entry';
-    if (h === 'revision' || !sectionOf(h)) return 'revision';
-    return h;
+    if (h === 'revision') return 'revision';
+    if (sectionOf(h)) return h;
+    /* #vetsoc names a door on the Societies page: open that page with the door lit, the way
+       #plants opens the hub with that shelf lit — a link to project a prepared state in class */
+    return pageOf(h) || 'revision';
   }
   var VIEW = null, progHas = false;
   function show(view) {
