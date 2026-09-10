@@ -241,6 +241,8 @@
       '<div class="door__body">' +
         '<span class="door__no">' + esc(d.eyebrow) + '</span>' +
         '<h2 class="door__title">' + d.title + '</h2>' +
+        /* a second line under the name, always out: what the thing behind the door is */
+        (d.sub ? '<p class="door__sub">' + esc(d.sub) + '</p>' : '') +
         '<p class="door__lede">' + esc(d.blurb) + '</p>' +
         chips(d) +
         '<div class="door__foot">' +
@@ -289,7 +291,16 @@
     (ENTRY.doors || []).forEach(function (d) {
       var a = build(d, true);
       if (d.hero) { entryEl.appendChild(a); return; }
-      if (!rowEl) { rowEl = document.createElement('div'); rowEl.className = 'doors doors--row'; entryEl.appendChild(rowEl); }
+      if (!rowEl) {
+        /* one line over the row says what the four have in common, so no door has to */
+        if (ENTRY.rowLabel) {
+          var lbl = document.createElement('div');
+          lbl.className = 'band band--entry';
+          lbl.innerHTML = '<h2 class="eyebrow">' + esc(ENTRY.rowLabel) + '</h2>';
+          entryEl.appendChild(lbl);
+        }
+        rowEl = document.createElement('div'); rowEl.className = 'doors doors--row'; entryEl.appendChild(rowEl);
+      }
       rowEl.appendChild(a);
     });
   }
