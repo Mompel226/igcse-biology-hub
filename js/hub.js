@@ -154,32 +154,49 @@
   /* motion.draw — a mark that draws itself when the door opens and stands finished when the
      door is shut. Unlike a trace or an orbit it has an end state, so it is also shown on a
      narrow screen and to a reader who asked for less movement, just without the drawing.
-       paths  [{ d, width, colour, seconds }]  drawn one after another, in this order
-       marks  [{ cx, cy, r, colour, fill, width }]  discs that pop in once the lines are drawn
-       text   [{ x, y, text, size, family, style, weight, spacing, fill }]  words that fade in last
-     Everything is in the plate's own coordinates. */
+
+     The mark is a set of GROUPS, each authored in its own box and placed on the plate twice:
+       shut  { x, y, s }  where it sits, and how big, when the door is shut — so the whole of
+                          it fits the band a shut door shows
+       open  { x, y, s }  where it goes when the door opens: bigger, and beside the words
+     A group with only `open` and `onlyOpen:true` is not there at all until the door opens.
+     Inside a group:
+       paths  [{ d, width, colour, at, seconds }]  each drawn over `seconds`, starting `at`
+       marks  [{ cx, cy, r, colour, fill, width, at }]  discs that pop in
+       text   [{ x, y, text, size, family, style, weight, spacing, fill, at }]  words that fade up
+     `at` is seconds after the door opens; left out, each follows the one before. Strokes keep
+     their width whatever the group's scale, so a small shut mark is not drawn in hairlines. */
   function drawPart(dr, id) {
-    if (!dr || !dr.paths) return '';
-    var t = 0, out = '';
-    dr.paths.forEach(function (p) {
-      var secs = p.seconds || 1.2;
-      out += '<path class="mo-draw" pathLength="1000" d="' + esc(p.d) + '" fill="none" ' +
-        'stroke="' + esc(p.colour || '#fff') + '" stroke-width="' + (p.width || 8) + '" ' +
-        'stroke-linecap="round" stroke-linejoin="round" ' +
-        'style="--t:' + secs + 's;--wait:' + t.toFixed(2) + 's"/>';
-      t += secs;
-    });
-    (dr.marks || []).forEach(function (m, i) {
-      out += '<g class="mo-pop" style="--wait:' + (t + 0.12 * i).toFixed(2) + 's">' +
-        '<circle cx="' + m.cx + '" cy="' + m.cy + '" r="' + m.r + '" fill="' + esc(m.fill || 'none') + '" ' +
-        'stroke="' + esc(m.colour || 'none') + '" stroke-width="' + (m.width || 0) + '"/></g>';
-    });
-    (dr.text || []).forEach(function (x, i) {
-      out += '<text class="mo-fade" style="--wait:' + (t + 0.35 + 0.15 * i).toFixed(2) + 's" ' +
-        'x="' + x.x + '" y="' + x.y + '" font-family="' + esc(x.family || 'serif') + '" ' +
-        'font-size="' + (x.size || 60) + '" font-style="' + esc(x.style || 'normal') + '" ' +
-        'font-weight="' + (x.weight || 400) + '" letter-spacing="' + (x.spacing || 0) + '" ' +
-        'fill="' + esc(x.fill || '#fff') + '">' + esc(x.text) + '</text>';
+    if (!dr) return '';
+    var groups = dr.groups || [ { paths: dr.paths, marks: dr.marks, text: dr.text } ];
+    var out = '';
+    groups.forEach(function (g) {
+      var t = 0, inner = '';
+      (g.paths || []).forEach(function (p) {
+        var secs = p.seconds || 1.2, at = (p.at != null) ? p.at : t; t = at + secs;
+        inner += '<path class="mo-draw" pathLength="1000" vector-effect="non-scaling-stroke" d="' + esc(p.d) + '" ' +
+          'fill="none" stroke="' + esc(p.colour || '#fff') + '" stroke-width="' + (p.width || 8) + '" ' +
+          'stroke-linecap="round" stroke-linejoin="round"' + (p.opacity != null ? ' opacity="' + p.opacity + '"' : '') +
+          ' style="--t:' + secs + 's;--wait:' + at.toFixed(2) + 's"/>';
+      });
+      (g.marks || []).forEach(function (m, i) {
+        var at = (m.at != null) ? m.at : t + 0.12 * i;
+        inner += '<g class="mo-pop" style="--wait:' + at.toFixed(2) + 's">' +
+          '<circle cx="' + m.cx + '" cy="' + m.cy + '" r="' + m.r + '" fill="' + esc(m.fill || 'none') + '" ' +
+          'stroke="' + esc(m.colour || 'none') + '" stroke-width="' + (m.width || 0) + '" vector-effect="non-scaling-stroke"/></g>';
+      });
+      (g.text || []).forEach(function (x, i) {
+        var at = (x.at != null) ? x.at : t + 0.35 + 0.15 * i;
+        inner += '<text class="mo-fade" style="--wait:' + at.toFixed(2) + 's" ' +
+          'x="' + x.x + '" y="' + x.y + '" font-family="' + esc(x.family || 'serif') + '" ' +
+          'font-size="' + (x.size || 60) + '" font-style="' + esc(x.style || 'normal') + '" ' +
+          'font-weight="' + (x.weight || 400) + '" letter-spacing="' + (x.spacing || 0) + '" ' +
+          'fill="' + esc(x.fill || '#fff') + '">' + esc(x.text) + '</text>';
+      });
+      var sh = g.shut || g.open || { x:0, y:0, s:1 }, op = g.open || sh;
+      out += '<g class="mo-g' + (g.onlyOpen ? ' mo-g--open' : '') + '" style="' +
+        '--sx:' + (sh.x || 0) + 'px;--sy:' + (sh.y || 0) + 'px;--ss:' + (sh.s || 1) + ';' +
+        '--ox:' + (op.x || 0) + 'px;--oy:' + (op.y || 0) + 'px;--os:' + (op.s || 1) + '">' + inner + '</g>';
     });
     return out;
   }

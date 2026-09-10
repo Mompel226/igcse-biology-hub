@@ -145,6 +145,13 @@ a{color:inherit;text-decoration:none}
    each line is wound back and drawn again in turn, the discs pop in after the last line, and
    the words fade up last. Every element waits its turn through --wait; `both` keeps a line
    unseen until then and drawn afterwards. */
+/* a group of the mark sits small in the band while the door is shut and moves, growing, to its
+   open place as the door opens — the same three quarters of a second the door itself takes.
+   A group that exists only when open fades in and out. */
+.mo-g{transform:translate(var(--sx,0px),var(--sy,0px)) scale(var(--ss,1));transition:transform .75s var(--ease),opacity .45s}
+.door.is-on .mo-g{transform:translate(var(--ox,0px),var(--oy,0px)) scale(var(--os,1))}
+.mo-g--open{opacity:0}
+.door.is-on .mo-g--open{opacity:1}
 .mo-draw{stroke-dasharray:1000;stroke-dashoffset:0}
 .door.is-on .mo-draw{animation:drawOn var(--t,1.2s) var(--wait,0s) cubic-bezier(.45,0,.2,1) both}
 @keyframes drawOn{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
