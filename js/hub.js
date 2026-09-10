@@ -152,8 +152,9 @@
     return out;
   }
   /* motion.draw — a mark that draws itself when the door opens and stands finished when the
-     door is shut. Unlike a trace or an orbit it has an end state, so it is also shown on a
-     narrow screen and to a reader who asked for less movement, just without the drawing.
+     door is shut. Unlike a trace or an orbit it has an end state, so it is also shown to a
+     reader who asked for less movement, just without the drawing; on a narrow screen, where
+     no door is ever hovered, it stands finished in its open arrangement (css, narrow).
 
      The mark is a set of GROUPS, each authored in its own box and placed on the plate twice:
        shut  { x, y, s }  where it sits, and how big, when the door is shut — so the whole of
@@ -307,8 +308,10 @@
   }
   function wire(a, d) {
     doorEls[d.id] = a;
-    a.addEventListener('pointerenter', function () { stopTour(); on(d.id); });
-    a.addEventListener('pointerleave', function () { off(d.id); restTour(); });
+    /* on a narrow screen every door already stands open, and a finger has no hover: a tap is
+       the click, so a touch is left to it rather than flipping the door on the way through */
+    a.addEventListener('pointerenter', function (e) { if (e.pointerType === 'touch' && narrow.matches) return; stopTour(); on(d.id); });
+    a.addEventListener('pointerleave', function (e) { if (e.pointerType === 'touch' && narrow.matches) return; off(d.id); restTour(); });
     a.addEventListener('focus',        function () { stopTour(); on(d.id); });
     a.addEventListener('blur',         function () { off(d.id); restTour(); });
     a.addEventListener('pointermove', function (e) {
@@ -335,11 +338,12 @@
 
   DOORS.filter(isShelf).forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
 
-  /* A still overlay is shown on a narrow screen too, where the picture is fitted whole and
-     top-aligned rather than cropped, so the overlay is fitted the same way there. */
-  function fitStillOverlays() {
+  /* On a narrow screen the picture is fitted whole and top-aligned rather than cropped, so
+     every overlay is fitted the same way there: the lights land on the printed art and a drawn
+     mark stands on its plate. */
+  function fitOverlays() {
     var v = narrow.matches ? 'xMidYMin meet' : 'xMidYMid slice';
-    Array.prototype.forEach.call(document.querySelectorAll('.door__motion--still'), function (el) {
+    Array.prototype.forEach.call(document.querySelectorAll('.door__motion'), function (el) {
       el.setAttribute('preserveAspectRatio', v);
     });
   }
@@ -364,7 +368,7 @@
     });
   }
 
-  narrow.addEventListener('change', fitStillOverlays);
+  narrow.addEventListener('change', fitOverlays);
 
   /* each band, in the order declared, with its own doors beneath it. Nothing is written
      when a band has no doors, so the open edition's section stays empty and hides itself.
@@ -380,7 +384,7 @@
     wideEl.appendChild(band);
     mine.forEach(function (d) { var a = build(d, false); a.dataset.section = b.section || ''; wideEl.appendChild(a); });
   });
-  fitStillOverlays();
+  fitOverlays();
 
   /* ---------- 2. the idle tour ----------
      Left alone, the doors take turns opening, so anyone glancing at
