@@ -51,7 +51,7 @@ window.LABS_REGISTER = {
       "url": "https://mompel226.github.io/plants-lab/",
       "store": "plants-lab.v1",
       "stations": 12,
-      "questions": 86,
+      "questions": 91,
       "status": "live"
     }
   ],
