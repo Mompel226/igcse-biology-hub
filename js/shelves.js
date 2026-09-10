@@ -121,7 +121,7 @@ window.HUB = {
       sub:'Topic 7 · Human nutrition · 14 stations, 123 activities',
       url:'https://mompel226.github.io/digestion-lab/', progress:'digestion' },
     { title:'Plants Lab',           kind:'lab',       shelf:'plants',
-      sub:'Topics 6, 8, 14.5, 16.3 and 18.2 · Plant nutrition to adaptive features · 11 stations, 80 questions',
+      sub:'Topics 6, 8, 14.5, 16.3 and 18.2 · Plant nutrition to adaptive features · 12 stations, 86 questions',
       url:'https://mompel226.github.io/plants-lab/' },
     { title:'Protein & Enzyme Sim', kind:'sim',       shelf:'foundations',
       sub:'Topics 4 and 5 · build a protein, then watch heat and pH take it apart',
