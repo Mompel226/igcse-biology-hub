@@ -17,18 +17,32 @@
   var OPEN    = (H.open || []).concat(L.open || []);
   var CREDITS = (H.credits || []).concat(L.credits || []);
 
+  /* A school's own front. `entry` stands a page of doors in front of the revision hub: the
+     one marked `hero` leads into it, the rest into `sections`, each a page of the wide banner
+     doors that carry that section's `kind`. The open edition declares neither, so for it this
+     file does exactly what it always did: index.html is the revision hub, and there is no way
+     back to a school it does not belong to. */
+  var ENTRY    = L.entry || null;
+  var SECTIONS = ENTRY ? (L.sections || []) : [];
+  if (ENTRY) DOORS = DOORS.concat((ENTRY.doors || []).map(function (d) { d.kind = 'entry'; return d; }));
+  function sectionOf(id) { return SECTIONS.filter(function (s) { return s.id === id; })[0] || null; }
+
   /* Under the shelves stand the wide doors — the school's own clubs and societies, each
      with a website of its own. js/local.js names them and tags each one with a kind; this
      says which kinds there are, what each band is called, and the order they stand in.
      A school with none of a kind simply gets no band. Adding a band is one line here;
      adding a club or a society is one entry in js/local.js. */
-  var BANDS = [
-    { kind:'cca',     label:'Co-curricular activities' },
-    { kind:'society', label:'Societies' }
-  ];
-  function isWide(d) {
-    return BANDS.some(function (b) { return b.kind === d.kind; });
-  }
+  var BANDS = SECTIONS.length
+    ? SECTIONS.map(function (s) { return { kind:s.kind, label:s.label, section:s.id }; })
+    : [ { kind:'cca',     label:'Co-curricular activities' },
+        { kind:'society', label:'Societies' } ];
+  /* A door whose kind names a band belongs on that band's page. There it is a wide banner —
+     unless it is the page's hero, which stands full width like the one on the front, with its
+     picture behind the words. A shelf is a door that is neither of those nor an entry door.
+     (Defining a shelf as "not wide" once put a section's hero on the shelves as well.) */
+  function inBand(d) { return BANDS.some(function (b) { return b.kind === d.kind; }); }
+  function isWide(d)  { return inBand(d) && !d.hero; }
+  function isShelf(d) { return !inBand(d) && d.kind !== 'entry'; }
   /* "#F7EBD5" → "247 235 213", so a gradient can fade a banner's own ground away to
      nothing instead of drifting through grey on the way out. */
   function rgbOf(hex) {
@@ -71,8 +85,10 @@
   var doorEls = {};
 
   function picture(d, eager) {
-    var b = 'assets/doors/' + d.id;
-    var sizes = isWide(d) ? '100vw' : '(max-width:900px) 100vw, 45vw';
+    var b = 'assets/doors/' + (d.img || d.id);
+    var sizes = (isWide(d) || d.hero) ? '100vw'
+              : d.kind === 'entry' ? '(max-width:900px) 100vw, 30vw'
+              : '(max-width:900px) 100vw, 45vw';
     var set = function (ext) { return [900, 1400, 1800].map(function (w) { return b + '-' + w + '.' + ext + ' ' + w + 'w'; }).join(', '); };
     return '<picture>' +
       '<source type="image/webp" srcset="' + set('webp') + '" sizes="' + sizes + '">' +
@@ -168,11 +184,39 @@
       return '<li class="chip">' + (t.no != null ? '<b>' + t.no + '</b>' : '') + esc(t.t) + '</li>';
     }).join('') + '</ul>';
   }
+  /* the name a wide door goes by: the emphasised word of its title, or the whole title */
+  function nameOf(d) {
+    if (d.name) return d.name;
+    var m = /<em>(.*?)<\/em>/.exec(d.title || '');
+    return m ? plain(m[1]) : plain(d.title || d.id);
+  }
+  /* An entry door leads to a section or to the revision hub, and says what is there by
+     looking, so a club added to `doors` shows up on its entry door without another edit. */
+  function fillEntry(d) {
+    d.url = d.url || ('#' + (d.view || 'revision'));
+    if (d.view === 'revision' || d.hero) {
+      if (!d.detail) {
+        var hubs = OPEN.filter(function (o) { return o.kind === 'hub'; }).length;
+        var labs = OPEN.filter(function (o) { return o.kind === 'lab'; }).length;
+        d.detail = hubs + ' hub' + (hubs === 1 ? '' : 's') + ' · ' + labs + ' lab' + (labs === 1 ? '' : 's') + ' open';
+      }
+      return;
+    }
+    var sec = sectionOf(d.view);
+    if (!sec) return;
+    var mine = DOORS.filter(function (x) { return x.kind === sec.kind && x.status !== 'planned'; });
+    if (!d.topics) d.topics = mine.map(function (x) { return { t: nameOf(x) }; });
+    if (!d.detail) d.detail = mine.length ? mine.length + ' door' + (mine.length === 1 ? '' : 's') : 'Opens soon';
+  }
+
   function build(d, eager) {
     var a = document.createElement('a');
+    if (d.kind === 'entry') fillEntry(d);
     var closed = !(d.url && (d.status === 'live' || d.status === 'local'));
     a.className = 'door door--' + d.id +
       (d.tone === 'light' ? ' door--light' : '') +
+      (d.kind === 'entry' ? ' door--entry' : '') +
+      (d.hero ? ' door--hero' : '') +
       (isWide(d) ? ' door--wide' : '') +
       (d.bleed ? ' door--bleed' : '') +
       (closed ? ' door--closed' : '');
@@ -200,9 +244,10 @@
         '<p class="door__lede">' + esc(d.blurb) + '</p>' +
         chips(d) +
         '<div class="door__foot">' +
-          '<span class="door__status door__status--' + d.status + '">' + STATUS[d.status] + '</span>' +
+          /* an entry door is always open, so a pill saying so would only be noise */
+          (d.kind === 'entry' ? '' : '<span class="door__status door__status--' + d.status + '">' + STATUS[d.status] + '</span>') +
           (d.detail ? '<span class="door__detail">' + esc(d.detail) + '</span>' : '') +
-          '<span class="door__go">' + (closed ? 'Not yet' : (isWide(d) ? 'Visit' : 'Enter')) + '</span>' +
+          '<span class="door__go">' + (closed ? 'Not yet' : (d.go || (isWide(d) ? 'Visit' : 'Enter'))) + '</span>' +
         '</div>' +
       '</div>';
     wire(a, d);
@@ -227,7 +272,8 @@
     /* the arrow keys walk along the doors */
     a.addEventListener('keydown', function (e) {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-      var all = Array.prototype.slice.call(document.querySelectorAll('.door'));
+      var all = Array.prototype.slice.call(document.querySelectorAll('.door'))
+                  .filter(function (el) { return el.offsetParent !== null; });
       var n = all[all.indexOf(a) + (e.key === 'ArrowRight' ? 1 : -1)];
       if (n) { n.focus(); e.preventDefault(); }
     });
@@ -235,19 +281,32 @@
   function on(id)  { Object.keys(doorEls).forEach(function (k) { doorEls[k].classList.toggle('is-on', k === id); }); }
   function off(id) { if (doorEls[id]) doorEls[id].classList.remove('is-on'); }
 
-  DOORS.filter(function (d) { return !isWide(d); })
-       .forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
+  DOORS.filter(isShelf).forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
+
+  /* the front of the building: the hero door across the top, the rest in a row beneath */
+  var entryEl = document.getElementById('entryDoors'), rowEl = null;
+  if (ENTRY && entryEl) {
+    (ENTRY.doors || []).forEach(function (d) {
+      var a = build(d, true);
+      if (d.hero) { entryEl.appendChild(a); return; }
+      if (!rowEl) { rowEl = document.createElement('div'); rowEl.className = 'doors doors--row'; entryEl.appendChild(rowEl); }
+      rowEl.appendChild(a);
+    });
+  }
 
   /* each band, in the order declared, with its own doors beneath it. Nothing is written
-     when a band has no doors, so the open edition's section stays empty and hides itself. */
+     when a band has no doors, so the open edition's section stays empty and hides itself.
+     With sections, each band is a page of its own and only shows when that page is open. */
   if (wideEl) BANDS.forEach(function (b) {
     var mine = DOORS.filter(function (d) { return d.kind === b.kind; });
     if (!mine.length) return;
     var band = document.createElement('div');
     band.className = 'band';
+    band.dataset.section = b.section || '';
     band.innerHTML = '<h2 class="eyebrow">' + esc(b.label) + '</h2>';
+    if (b.section) band.hidden = true;       /* a section names itself in the masthead */
     wideEl.appendChild(band);
-    mine.forEach(function (d) { wideEl.appendChild(build(d, false)); });
+    mine.forEach(function (d) { var a = build(d, false); a.dataset.section = b.section || ''; wideEl.appendChild(a); });
   });
 
   /* ---------- 2. the idle tour ----------
@@ -256,7 +315,13 @@
      picks up again after a long pause. Not on a phone, where every
      door already stands open. */
   var tour = null, resume = null, i = 0;
-  var TOURABLE = DOORS.filter(function (d) { return !isWide(d); });
+  var TOURABLE = [];
+  function tourable() {
+    return DOORS.filter(function (d) {
+      var a = doorEls[d.id];
+      return a && !isWide(d) && !d.hero && a.offsetParent !== null;   /* on the screen right now */
+    });
+  }
   var TOUR_MS = 5200;
   function canTour() { return !still && !narrow.matches && TOURABLE.length > 1; }   /* an iPad in landscape gets the tour too */
   function startTour() { if (tour || !canTour()) return; step(); tour = setInterval(step, TOUR_MS); }
@@ -269,14 +334,80 @@
     }, 12000);
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden) stopTour(); else restTour(); });
+  /* ---------- the views ----------
+     One page, several rooms. With an entry, the address bar says which: nothing after the
+     hash is the front; #revision is the hub; a section's id is that section; anything else —
+     #plants, #y10, the links classes already hold — lands in the hub as it always did.
+     Without an entry there is only the hub, so every address goes there. */
+  var mastEl = { eyebrow: document.getElementById('siteEyebrow'),
+                 title:   document.querySelector('.masthead h1'),
+                 lede:    document.querySelector('.masthead .lede'),
+                 crumb:   document.getElementById('crumb'),
+                 desc:    document.querySelector('meta[name="description"]') };
+  /* what the hub says about itself, taken after the school's own strings went in */
+  var base = { eyebrow: mastEl.eyebrow ? mastEl.eyebrow.innerHTML : '',
+               title:   mastEl.title   ? mastEl.title.innerHTML   : '',
+               lede:    mastEl.lede    ? mastEl.lede.innerHTML    : '',
+               doc:     document.title,
+               desc:    mastEl.desc ? mastEl.desc.getAttribute('content') : '' };
+  function setMast(eyebrow, title, lede, doc, desc) {
+    if (mastEl.eyebrow && eyebrow != null) mastEl.eyebrow.innerHTML = eyebrow;
+    if (mastEl.title   && title   != null) mastEl.title.innerHTML   = title;
+    if (mastEl.lede    && lede    != null) mastEl.lede.innerHTML    = lede;
+    if (doc) document.title = doc;
+    if (mastEl.desc && desc) mastEl.desc.setAttribute('content', plain(desc));
+  }
+  function viewFor(hash) {
+    var h = String(hash || '').replace(/^#/, '');
+    if (!ENTRY) return 'revision';
+    if (!h || h === 'entry') return 'entry';
+    if (h === 'revision' || !sectionOf(h)) return 'revision';
+    return h;
+  }
+  var VIEW = null, progHas = false;
+  function show(view) {
+    if (view === VIEW) return;
+    VIEW = view;
+    document.body.setAttribute('data-view', view);
+    var sec = sectionOf(view), atEntry = view === 'entry', atHub = view === 'revision';
+    if (entryEl) entryEl.hidden = !atEntry;
+    doorsEl.hidden = !atHub;
+    if (wideEl) {
+      if (SECTIONS.length) {
+        wideEl.hidden = !sec;
+        Array.prototype.forEach.call(wideEl.children, function (el) {
+          if (el.classList.contains('band')) return;          /* stays hidden: the masthead names the page */
+          el.hidden = !sec || el.dataset.section !== sec.id;
+        });
+      } else wideEl.hidden = !atHub;
+    }
+    var prog = document.getElementById('prog'), open = document.querySelector('.open');
+    if (prog) prog.hidden = !(atHub && progHas);
+    if (open) open.hidden = !atHub;
+    if (mastEl.crumb) {
+      mastEl.crumb.hidden = !ENTRY || atEntry;
+      if (ENTRY && ENTRY.crumb) mastEl.crumb.textContent = ENTRY.crumb;
+    }
+    if (atEntry)  setMast(ENTRY.eyebrow, ENTRY.title, ENTRY.lede, ENTRY.docTitle || base.doc, ENTRY.description || ENTRY.lede);
+    else if (sec) setMast(sec.eyebrow || base.eyebrow, sec.title, sec.lede, plain(sec.title) + ' \u2014 ' + base.doc, sec.lede);
+    else          setMast(base.eyebrow, (ENTRY && ENTRY.revisionTitle) || base.title, base.lede,
+                          (ENTRY && ENTRY.revisionDocTitle) || base.doc, base.desc);
+    stopTour(); TOURABLE = tourable(); i = 0;
+  }
+  show(viewFor(location.hash));
+
   /* /#plants opens that door and holds it — for projecting a prepared state in class.
      The tour only takes over once someone has touched the page. */
+  function lit(id) { return doorEls[id] && doorEls[id].offsetParent !== null ? doorEls[id] : null; }
   var want = (location.hash || '').replace(/^#/, '');
-  if (doorEls[want]) { on(want); doorEls[want].scrollIntoView({ block:'nearest' }); }
+  if (lit(want)) { on(want); doorEls[want].scrollIntoView({ block:'nearest' }); }
   else setTimeout(startTour, 1400);
   window.addEventListener('hashchange', function () {
+    var was = VIEW;
+    show(viewFor(location.hash));
+    if (VIEW !== was) { window.scrollTo(0, 0); restTour(); }
     var id = (location.hash || '').replace(/^#/, '');
-    if (doorEls[id]) { stopTour(); on(id); }
+    if (lit(id)) { stopTour(); on(id); }
   });
 
   /* ---------- 3. your year — which doors are yours ----------
@@ -403,8 +534,9 @@
     var sec = document.getElementById('prog');
     if (!sec || !P || !LABS.length) return;
     var res = P.all(LABS, window.__SERVER_PROGRESS || null);
-    if (!P.any(res)) { sec.hidden = true; return; }
-    sec.hidden = false;
+    progHas = P.any(res);
+    sec.hidden = !(progHas && VIEW === 'revision');
+    if (!progHas) return;
 
     var shelves = (REG.shelves || []).filter(function (sh) { return res.byShelf[sh.id]; });
     document.getElementById('progGrid').innerHTML = shelves.map(function (sh) {
@@ -443,16 +575,18 @@
     }
     document.getElementById('progNote').innerHTML = note;
 
-    Object.keys(res.byShelf).forEach(function (id) {
+    function onDoor(id, t) {
       var el = doorEls[id]; if (!el) return;
-      var t = res.byShelf[id], foot = el.querySelector('.door__foot');
-      if (!foot || foot.querySelector('.door__prog')) return;
-      var sp = document.createElement('span');
-      sp.className = 'door__prog';
+      var foot = el.querySelector('.door__foot');
+      if (!foot) return;
+      var sp = foot.querySelector('.door__prog');
+      if (!sp) { sp = document.createElement('span'); sp.className = 'door__prog'; foot.insertBefore(sp, foot.querySelector('.door__go')); }
       sp.title = t.done + ' of ' + t.total + ' questions answered correctly';
       sp.innerHTML = bar(t.done, t.total, 'var(--accent)') + '<span>' + P.pct(t) + '%</span>';
-      foot.insertBefore(sp, foot.querySelector('.door__go'));
-    });
+    }
+    Object.keys(res.byShelf).forEach(function (id) { onDoor(id, res.byShelf[id]); });
+    /* the same figure for the whole subject, on the door that leads to it */
+    if (ENTRY) (ENTRY.doors || []).forEach(function (d) { if (d.hero || d.view === 'revision') onDoor(d.id, w); });
   }
   showProgress();
 
