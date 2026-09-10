@@ -51,8 +51,8 @@ a{color:inherit;text-decoration:none}
 .lede{margin-top:8px;max-width:58ch;color:#C5D4DD;font-size:15px}
 .masthead__r{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
 
-.maker{margin-top:10px;font-size:13.5px;color:#C5D4DD;display:flex;align-items:center;gap:10px}
-.maker::before{content:"";width:22px;height:1px;background:var(--cyan);opacity:.8;flex:none}
+.maker{margin-top:10px;font-size:13.5px;color:#C5D4DD}
+.maker::before{content:"";display:inline-block;width:22px;height:1px;background:var(--cyan);opacity:.8;vertical-align:middle;margin-right:10px}
 .maker strong{font-weight:500;color:var(--chalk)}
 
 /* your year — three tabs, then that year's topics */
@@ -401,7 +401,14 @@ noscript p{padding:20px}
   .door--wide .door__body{padding-top:max(110px,calc((100vw - 2 * var(--gutter)) / var(--ar) + 6px))}
   .door--wide picture,.door--wide.is-on picture{left:0;right:0;top:0;transform:none;width:100%;height:100%;transition:none}
   .door--wide .door__img,.door--wide.is-on .door__img{object-fit:contain}
-  .door--wide .door__motion:not(.door__motion--still){display:none}  /* contain, not cover — a light would miss the printed art; a still mark is refitted by js */
+  /* the moving part is refitted by js to sit on the whole plate the way the picture does
+     (contain, top-aligned), so the pulse and the electrons run here too. The door's words are
+     under the plate now, not over it, so nothing is masked. A drawn mark stands finished in its
+     open arrangement: there is no hover to open it with, and a tap goes straight through. */
+  .door--wide .door__motion,.door--wide.is-on .door__motion{left:0;right:0;top:0;transform:none;width:100%;height:100%;transition:none;-webkit-mask-image:none;mask-image:none}
+  .mo-g,.door.is-on .mo-g{transform:translate(var(--ox,0px),var(--oy,0px)) scale(var(--os,1));transition:none}
+  .mo-g--open,.door.is-on .mo-g--open{opacity:1}
+  .door.is-on .mo-draw,.door.is-on .mo-pop,.door.is-on .mo-fade{animation:none}
   .door--wide .door__body,.door--wide.is-on .door__body{max-width:none}
   .door--wide .door__img,.door--wide.is-on .door__img{object-position:50% 0}
   .door--wide .door__body{right:0;max-width:none}
