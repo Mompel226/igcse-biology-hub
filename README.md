@@ -7,7 +7,7 @@
 Four doors, one for each part of the subject. Behind each is a map students point at; behind the
 map are the labs, where they practise and the questions mark themselves.
 
-[![Open the site](https://img.shields.io/badge/▶_Open_the_site-0969DA?style=for-the-badge&logoColor=white)](https://mompel226.github.io/igcse-biology-hub/)
+[![Open the site](https://img.shields.io/badge/▶_Open_the_site-0969DA?style=for-the-badge&logoColor=white)](https://nlcsbiology.com/igcse-biology-hub/)
 
 ![IGCSE Biology 0610](https://img.shields.io/badge/IGCSE_Biology-0610-3D7A54)
 ![IB as a layer](https://img.shields.io/badge/IB-a_layer,_not_a_silo-7c4dc0)
@@ -24,7 +24,7 @@ by **Dr Daniel Mompel Riera**
 
 ## For your students — there is nothing to set up
 
-Send them the link and you are done: **<https://mompel226.github.io/igcse-biology-hub/>**
+Send them the link and you are done: **<https://nlcsbiology.com/igcse-biology-hub/>**
 
 No account, no sign-up, no install, nothing to pay. It works on a phone, a Chromebook or a school
 PC, and progress is saved in the student's own browser.
@@ -32,12 +32,12 @@ PC, and progress is saved in the student's own browser.
 | Door | Topics (0610) | Behind it |
 |---|---|---|
 | **Foundations** | 2 · 3 · 4 · 5 | being built |
-| **The human body** | 7 · 9–16 | [Human Body Hub](https://mompel226.github.io/human-body-hub/) 🟢 · [Digestion Lab](https://mompel226.github.io/digestion-lab/) 🟢 |
+| **The human body** | 7 · 9–16 | [Human Body Hub](https://nlcsbiology.com/human-body-hub/) 🟢 · [Digestion Lab](https://nlcsbiology.com/digestion-lab/) 🟢 |
 | **Plants** | 6 · 8 · 16.3 | planned |
-| **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://mompel226.github.io/life-on-earth-hub/) 🟢 · [Classification Lab](https://mompel226.github.io/classification-lab/) 🟢 |
+| **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
 
-Also here: the [Protein & Enzyme Sim](https://mompel226.github.io/protein-enzyme-sim/), and an
-[IB B1.1 practical](https://mompel226.github.io/B11-starch-calibration-curve-pract/) behind the
+Also here: the [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/), and an
+[IB B1.1 practical](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) behind the
 **IB extension** toggle. The year tabs show which topics each year meets; `…/#y10` opens a year
 and `…/#plants` a door — both are useful links to hand a class.
 

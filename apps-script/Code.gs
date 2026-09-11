@@ -109,7 +109,7 @@ var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
        without it. User type External, then Audience ▸ Publish app. Left on "Testing",
        your students are told the app is blocked.
      ▸ Credentials ▸ Create credentials ▸ OAuth client ID ▸ Web application
-       Authorised JavaScript origins:  https://mompel226.github.io
+       Authorised JavaScript origins:  https://nlcsbiology.com
        (no path, no trailing slash. Leave redirect URIs empty.)
      Create, then copy the Client ID (it ends .apps.googleusercontent.com) into BOTH
      places: here, and googleClientId in every lab's js/config.js.
@@ -482,7 +482,7 @@ function createAssignmentFor(labId, courseId) {
   var work = Classroom.Courses.CourseWork.create({
     title: lab.name + ' Lab — Topic ' + lab.topic.split(' ')[0],
     description: 'Work through every station in the lab, then hand in.',
-    materials: [{ link: { url: 'https://mompel226.github.io/' + lab.id + '/' } }],
+    materials: [{ link: { url: 'https://nlcsbiology.com/' + lab.id + '/' } }],
     workType: 'ASSIGNMENT', state: 'PUBLISHED',
     maxPoints: lab.questions || 100
   }, courseId);

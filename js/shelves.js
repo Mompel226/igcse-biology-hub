@@ -49,7 +49,7 @@ window.HUB = {
       topics:[ {no:7,t:'Human nutrition'}, {no:9,t:'Transport in animals'}, {no:10,t:'Diseases and immunity'},
                {no:11,t:'Gas exchange'}, {no:12,t:'Respiration'}, {no:13,t:'Excretion'},
                {no:14,t:'Coordination and response'}, {no:15,t:'Drugs'}, {no:16,t:'Reproduction'} ],
-      status:'live', url:'https://mompel226.github.io/human-body-hub/', detail:'1 lab open · 8 being built',
+      status:'live', url:'https://nlcsbiology.com/human-body-hub/', detail:'1 lab open · 8 being built',
       accent:'#FF5C5C', tone:'dark', focus:'50% 40%',
       alt:'The heart and lungs with their vessels, from Bourgery and Jacob\'s anatomy of the 1830s, shown in red' },
 
@@ -58,7 +58,7 @@ window.HUB = {
       blurb:'Here you move through a plant the way you move through the body: root, stem, leaf, flower. How a plant makes its own food, moves water up from the ground, and grows the next generation. The leaf behind this door is rolled up to keep its water in.',
       topics:[ {no:6,t:'Plant nutrition'}, {no:8,t:'Transport in plants'}, {no:'14.5',t:'Tropic responses'},
                {no:'16.3',t:'Plant reproduction'}, {no:'18.2',t:'Adaptive features'} ],
-      status:'live', url:'https://mompel226.github.io/plants-hub/', detail:'The plant is open · 1 lab open',
+      status:'live', url:'https://nlcsbiology.com/plants-hub/', detail:'The plant is open · 1 lab open',
       accent:'#1C7442', tone:'light', focus:'50% 50%',
       alt:'Cross-section of a rolled marram-grass leaf at 100 times magnification' },
 
@@ -67,7 +67,7 @@ window.HUB = {
       blurb:'Here you find out where you come from. Climb the tree of life from the first cells — perhaps at a vent like this one — to every kingdom alive today; see how one molecule, DNA, links all of it; then what we can do with that knowledge, from breeding crops to editing genes.',
       topics:[ {no:1,t:'Characteristics and classification'}, {no:17,t:'Inheritance'}, {no:18,t:'Variation and selection'},
                {no:19,t:'Organisms and their environment'}, {no:20,t:'Human influences on ecosystems'}, {no:21,t:'Biotechnology'} ],
-      status:'live', url:'https://mompel226.github.io/life-on-earth-hub/', detail:'The tree is open · 1 lab open',
+      status:'live', url:'https://nlcsbiology.com/life-on-earth-hub/', detail:'The tree is open · 1 lab open',
       accent:'#5EEAD4', tone:'dark', focus:'50% 58%',
       alt:'White smokers venting liquid carbon dioxide at NW Eifuku volcano, 1,600 metres down' }
   ],
@@ -107,28 +107,28 @@ window.HUB = {
   open: [
     { title:'Human Body Hub',       kind:'hub',       shelf:'human-body',
       sub:'Nine topics on a body from MRI — the map above',
-      url:'https://mompel226.github.io/human-body-hub/' },
+      url:'https://nlcsbiology.com/human-body-hub/' },
     { title:'Life on Earth Hub',    kind:'hub',       shelf:'life-on-earth',
       sub:'Topics 1 and 17–21 on a tree of life, from the first cells — the map above',
-      url:'https://mompel226.github.io/life-on-earth-hub/' },
+      url:'https://nlcsbiology.com/life-on-earth-hub/' },
     { title:'Plants Hub',           kind:'hub',       shelf:'plants',
       sub:'Topics 6, 8, 14.5, 16.3 and 18.2 on one plant, seed to fruit — the map above',
-      url:'https://mompel226.github.io/plants-hub/' },
+      url:'https://nlcsbiology.com/plants-hub/' },
     { title:'Classification Lab',   kind:'lab',       shelf:'life-on-earth',
       sub:'Topic 1 · Characteristics and classification · 10 stations, 64 questions',
-      url:'https://mompel226.github.io/classification-lab/' },
+      url:'https://nlcsbiology.com/classification-lab/' },
     { title:'Digestion Lab',        kind:'lab',       shelf:'human-body',
       sub:'Topic 7 · Human nutrition · 14 stations, 123 activities',
-      url:'https://mompel226.github.io/digestion-lab/', progress:'digestion' },
+      url:'https://nlcsbiology.com/digestion-lab/', progress:'digestion' },
     { title:'Plants Lab',           kind:'lab',       shelf:'plants',
       sub:'Topics 6, 8, 14.5, 16.3 and 18.2 · Plant nutrition to adaptive features · 12 stations, 91 questions',
-      url:'https://mompel226.github.io/plants-lab/' },
+      url:'https://nlcsbiology.com/plants-lab/' },
     { title:'Protein & Enzyme Sim', kind:'sim',       shelf:'foundations',
       sub:'Topics 4 and 5 · build a protein, then watch heat and pH take it apart',
-      url:'https://mompel226.github.io/protein-enzyme-sim/', ib:'also IB B1.2' },
+      url:'https://nlcsbiology.com/protein-enzyme-sim/', ib:'also IB B1.2' },
     { title:'Starch calibration curve', kind:'practical', shelf:'foundations',
       sub:'IB B1.1 · worksheet, workbook and a guide to R',
-      url:'https://mompel226.github.io/B11-starch-calibration-curve-pract/', ibOnly:true }
+      url:'https://nlcsbiology.com/B11-starch-calibration-curve-pract/', ibOnly:true }
   ],
 
   credits: [
