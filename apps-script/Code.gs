@@ -55,7 +55,7 @@ var LABS = [
   { id:'coordination-lab',    name:'Coordination',     topic:'14 · Coordination and response',     questions:0 },
   { id:'drugs-lab',           name:'Drugs & AMR',      topic:'15 · Drugs',                         questions:0 },
   { id:'reproduction-lab',    name:'Reproduction',     topic:'16 · Reproduction',                  questions:0 },
-  { id:'plants-lab',          name:'Plants',           topic:'6 · Plants: 6, 8, 14.5, 16.3, 18.2', questions:107 },
+  { id:'plants-lab',          name:'Plants',           topic:'6 · Plants: 6, 8, 14.5, 16.3, 18.2', questions:108 },
   { id:'inheritance-lab',     name:'Inheritance',      topic:'17 · Inheritance',                   questions:0 },
   { id:'variation-lab',       name:'Variation',        topic:'18 · Variation and selection',       questions:0 },
   { id:'ecology-lab',         name:'Ecology',          topic:'19 · Organisms and their environment', questions:0 },
