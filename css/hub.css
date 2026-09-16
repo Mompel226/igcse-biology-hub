@@ -108,6 +108,15 @@ body[data-view]:not([data-view="revision"]) .masthead__r{align-self:center}
   color:var(--chalk-dim);line-height:1.25;text-align:right
 }
 .acct__for--why{font-family:var(--sans);font-size:12.5px;letter-spacing:0;text-transform:none;color:#FFD08A}
+/* Signed in with something recorded, js/hub.js fills both a link card and an identity card.
+   On the front page — when this edition has the "My assessments" door — the door is the way in
+   and the corner only says who is signed in; everywhere else the corner card is the link. */
+.acct__card--who{cursor:default;border-color:rgba(150,215,240,.45);background:rgba(120,200,230,.08)}
+.acct__card--who .acct__ico{color:var(--cyan);background:rgba(120,200,230,.16)}
+.acct__card--who .acct__lbl{color:#BFE3F5}
+.acct__card--who .acct__act{color:#D7E3EA}
+body[data-view="entry"][data-mine-door] #acctLink{display:none!important}
+body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 
 .maker{margin-top:10px;font-size:13.5px;color:#C5D4DD}
 .maker::before{content:"";display:inline-block;width:22px;height:1px;background:var(--cyan);opacity:.8;vertical-align:middle;margin-right:10px}
@@ -544,6 +553,17 @@ body[data-view="entry"] .lede{max-width:70ch}
 .doors--top>.door--hero{flex:1 1 0;min-width:0}
 .door--mine{flex:0 0 calc((100% - (var(--row-n,4) - 1) * 8px) / var(--row-n,4));min-width:0}
 .door--mine.is-on{flex-grow:0}
+/* Pointed at, the two front doors open towards each other like the row beneath: the student's
+   door widens to the LEFT, the hero to the RIGHT. Each takes exactly the width a lit door has
+   in the row below — (row − gaps) × 2.4 ÷ (doors + 1.4), the share .door.is-on's flex-grow:2.4
+   gives it — so the columns still line up while it is open. The tour never lights these two
+   (js/hub.js, tourable), so the hero only moves when someone points at one of them. Wide
+   screens only: stacked on a phone, flex-basis would set their HEIGHT. */
+@media (min-width:901px){
+  .doors--top>.door--mine{transition:flex-basis .75s var(--ease)}
+  .doors--top>.door--mine.is-on{flex-basis:calc((100% - (var(--row-n,4) - 1) * 8px) * 2.4 / (var(--row-n,4) + 1.4))}
+  .doors--top:has(>.door--hero.is-on)>.door--mine{flex-basis:calc((100% - (var(--row-n,4) - 1) * 8px) / (var(--row-n,4) + 1.4))}
+}
 
 .door--entry .door__detail{color:var(--chalk-dim)}
 .door--light.door--entry .door__detail{color:#2A343C}
