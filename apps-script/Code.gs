@@ -34,6 +34,43 @@
 
 var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 
+/* ---- The reflection record (optional) -------------------------------------
+   Separate from the labs, and separate from this Sheet: the Assessment Reflection System
+   builds every student a page of their own after each test — scores, weak topics, what to
+   revise next.
+
+   Two things about it decide the shape of everything below, and both are easy to get wrong.
+
+   ONE. There is no per-student link. The page is at one address per deployment, and which
+   student it shows is decided by the Google account that opens it, checked at the far end.
+
+   TWO. There is no single assessment spreadsheet either. Each assessment gets its OWN
+   spreadsheet — its own tabs, its own copy of the reflection script, its own deployment,
+   its own address — and a new one is made for the next test. But every one of them writes
+   into the SAME workbook: "Student Progress Tracker", in the "Master Tracker" folder. That
+   workbook has a tab per cohort and ONE ROW PER STUDENT PER ASSESSMENT, and it is what the
+   student's page actually renders from. Which is why every deployment's address shows the
+   same page: they are all windows onto that one workbook.
+
+   So this asks the TRACKER, never an individual assessment's spreadsheet. Point it at one
+   assessment and the card would know about that test and no other, and would go stale the
+   day the next spreadsheet is made. Pointed at the tracker there is nothing to re-point,
+   ever.
+
+     TRACKER_ID      the id of the "Student Progress Tracker" workbook — the long string in
+                     its address between /d/ and /edit. NOT an assessment's spreadsheet.
+     SCHOOL_DOMAIN   your school's email domain, so somebody signing in with a personal
+                     account is told that plainly rather than being shown an empty record.
+
+   SET THEM AS SCRIPT PROPERTIES, not here: Project Settings ▸ Script Properties ▸ add
+   TRACKER_ID and SCHOOL_DOMAIN. This file is published in a public repository, so a value
+   typed below would be published with it. Left empty below, the script reads the Script
+   Properties; a value typed below is copied into them and wins. Leave both unset and the hub
+   never offers the card; every lab goes on working exactly as before.
+   -------------------------------------------------------------------------- */
+var TRACKER_ID     = '';
+var SCHOOL_DOMAIN  = '';
+
 /* Every lab that can hand in. `id` is what the site sends as `app`; `tab` is the
    tab it is written to. Add a row here (or in the Labs tab) as each lab is built.
    `questions` MUST match what the lab actually asks — it flags a hand-in as NOT ALL
@@ -161,6 +198,11 @@ function doPost(e) {
     /* The hubs ask for a student's own scores back, so a cleared browser or a new device does
        not start from nothing. Handled before anything else, and it only ever reads. */
     if (String(d.action || '') === 'progress') return _ownProgress(d);
+
+    /* And whether they have a reflection record waiting for them. Also read-only, also
+       only ever their own. */
+    if (String(d.action || '') === 'record') return _ownRecord(d);
+
     var lab = _labById(String(d.app || ''));
     if (!lab) return _text('unknown lab');
 
@@ -582,6 +624,52 @@ function checkSetup() {
     lines.push('•  students imported: ' + Math.max(0, _sheet(T_STUDENTS).getLastRow() - 1));
     var built = LABS.filter(function (l) { return _ss().getSheetByName(l.name); }).length;
     lines.push('•  lab tabs so far: ' + built + ' of ' + LABS.length);
+  }
+
+  /* The record card on the hub. Optional, so silence here is not a fault — but if it IS
+     filled in, it is worth proving the workbook opens and the cohort tabs are there,
+     because the card's own way of failing is a quiet "could not check just now" that says
+     nothing about which of the two is wrong. */
+  var tid = _trackerId();
+  if (!tid) {
+    lines.push('•  the record card on the hub is off. To switch it on, add TRACKER_ID and ' +
+               'SCHOOL_DOMAIN in Project Settings ▸ Script Properties (not in this code — the ' +
+               'repository is public), and fill in the `record` block in the hub\'s js/local.js.');
+  } else {
+    var tOk = false, tName = '', cohorts = [], tRows = 0, unfRows = -1;
+    try {
+      var twb = SpreadsheetApp.openById(tid);
+      tName = twb.getName(); tOk = true;
+      twb.getSheets().forEach(function (sh) {
+        if (sh.getName() === 'Unfinished reflections') { unfRows = Math.max(0, sh.getLastRow() - 1); return; }
+        if (!/^Class of \d{4}$/.test(sh.getName())) return;
+        cohorts.push(sh.getName());
+        tRows += Math.max(0, sh.getLastRow() - 1);
+      });
+    } catch (e) {}
+    if (!tOk) {
+      lines.push('❌  the record card is on, but TRACKER_ID will not open. It should be the ' +
+                 'long string from the "Student Progress Tracker" address, between /d/ and ' +
+                 '/edit, and this account must be able to open it.');
+    } else if (!cohorts.length) {
+      lines.push('❌  “' + tName + '” opens, but it has no "Class of ____" tabs. That is the ' +
+                 'shape of the Student Progress Tracker — so this is almost certainly an ' +
+                 'assessment\'s own spreadsheet pasted in by mistake. The card must point at ' +
+                 'the tracker: one assessment\'s spreadsheet knows about that test and no ' +
+                 'other, and goes stale the day you make the next one.');
+    } else {
+      lines.push('✅  the record card can read “' + tName + '” — ' + cohorts.join(', ') +
+                 ' (' + tRows + ' finished student-assessment row' + (tRows === 1 ? '' : 's') + ')');
+      lines.push(unfRows < 0
+        ? '•  no "Unfinished reflections" tab yet — it appears the first time a student submits a ' +
+          'reflection incomplete in a spreadsheet running the updated reflection code.'
+        : '•  "Unfinished reflections": ' + unfRows + ' row' + (unfRows === 1 ? '' : 's') +
+          ' — counted on the card as unfinished, never as assessments done.');
+      var dom = _schoolDomain();
+      lines.push(dom ? '•  students are expected at @' + dom
+                     : '•  SCHOOL_DOMAIN is empty, so somebody signing in with a personal ' +
+                       'account is told "nothing recorded yet" rather than which account to use.');
+    }
   }
   lines.push('');
   lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy.');
@@ -1691,6 +1779,125 @@ function _ownProgress(d) {
   }
   return _json({ ok: true, name: who.name || '', labs: out });
 }
+
+/* ============================================================
+   Has this student got a reflection record?
+   ------------------------------------------------------------
+   The Assessment Reflection System builds each student a page of their own after every
+   test. That page lives at ONE address for the whole school: which student it shows is
+   decided by the Google account that opens it, verified at the far end, not by anything
+   in the address. So this does NOT go looking for a personal link — there isn't one.
+
+   It answers three things the hub cannot know on its own: what the school calls this
+   person, whether they have a record yet, and the address to send them to. Nothing about
+   another student, no scores, no class, no roster — a student is told what they already
+   know about themselves, and the page itself does the rest behind the school's own gate.
+
+   The email comes from the verified token, never from the request. Read only.
+   ============================================================ */
+function _ownRecord(d) {
+  if (!_trackerId()) return _json({ ok: false, why: 'no record system' });
+  if (!_clientId())  return _json({ ok: false, why: 'sign-in is not set up' });
+  var who = _whoIs(d.token);
+  if (!who) return _json({ ok: false, why: 'not signed in' });
+
+  /* A personal account is told so plainly. Without this they would sign in, be found
+     nowhere, and be shown "nothing recorded yet" — which is true of the workbook and quite
+     untrue of them. */
+  var dom = _schoolDomain();
+  if (dom && who.email.slice(-(dom.length + 1)) !== '@' + dom)
+    return _json({ ok: false, why: 'not a school account', email: who.email, domain: dom });
+
+  var wb;
+  try { wb = SpreadsheetApp.openById(_trackerId()); }
+  catch (err) { return _json({ ok: false, why: 'cannot reach the record' }); }
+
+  var sheets = wb.getSheets(), name = '', at = 0, latest = '';
+  var finished = {}, unfinished = {}, unfinishedNames = [], fromTest = 0, fromCohort = 0;
+  var UNFINISHED_TAB = 'Unfinished reflections', UNFINISHED_EMAIL = 'Student Email';
+
+  /* Two passes. FINISHED reflections live in the cohort tabs ("Class of 2028") and in
+     "TEST", where a teacher's own trial submissions go — included because students never
+     have rows there, so it changes nothing for them, and it lets a teacher testing the
+     form see the card behave exactly as a student's would. UNFINISHED reflections live in
+     their own tab, "Unfinished reflections", whose email column is "Student Email". */
+  for (var si = 0; si < sheets.length; si++) {
+    var tabName = sheets[si].getName();
+    var isTest = tabName === 'TEST';
+    if (!isTest && !/^Class of \d{4}$/.test(tabName)) continue;
+    var sh = sheets[si], last = sh.getLastRow();
+    if (last < 2) continue;
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    var cEmail = head.indexOf('Email');
+    if (cEmail < 0) continue;
+    var cName = head.indexOf('StudentName'), cAss = head.indexOf('AssessmentName'),
+        cId = head.indexOf('AssessmentID'), cWhen = head.indexOf('LastUpdated'), cDate = head.indexOf('AssessmentDate');
+    var vals = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
+    for (var r = 0; r < vals.length; r++) {
+      if (_cleanEmail(vals[r][cEmail]) !== who.email) continue;
+      /* A row with no AssessmentID is not an assessment. Older copies of the reflection
+         script appended such rows from "Update deployment URL". */
+      var aid = cId >= 0 ? String(vals[r][cId] || '').trim() : '';
+      if (!aid) continue;
+      if (cName >= 0 && !name) name = String(vals[r][cName] || '').trim();
+      /* One row per student PER ASSESSMENT; counted once per paper all the same. */
+      if (finished[aid]) continue;
+      finished[aid] = true;
+      if (isTest) fromTest++; else fromCohort++;
+      var t = 0;
+      if (cWhen >= 0) { try { t = new Date(vals[r][cWhen]).getTime() || 0; } catch (e) {} }
+      if (!t && cDate >= 0) { try { t = new Date(vals[r][cDate]).getTime() || 0; } catch (e) {} }
+      if (t >= at) {
+        at = t;
+        var nm = cAss >= 0 ? String(vals[r][cAss] || '').trim() : '';
+        latest = nm || aid;
+      }
+    }
+  }
+
+  var unf = wb.getSheetByName(UNFINISHED_TAB);
+  if (unf && unf.getLastRow() >= 2) {
+    var uh = unf.getRange(1, 1, 1, unf.getLastColumn()).getValues()[0];
+    var uE = uh.indexOf(UNFINISHED_EMAIL), uId = uh.indexOf('AssessmentID'),
+        uNm = uh.indexOf('AssessmentName'), uCls = uh.indexOf('Class'), uStu = uh.indexOf('StudentName');
+    if (uE >= 0 && uId >= 0) {
+      var uv = unf.getRange(2, 1, unf.getLastRow() - 1, unf.getLastColumn()).getValues();
+      for (var q = 0; q < uv.length; q++) {
+        if (_cleanEmail(uv[q][uE]) !== who.email) continue;
+        var uid = String(uv[q][uId] || '').trim();
+        /* Unfinished is not an assessment done — the reflection IS the work — so it is
+           counted apart. A paper that also has a finished row was finished after all
+           (the unfinished record can outlive the finish), so it does not count here. */
+        if (!uid || finished[uid] || unfinished[uid]) continue;
+        unfinished[uid] = true;
+        unfinishedNames.push((uNm >= 0 && String(uv[q][uNm] || '').trim()) || uid);
+        if (!name && uStu >= 0) name = String(uv[q][uStu] || '').trim();
+        if (uCls >= 0 && String(uv[q][uCls] || '').trim().toUpperCase() === 'TEST') fromTest++; else fromCohort++;
+      }
+    }
+  }
+  var count = Object.keys(finished).length, incomplete = unfinishedNames.length;
+
+  return _json({ ok: true, name: name || who.name || '', count: count, incomplete: incomplete,
+                 unfinishedNames: unfinishedNames,
+                 latest: latest, at: at ? new Date(at).toISOString() : null,
+                 /* true when every row found is a teacher's TEST submission */
+                 testOnly: fromTest > 0 && fromCohort === 0 });
+}
+
+/* The tracker workbook and the school's domain, remembered the same way SHEET_ID is so
+   that pasting a fresh copy of this file over the top never wipes what was typed in. */
+function _keptSetting_(literal, key) {
+  var props;
+  try { props = PropertiesService.getScriptProperties(); } catch (e) { return literal; }
+  if (literal) {
+    try { if (props.getProperty(key) !== literal) props.setProperty(key, literal); } catch (e) {}
+    return literal;
+  }
+  return props.getProperty(key) || '';
+}
+function _trackerId()     { return _keptSetting_(TRACKER_ID, 'TRACKER_ID'); }
+function _schoolDomain()  { return String(_keptSetting_(SCHOOL_DOMAIN, 'SCHOOL_DOMAIN')).toLowerCase().replace(/^@/, ''); }
 
 function _json(o) {
   return ContentService.createTextOutput(JSON.stringify(o))
