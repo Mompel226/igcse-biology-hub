@@ -303,6 +303,57 @@ wrong workbook in.
 
 ---
 
+## 👩‍🏫 Teacher mode, and the teacher page
+
+<details>
+<summary><b>A page of every assessment spreadsheet, that only your Biology teachers can open</b></summary>
+
+<br>
+
+Signed in on the hub as a teacher, the corner card gains a **Teacher | Test** switch.
+**Test** shows you the hub exactly as a student sees it, from your own TEST reflections.
+**Teacher** replaces the student's door with **Assessment system**, which opens a page listing
+every spreadsheet you put on it: each assessment's, the test copies, the tracker.
+
+**Nothing about that page is in this website.** Not its address, not a spreadsheet link, not who
+the teachers are. It is guarded twice:
+
+1. **By Google.** The page is served by a *second* deployment of the labs script whose access is
+   **Anyone within** your school. Google signs the visitor in with their school account before a
+   line of script runs, so a sign-in copied out of a web page is no use: what opens it is Google's
+   own sign-in, which no page can read.
+2. **By the script.** It shows the links only to you (the script's owner) and to the addresses you
+   type into `TEACHERS` — and only at your school's own domain, so a pupil's address typed there by
+   mistake still opens nothing. Anybody else sees who the page is for, and not a single link.
+
+A link on the page opens only for the people that spreadsheet is shared with. The page lists your
+spreadsheets; it does not share them.
+
+**To switch it on** — in the labs spreadsheet ("Student data"):
+
+1. **🧪 Biology Labs ▸ 🔗 Set up the teacher page.** It makes a tab, **🔗 Teacher links**, with the
+   tracker and this spreadsheet already in it. Add a row for each spreadsheet: a **Section** (for
+   example *Reflection spreadsheets* or *Test system*), a **Name**, the **Link**.
+2. **Deploy ▸ New deployment ▸ ⚙ ▸ Web app.** Execute as **Me**; Who has access **Anyone within**
+   your school — *not* "Anyone". Deploy and copy the Web app URL into `TEACHER_PAGE_URL` near the top
+   of `apps-script/Code.gs`.
+3. Other teachers: their school addresses in `TEACHERS`, separated by commas. You are always in;
+   type `none` to take everyone else off.
+4. **Deploy ▸ Manage deployments ▸** the deployment the labs use **▸ ✏️ ▸ New version ▸ Deploy**, so
+   the hub learns who is a teacher. Whenever you paste a newer copy of the script, give the teacher
+   page's deployment a new version too.
+
+The first time you run anything after pasting this version, Google asks for one new permission —
+to see the email address of whoever opens the teacher page. Allow it **before** deploying, or the
+labs stop answering until you do: run **🩺 Check the set-up** once, allow, then deploy.
+
+**🩺 Check the set-up** then reports the page's address, how many teachers can open it and how many
+links are on it.
+
+</details>
+
+---
+
 ## 🗂️ Once it is running — what you actually do
 
 <details>

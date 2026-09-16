@@ -73,6 +73,34 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 var TRACKER_ID     = '';
 var SCHOOL_DOMAIN  = '';
 
+/* ---- The teacher page (optional) ------------------------------------------
+   A page for teachers only, holding the address of every spreadsheet in the Assessment
+   Reflection System — each assessment's own, the test copies, the tracker. On the Biology Hub a
+   teacher in teacher mode reaches it through the door where a student finds "My assessments".
+
+   It is guarded twice, and neither guard is anything in the public website:
+     1. Google. The page is served by a SECOND deployment of this script, whose access is
+        "Anyone within" your school, so Google signs the visitor in with their school account
+        before a line of this script runs. A sign-in copied out of a web page is no use there:
+        what opens it is Google's own sign-in, which no page can read.
+     2. This script. It asks Google who is visiting and shows the links only to an address on
+        TEACHERS below — and to you, the owner, always. Everybody else, pupils and other staff
+        alike, is told who the page is for and sees nothing more.
+   The links live in a tab of THIS spreadsheet, "🔗 Teacher links", so only the people you have
+   shared this spreadsheet with can see or change them.
+
+     TEACHERS          other teachers' school addresses, separated by commas. Type  none  to take
+                       everybody but you off (an empty line keeps the list you saved before).
+     TEACHER_PAGE_URL  the /exec address of that second deployment. The hub is handed it only when
+                       a signed-in teacher on the list asks; it is never written into the website.
+
+   🧪 Biology Labs ▸ 🔗 Set up the teacher page makes the tab and walks through the rest. Like
+   TRACKER_ID, a value typed below is kept in Script Properties, and neither belongs in the
+   public GitHub copy.
+   -------------------------------------------------------------------------- */
+var TEACHERS          = '';
+var TEACHER_PAGE_URL  = '';
+
 /* Every lab that can hand in. `id` is what the site sends as `app`; `tab` is the
    tab it is written to. Add a row here (or in the Labs tab) as each lab is built.
    `questions` MUST match what the lab actually asks — it flags a hand-in as NOT ALL
@@ -187,6 +215,8 @@ function onOpen() {
     .addSeparator()
     .addItem('📊  Refresh everyone\'s progress', 'refreshDashboard')
     .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'setup')
+    .addSeparator()
+    .addItem('🔗  Set up the teacher page', 'setUpTeacherPage')
     .addToUi();
 }
 
@@ -233,8 +263,8 @@ function doPost(e) {
     if (score > total) wrong.push('score above the total');
     if (total < 0 || total > 1000) wrong.push('impossible total');
     if (wrong.length) {
-      _reject(lab, [new Date(), lab.id, student.name, student.cls, score, total, d.code || '',
-                    wrong.join('; '), JSON.stringify(d).slice(0, 2000)]);
+      _reject(lab, [new Date(), lab.id, student.name, student.cls, score, total, _plain(d.code),
+                    wrong.join('; '), _plain(JSON.stringify(d).slice(0, 2000))]);
       return _text('rejected: ' + wrong.join('; '));
     }
 
@@ -258,10 +288,10 @@ function doPost(e) {
       var seen = Number(sh.getRange(r, 10).getValue()) || 0;
 
       sh.getRange(r, 1, 1, 2).setValues([[student.name, student.cls]]);
-      sh.getRange(r, LAB_GNAME).setValue(who.name || '');
+      sh.getRange(r, LAB_GNAME).setValue(_plain(who.name));
       /* Kept on every hand-in, not only a better one: this is what lets them carry on
          somewhere else, and the newest is always the fullest — it can only have grown. */
-      if (d.snap) sh.getRange(r, LAB_SNAP).setValue(String(d.snap).slice(0, 45000));
+      if (d.snap) sh.getRange(r, LAB_SNAP).setValue(_plain(String(d.snap).slice(0, 45000)));
       sh.getRange(r, 10, 1, 2).setValues([[seen + 1, new Date()]]);
       if (beaten) {
         sh.getRange(r, 3, 1, 7).setValues([[
@@ -269,15 +299,25 @@ function doPost(e) {
           d.complete === false ? 'progress' : 'complete',
           Number(d.checks) || '', Number(d.firstTime) || '', _since(d.from)
         ]]);
-        sh.getRange(r, 12, 1, 3).setValues([[d.code || '', flags.join('; '), _stations(d.stations)]]);
+        sh.getRange(r, 12, 1, 3).setValues([[_plain(d.code), flags.join('; '), _plain(_stations(d.stations))]]);
       }
       _dressRows(sh, LAB_COLS, r, 1);       /* so a row written between tidy-ups still reads properly */
       SpreadsheetApp.flush();
       return _text(beaten ? 'recorded' : 'recorded (an earlier hand-in still scores higher)');
     } finally { lock.releaseLock(); }
   } catch (err) {
-    return _text('error: ' + err);
+    /* The message is kept, because it is what a student can show their teacher — but not any
+       file id inside it ("…while accessing document with id 1AbC…"): those stay private. */
+    return _text('error: ' + String(err).replace(/[A-Za-z0-9_-]{25,}/g, '…'));
   }
+}
+
+/* A cell given text that starts with = + - or @ reads it as a formula, and a formula can reach
+   out of the sheet — IMAGE, IMPORTXML — the moment the teacher opens it. Everything a page sends
+   is written through this, so it always lands as the text it is. */
+function _plain(v) {
+  var s = String(v == null ? '' : v);
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
 }
 
 /* Junk, and anything that does not verify, lands here instead of in a lab's tab. */
@@ -292,18 +332,34 @@ function _whoIs(idToken) {
   var hit = cache.get(key);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
+  /* Junk never costs a call to Google, whose daily allowance every hand-in shares: something not
+     even shaped like a sign-in for THIS app, still in date, is turned away here, and a token Google
+     has already refused is remembered as refused for five minutes. */
+  var claims = null;
+  try {
+    var mid = String(idToken).split('.')[1] || '';
+    while (mid.length % 4) mid += '=';
+    claims = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(mid)).getDataAsString());
+  } catch (e) { return null; }
+  if (!claims || String(claims.aud) !== _clientId() || !(Number(claims.exp) * 1000 > Date.now())) return null;
+  if (cache.get('NO' + key)) return null;
+  function refused() { try { cache.put('NO' + key, '1', 300); } catch (e) {} return null; }
+
   var res;
   try {
     res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' +
                             encodeURIComponent(idToken), { muteHttpExceptions: true });
   } catch (e) { return null; }
-  if (res.getResponseCode() !== 200) return null;
+  /* 400 is Google saying the token is not good; anything else is Google having a bad moment, which
+     must not lock a real student out for five minutes */
+  if (res.getResponseCode() !== 200) return res.getResponseCode() === 400 ? refused() : null;
 
   var t;
   try { t = JSON.parse(res.getContentText()); } catch (e) { return null; }
-  if (String(t.aud) !== _clientId()) return null;             /* a token for somebody else's app */
+  if (String(t.aud) !== _clientId()) return refused();        /* a token for somebody else's app */
+  if (!/^(https:\/\/)?accounts\.google\.com$/.test(String(t.iss))) return refused();   /* not Google's */
   if (Number(t.exp) * 1000 < Date.now()) return null;         /* expired */
-  if (String(t.email_verified) !== 'true') return null;
+  if (String(t.email_verified) !== 'true') return refused();
 
   var who = { email: _cleanEmail(t.email), name: String(t.name || '') };
   cache.put(key, JSON.stringify(who), 240);
@@ -361,7 +417,9 @@ function _reject(lab, row) {
 /* ============================================================
    2. The endpoint — a lab checks it is alive; hand-ins arrive by POST
    ============================================================ */
-function doGet() {
+function doGet(e) {
+  /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
+  if (e && e.parameter && String(e.parameter.page || '') === 'teachers') return _teacherPage();
   return _text('Biology Labs endpoint is running.');
 }
 
@@ -668,10 +726,25 @@ function checkSetup() {
         : '•  "Unfinished reflections": ' + unfRows + ' row' + (unfRows === 1 ? '' : 's') +
           ' — counted on the card as unfinished, never as assessments done.');
       var dom = _schoolDomain();
-      lines.push(dom ? '•  students are expected at @' + dom
+      lines.push(dom ? '•  school accounts: any address at ' + dom + ' or under it — staff at …@' + dom +
+                       ', pupils at …@<something>.' + dom
                      : '•  SCHOOL_DOMAIN is empty, so somebody signing in with a personal ' +
                        'account is told "nothing recorded yet" rather than which account to use.');
     }
+  }
+
+  /* The teacher page. Off until it is set up, and then its three parts are checked apart. */
+  var tpUrl = _teacherPageUrl(), tpTab = openOk ? _ss().getSheetByName(T_LINKS) : null;
+  if (!tpUrl && !tpTab && !String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '')) {
+    lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 🔗 Set up the teacher page switches it on.');
+  } else {
+    lines.push(tpUrl ? '✅  teacher page address is set'
+                     : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 🔗 Set up the teacher page');
+    lines.push('•  teachers who can open it: you (' + (_owner() || 'the owner') + ')' +
+               (_teacherEmails().length ? ' and ' + _teacherEmails().length + ' more' : ' only'));
+    var tpLinks = 0;
+    try { _teacherLinks().forEach(function (g) { tpLinks += g.links.length; }); } catch (e) {}
+    lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Set up the teacher page makes it');
   }
   lines.push('');
   lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy.');
@@ -1807,8 +1880,10 @@ function _ownRecord(d) {
      nowhere, and be shown "nothing recorded yet" — which is true of the workbook and quite
      untrue of them. */
   var dom = _schoolDomain();
-  if (dom && who.email.slice(-(dom.length + 1)) !== '@' + dom)
+  if (dom && !_inDomain(who.email, dom))
     return _json({ ok: false, why: 'not a school account', email: who.email, domain: dom });
+  /* a teacher on the list is told so, with the teacher page's address; nobody else hears of either */
+  var isTeacher = _isTeacher(who.email);
 
   var wb;
   try { wb = SpreadsheetApp.openById(_trackerId()); }
@@ -1932,7 +2007,204 @@ function _ownRecord(d) {
                  unfinishedNames: unfinishedNames,
                  latest: latest, at: at ? new Date(at).toISOString() : null,
                  /* true when every row found is a teacher's TEST submission */
-                 testOnly: fromTest > 0 && fromCohort === 0 });
+                 testOnly: fromTest > 0 && fromCohort === 0,
+                 /* absent — not false — for everybody who is not a teacher on the list */
+                 teacher: isTeacher || undefined,
+                 teacherPage: isTeacher ? _teacherPageUrl() : undefined });
+}
+
+/* ============================================================
+   The teacher page
+   ------------------------------------------------------------
+   What it is and why it is safe is at the top, under "The teacher page". In short: it is served
+   by a deployment Google itself restricts to the school, it shows its links only to a teacher on
+   the list, and all it holds is the rows of the "🔗 Teacher links" tab. A link on it opens only
+   for people that file is shared with: the page lists the spreadsheets, it does not share them.
+   ============================================================ */
+var T_LINKS = '🔗 Teacher links';
+
+/* Pupils have addresses at …@pupils.<school> and staff at …@<school>: both are the school's. */
+function _inDomain(email, dom) {
+  var host = String(email || '').split('@').pop().toLowerCase();
+  return !!dom && (host === dom || host.slice(-(dom.length + 1)) === '.' + dom);
+}
+
+function _owner() {
+  try { return _cleanEmail(Session.getEffectiveUser().getEmail()); } catch (e) { return ''; }
+}
+
+/* The other teachers, as typed into TEACHERS. "none" empties it; an empty line cannot, because an
+   empty line means "keep what was saved". */
+function _teacherEmails() {
+  var raw = String(_keptSetting_(TEACHERS, 'TEACHERS') || '');
+  if (/^\s*none\s*$/i.test(raw)) return [];
+  return raw.split(/[\s,;]+/).map(_cleanEmail)
+            .filter(function (e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); });
+}
+
+/* You, always. Anybody else must be on TEACHERS AND have an address at the school's own domain —
+   never under it — so a pupil's address typed onto the list by mistake still opens nothing. */
+function _isTeacher(email) {
+  email = _cleanEmail(email);
+  if (!email) return false;
+  if (email === _owner()) return true;
+  var dom = _schoolDomain();
+  if (dom && email.split('@').pop() !== dom) return false;
+  return _teacherEmails().indexOf(email) >= 0;
+}
+
+/* The teacher page's own address, from TEACHER_PAGE_URL, pointed at the page. Anything that is not
+   an Apps Script /exec address is ignored rather than handed to the hub. */
+function _teacherPageUrl() {
+  var u = String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '').trim();
+  if (!/^https:\/\/script\.google\.com\/[^\s?#]+\/exec$/.test(u.replace(/\?.*$/, ''))) return '';
+  return u.replace(/\?.*$/, '') + '?page=teachers';
+}
+
+/* The rows of the tab, grouped by their Section, in the order they are written. A Link cell may be
+   a plain address or a pasted link with its own text; only https addresses are ever shown. */
+function _teacherLinks() {
+  var sh = _ss().getSheetByName(T_LINKS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  var n = sh.getLastRow() - 1;
+  var vals = sh.getRange(2, 1, n, 4).getValues();
+  var rich = [];
+  try { rich = sh.getRange(2, 3, n, 1).getRichTextValues(); } catch (e) {}
+  var groups = [], by = {};
+  vals.forEach(function (r, i) {
+    var name = String(r[1] || '').trim(), url = String(r[2] || '').trim();
+    if (!/^https:\/\//i.test(url) && rich[i] && rich[i][0]) {
+      try { url = String(rich[i][0].getLinkUrl() || '').trim(); } catch (e) {}
+    }
+    if (!name || !/^https:\/\/[^\s"'<>]+$/i.test(url)) return;
+    var section = String(r[0] || '').trim() || 'Links';
+    if (!by[section]) { by[section] = { title: section, links: [] }; groups.push(by[section]); }
+    by[section].links.push({ name: name, url: url, note: String(r[3] || '').trim() });
+  });
+  return groups;
+}
+
+/* The page. Google has already signed the visitor in — this deployment is restricted to the
+   school — so Session.getActiveUser() is who they really are. Nobody, or somebody not on the
+   list, gets the page's name and who it is for, and not a single link. */
+function _teacherPage() {
+  var email = '';
+  try { email = _cleanEmail(Session.getActiveUser().getEmail()); } catch (e) {}
+  var o = { dom: _schoolDomain(), email: email };
+  if (!email) o.state = 'nobody';
+  else if (!_isTeacher(email)) o.state = 'refused';
+  else {
+    o.state = 'ok';
+    try { o.groups = _teacherLinks(); } catch (e) { o.groups = []; o.trouble = true; }
+  }
+  return HtmlService.createHtmlOutput(_teacherHtml(o))
+    .setTitle('Assessment system — teachers')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function _esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function _teacherHtml(o) {
+  var e = _esc, main = '';
+  if (o.state === 'nobody') {
+    main = '<p class="say">Open this page signed in with your school Google account' +
+           (o.dom ? ' (…@' + e(o.dom) + ')' : '') + '.</p>';
+  } else if (o.state === 'refused') {
+    main = '<p class="say">This page is for Biology teachers. You are signed in as <b>' + e(o.email) +
+           '</b>, which is not on its list.</p>' +
+           '<p class="fine">If you teach Biology here, ask the teacher who runs this page to add your address.</p>';
+  } else if (o.trouble) {
+    main = '<p class="say">The list of links could not be read just now. Reload the page in a minute.</p>';
+  } else if (!o.groups.length) {
+    main = '<p class="say">No links yet.</p><p class="fine">Add them to the “' + e(T_LINKS) + '” tab of the labs ' +
+           'spreadsheet: a Section, a Name and the Link, one spreadsheet to a row.</p>';
+  } else {
+    main = o.groups.map(function (g) {
+      return '<section><h2>' + e(g.title) + '<span>' + g.links.length + '</span></h2><ul>' +
+        g.links.map(function (l) {
+          return '<li><a href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+                 '<span class="nm">' + e(l.name) + '</span>' +
+                 (l.note ? '<span class="nt">' + e(l.note) + '</span>' : '') +
+                 '<span class="go" aria-hidden="true">Open →</span></a></li>';
+        }).join('') + '</ul></section>';
+    }).join('') +
+    '<p class="fine">Each link opens only for the people its file is shared with. This page lists the ' +
+    'spreadsheets; it does not share them.</p>';
+  }
+  return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">' +
+    '<style>' +
+    ':root{--ink:#0A141C;--card:#101D27;--line:rgba(150,190,215,.22);--chalk:#EDF4F8;--dim:#A9BECB;--mute:#7F94A2;--cyan:#4FC3F7;--accent:#E879F9;' +
+    '--serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}' +
+    '*{box-sizing:border-box}html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(--sans)}' +
+    '.wrap{max-width:880px;margin:0 auto;padding:clamp(20px,5vw,48px) clamp(16px,4vw,32px) 48px}' +
+    '.eye{font:500 10.5px/1.3 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}' +
+    '.eye b{color:var(--accent);font-weight:500}' +
+    'h1{font:400 clamp(34px,5vw,52px)/1.05 var(--serif);letter-spacing:-.018em;margin:8px 0 10px}h1 em{font-style:italic;color:var(--accent)}' +
+    '.lede{color:#C5D4DD;max-width:60ch;margin:0}' +
+    '.who{margin:18px 0 30px;font:500 10.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}.who b{color:var(--dim);font-weight:500;text-transform:none;letter-spacing:0}' +
+    '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:0 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500}' +
+    '.fine{color:var(--mute);font-size:13.5px;max-width:62ch}' +
+    'section{margin:0 0 30px}' +
+    'h2{display:flex;align-items:baseline;gap:10px;font:500 10.5px/1.3 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);' +
+    'margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}h2 span{color:var(--mute)}' +
+    'ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}' +
+    'a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:center;padding:12px 16px;border-radius:10px;' +
+    'background:var(--card);border:1px solid var(--line);color:inherit;text-decoration:none;transition:border-color .2s,background .2s}' +
+    'a:hover,a:focus-visible{border-color:rgba(232,121,249,.6);background:#15222D}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
+    '.nm{font-weight:500;overflow-wrap:anywhere}.nt{grid-column:1;color:var(--dim);font-size:13.5px;overflow-wrap:anywhere}' +
+    '.go{grid-column:2;grid-row:1/span 2;font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);white-space:nowrap}' +
+    '@media (max-width:520px){a{grid-template-columns:1fr}.go{grid-column:1;grid-row:auto;margin-top:6px}}' +
+    '@media (prefers-reduced-motion:reduce){a{transition:none}}' +
+    '</style></head><body><div class="wrap">' +
+    '<p class="eye">Biology Hub · <b>Teachers only</b></p>' +
+    '<h1>Assessment <em>system</em></h1>' +
+    '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place: each assessment’s own, the test copies, and the records they write to.</p>' +
+    (o.email ? '<p class="who">Signed in as <b>' + e(o.email) + '</b></p>' : '<p class="who">Not signed in</p>') +
+    main + '</div></body></html>';
+}
+
+/* 🧪 Biology Labs ▸ 🔗 Set up the teacher page: makes the tab (with the two records it can fill
+   in itself) and says, in order, what is still to do. Safe to run again: it never touches a row
+   that is already there. */
+function setUpTeacherPage() {
+  var ui = SpreadsheetApp.getUi(), ss = _ss();
+  var sh = ss.getSheetByName(T_LINKS), made = false;
+  if (!sh) {
+    sh = ss.insertSheet(T_LINKS);
+    made = true;
+    var rows = [['Section', 'Name', 'Link', 'Note']];
+    var tid = _trackerId();
+    if (tid) rows.push(['Records', 'Student Progress Tracker', 'https://docs.google.com/spreadsheets/d/' + tid + '/edit',
+                        'Every cohort, every reflection: the workbook each assessment writes to']);
+    rows.push(['Records', 'Student data (the labs)', ss.getUrl(), 'Lab hand-ins and the class lists']);
+    sh.getRange(1, 1, rows.length, 4).setValues(rows);
+    _dress2(sh, [
+      { h:'Section', w:190, edit:true, note:'The heading this link sits under on the teacher page — for example Reflection spreadsheets, Test system, Records.' },
+      { h:'Name', w:260, edit:true, note:'What the link is called on the page.' },
+      { h:'Link', w:430, edit:true, note:'The full address, starting https:// — copy it from the spreadsheet\'s address bar or Share ▸ Copy link. Only https addresses are shown.' },
+      { h:'Note', w:380, edit:true, note:'One line under the name. Optional.' }
+    ], { tab: '#9D3FB0' });
+  }
+  var dom = _schoolDomain(), url = _teacherPageUrl(), more = _teacherEmails().length;
+  var lines = [];
+  lines.push(made ? '✅  Made the “' + T_LINKS + '” tab, with the tracker and this spreadsheet already in it.'
+                  : '✅  The “' + T_LINKS + '” tab is there (' + Math.max(0, sh.getLastRow() - 1) + ' rows).');
+  lines.push('1.  In that tab, add a row for each spreadsheet: a Section (for example “Reflection spreadsheets” or ' +
+             '“Test system”), a Name, and the Link.');
+  lines.push((url ? '✅' : '2.') + '  The page\'s own address' + (url ? ' is set.' :
+             ' — once:\n     Deploy ▸ New deployment ▸ ⚙ ▸ Web app\n       Execute as: Me\n       Who has access: Anyone within ' +
+             (dom || 'your school') + '   ← not “Anyone”\n     Deploy, copy the Web app URL, and type it into TEACHER_PAGE_URL near the top of this script.'));
+  lines.push('3.  Teachers: you are always in' + (more ? ', with ' + more + ' more on TEACHERS.' :
+             '. To add colleagues, type their school addresses into TEACHERS near the top, separated by commas.'));
+  lines.push('4.  Deploy ▸ Manage deployments ▸ the deployment the labs use ▸ ✎ ▸ Version: New version ▸ Deploy, so the hub ' +
+             'learns who is a teacher. Do the same for the teacher page\'s deployment whenever you paste a new copy of this script.');
+  ui.alert('Biology Labs — the teacher page', lines.join('\n\n'), ui.ButtonSet.OK);
 }
 
 /* The tracker workbook and the school's domain, remembered the same way SHEET_ID is so

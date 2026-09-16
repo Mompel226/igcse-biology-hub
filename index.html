@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789569033">
+<link rel="stylesheet" href="css/hub.css?v=1789572987">
 </head>
 <body>
 
@@ -59,8 +59,18 @@
           <span class="acct__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="8.2" r="4.1" fill="currentColor"/><path d="M4.1 21c.8-4.3 4.1-6.8 7.9-6.8s7.1 2.5 7.9 6.8z" fill="currentColor"/></svg></span>
           <span class="acct__txt">
             <span class="acct__lbl" id="acctWhoLbl"></span>
-            <span class="acct__act">Signed in</span>
+            <span class="acct__act" id="acctWhoAct">Signed in</span>
           </span>
+        </div>
+        <!-- Once somebody is signed in: sign out (the sign-in lasts, so on a shared computer it must
+             be easy to end), and for a teacher the switch between teacher mode and test mode. The
+             switch only changes what this page shows; what a teacher may open is decided elsewhere. -->
+        <div class="acct__foot" id="acctFoot" hidden>
+          <div class="acct__mode" id="acctMode" role="group" aria-label="View the hub as" hidden>
+            <button type="button" data-mode="teacher" aria-pressed="true">Teacher</button>
+            <button type="button" data-mode="test" aria-pressed="false">Test</button>
+          </div>
+          <button type="button" class="acct__out" id="acctOut">Sign out</button>
         </div>
       </div>
 
@@ -112,10 +122,11 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<script src="js/data/labs.js?v=1789569033"></script>
-<script src="js/progress.js?v=1789569033"></script>
-<script src="js/shelves.js?v=1789569033"></script>
-<script src="js/local.js?v=1789569033"></script>
-<script src="js/hub.js?v=1789569033"></script>
+<script src="js/data/labs.js?v=1789572987"></script>
+<script src="js/progress.js?v=1789572987"></script>
+<script src="js/signin.js?v=1789572987"></script>
+<script src="js/shelves.js?v=1789572987"></script>
+<script src="js/local.js?v=1789572987"></script>
+<script src="js/hub.js?v=1789572987"></script>
 </body>
 </html>
