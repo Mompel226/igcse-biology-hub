@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789567750">
+<link rel="stylesheet" href="css/hub.css?v=1789568155">
 </head>
 <body>
 
@@ -33,8 +33,12 @@
            included: the year tabs and the IB switch are about the page you are on, and
            are hidden once you leave the revision hub, but this is about you. -->
       <div class="acct" id="acct" hidden>
-        <!-- The figure says "an account" before a word is read: outlined while nobody is
-             signed in, filled in once someone is. -->
+        <!-- Signed out, Google's own button stands here, so ONE press starts signing in. The
+             line above it says who it is for — or, after a try that did not work, why. -->
+        <span class="acct__for" id="acctFor" hidden>Students</span>
+        <div class="acct__gsi" id="acctGsi" hidden></div>
+        <!-- Everything else is one of our two cards. The figure says "an account" before a
+             word is read: outlined while nothing is known, filled in once someone is. -->
         <button type="button" class="acct__card" id="acctBtn">
           <span class="acct__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="8.4" r="3.7" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.6 20.4c.9-3.8 3.9-6 7.4-6s6.5 2.2 7.4 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
           <span class="acct__txt">
@@ -49,7 +53,6 @@
             <span class="acct__act" id="acctLinkAct"></span>
           </span>
         </a>
-        <div class="acct__gsi" id="acctGsi" hidden></div>
       </div>
 
       <div class="masthead__hub" id="mastHub">
@@ -100,10 +103,10 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<script src="js/data/labs.js?v=1789567750"></script>
-<script src="js/progress.js?v=1789567750"></script>
-<script src="js/shelves.js?v=1789567750"></script>
-<script src="js/local.js?v=1789567750"></script>
-<script src="js/hub.js?v=1789567750"></script>
+<script src="js/data/labs.js?v=1789568155"></script>
+<script src="js/progress.js?v=1789568155"></script>
+<script src="js/shelves.js?v=1789568155"></script>
+<script src="js/local.js?v=1789568155"></script>
+<script src="js/hub.js?v=1789568155"></script>
 </body>
 </html>

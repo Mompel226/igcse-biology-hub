@@ -99,7 +99,15 @@ body[data-view]:not([data-view="revision"]) .masthead__r{align-self:center}
 .acct__card--go .acct__lbl{color:#BFE3F5}
 .acct__card--go .acct__act{color:#fff}
 .acct__card--go .acct__act::after{content:" \2192";color:var(--cyan)}
-.acct__gsi{display:flex;justify-content:flex-end;min-height:0}
+/* signed out: Google's own button, one press, with a line above saying who it is for — or why
+   the last try did not work. The button's 40px is held open so the masthead does not jump
+   when Google's frame arrives. */
+.acct__gsi{display:flex;justify-content:flex-end;min-height:40px}
+.acct__for{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--chalk-dim);line-height:1.25;text-align:right
+}
+.acct__for--why{font-family:var(--sans);font-size:12.5px;letter-spacing:0;text-transform:none;color:#FFD08A}
 
 .maker{margin-top:10px;font-size:13.5px;color:#C5D4DD}
 .maker::before{content:"";display:inline-block;width:22px;height:1px;background:var(--cyan);opacity:.8;vertical-align:middle;margin-right:10px}
@@ -430,6 +438,7 @@ noscript p{padding:20px}
   .masthead{grid-template-columns:1fr;align-items:start;gap:12px;padding-top:16px}
   .masthead__r,.masthead__hub{align-items:flex-start}
   .acct,.acct__gsi{align-items:flex-start;justify-content:flex-start}
+  .acct__for{text-align:left}
   .acct__card{min-width:0;max-width:none;width:100%}
   .years{align-items:flex-start;max-width:none}
   .ytabs,.path{justify-content:flex-start}
