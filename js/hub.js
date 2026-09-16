@@ -356,10 +356,14 @@
      The hero shares its row with one door that only a signed-in student ever sees — their
      own assessments — which is placed after the loop so the order it is declared in does
      not matter, and starts hidden: the record check further down is what opens it. */
-  var entryEl = document.getElementById('entryDoors'), rowEl = null, topEl = null, mineEl = null;
+  var entryEl = document.getElementById('entryDoors'), rowEl = null, topEl = null, mineEl = null, sysEl = null;
   if (ENTRY && entryEl) {
     (ENTRY.doors || []).forEach(function (d) {
-      if (d.personal && !d.url && L.record) d.url = L.record.url;   /* one address, kept in `record` */
+      if (d.personal && !d.teacher && !d.url && L.record) d.url = L.record.url;   /* one address, kept in `record` */
+      /* A teacher's door has no address anywhere in this site. The labs script hands it over only
+         to a signed-in teacher on its list, and the page behind it checks again with the school's
+         own Google sign-in before it shows a single link. Until then the door is not on the page. */
+      if (d.teacher) d.url = '#';
       /* The student's door is built lazy: it starts hidden, and most visitors never see it, so
          its picture should cost them nothing — and must not be fetched at high priority beside
          the hero's. A lazy image inside a hidden door is not fetched until the door opens. */
@@ -368,7 +372,7 @@
         topEl = document.createElement('div'); topEl.className = 'doors doors--top';
         entryEl.appendChild(topEl); topEl.appendChild(a); return;
       }
-      if (d.personal) { mineEl = a; a.hidden = true; return; }
+      if (d.personal) { if (d.teacher) sysEl = a; else mineEl = a; a.hidden = true; return; }
       if (!rowEl) {
         /* one line over the row says what the four have in common, so no door has to */
         if (ENTRY.rowLabel) {
@@ -387,8 +391,9 @@
        the row AT REST, not the lit door: the tour widens a door every few seconds, and a
        door that followed it would drag the hero a third narrower every time Enterprises lit
        up. The top row stands still and the row beneath moves, as the hero alone did. */
-    if (mineEl && topEl) {
-      topEl.appendChild(mineEl);
+    if ((mineEl || sysEl) && topEl) {
+      if (mineEl) topEl.appendChild(mineEl);
+      if (sysEl) topEl.appendChild(sysEl);       /* the same place: only one of the two is ever open */
       if (rowEl) topEl.style.setProperty('--row-n', rowEl.children.length);
     }
   }
@@ -399,19 +404,28 @@
      (a returning student): it is simply there, since growing it in would make the hero shrink
      just after the page appeared. With reduced motion, or on a phone, it always just appears.
      Shutting is immediate — a door that lingers after sign-out would be worse. */
-  function showMine(open, instant) {
-    if (!mineEl || open === !mineEl.hidden) return;
-    if (!open) { mineEl.hidden = true; return; }
-    mineEl.hidden = false;
+  function showDoor(el, open, instant) {
+    if (!el || open === !el.hidden) return;
+    if (!open) { el.hidden = true; return; }
+    el.hidden = false;
     if (instant || still || narrow.matches) return;
-    mineEl.style.transition = 'none';
-    mineEl.style.flexBasis = '0px';
-    mineEl.style.opacity = '0';
-    void mineEl.offsetWidth;                       /* commit the start before animating */
-    mineEl.style.transition = 'flex-basis .6s cubic-bezier(.2,.7,.2,1), opacity .45s ease .15s';
-    mineEl.style.flexBasis = '';                   /* back to the stylesheet's width, animated */
-    mineEl.style.opacity = '';
-    setTimeout(function () { mineEl.style.transition = ''; }, 800);
+    el.style.transition = 'none';
+    el.style.flexBasis = '0px';
+    el.style.opacity = '0';
+    void el.offsetWidth;                           /* commit the start before animating */
+    el.style.transition = 'flex-basis .6s cubic-bezier(.2,.7,.2,1), opacity .45s ease .15s';
+    el.style.flexBasis = '';                       /* back to the stylesheet's width, animated */
+    el.style.opacity = '';
+    setTimeout(function () { el.style.transition = ''; }, 800);
+  }
+  /* The place beside the hero holds one of two doors, or neither: 'mine', a student's own record,
+     or 'system', the assessment system, for a teacher in teacher mode. Swapping one for the other
+     is instant — the place is already open, so there is nothing to grow into. */
+  function showPersonal(which, instant) {
+    var want = which === 'system' ? sysEl : which === 'mine' ? mineEl : null;
+    var swap = [mineEl, sysEl].some(function (el) { return el && el !== want && !el.hidden; });
+    [mineEl, sysEl].forEach(function (el) { if (el !== want) showDoor(el, false); });
+    if (want) showDoor(want, true, instant || swap);
   }
 
   narrow.addEventListener('change', fitOverlays);
@@ -654,6 +668,10 @@
   var REG  = window.LABS_REGISTER || {};
   var LABS = REG.labs || [];
   var P    = window.LabProgress;
+  /* One Google sign-in for the whole site, kept by js/signin.js (shared with every lab): who()
+     is whoever signed in on this browser and has not signed out, live() the same while their
+     token is still good for a minute or more. */
+  var SI   = window.SignIn || null;
 
   function bar(done, total, accent) {
     var w = total ? Math.round(100 * done / total) : 0;
@@ -699,7 +717,7 @@
       ' questions in ' + w.labs + ' lab' + (w.labs === 1 ? '' : 's') +
       ' · ' + w.started + ' started';
 
-    var signedIn = LABS.some(function (l) { return P.read(l.id + '.signin'); });
+    var signedIn = !!(SI && SI.who());
     var note = 'Counted in <b>this browser</b>. Clearing your history or site data erases it, and another device starts from nothing.';
     if (w.handedIn) {
       note += signedIn
@@ -739,8 +757,18 @@
     var url = L.submitUrl || (L.site && L.site.submitUrl) || '';   /* each school's own — js/local.js */
     if (!url || !P || !LABS.length) { if (loud) toast('This hub is not set up to keep marks.'); return; }
 
-    var who = signedIn();
-    if (!who) {                             /* nobody signed in, here or in a lab */
+    var who = SI && SI.live();
+    if (!who) {
+      /* signed in before, but Google's hour is up: pressing Sync renews it first, without a click
+         when Google allows, and carries on */
+      if (loud && SI && SI.who() && L.googleClientId) {
+        SI.renew(L.googleClientId, function (v) {
+          if (v) serverProgress(true);
+          else toast('Your sign-in has run out. Sign in again at the top of the page, then press Sync.');
+        });
+        return;
+      }
+      /* nobody signed in, here or in a lab */
       if (loud) toast('Sign in at the top of the page, or inside a lab when you hand in, and your work will follow you here.');
       return;
     }
@@ -792,20 +820,10 @@
      Configured entirely from js/local.js. No `record` block, no Client ID, or no place to
      ask: the rectangle never appears and the rest of the page is untouched. */
 
-  /* Who is signed in on this device — the hub's own sign-in first, then any lab's, since a
-     student who signed in to hand in a lab a moment ago should not be asked again. One
-     answer, used by both the record below and Sync above. */
-  var SIGNIN_KEY = 'biology-hub.signin';
-  function signedIn() {
-    var keys = [SIGNIN_KEY].concat(LABS.map(function (l) { return l.id + '.signin'; }));
-    for (var i = 0; i < keys.length; i++) {
-      var sv = P && P.read(keys[i]);
-      /* A minute in hand: a token that dies between the check and the reply is worse than
-         no token at all, because the refusal arrives looking like a refusal. */
-      if (sv && sv.token && sv.exp * 1000 > Date.now() + 60000) return sv;
-    }
-    return null;
-  }
+  /* Signing in is one sign-in for the whole site, kept by js/signin.js: a student who signed in
+     inside a lab is signed in here, and signing in here signs them in to every lab. It lasts
+     until they sign out — Google's hour-long token is renewed quietly when Google allows — and
+     the corner says so plainly when it cannot be. */
 
   (function () {
     var REC  = L.record || null;
@@ -814,7 +832,7 @@
     var box  = document.getElementById('acct');
     /* `REC.url` is required: a card that can never take them anywhere is worse than no
        card, so an unconfigured address means no card rather than a dead one. */
-    if (!box || !REC || !REC.url || !CID || !URL_) return;   /* not this edition's business */
+    if (!box || !REC || !REC.url || !CID || !URL_ || !SI) return;   /* not this edition's business */
 
     var btn     = document.getElementById('acctBtn'),
         btnLbl  = document.getElementById('acctBtnLbl'),
@@ -825,13 +843,21 @@
         gsi     = document.getElementById('acctGsi'),
         cap     = document.getElementById('acctFor'),
         whoCard = document.getElementById('acctWho'),
-        whoLbl  = document.getElementById('acctWhoLbl');
+        whoLbl  = document.getElementById('acctWhoLbl'),
+        whoAct  = document.getElementById('acctWhoAct'),
+        foot    = document.getElementById('acctFoot'),
+        modeEl  = document.getElementById('acctMode'),
+        outBtn  = document.getElementById('acctOut');
     /* the stylesheet swaps link for identity on the front page — only if this page HAS the door */
-    if (mineEl) document.body.setAttribute('data-mine-door', '');
+    if (mineEl || sysEl) document.body.setAttribute('data-mine-door', '');
 
     box.hidden = false;
     document.body.setAttribute('data-acct', '');   /* the masthead keeps its second column */
     btnLbl.textContent = REC.label || 'Students';
+
+    var acting  = null;     /* the sign-in this corner is showing as signed in; null while it offers the way in */
+    var teacher = null;     /* for a teacher on the labs script's list: { page } — null for everybody else */
+    var last    = null;     /* the last answer, so switching mode redraws without asking again */
 
     /* Two cards, one shown at a time, because they are two different things: a button does
        something on this page, a link goes somewhere else. Swapping the text inside one
@@ -843,14 +869,45 @@
       btnLbl.textContent = lbl; btnAct.textContent = act;
       btn.disabled = !!busy;
     }
-    /* Signed in with something recorded. Two cards are filled and the stylesheet shows one:
-       on the front page the "My assessments" door is the way in, so the corner only says who
-       is signed in; on every other page there is no door, so the corner card is the link. */
-    function asLink(href, lbl, act) {
+    /* Signed in with somewhere to go. Two cards are filled and the stylesheet shows one: on the
+       front page the door beside the hero is the way in, so the corner only says who is signed
+       in; on every other page there is no door, so the corner card is the link. */
+    function asLink(href, lbl, act, whoSays) {
       hideAll(); link.hidden = false;
       link.href = href; linkLbl.textContent = lbl; linkAct.textContent = act;
-      if (whoCard) { whoLbl.textContent = lbl; whoCard.hidden = false; }
+      if (whoCard) { whoLbl.textContent = lbl; if (whoAct) whoAct.textContent = whoSays || 'Signed in'; whoCard.hidden = false; }
     }
+
+    /* Under the card, once somebody is signed in: a way to sign out — the sign-in now lasts, so on
+       a shared computer it has to be easy to end — and, for a teacher, the switch between teacher
+       mode and test mode. The switch changes only what this page shows. What a teacher may OPEN
+       is decided by the labs script and by the page behind the door, never by this button. */
+    var MODE_KEY = 'biology-hub.mode';
+    function mode() {
+      try { return localStorage.getItem(MODE_KEY) === 'test' ? 'test' : 'teacher'; } catch (e) { return 'teacher'; }
+    }
+    function footer(on) {
+      if (!foot) return;
+      foot.hidden = !on;
+      if (modeEl) {
+        modeEl.hidden = !(on && teacher);
+        var m = mode();
+        Array.prototype.forEach.call(modeEl.querySelectorAll('button[data-mode]'), function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === m));
+        });
+      }
+    }
+    if (modeEl) modeEl.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('button[data-mode]');
+      if (!b || b.getAttribute('aria-pressed') === 'true') return;
+      try { localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); } catch (e2) {}
+      footer(true);
+      if (last && acting) render(last.who, last.j);
+    });
+    if (outBtn) outBtn.addEventListener('click', function () {
+      SI.out();                   /* the listener below puts the corner back */
+      toast('Signed out on this computer: the hub and every lab.');
+    });
 
     /* The name exactly as the school's roster writes it, and no cleverer than that.
        Taking the first word to make "Park's Biology" reads as a first name here and is a
@@ -862,18 +919,26 @@
       return String(n || '').trim().replace(/\s+/g, ' ');
     }
 
-    /* The student's door on the front page follows this same answer. A positive one is
-       remembered against the email it was for, so a returning student sees their door at
-       once instead of watching it arrive a second later; the check still runs and shuts
-       the door if the answer has changed. Only a definite answer shuts it — a network
-       failure leaves it as it was, because a door that vanishes whenever the wifi blinks
-       teaches a student not to trust it. */
+    /* The door beside the hero follows this same answer. A positive one is remembered against
+       the email it was for, so a returning student sees their door at once instead of watching
+       it arrive a second later; the check still runs and shuts the door if the answer has
+       changed. Only a definite answer shuts it — a network failure leaves it as it was, because
+       a door that vanishes whenever the wifi blinks teaches a student not to trust it. Whether
+       they are a teacher is remembered too, only so that teacher mode does not flash a student's
+       door first; the teacher page's address is never kept. */
     var MINE_KEY = 'biology-hub.mine';
     function mineRemembered(who) {
       try {
         var m = JSON.parse(localStorage.getItem(MINE_KEY) || 'null');
         return (m && who && m.email && m.email === who.email) ? m : null;
       } catch (e) { return null; }
+    }
+    function remember(who, t) {
+      try { localStorage.setItem(MINE_KEY, JSON.stringify({ email: who.email, teacher: !!teacher,
+                                                          reflected: t ? t.reflected : 0,
+                                                          assessments: t ? t.assessments : null,
+                                                          unfinished: t ? t.unfinished : 0,
+                                                          at: Date.now() })); } catch (e) {}
     }
     /* Two numbers, never mixed up. `reflected` is digital reflections the student finished.
        `assessments` is everything with a real score — tests and lab reports the teacher marked,
@@ -907,17 +972,52 @@
       var el = mineEl && mineEl.querySelector('.door__detail');
       if (el) el.textContent = doorLine(t);
     }
-    function mineOpen(who, t) {
-      if (!mineEl) return;
+    function mineOpen(who, t, instant) {
       mineSay(t);
-      showMine(true);
-      try { localStorage.setItem(MINE_KEY, JSON.stringify({ email: who.email, reflected: t.reflected,
-                                                          assessments: t.assessments, unfinished: t.unfinished,
-                                                          at: Date.now() })); } catch (e) {}
+      showPersonal('mine', instant);
+      remember(who, t);
     }
-    function mineShut() {
-      showMine(false);
-      try { localStorage.removeItem(MINE_KEY); } catch (e) {}
+    function mineShut(who) {
+      showPersonal(null);
+      if (who && teacher) remember(who, null);                 /* still a teacher, with nothing to show */
+      else { try { localStorage.removeItem(MINE_KEY); } catch (e) {} }
+    }
+
+    /* What the labs script said, drawn. Called again, with the same answer, when a teacher
+       switches between teacher mode and test mode. */
+    function render(who, j) {
+      last = { who: who, j: j };
+      var lbl = tidyName(j.name) || tidyName(who.name) || (REC.label || 'Your Biology');
+      var page = String(j.teacherPage || '');
+      teacher = j.teacher ? { page: /^https:\/\/script\.google\.com\//.test(page) ? page : '' } : null;
+      footer(true);
+
+      if (teacher && mode() === 'teacher') {
+        remember(who, null);
+        if (!teacher.page) {
+          showPersonal(null);
+          asButton(lbl, 'Teacher mode · the teacher page is not set up yet', true);
+          return;
+        }
+        if (sysEl) { sysEl.href = teacher.page; showPersonal('system'); } else showPersonal(null);
+        asLink(teacher.page, lbl, 'Assessment system', 'Signed in · teacher mode');
+        return;
+      }
+
+      var t = tally(j);
+      if (!t.reflected && !t.unfinished) {
+        /* On the list, nothing recorded yet — a new student, or one who has not sat a test.
+           Not an error, and not worth a link to an empty page. */
+        mineShut(who);
+        asButton(lbl, teacher ? 'Test mode · no test reflections yet' : 'Your assessments start at your first reflection', true);
+        return;
+      }
+      mineOpen(who, t);
+      /* A teacher who has only ever submitted to the TEST class sees "test". */
+      asLink(REC.url, lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(t),
+             teacher ? 'Signed in · test mode' : '');
+      /* No `title` tooltip here: the house rule is instant tooltips or none, and the
+         counts are already on the card and on the door. */
     }
 
     /* `quiet`: something already stands on the card (a remembered answer), so leave it there
@@ -929,36 +1029,23 @@
                     body: JSON.stringify({ action:'record', token: who.token }) })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
+          if (!acting || acting.email !== who.email) return;   /* signed out, or somebody else, meanwhile */
           /* a failed check leaves a remembered answer standing, on the card as on the door */
           if (!j) return quiet ? null : offerRetry('Could not check just now — try again');
 
           if (!j.ok) {
-            /* Signed in, but with the wrong account. Say which, and which one to use:
-               "not on the list" sends a student hunting for a teacher when the whole of
-               the problem is that they are signed in to their own Gmail. */
+            /* Signed in, but with the wrong account. Say which to use: "not on the list" sends a
+               student hunting for a teacher when the whole of the problem is that they are signed
+               in to their own Gmail. Pupils and staff both have school addresses — …nlcsjeju.kr —
+               so the domain is named from its end. */
             if (j.why === 'not a school account') {
-              mineShut();
-              return asSignIn('Use your @' + (j.domain || REC.domain || 'school') + ' account');
+              stopActing(); mineShut();
+              return asSignIn('Use your …' + (j.domain || REC.domain || 'school') + ' account');
             }
-            if (j.why === 'not signed in') { mineShut(); return asSignIn(); }
+            if (j.why === 'not signed in') { stopActing(); mineShut(); return asSignIn(); }
             return offerRetry('Not available just now — try again');   /* not set up, or unreachable */
           }
-
-          var lbl = tidyName(j.name) || tidyName(who.name) || (REC.label || 'Your Biology');
-
-          var t = tally(j);
-          if (!t.reflected && !t.unfinished) {
-            /* On the list, nothing recorded yet — a new student, or one who has not sat a
-               test. Not an error, and not worth a link to an empty page. */
-            mineShut();
-            asButton(lbl, 'Your assessments start at your first reflection', true);
-            return;
-          }
-          mineOpen(who, t);
-          /* A teacher who has only ever submitted to the TEST class sees "test". */
-          asLink(REC.url, lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(t));
-          /* No `title` tooltip here: the house rule is instant tooltips or none, and the
-             counts are already on the card and on the door. */
+          render(who, j);
         })
         .catch(function () { if (!quiet) offerRetry('Could not check just now — try again'); });
     }
@@ -972,24 +1059,19 @@
        press "sign in" twice. The line above it says who it is for — or, after a try that did not
        work, why, with the button still there to choose another account. Google's script loads on
        its own time: until it arrives the card says so, and if a network blocks it the card says
-       that rather than offering a button that does nothing. One Tap is not used — a browser may
-       refuse it silently. */
+       that rather than offering a button that does nothing. */
     var gsiReady = false, gsiWaiting = false;
     function mountGsi() {
       if (gsiReady) return true;
-      if (!(window.google && google.accounts && google.accounts.id)) return false;
-      try {
-        google.accounts.id.initialize({ client_id: CID, callback: onCredential });
-        /* `locale` pins the button to the site's English: Google otherwise follows the browser,
-           and on a Korean computer it read "Google 계정으로 로그인" beside an English page */
-        google.accounts.id.renderButton(gsi, { type:'standard', theme:'filled_black', size:'large',
-                                               text:'signin_with', shape:'pill', logo_alignment:'left', width: 240,
-                                               locale:'en-GB' });
-        gsiReady = true;
-      } catch (e) { return false; }
-      return true;
+      /* `locale` pins the button to the site's English: Google otherwise follows the browser,
+         and on a Korean computer it read "Google 계정으로 로그인" beside an English page */
+      gsiReady = SI.button(gsi, CID, { type:'standard', theme:'filled_black', size:'large',
+                                       text:'signin_with', shape:'pill', logo_alignment:'left', width: 240,
+                                       locale:'en-GB' });
+      return gsiReady;
     }
     function asSignIn(why) {
+      footer(false);
       if (mountGsi()) {
         hideAll();
         cap.textContent = why || REC.label || 'Students';
@@ -1000,77 +1082,124 @@
       asButton(REC.label || 'Students', 'Loading sign-in…', true);
       if (gsiWaiting) return;
       gsiWaiting = true;
-      var t0 = Date.now();
-      (function wait() {
-        if (mountGsi()) { gsiWaiting = false; if (!signedIn()) asSignIn(why); return; }
-        if (Date.now() - t0 > 10000) {
-          gsiWaiting = false;
-          offerRetry('Sign-in could not load here — try again');
-          return;
-        }
-        setTimeout(wait, 150);
-      })();
+      SI.loaded(function (ok) {
+        gsiWaiting = false;
+        if (ok && mountGsi()) { if (!SI.live()) asSignIn(why); return; }
+        offerRetry('Sign-in could not load here — try again');
+      });
     }
 
-    /* The token is Google's to vouch for, and the server checks its signature with Google
-       before it reads a thing. It is opened here only to show a name while we wait. */
-    function readToken(jwt) {
-      try {
-        var b = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-        var j = JSON.parse(decodeURIComponent(escape(atob(b))));
-        return { token:jwt, name:j.name || j.email || '', email:j.email || '', exp:j.exp || 0 };
-      } catch (e) { return null; }
-    }
-    function onCredential(res) {
-      var who = res && res.credential ? readToken(res.credential) : null;
-      if (!who) return;
-      gsi.hidden = true;
-      try { localStorage.setItem(SIGNIN_KEY, JSON.stringify(who)); } catch (e) {}
-      watchExpiry(who);
-      ask(who);
-      serverProgress(false);     /* their handed-in labs too, now we know who they are */
+    /* Somebody is signed in: show them, at once from what is remembered, then ask. */
+    function start(v, instant) {
+      /* somebody else than who was shown: nothing of theirs may stand while this one is checked */
+      if (!acting || acting.email !== v.email) { teacher = null; last = null; }
+      acting = v;
+      watchExpiry(v);
+      var known = mineRemembered(v);
+      if (known && known.teacher && !teacher) teacher = { page: '' };   /* only so the switch shows at once */
+      footer(true);
+      var kt = known ? tally(known) : null;
+      var studentView = !(known && known.teacher && mode() === 'teacher');
+      if (kt && studentView && (kt.reflected || kt.unfinished)) {      /* at once, then confirmed below */
+        mineSay(kt);
+        showPersonal('mine', instant);
+        asLink(REC.url, tidyName(v.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt),
+               known.teacher ? 'Signed in · test mode' : '');
+        ask(v, true);
+      } else {
+        showPersonal(null);
+        ask(v, false);
+      }
     }
 
-    /* A Google sign-in lasts about an hour. If it runs out while the page is open, say so and
-       put Google's button back, and shut the student's door — exactly what reloading would
-       show — rather than leave a name in the corner of someone who is no longer signed in.
-       The remembered answer is kept, so signing in again opens the door at once. A sign-in
-       renewed meanwhile (in a lab, or another tab) is simply watched instead. */
-    var expiryTimer = null;
-    function watchExpiry(who) {
-      clearTimeout(expiryTimer);
-      if (!who || !who.exp) return;
-      var ms = who.exp * 1000 - Date.now() - 60000;       /* signedIn() gives up a minute early too */
-      if (ms <= 0) return;
-      expiryTimer = setTimeout(function () {
-        var fresh = signedIn();
-        if (fresh) { watchExpiry(fresh); return; }
-        showMine(false);
-        asSignIn('Your sign-in ran out after an hour — sign in again');
-      }, Math.min(ms, 2147483000));
+    /* One place hears every change: a sign-in on this page, one renewed in the background, and
+       one made or ended in another tab of the site — a lab's "not you?" included. */
+    SI.on(function (v) {
+      if (!v) {
+        stopActing(); teacher = null;
+        mineShut();
+        asSignIn();
+        return;
+      }
+      if (!SI.fresh(v)) return;                        /* an hour-old token from another tab: nothing to show */
+      if (acting && acting.email === v.email) { acting = v; watchExpiry(v); return; }   /* renewed */
+      start(v, false);
+      serverProgress(false);                           /* their handed-in labs too, now we know who they are */
+    });
+
+    /* Google's token lasts an hour. Five minutes before it runs out the page asks Google for a new
+       one, quietly; only if that does not work is the student told, at the last minute, with
+       Google's button back and their door shut — exactly what reloading would show — rather than
+       a name left in the corner of somebody who is no longer signed in. A tab in the background
+       waits until it is looked at again: Google will not show anything in a tab nobody can see. */
+    var SOON = 5 * 60000, expiryTimer = null, outTimer = null;
+    function watchExpiry(v) {
+      clearTimeout(expiryTimer); clearTimeout(outTimer);
+      if (!v || !v.exp) return;
+      var ms = v.exp * 1000 - Date.now() - SOON;
+      expiryTimer = setTimeout(renewSoon, Math.max(0, Math.min(ms, 2147483000)));
+    }
+    function renewSoon() {
+      if (!acting || document.hidden) return;
+      /* asked for a token good for six minutes, so a timer that fires a moment early still renews */
+      SI.renew(CID, function (v) {
+        if (v || !acting) return;                        /* a new token arrives through SI.on */
+        var cur = SI.who();
+        var left = cur ? cur.exp * 1000 - Date.now() - 60000 : 0;
+        if (left <= 0) { ranOut(); return; }
+        clearTimeout(outTimer);
+        outTimer = setTimeout(function () { if (!SI.live()) ranOut(); }, Math.min(left, 2147483000));
+      }, SOON + 60000);
+    }
+    function stopActing() {
+      acting = null; last = null;
+      clearTimeout(expiryTimer); clearTimeout(outTimer);
+    }
+    function ranOut() {
+      if (!acting) return;
+      stopActing();
+      showPersonal(null);
+      asSignIn('Your sign-in ran out after an hour — sign in again');
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden || !acting) return;
+      var v = SI.who();
+      if (v && v.exp * 1000 - Date.now() <= SOON) renewSoon();
+    });
+
+    /* Google would not renew it: offer its button — or, when Google's script never arrived (a
+       school filter), say so at once rather than waiting for it a second time. */
+    function notRenewed(v, why) {
+      if (v || acting) return;                         /* a new token arrives through SI.on */
+      if (why === 'unavailable') offerRetry('Sign-in could not load here — try again');
+      else asSignIn();
     }
 
     btn.addEventListener('click', function () {
       if (btn.disabled) return;
-      var who = signedIn();
-      if (who) ask(who); else asSignIn();
+      var v = SI.live();
+      if (v) { if (acting) ask(v); else start(v, false); return; }
+      if (SI.who()) {
+        asButton(REC.label || 'Students', 'Signing you in…', true);
+        SI.renew(CID, notRenewed);
+        return;
+      }
+      asSignIn();
     });
 
-    var have = signedIn();
-    if (have) {                   /* already signed in, here or in a lab */
-      var known = mineRemembered(have);
-      if (known) {                                      /* at once, then confirmed below */
-        var kt = tally(known);
-        mineSay(kt);
-        showMine(true, true);
-        asLink(REC.url, tidyName(have.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt));
-      }
-      ask(have, !!known);
-      watchExpiry(have);
+    var have = SI.live(), was = SI.who();
+    if (have) {
+      start(have, true);                                  /* already signed in, here or in a lab */
+    } else if (was) {
+      /* Signed in before and never signed out, but Google's hour is up. Ask Google for a new token
+         for the same account — without a click when it can — before offering the button. A door
+         remembered from last time stays shut until the answer is in. */
+      showPersonal(null);
+      asButton(tidyName(was.name) || REC.label || 'Students', 'Signing you in…', true);
+      SI.renew(CID, notRenewed);
     } else {
-      /* signed out, or the sign-in has expired: a remembered door must not stand open, and the
-         way to sign in is offered at once */
-      showMine(false);
+      /* signed out: a remembered door must not stand open, and the way to sign in is offered at once */
+      showPersonal(null);
       asSignIn();
     }
   })();
