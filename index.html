@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789112776">
+<link rel="stylesheet" href="css/hub.css?v=1789567750">
 </head>
 <body>
 
@@ -28,9 +28,35 @@
       <p class="maker" id="siteMaker">Made by <strong>Dr Daniel Mompel Riera</strong></p>
     </div>
     <div class="masthead__r">
-      <div class="years" id="years"></div>
-      <button type="button" class="ibtg" id="ibToggle" aria-pressed="false"
-              title="IB is a layer on the same labs, not a separate site">IB extension</button>
+
+      <!-- A student's own record. This one stays put on every view, the front door
+           included: the year tabs and the IB switch are about the page you are on, and
+           are hidden once you leave the revision hub, but this is about you. -->
+      <div class="acct" id="acct" hidden>
+        <!-- The figure says "an account" before a word is read: outlined while nobody is
+             signed in, filled in once someone is. -->
+        <button type="button" class="acct__card" id="acctBtn">
+          <span class="acct__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="8.4" r="3.7" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.6 20.4c.9-3.8 3.9-6 7.4-6s6.5 2.2 7.4 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <span class="acct__txt">
+            <span class="acct__lbl" id="acctBtnLbl">Students</span>
+            <span class="acct__act" id="acctBtnAct">Sign in</span>
+          </span>
+        </button>
+        <a class="acct__card acct__card--go" id="acctLink" hidden target="_blank" rel="noopener">
+          <span class="acct__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="8.2" r="4.1" fill="currentColor"/><path d="M4.1 21c.8-4.3 4.1-6.8 7.9-6.8s7.1 2.5 7.9 6.8z" fill="currentColor"/></svg></span>
+          <span class="acct__txt">
+            <span class="acct__lbl" id="acctLinkLbl"></span>
+            <span class="acct__act" id="acctLinkAct"></span>
+          </span>
+        </a>
+        <div class="acct__gsi" id="acctGsi" hidden></div>
+      </div>
+
+      <div class="masthead__hub" id="mastHub">
+        <div class="years" id="years"></div>
+        <button type="button" class="ibtg" id="ibToggle" aria-pressed="false"
+                title="IB is a layer on the same labs, not a separate site">IB extension</button>
+      </div>
     </div>
   </header>
 
@@ -69,10 +95,15 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/data/labs.js?v=1789112776"></script>
-<script src="js/progress.js?v=1789112776"></script>
-<script src="js/shelves.js?v=1789112776"></script>
-<script src="js/local.js?v=1789112776"></script>
-<script src="js/hub.js?v=1789112776"></script>
+<!-- Google's sign-in, for the one control on this page that needs to know who you are.
+     `async defer` means the page never waits for it, and a school network that blocks it
+     leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script src="js/data/labs.js?v=1789567750"></script>
+<script src="js/progress.js?v=1789567750"></script>
+<script src="js/shelves.js?v=1789567750"></script>
+<script src="js/local.js?v=1789567750"></script>
+<script src="js/hub.js?v=1789567750"></script>
 </body>
 </html>

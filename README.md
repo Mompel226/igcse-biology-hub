@@ -252,6 +252,57 @@ much is in there.
 
 ---
 
+## 🎓 The record card, top right — optional, and off unless you ask for it
+
+<details>
+<summary><b>If your school already builds each student a page of their own</b></summary>
+
+<br>
+
+Some schools run a reflection system that gives every student a page of their own after a
+test — their scores, their weak topics, what to revise next. If yours does, this hub can put
+a card top right that takes a student to theirs. **It does nothing at all unless you fill in
+the three things below**, so ignore this section entirely if it is not for you.
+
+It is not a link-finder, and it is worth saying why. A per-student link is the obvious design
+and the wrong one: it has to be generated, stored, kept in step and handed out, and any of
+those can leak one student's address to another. A page that works out who you are from the
+Google account opening it needs none of that — nothing to keep in step. That is the shape
+this expects.
+
+It also does not read any single assessment's spreadsheet. If your system makes a new
+spreadsheet per test — its own tabs, its own copy of the script, its own address — then any
+one of them knows about that test and no other, and goes stale the day you make the next.
+What it reads instead is the workbook they all write into, with **one row per student per
+assessment**. That is the thing that stays true.
+
+What the card does is ask one question before it offers anything: *is this person on the
+list, and have they got anything recorded yet?* A student who has never sat a test is told
+so rather than sent to an empty page, and a visitor from elsewhere is told who it is for
+rather than shown a door they cannot open. Matching is on the **email**, never the name.
+
+**To switch it on:**
+
+1. `TRACKER_ID` and `SCHOOL_DOMAIN` at the top of `apps-script/Code.gs` — the id of the
+   collated workbook, and your school's email domain. Both are remembered in Script
+   Properties, so a fresh paste of the script never wipes them.
+2. **Deploy ▸ Manage deployments ▸ ✏️ ▸ Version: New version ▸ Deploy.** Editing alone
+   changes nothing.
+3. The `record` block and `googleClientId` in `js/local.js`, including `record.url` — the
+   address of the student page.
+
+The script expects tabs named `Class of ____` (and optionally `TEST`) with `Email`,
+`StudentName`, `AssessmentID`, `AssessmentName` and `LastUpdated` columns, plus an optional
+`Unfinished reflections` tab whose email column is `Student Email` — all found by heading, not
+by position, so the rest of the workbook can be whatever your system writes. Unfinished
+reflections are counted apart from finished assessments, never added in. **🧪 Biology Labs ▸ 🩺 Check the set-up** then tells you
+whether it can read it, lists the cohort tabs it found, and says so if you have pasted the
+wrong workbook in.
+
+</details>
+
+---
+
 ## 🗂️ Once it is running — what you actually do
 
 <details>

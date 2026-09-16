@@ -273,6 +273,7 @@
       (d.hero ? ' door--hero' : '') +
       (isWide(d) ? ' door--wide' : '') +
       (d.bleed ? ' door--bleed' : '') +
+      (d.personal ? ' door--mine' : '') +
       (closed ? ' door--closed' : '');
     a.href = d.url || '#';
     a.dataset.id = d.id;
@@ -351,12 +352,23 @@
     });
   }
 
-  /* the front of the building: the hero door across the top, the rest in a row beneath */
-  var entryEl = document.getElementById('entryDoors'), rowEl = null;
+  /* the front of the building: the hero door across the top, the rest in a row beneath.
+     The hero shares its row with one door that only a signed-in student ever sees — their
+     own assessments — which is placed after the loop so the order it is declared in does
+     not matter, and starts hidden: the record check further down is what opens it. */
+  var entryEl = document.getElementById('entryDoors'), rowEl = null, topEl = null, mineEl = null;
   if (ENTRY && entryEl) {
     (ENTRY.doors || []).forEach(function (d) {
-      var a = build(d, true);
-      if (d.hero) { entryEl.appendChild(a); return; }
+      if (d.personal && !d.url && L.record) d.url = L.record.url;   /* one address, kept in `record` */
+      /* The student's door is built lazy: it starts hidden, and most visitors never see it, so
+         its picture should cost them nothing — and must not be fetched at high priority beside
+         the hero's. A lazy image inside a hidden door is not fetched until the door opens. */
+      var a = build(d, !d.personal);
+      if (d.hero) {
+        topEl = document.createElement('div'); topEl.className = 'doors doors--top';
+        entryEl.appendChild(topEl); topEl.appendChild(a); return;
+      }
+      if (d.personal) { mineEl = a; a.hidden = true; return; }
       if (!rowEl) {
         /* one line over the row says what the four have in common, so no door has to */
         if (ENTRY.rowLabel) {
@@ -369,6 +381,37 @@
       }
       rowEl.appendChild(a);
     });
+    /* The student's door is one door-width of the row beneath: the width each of those doors
+       has at rest. The stylesheet works it out from how many doors that row holds, so the
+       count is handed over here rather than written into the CSS. It deliberately follows
+       the row AT REST, not the lit door: the tour widens a door every few seconds, and a
+       door that followed it would drag the hero a third narrower every time Enterprises lit
+       up. The top row stands still and the row beneath moves, as the hero alone did. */
+    if (mineEl && topEl) {
+      topEl.appendChild(mineEl);
+      if (rowEl) topEl.style.setProperty('--row-n', rowEl.children.length);
+    }
+  }
+
+  /* Open or shut the student's door. Arriving AFTER the page has settled — the tracker's
+     answer comes a second or two in — it grows in from nothing so the hero visibly makes room
+     for it, rather than the whole row jumping. `instant` is for a door that is known at load
+     (a returning student): it is simply there, since growing it in would make the hero shrink
+     just after the page appeared. With reduced motion, or on a phone, it always just appears.
+     Shutting is immediate — a door that lingers after sign-out would be worse. */
+  function showMine(open, instant) {
+    if (!mineEl || open === !mineEl.hidden) return;
+    if (!open) { mineEl.hidden = true; return; }
+    mineEl.hidden = false;
+    if (instant || still || narrow.matches) return;
+    mineEl.style.transition = 'none';
+    mineEl.style.flexBasis = '0px';
+    mineEl.style.opacity = '0';
+    void mineEl.offsetWidth;                       /* commit the start before animating */
+    mineEl.style.transition = 'flex-basis .6s cubic-bezier(.2,.7,.2,1), opacity .45s ease .15s';
+    mineEl.style.flexBasis = '';                   /* back to the stylesheet's width, animated */
+    mineEl.style.opacity = '';
+    setTimeout(function () { mineEl.style.transition = ''; }, 800);
   }
 
   narrow.addEventListener('change', fitOverlays);
@@ -694,15 +737,12 @@
     var url = L.submitUrl || (L.site && L.site.submitUrl) || '';   /* each school's own — js/local.js */
     if (!url || !P || !LABS.length) { if (loud) toast('This hub is not set up to keep marks.'); return; }
 
-    var tok = null;
-    for (var i = 0; i < LABS.length && !tok; i++) {
-      var sv = P.read(LABS[i].id + '.signin');
-      if (sv && sv.token && sv.exp * 1000 > Date.now() + 60000) tok = sv.token;
-    }
-    if (!tok) {                             /* no token here: they must sign in inside a lab */
-      if (loud) toast('Open a lab, sign in when you hand in, and your work will follow you here.');
+    var who = signedIn();
+    if (!who) {                             /* nobody signed in, here or in a lab */
+      if (loud) toast('Sign in at the top of the page, or inside a lab when you hand in, and your work will follow you here.');
       return;
     }
+    var tok = who.token;
     var btn = document.getElementById('btnSync');
     if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
     function done(msg) {
@@ -734,7 +774,224 @@
   })();
   serverProgress(false);
 
-  /* ---------- 6. credits ----------
+  /* ---------- 6. your record, top right ----------
+     After every test the Assessment Reflection System builds each student a page of their
+     own. That page is at ONE address for the whole school, behind the school's own Google
+     gate, and it works out which student to show from whoever signed in to open it. So
+     there is no personal link to find, and nothing here that could hand one student's
+     address to another.
+
+     What is left for this page to do is ask, before it offers: are you on the list, and is
+     there anything there yet? A student who has never reflected is told that plainly rather
+     than being sent to an empty page, and a visitor from another school — this hub is
+     public, and most people reading it are not at this one — is told who it is for before
+     they sign in to anything.
+
+     Configured entirely from js/local.js. No `record` block, no Client ID, or no place to
+     ask: the rectangle never appears and the rest of the page is untouched. */
+
+  /* Who is signed in on this device — the hub's own sign-in first, then any lab's, since a
+     student who signed in to hand in a lab a moment ago should not be asked again. One
+     answer, used by both the record below and Sync above. */
+  var SIGNIN_KEY = 'biology-hub.signin';
+  function signedIn() {
+    var keys = [SIGNIN_KEY].concat(LABS.map(function (l) { return l.id + '.signin'; }));
+    for (var i = 0; i < keys.length; i++) {
+      var sv = P && P.read(keys[i]);
+      /* A minute in hand: a token that dies between the check and the reply is worse than
+         no token at all, because the refusal arrives looking like a refusal. */
+      if (sv && sv.token && sv.exp * 1000 > Date.now() + 60000) return sv;
+    }
+    return null;
+  }
+
+  (function () {
+    var REC  = L.record || null;
+    var CID  = L.googleClientId || '';
+    var URL_ = L.submitUrl || (L.site && L.site.submitUrl) || '';
+    var box  = document.getElementById('acct');
+    /* `REC.url` is required: a card that can never take them anywhere is worse than no
+       card, so an unconfigured address means no card rather than a dead one. */
+    if (!box || !REC || !REC.url || !CID || !URL_) return;   /* not this edition's business */
+
+    var btn     = document.getElementById('acctBtn'),
+        btnLbl  = document.getElementById('acctBtnLbl'),
+        btnAct  = document.getElementById('acctBtnAct'),
+        link    = document.getElementById('acctLink'),
+        linkLbl = document.getElementById('acctLinkLbl'),
+        linkAct = document.getElementById('acctLinkAct'),
+        gsi     = document.getElementById('acctGsi');
+
+    box.hidden = false;
+    document.body.setAttribute('data-acct', '');   /* the masthead keeps its second column */
+    btnLbl.textContent = REC.label || 'Students';
+
+    /* Two cards, one shown at a time, because they are two different things: a button does
+       something on this page, a link goes somewhere else. Swapping the text inside one
+       element would have made a link that sometimes did not link. */
+    function asButton(lbl, act, busy) {
+      link.hidden = true; btn.hidden = false;
+      btnLbl.textContent = lbl; btnAct.textContent = act;
+      btn.disabled = !!busy;
+    }
+    function asLink(href, lbl, act) {
+      btn.hidden = true; link.hidden = false;
+      link.href = href; linkLbl.textContent = lbl; linkAct.textContent = act;
+    }
+
+    /* The name exactly as the school's roster writes it, and no cleverer than that.
+       Taking the first word to make "Park's Biology" reads as a first name here and is a
+       family name for most of this school — Korean rosters put the family name first, and
+       a card that calls a student by the wrong half of their name every time they open the
+       page is worse than one that does not try. So: no possessive, no reordering, no
+       guessing which part is which. */
+    function tidyName(n) {
+      return String(n || '').trim().replace(/\s+/g, ' ');
+    }
+
+    /* The student's door on the front page follows this same answer. A positive one is
+       remembered against the email it was for, so a returning student sees their door at
+       once instead of watching it arrive a second later; the check still runs and shuts
+       the door if the answer has changed. Only a definite answer shuts it — a network
+       failure leaves it as it was, because a door that vanishes whenever the wifi blinks
+       teaches a student not to trust it. */
+    var MINE_KEY = 'biology-hub.mine';
+    function mineRemembered(who) {
+      try {
+        var m = JSON.parse(localStorage.getItem(MINE_KEY) || 'null');
+        return (m && who && m.email && m.email === who.email) ? m : null;
+      } catch (e) { return null; }
+    }
+    function mineSay(counts) {
+      var el = mineEl && mineEl.querySelector('.door__detail');
+      if (!el) return;
+      var parts = [];
+      if (counts.count) parts.push(counts.count + ' assessment' + (counts.count === 1 ? '' : 's'));
+      if (counts.unfinished) parts.push(counts.unfinished + ' unfinished');
+      el.textContent = parts.join(' · ');
+    }
+    /* the card's one line: "3" or "3 · 1 unfinished" — the door spells the words out */
+    function cardCounts(n, unfinished) {
+      var bits = [];
+      if (n) bits.push(String(n));
+      if (unfinished) bits.push(unfinished + ' unfinished');
+      return bits.join(' · ');
+    }
+    function mineOpen(who, counts) {
+      if (!mineEl) return;
+      mineSay(counts);
+      showMine(true);
+      try { localStorage.setItem(MINE_KEY, JSON.stringify({ email: who.email, count: counts.count,
+                                                          unfinished: counts.unfinished, at: Date.now() })); } catch (e) {}
+    }
+    function mineShut() {
+      showMine(false);
+      try { localStorage.removeItem(MINE_KEY); } catch (e) {}
+    }
+
+    /* `quiet`: something already stands on the card (a remembered answer), so leave it there
+       while the check runs instead of flashing "Checking…" over counts the door already shows */
+    function ask(who, quiet) {
+      if (!quiet) asButton(REC.label || 'Students', 'Checking…', true);
+      fetch(URL_, { method:'POST', mode:'cors',
+                    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action:'record', token: who.token }) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          /* a failed check leaves a remembered answer standing, on the card as on the door */
+          if (!j) return quiet ? null : offer('Could not check just now — try again');
+
+          if (!j.ok) {
+            /* Signed in, but with the wrong account. Say which, and which one to use:
+               "not on the list" sends a student hunting for a teacher when the whole of
+               the problem is that they are signed in to their own Gmail. */
+            if (j.why === 'not a school account') {
+              mineShut();
+              return offer('Sign in with your @' + (j.domain || REC.domain || 'school') + ' account');
+            }
+            if (j.why === 'not signed in') { mineShut(); return offer('Sign in'); }
+            return offer('Not available just now');      /* not set up, or unreachable */
+          }
+
+          var lbl = tidyName(j.name) || tidyName(who.name) || (REC.label || 'Your Biology');
+
+          var unfinished = j.incomplete || 0;
+          if (!j.count && !unfinished) {
+            /* On the list, nothing recorded yet — a new student, or one who has not sat a
+               test. Not an error, and not worth a link to an empty page. */
+            mineShut();
+            asButton(lbl, 'Your assessments start at your first reflection', true);
+            return;
+          }
+          mineOpen(who, { count: j.count || 0, unfinished: unfinished });
+          /* Two numbers, never added together. A finished reflection is an assessment the
+             student has done; an unfinished one is not — the reflection IS the work — but
+             hiding it would leave them wondering where a test went. So it is named, and the
+             card still links through: the record page says plainly what is missing and why.
+             A teacher who has only ever submitted to the TEST class sees "test record". */
+          asLink(REC.url, lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardCounts(j.count || 0, unfinished));
+          /* No `title` tooltip here: the house rule is instant tooltips or none, and the
+             counts are already on the card and on the door. */
+        })
+        .catch(function () { if (!quiet) offer('Could not check just now — try again'); });
+    }
+
+    /* Back to a card they can press, with the reason on it. */
+    function offer(act) { asButton(REC.label || 'Students', act, false); }
+
+    /* Google's own button, in a panel under the card. One Tap is quicker but a browser may
+       refuse it silently, and a control that does nothing when pressed is worse than one
+       more click — so the real button is what we show, and it always works. */
+    var mounted = false;
+    function openSignIn() {
+      if (!(window.google && google.accounts && google.accounts.id))
+        return offer('Sign-in did not load — reload the page');
+      if (!mounted) {
+        try {
+          google.accounts.id.initialize({ client_id: CID, callback: onCredential, auto_select: true });
+          google.accounts.id.renderButton(gsi, { theme:'filled_black', size:'medium', text:'signin_with', width: 240 });
+          mounted = true;
+        } catch (e) { return offer('Sign-in did not load — reload the page'); }
+      }
+      gsi.hidden = !gsi.hidden;
+    }
+
+    /* The token is Google's to vouch for, and the server checks its signature with Google
+       before it reads a thing. It is opened here only to show a name while we wait. */
+    function readToken(jwt) {
+      try {
+        var b = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        var j = JSON.parse(decodeURIComponent(escape(atob(b))));
+        return { token:jwt, name:j.name || j.email || '', email:j.email || '', exp:j.exp || 0 };
+      } catch (e) { return null; }
+    }
+    function onCredential(res) {
+      var who = res && res.credential ? readToken(res.credential) : null;
+      if (!who) return;
+      gsi.hidden = true;
+      try { localStorage.setItem(SIGNIN_KEY, JSON.stringify(who)); } catch (e) {}
+      ask(who);
+      serverProgress(false);     /* their handed-in labs too, now we know who they are */
+    }
+
+    btn.addEventListener('click', function () { if (!btn.disabled) openSignIn(); });
+
+    var have = signedIn();
+    if (have) {                   /* already signed in, here or in a lab */
+      var known = mineRemembered(have);
+      if (known) {                                      /* at once, then confirmed below */
+        mineSay(known);
+        showMine(true, true);
+        asLink(REC.url, tidyName(have.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardCounts(known.count, known.unfinished));
+      }
+      ask(have, !!known);
+    } else {
+      /* signed out, or the sign-in has expired: a remembered door must not stand open */
+      showMine(false);
+    }
+  })();
+
+  /* ---------- 7. credits ----------
      Both editions ship this file, so the link to the full credits works out which
      repository it is in from the address rather than being told: a GitHub Pages URL
      is <user>.github.io/<repo>/. Off Pages, fall back to the file beside the page. */
@@ -753,7 +1010,7 @@
     '. <a href="' + creditsHref() + '" target="_blank" rel="noopener">Full credits</a>.';
   }
 
-  /* ---------- 7. toast ---------- */
+  /* ---------- 8. toast ---------- */
   var toastT = null;
   function toast(msg) {
     if (!toastEl) return;
