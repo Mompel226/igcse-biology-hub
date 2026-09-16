@@ -442,7 +442,9 @@
   function tourable() {
     return DOORS.filter(function (d) {
       var a = doorEls[d.id];
-      return a && !isWide(d) && !d.hero && a.offsetParent !== null;   /* on the screen right now */
+      /* never the hero or a student's own door: those two open only when pointed at, so the
+         front row does not shift every few seconds on its own */
+      return a && !isWide(d) && !d.hero && !d.personal && a.offsetParent !== null;   /* on the screen right now */
     });
   }
   var TOUR_MS = 5200;
@@ -821,7 +823,11 @@
         linkLbl = document.getElementById('acctLinkLbl'),
         linkAct = document.getElementById('acctLinkAct'),
         gsi     = document.getElementById('acctGsi'),
-        cap     = document.getElementById('acctFor');
+        cap     = document.getElementById('acctFor'),
+        whoCard = document.getElementById('acctWho'),
+        whoLbl  = document.getElementById('acctWhoLbl');
+    /* the stylesheet swaps link for identity on the front page — only if this page HAS the door */
+    if (mineEl) document.body.setAttribute('data-mine-door', '');
 
     box.hidden = false;
     document.body.setAttribute('data-acct', '');   /* the masthead keeps its second column */
@@ -830,15 +836,20 @@
     /* Two cards, one shown at a time, because they are two different things: a button does
        something on this page, a link goes somewhere else. Swapping the text inside one
        element would have made a link that sometimes did not link. */
-    function hideAll() { btn.hidden = true; link.hidden = true; gsi.hidden = true; cap.hidden = true; }
+    function hideAll() { btn.hidden = true; link.hidden = true; gsi.hidden = true; cap.hidden = true;
+                         if (whoCard) whoCard.hidden = true; }
     function asButton(lbl, act, busy) {
       hideAll(); btn.hidden = false;
       btnLbl.textContent = lbl; btnAct.textContent = act;
       btn.disabled = !!busy;
     }
+    /* Signed in with something recorded. Two cards are filled and the stylesheet shows one:
+       on the front page the "My assessments" door is the way in, so the corner only says who
+       is signed in; on every other page there is no door, so the corner card is the link. */
     function asLink(href, lbl, act) {
       hideAll(); link.hidden = false;
       link.href = href; linkLbl.textContent = lbl; linkAct.textContent = act;
+      if (whoCard) { whoLbl.textContent = lbl; whoCard.hidden = false; }
     }
 
     /* The name exactly as the school's roster writes it, and no cleverer than that.
@@ -864,27 +875,45 @@
         return (m && who && m.email && m.email === who.email) ? m : null;
       } catch (e) { return null; }
     }
-    function mineSay(counts) {
-      var el = mineEl && mineEl.querySelector('.door__detail');
-      if (!el) return;
-      var parts = [];
-      if (counts.count) parts.push(counts.count + ' assessment' + (counts.count === 1 ? '' : 's'));
-      if (counts.unfinished) parts.push(counts.unfinished + ' unfinished');
-      el.textContent = parts.join(' · ');
+    /* Two numbers, never mixed up. `reflected` is digital reflections the student finished.
+       `assessments` is everything with a real score — tests and lab reports the teacher marked,
+       reflected on or not — so it is the bigger number: "3 of 7 reflected". Unfinished
+       reflections are counted apart: an assessment done, a reflection not. An answer from a
+       labs script that predates the two numbers has only `count` (= reflections), and then
+       only that is said. */
+    function tally(j) {
+      var n = function (v) { return (typeof v === 'number' && v >= 0) ? v : null; };
+      var reflected = n(j.reflected) !== null ? j.reflected : (n(j.count) || 0);
+      return { reflected: reflected, assessments: n(j.assessments),
+               unfinished: n(j.unfinished) !== null ? j.unfinished : (n(j.incomplete) || 0) };
     }
-    /* the card's one line: "3" or "3 · 1 unfinished" — the door spells the words out */
-    function cardCounts(n, unfinished) {
+    function plural(k, word) { return k + ' ' + word + (k === 1 ? '' : 's'); }
+    /* on the door, with room to spell it out: "7 assessments · 3 reflected · 1 unfinished" */
+    function doorLine(t) {
       var bits = [];
-      if (n) bits.push(String(n));
-      if (unfinished) bits.push(unfinished + ' unfinished');
+      if (t.assessments !== null) bits.push(plural(t.assessments, 'assessment'));
+      bits.push(t.reflected + ' reflected');
+      if (t.unfinished) bits.push(t.unfinished + ' unfinished');
       return bits.join(' · ');
     }
-    function mineOpen(who, counts) {
+    /* on the corner card, one line: "3 of 7 reflected · 1 unfinished" */
+    function cardLine(t) {
+      var bits = [t.assessments !== null ? t.reflected + ' of ' + t.assessments + ' reflected'
+                                         : t.reflected + ' reflected'];
+      if (t.unfinished) bits.push(t.unfinished + ' unfinished');
+      return bits.join(' · ');
+    }
+    function mineSay(t) {
+      var el = mineEl && mineEl.querySelector('.door__detail');
+      if (el) el.textContent = doorLine(t);
+    }
+    function mineOpen(who, t) {
       if (!mineEl) return;
-      mineSay(counts);
+      mineSay(t);
       showMine(true);
-      try { localStorage.setItem(MINE_KEY, JSON.stringify({ email: who.email, count: counts.count,
-                                                          unfinished: counts.unfinished, at: Date.now() })); } catch (e) {}
+      try { localStorage.setItem(MINE_KEY, JSON.stringify({ email: who.email, reflected: t.reflected,
+                                                          assessments: t.assessments, unfinished: t.unfinished,
+                                                          at: Date.now() })); } catch (e) {}
     }
     function mineShut() {
       showMine(false);
@@ -917,21 +946,17 @@
 
           var lbl = tidyName(j.name) || tidyName(who.name) || (REC.label || 'Your Biology');
 
-          var unfinished = j.incomplete || 0;
-          if (!j.count && !unfinished) {
+          var t = tally(j);
+          if (!t.reflected && !t.unfinished) {
             /* On the list, nothing recorded yet — a new student, or one who has not sat a
                test. Not an error, and not worth a link to an empty page. */
             mineShut();
             asButton(lbl, 'Your assessments start at your first reflection', true);
             return;
           }
-          mineOpen(who, { count: j.count || 0, unfinished: unfinished });
-          /* Two numbers, never added together. A finished reflection is an assessment the
-             student has done; an unfinished one is not — the reflection IS the work — but
-             hiding it would leave them wondering where a test went. So it is named, and the
-             card still links through: the record page says plainly what is missing and why.
-             A teacher who has only ever submitted to the TEST class sees "test record". */
-          asLink(REC.url, lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardCounts(j.count || 0, unfinished));
+          mineOpen(who, t);
+          /* A teacher who has only ever submitted to the TEST class sees "test". */
+          asLink(REC.url, lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(t));
           /* No `title` tooltip here: the house rule is instant tooltips or none, and the
              counts are already on the card and on the door. */
         })
@@ -1001,8 +1026,28 @@
       if (!who) return;
       gsi.hidden = true;
       try { localStorage.setItem(SIGNIN_KEY, JSON.stringify(who)); } catch (e) {}
+      watchExpiry(who);
       ask(who);
       serverProgress(false);     /* their handed-in labs too, now we know who they are */
+    }
+
+    /* A Google sign-in lasts about an hour. If it runs out while the page is open, say so and
+       put Google's button back, and shut the student's door — exactly what reloading would
+       show — rather than leave a name in the corner of someone who is no longer signed in.
+       The remembered answer is kept, so signing in again opens the door at once. A sign-in
+       renewed meanwhile (in a lab, or another tab) is simply watched instead. */
+    var expiryTimer = null;
+    function watchExpiry(who) {
+      clearTimeout(expiryTimer);
+      if (!who || !who.exp) return;
+      var ms = who.exp * 1000 - Date.now() - 60000;       /* signedIn() gives up a minute early too */
+      if (ms <= 0) return;
+      expiryTimer = setTimeout(function () {
+        var fresh = signedIn();
+        if (fresh) { watchExpiry(fresh); return; }
+        showMine(false);
+        asSignIn('Your sign-in ran out after an hour — sign in again');
+      }, Math.min(ms, 2147483000));
     }
 
     btn.addEventListener('click', function () {
@@ -1015,11 +1060,13 @@
     if (have) {                   /* already signed in, here or in a lab */
       var known = mineRemembered(have);
       if (known) {                                      /* at once, then confirmed below */
-        mineSay(known);
+        var kt = tally(known);
+        mineSay(kt);
         showMine(true, true);
-        asLink(REC.url, tidyName(have.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardCounts(known.count, known.unfinished));
+        asLink(REC.url, tidyName(have.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt));
       }
       ask(have, !!known);
+      watchExpiry(have);
     } else {
       /* signed out, or the sign-in has expired: a remembered door must not stand open, and the
          way to sign in is offered at once */

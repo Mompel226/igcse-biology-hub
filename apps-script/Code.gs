@@ -1816,6 +1816,35 @@ function _ownRecord(d) {
 
   var sheets = wb.getSheets(), name = '', at = 0, latest = '';
   var finished = {}, unfinished = {}, unfinishedNames = [], fromTest = 0, fromCohort = 0;
+
+  /* TWO numbers a student is told, never mixed up:
+       reflected    digital reflections they finished (below, the cohort tabs and TEST)
+       assessments  everything with a real score — tests and lab reports the teacher marked,
+                    INCLUDING those reflected on. Teachers record scores for assessments a
+                    student never reflected on (earlier years, lab reports), so this is the
+                    bigger number, and "3 of 7 reflected" is what the student sees.
+     A test that has BOTH a reflection and a teacher score is one assessment, not two: the
+     tracker's "📦 Registry" tab (written by the reflection script's "Sync registry to
+     tracker") says which prior-assessment column a reflection stands for, in its PAID column
+     — the same link the student's own record page uses to show that test once. Without the
+     tab nothing breaks; such a test is simply counted twice in `assessments`. */
+  var paIdOf = {}, scoredPa = {};
+  try {
+    var reg = wb.getSheetByName('📦 Registry');
+    if (reg && reg.getLastRow() >= 2) {
+      var rh = reg.getRange(1, 1, 1, reg.getLastColumn()).getValues()[0];
+      var rId = rh.indexOf('AssessmentID'), rPa = rh.indexOf('PAID');
+      if (rId >= 0 && rPa >= 0) {
+        reg.getRange(2, 1, reg.getLastRow() - 1, reg.getLastColumn()).getValues().forEach(function (row) {
+          var id = String(row[rId] || '').trim(), pa = String(row[rPa] || '').trim();
+          if (id && pa) paIdOf[id] = pa;
+        });
+      }
+    }
+  } catch (e) { /* no mirror: counted without the link, as above */ }
+  /* A prior-assessment cell counts as a score only if it holds a number — "absent", "-" or
+     "exempt" is a teacher's note that the student did NOT do it. */
+  function isScore(v) { return /\d/.test(String(v == null ? '' : v)); }
   var UNFINISHED_TAB = 'Unfinished reflections', UNFINISHED_EMAIL = 'Student Email';
 
   /* Two passes. FINISHED reflections live in the cohort tabs ("Class of 2028") and in
@@ -1832,6 +1861,8 @@ function _ownRecord(d) {
     var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
     var cEmail = head.indexOf('Email');
     if (cEmail < 0) continue;
+    var paCols = [];
+    head.forEach(function (h, i) { if (/^PA_/.test(String(h))) paCols.push(i); });
     var cName = head.indexOf('StudentName'), cAss = head.indexOf('AssessmentName'),
         cId = head.indexOf('AssessmentID'), cWhen = head.indexOf('LastUpdated'), cDate = head.indexOf('AssessmentDate');
     var vals = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
@@ -1841,6 +1872,11 @@ function _ownRecord(d) {
          script appended such rows from "Update deployment URL". */
       var aid = cId >= 0 ? String(vals[r][cId] || '').trim() : '';
       if (!aid) continue;
+      /* each row carries the prior-assessment scores synced for ITS assessment, so the full set
+         is the union across every row of theirs — exactly as the record page merges them */
+      for (var pc = 0; pc < paCols.length; pc++) {
+        if (isScore(vals[r][paCols[pc]])) scoredPa[String(head[paCols[pc]])] = true;
+      }
       if (cName >= 0 && !name) name = String(vals[r][cName] || '').trim();
       /* One row per student PER ASSESSMENT; counted once per paper all the same. */
       if (finished[aid]) continue;
@@ -1880,7 +1916,19 @@ function _ownRecord(d) {
   }
   var count = Object.keys(finished).length, incomplete = unfinishedNames.length;
 
-  return _json({ ok: true, name: name || who.name || '', count: count, incomplete: incomplete,
+  /* Every assessment, once: a teacher-scored prior assessment by its PA id, and a reflection
+     (finished or not) by the PA id it stands for, or by its own id when it stands for none. */
+  var events = {};
+  Object.keys(scoredPa).forEach(function (pa) { events[pa] = true; });
+  Object.keys(finished).concat(Object.keys(unfinished)).forEach(function (aid) {
+    events[paIdOf[aid] || aid] = true;
+  });
+  var assessments = Object.keys(events).length;
+
+  return _json({ ok: true, name: name || who.name || '',
+                 /* `count` is the number of finished reflections, kept under its old name for any
+                    copy of the hub that has not yet learned the two numbers below */
+                 count: count, reflected: count, assessments: assessments, incomplete: incomplete,
                  unfinishedNames: unfinishedNames,
                  latest: latest, at: at ? new Date(at).toISOString() : null,
                  /* true when every row found is a teacher's TEST submission */
