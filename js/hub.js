@@ -820,7 +820,8 @@
         link    = document.getElementById('acctLink'),
         linkLbl = document.getElementById('acctLinkLbl'),
         linkAct = document.getElementById('acctLinkAct'),
-        gsi     = document.getElementById('acctGsi');
+        gsi     = document.getElementById('acctGsi'),
+        cap     = document.getElementById('acctFor');
 
     box.hidden = false;
     document.body.setAttribute('data-acct', '');   /* the masthead keeps its second column */
@@ -829,13 +830,14 @@
     /* Two cards, one shown at a time, because they are two different things: a button does
        something on this page, a link goes somewhere else. Swapping the text inside one
        element would have made a link that sometimes did not link. */
+    function hideAll() { btn.hidden = true; link.hidden = true; gsi.hidden = true; cap.hidden = true; }
     function asButton(lbl, act, busy) {
-      link.hidden = true; btn.hidden = false;
+      hideAll(); btn.hidden = false;
       btnLbl.textContent = lbl; btnAct.textContent = act;
       btn.disabled = !!busy;
     }
     function asLink(href, lbl, act) {
-      btn.hidden = true; link.hidden = false;
+      hideAll(); link.hidden = false;
       link.href = href; linkLbl.textContent = lbl; linkAct.textContent = act;
     }
 
@@ -899,7 +901,7 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           /* a failed check leaves a remembered answer standing, on the card as on the door */
-          if (!j) return quiet ? null : offer('Could not check just now — try again');
+          if (!j) return quiet ? null : offerRetry('Could not check just now — try again');
 
           if (!j.ok) {
             /* Signed in, but with the wrong account. Say which, and which one to use:
@@ -907,10 +909,10 @@
                the problem is that they are signed in to their own Gmail. */
             if (j.why === 'not a school account') {
               mineShut();
-              return offer('Sign in with your @' + (j.domain || REC.domain || 'school') + ' account');
+              return asSignIn('Use your @' + (j.domain || REC.domain || 'school') + ' account');
             }
-            if (j.why === 'not signed in') { mineShut(); return offer('Sign in'); }
-            return offer('Not available just now');      /* not set up, or unreachable */
+            if (j.why === 'not signed in') { mineShut(); return asSignIn(); }
+            return offerRetry('Not available just now — try again');   /* not set up, or unreachable */
           }
 
           var lbl = tidyName(j.name) || tidyName(who.name) || (REC.label || 'Your Biology');
@@ -933,27 +935,56 @@
           /* No `title` tooltip here: the house rule is instant tooltips or none, and the
              counts are already on the card and on the door. */
         })
-        .catch(function () { if (!quiet) offer('Could not check just now — try again'); });
+        .catch(function () { if (!quiet) offerRetry('Could not check just now — try again'); });
     }
 
-    /* Back to a card they can press, with the reason on it. */
-    function offer(act) { asButton(REC.label || 'Students', act, false); }
+    /* A card they can press to try again, with the reason on it. Pressing it runs the check
+       again if they are still signed in, and brings Google's button back if they are not. */
+    function offerRetry(act) { asButton(REC.label || 'Students', act, false); }
 
-    /* Google's own button, in a panel under the card. One Tap is quicker but a browser may
-       refuse it silently, and a control that does nothing when pressed is worse than one
-       more click — so the real button is what we show, and it always works. */
-    var mounted = false;
-    function openSignIn() {
-      if (!(window.google && google.accounts && google.accounts.id))
-        return offer('Sign-in did not load — reload the page');
-      if (!mounted) {
-        try {
-          google.accounts.id.initialize({ client_id: CID, callback: onCredential, auto_select: true });
-          google.accounts.id.renderButton(gsi, { theme:'filled_black', size:'medium', text:'signin_with', width: 240 });
-          mounted = true;
-        } catch (e) { return offer('Sign-in did not load — reload the page'); }
+    /* Signed out, Google's own "Sign in with Google" button stands in the corner, so ONE press
+       starts signing in. It used to sit in a panel behind a button of ours, which made students
+       press "sign in" twice. The line above it says who it is for — or, after a try that did not
+       work, why, with the button still there to choose another account. Google's script loads on
+       its own time: until it arrives the card says so, and if a network blocks it the card says
+       that rather than offering a button that does nothing. One Tap is not used — a browser may
+       refuse it silently. */
+    var gsiReady = false, gsiWaiting = false;
+    function mountGsi() {
+      if (gsiReady) return true;
+      if (!(window.google && google.accounts && google.accounts.id)) return false;
+      try {
+        google.accounts.id.initialize({ client_id: CID, callback: onCredential });
+        /* `locale` pins the button to the site's English: Google otherwise follows the browser,
+           and on a Korean computer it read "Google 계정으로 로그인" beside an English page */
+        google.accounts.id.renderButton(gsi, { type:'standard', theme:'filled_black', size:'large',
+                                               text:'signin_with', shape:'pill', logo_alignment:'left', width: 240,
+                                               locale:'en-GB' });
+        gsiReady = true;
+      } catch (e) { return false; }
+      return true;
+    }
+    function asSignIn(why) {
+      if (mountGsi()) {
+        hideAll();
+        cap.textContent = why || REC.label || 'Students';
+        cap.classList.toggle('acct__for--why', !!why);
+        cap.hidden = false; gsi.hidden = false;
+        return;
       }
-      gsi.hidden = !gsi.hidden;
+      asButton(REC.label || 'Students', 'Loading sign-in…', true);
+      if (gsiWaiting) return;
+      gsiWaiting = true;
+      var t0 = Date.now();
+      (function wait() {
+        if (mountGsi()) { gsiWaiting = false; if (!signedIn()) asSignIn(why); return; }
+        if (Date.now() - t0 > 10000) {
+          gsiWaiting = false;
+          offerRetry('Sign-in could not load here — try again');
+          return;
+        }
+        setTimeout(wait, 150);
+      })();
     }
 
     /* The token is Google's to vouch for, and the server checks its signature with Google
@@ -974,7 +1005,11 @@
       serverProgress(false);     /* their handed-in labs too, now we know who they are */
     }
 
-    btn.addEventListener('click', function () { if (!btn.disabled) openSignIn(); });
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      var who = signedIn();
+      if (who) ask(who); else asSignIn();
+    });
 
     var have = signedIn();
     if (have) {                   /* already signed in, here or in a lab */
@@ -986,8 +1021,10 @@
       }
       ask(have, !!known);
     } else {
-      /* signed out, or the sign-in has expired: a remembered door must not stand open */
+      /* signed out, or the sign-in has expired: a remembered door must not stand open, and the
+         way to sign in is offered at once */
       showMine(false);
+      asSignIn();
     }
   })();
 
