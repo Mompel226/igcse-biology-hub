@@ -329,26 +329,28 @@ the teachers are. It is guarded twice:
 A link on the page opens only for the people that spreadsheet is shared with. The page lists your
 spreadsheets; it does not share them.
 
-**To switch it on** — in the labs spreadsheet ("Student data"):
+**To switch it on** — everything is done from **🧪 Biology Labs ▸ 🔗 Teacher page**, a window in
+the labs spreadsheet ("Student data"). You never edit the code for any of this:
 
-1. **🧪 Biology Labs ▸ 🔗 Set up the teacher page.** It makes a tab, **🔗 Teacher links**, with the
-   tracker and this spreadsheet already in it. Add a row for each spreadsheet: a **Section** (for
-   example *Reflection spreadsheets* or *Test system*), a **Name**, the **Link**.
-2. **Deploy ▸ New deployment ▸ ⚙ ▸ Web app.** Execute as **Me**; Who has access **Anyone within**
-   your school — *not* "Anyone". Deploy and copy the Web app URL into `TEACHER_PAGE_URL` near the top
-   of `apps-script/Code.gs`.
-3. Other teachers: their school addresses in `TEACHERS`, separated by commas. You are always in;
-   type `none` to take everyone else off.
-4. **Deploy ▸ Manage deployments ▸** the deployment the labs use **▸ ✏️ ▸ New version ▸ Deploy**, so
-   the hub learns who is a teacher. Whenever you paste a newer copy of the script, give the teacher
-   page's deployment a new version too.
+1. **Make the page's own deployment, once.** In the Apps Script editor: **Deploy ▸ New deployment ▸
+   ⚙ ▸ Web app**, Execute as **Me**, Who has access **Anyone within** your school — *not* "Anyone".
+   Deploy, and copy the **Web app URL**.
+2. Open **🔗 Teacher page** from the menu. Paste that URL into **The page address** and Save. Add the
+   other Biology teachers by name and school address. Add a row for each spreadsheet — its
+   **Category** (Reflection, Test system, Records…), the **Assessment**, the **Year**, and the
+   **Link**. The same test in another year is another row.
+3. That is all. Teachers, links and the address are read live, so anything you add or change here
+   takes effect at once — no new version, no redeploy. (A redeploy is only ever needed when the
+   **code** itself changes.)
 
 The first time you run anything after pasting this version, Google asks for one new permission —
-to see the email address of whoever opens the teacher page. Allow it **before** deploying, or the
-labs stop answering until you do: run **🩺 Check the set-up** once, allow, then deploy.
+to see the email address of whoever opens the teacher page. Allow it **before** deploying the labs
+endpoint, or the labs stop answering until you do: run **🩺 Check the set-up** once, allow, then
+deploy.
 
-**🩺 Check the set-up** then reports the page's address, how many teachers can open it and how many
-links are on it.
+**🩺 Check the set-up** reports the page's address, how many teachers can open it and how many links
+are on it. (The older `TEACHERS` / `TEACHER_PAGE_URL` lines near the top of the script still work as
+a fallback, but the window is the easy way.)
 
 </details>
 

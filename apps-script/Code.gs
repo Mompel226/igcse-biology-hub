@@ -216,7 +216,7 @@ function onOpen() {
     .addItem('📊  Refresh everyone\'s progress', 'refreshDashboard')
     .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'setup')
     .addSeparator()
-    .addItem('🔗  Set up the teacher page', 'setUpTeacherPage')
+    .addItem('🔗  Teacher page — teachers, links, address', 'showTeacherPanel')
     .addToUi();
 }
 
@@ -736,7 +736,7 @@ function checkSetup() {
   /* The teacher page. Off until it is set up, and then its three parts are checked apart. */
   var tpUrl = _teacherPageUrl(), tpTab = openOk ? _ss().getSheetByName(T_LINKS) : null;
   if (!tpUrl && !tpTab && !String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '')) {
-    lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 🔗 Set up the teacher page switches it on.');
+    lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 🔗 Teacher page sets it up.');
   } else {
     lines.push(tpUrl ? '✅  teacher page address is set'
                      : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 🔗 Set up the teacher page');
@@ -2022,6 +2022,7 @@ function _ownRecord(d) {
    for people that file is shared with: the page lists the spreadsheets, it does not share them.
    ============================================================ */
 var T_LINKS = '🔗 Teacher links';
+var T_TEACHERS = '👩‍🏫 Teachers';
 
 /* Pupils have addresses at …@pupils.<school> and staff at …@<school>: both are the school's. */
 function _inDomain(email, dom) {
@@ -2033,17 +2034,39 @@ function _owner() {
   try { return _cleanEmail(Session.getEffectiveUser().getEmail()); } catch (e) { return ''; }
 }
 
-/* The other teachers, as typed into TEACHERS. "none" empties it; an empty line cannot, because an
-   empty line means "keep what was saved". */
+/* ── Who counts as a teacher ────────────────────────────────────────────────
+   Two sources, unioned: the "👩‍🏫 Teachers" tab (managed from the dialog), and the older
+   TEACHERS line/property, for anyone who set it that way. Both are read live, so adding a
+   teacher from the dialog takes effect at once — no code change, no redeploy. */
+function _headerCol_(sh, name, dflt) {
+  try {
+    var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    /* headers dressed by _dress2 carry a leading "✎ " on the editable ones; strip it before matching */
+    for (var i = 0; i < hdr.length; i++)
+      if (String(hdr[i]).replace(/^\s*✎\s*/, '').trim().toLowerCase() === name.toLowerCase()) return i + 1;
+  } catch (e) {}
+  return dflt;
+}
 function _teacherEmails() {
+  var seen = {}, list = [];
+  function add(e) {
+    e = _cleanEmail(e);
+    if (e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && !seen[e]) { seen[e] = 1; list.push(e); }
+  }
+  try {
+    var sh = _ss().getSheetByName(T_TEACHERS);
+    if (sh && sh.getLastRow() >= 2) {
+      var ec = _headerCol_(sh, 'Email', 2);
+      sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues().forEach(function (r) { add(r[0]); });
+    }
+  } catch (e) {}
   var raw = String(_keptSetting_(TEACHERS, 'TEACHERS') || '');
-  if (/^\s*none\s*$/i.test(raw)) return [];
-  return raw.split(/[\s,;]+/).map(_cleanEmail)
-            .filter(function (e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); });
+  if (!/^\s*none\s*$/i.test(raw)) raw.split(/[\s,;]+/).forEach(add);
+  return list;
 }
 
-/* You, always. Anybody else must be on TEACHERS AND have an address at the school's own domain —
-   never under it — so a pupil's address typed onto the list by mistake still opens nothing. */
+/* You, always. Anybody else must be on the list AND have an address at the school's own domain —
+   never under it — so a pupil's address added by mistake still opens nothing. */
 function _isTeacher(email) {
   email = _cleanEmail(email);
   if (!email) return false;
@@ -2053,35 +2076,216 @@ function _isTeacher(email) {
   return _teacherEmails().indexOf(email) >= 0;
 }
 
+/* Only the owner or a listed teacher, working inside the spreadsheet, may run the dialog's
+   actions — so nothing here can be reached from the public web app. Mirrors the reflection
+   system's own guard: in a bound menu/dialog the effective user is the owner; a call with no
+   identity can only be the bound spreadsheet itself (the web app has no UI). */
+function _isAdminCaller_() {
+  var act = '';
+  try { act = _cleanEmail(Session.getActiveUser().getEmail()); } catch (e) {}
+  if (act && (act === _owner() || _isTeacher(act))) return true;
+  if (!act) { try { SpreadsheetApp.getUi(); return true; } catch (e) {} }
+  return false;
+}
+
 /* The teacher page's own address, from TEACHER_PAGE_URL, pointed at the page. Anything that is not
    an Apps Script /exec address is ignored rather than handed to the hub. */
 function _teacherPageUrl() {
   var u = String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '').trim();
-  if (!/^https:\/\/script\.google\.com\/[^\s?#]+\/exec$/.test(u.replace(/\?.*$/, ''))) return '';
-  return u.replace(/\?.*$/, '') + '?page=teachers';
+  return _isExecUrl(u) ? u.replace(/\?.*$/, '') + '?page=teachers' : '';
+}
+function _isExecUrl(u) {
+  return /^https:\/\/script\.google\.com\/[^\s?#]+\/exec$/.test(String(u || '').replace(/\?.*$/, ''));
 }
 
-/* The rows of the tab, grouped by their Section, in the order they are written. A Link cell may be
-   a plain address or a pasted link with its own text; only https addresses are ever shown. */
-function _teacherLinks() {
+/* Write a kept setting (the dialog's Save). Kept in Script Properties exactly where _keptSetting_
+   reads it, so a value set here survives pasting a fresh copy of this file. */
+function _setKept_(key, value) {
+  try { PropertiesService.getScriptProperties().setProperty(key, String(value == null ? '' : value)); }
+  catch (e) {}
+}
+
+/* The two tabs the dialog manages. Made on demand, so the dialog works the first time it opens. */
+function _ensureTeacherTabs_() {
+  var ss = _ss();
+  if (!ss.getSheetByName(T_TEACHERS)) {
+    var t = ss.insertSheet(T_TEACHERS);
+    t.getRange(1, 1, 1, 3).setValues([['Name', 'Email', 'Added']]);
+    _dress2(t, [
+      { h:'Name',  w:220, edit:true, note:'The teacher’s name, for your own reference. The address is what actually decides access.' },
+      { h:'Email', w:260, edit:true, note:'Their school address. Staff addresses only — a pupil address here still opens nothing.' },
+      { h:'Added', w:150, fmt:'dd MMM, HH:mm', note:'When they were added.' }
+    ], { tab:'#9D3FB0' });
+  }
+  var lk = ss.getSheetByName(T_LINKS);
+  if (!lk) {
+    lk = ss.insertSheet(T_LINKS);
+    lk.getRange(1, 1, 1, 6).setValues([['Category', 'Assessment', 'Year', 'Name', 'Link', 'Note']]);
+    var tid = _trackerId(), seed = [], selfUrl = '';
+    if (tid) seed.push(['Records', 'Student Progress Tracker', '', 'Student Progress Tracker',
+                        'https://docs.google.com/spreadsheets/d/' + tid + '/edit', 'Every cohort, every reflection']);
+    try { selfUrl = ss.getUrl(); } catch (e) {}
+    if (selfUrl) seed.push(['Records', 'Student data (the labs)', '', 'Student data',
+               selfUrl, 'Lab hand-ins and the class lists']);
+    if (seed.length) lk.getRange(2, 1, seed.length, 6).setValues(seed);
+    _dress2(lk, [
+      { h:'Category',   w:150, edit:true, note:'The heading this sits under on the teacher page — Reflection, Test system, Records …' },
+      { h:'Assessment', w:220, edit:true, note:'What the test or topic is — for example “Topic 7 · Digestion”.' },
+      { h:'Year',       w:120, edit:true, note:'The cohort or year this spreadsheet is for — the same test in another year is another row.' },
+      { h:'Name',       w:220, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
+      { h:'Link',       w:430, edit:true, note:'The full address, starting https:// — from the spreadsheet’s address bar or Share ▸ Copy link.' },
+      { h:'Note',       w:300, edit:true, note:'One line under the name. Optional.' }
+    ], { tab:'#0ea5e9' });
+  }
+  return { teachers: T_TEACHERS, links: T_LINKS };
+}
+
+/* Every link row, in full, for the dialog and for the page. Columns are found by header, so a
+   tab made the old way (Section · Name · Link · Note) still reads. */
+function _teacherLinksRaw() {
   var sh = _ss().getSheetByName(T_LINKS);
   if (!sh || sh.getLastRow() < 2) return [];
-  var n = sh.getLastRow() - 1;
-  var vals = sh.getRange(2, 1, n, 4).getValues();
+  var last = sh.getLastRow(), wide = sh.getLastColumn();
+  var cCat = _headerCol_(sh, 'Category', _headerCol_(sh, 'Section', 1)),
+      cAss = _headerCol_(sh, 'Assessment', 0),
+      cYr  = _headerCol_(sh, 'Year', 0),
+      cNm  = _headerCol_(sh, 'Name', 2),
+      cLk  = _headerCol_(sh, 'Link', _headerCol_(sh, 'Section', 1) === 1 ? 3 : 5),
+      cNt  = _headerCol_(sh, 'Note', 0);
+  var vals = sh.getRange(2, 1, last - 1, wide).getValues();
   var rich = [];
-  try { rich = sh.getRange(2, 3, n, 1).getRichTextValues(); } catch (e) {}
-  var groups = [], by = {};
+  try { rich = sh.getRange(2, cLk, last - 1, 1).getRichTextValues(); } catch (e) {}
+  var out = [];
   vals.forEach(function (r, i) {
-    var name = String(r[1] || '').trim(), url = String(r[2] || '').trim();
+    var url = String(r[cLk - 1] || '').trim();
     if (!/^https:\/\//i.test(url) && rich[i] && rich[i][0]) {
       try { url = String(rich[i][0].getLinkUrl() || '').trim(); } catch (e) {}
     }
-    if (!name || !/^https:\/\/[^\s"'<>]+$/i.test(url)) return;
-    var section = String(r[0] || '').trim() || 'Links';
-    if (!by[section]) { by[section] = { title: section, links: [] }; groups.push(by[section]); }
-    by[section].links.push({ name: name, url: url, note: String(r[3] || '').trim() });
+    if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return;
+    var assessment = cAss ? String(r[cAss - 1] || '').trim() : '';
+    var name = cNm ? String(r[cNm - 1] || '').trim() : '';
+    out.push({
+      row: i + 2,
+      category: String(r[cCat - 1] || '').trim() || 'Links',
+      assessment: assessment,
+      year: cYr ? String(r[cYr - 1] || '').trim() : '',
+      name: name || assessment || 'Spreadsheet',
+      url: url,
+      note: cNt ? String(r[cNt - 1] || '').trim() : ''
+    });
+  });
+  return out;
+}
+
+/* The page's view: grouped by Category in first-seen order, each entry showing the year (and the
+   assessment, when the name is something else) beneath its name. */
+function _teacherLinks() {
+  var groups = [], by = {};
+  _teacherLinksRaw().forEach(function (l) {
+    if (!by[l.category]) { by[l.category] = { title: l.category, links: [] }; groups.push(by[l.category]); }
+    var detail = [];
+    if (l.assessment && l.assessment !== l.name) detail.push(l.assessment);
+    if (l.note) detail.push(l.note);
+    by[l.category].links.push({ name: l.name, url: l.url, year: l.year || '', detail: detail.join(' · ') });
   });
   return groups;
+}
+
+/* ── The dialog, and the actions it calls ───────────────────────────────────
+   All gated by _isAdminCaller_, so only a teacher working inside the spreadsheet can read or
+   change any of this — never the public web app. */
+function showTeacherPanel() {
+  _ensureTeacherTabs_();
+  var html = HtmlService.createHtmlOutputFromFile('TeacherPage')
+    .setWidth(680).setHeight(640);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Teacher page');
+}
+
+function teacherPanelData() {
+  if (!_isAdminCaller_()) return { ok: false };
+  _ensureTeacherTabs_();
+  var teachers = [];
+  try {
+    var sh = _ss().getSheetByName(T_TEACHERS);
+    if (sh && sh.getLastRow() >= 2) {
+      var nc = _headerCol_(sh, 'Name', 1), ec = _headerCol_(sh, 'Email', 2);
+      sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues().forEach(function (r) {
+        var em = _cleanEmail(r[ec - 1]);
+        if (em) teachers.push({ name: String(r[nc - 1] || '').trim(), email: em });
+      });
+    }
+  } catch (e) {}
+  return {
+    ok: true,
+    owner: _owner(),
+    domain: _schoolDomain(),
+    pageUrl: String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '').replace(/\?.*$/, ''),
+    pageLive: !!_teacherPageUrl(),
+    teachers: teachers,
+    links: _teacherLinksRaw(),
+    categories: ['Reflection', 'Test system', 'Records']
+  };
+}
+
+function teacherAddTeacher(name, email) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  email = _cleanEmail(email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, why: 'That is not an email address.' };
+  var dom = _schoolDomain();
+  if (dom && email.split('@').pop() !== dom)
+    return { ok: false, why: 'A teacher needs a staff address at ' + dom + ' (not a pupil address).' };
+  var sh = _ensureTeacherTabs_() && _ss().getSheetByName(T_TEACHERS);
+  var ec = _headerCol_(sh, 'Email', 2);
+  if (sh.getLastRow() >= 2) {
+    var have = sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < have.length; i++) if (_cleanEmail(have[i][0]) === email)
+      return { ok: false, why: 'That teacher is already on the list.' };
+  }
+  sh.appendRow([String(name || '').trim(), email, new Date()]);
+  _dressRows(sh, [{}, {}, { fmt:'dd MMM, HH:mm' }], sh.getLastRow(), 1);
+  return teacherPanelData();
+}
+
+function teacherRemoveTeacher(email) {
+  if (!_isAdminCaller_()) return { ok: false };
+  email = _cleanEmail(email);
+  var sh = _ss().getSheetByName(T_TEACHERS);
+  if (sh && sh.getLastRow() >= 2) {
+    var ec = _headerCol_(sh, 'Email', 2);
+    var have = sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues();
+    for (var i = have.length - 1; i >= 0; i--) if (_cleanEmail(have[i][0]) === email) sh.deleteRow(i + 2);
+  }
+  return teacherPanelData();
+}
+
+function teacherAddLink(d) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  d = d || {};
+  var url = String(d.url || '').trim();
+  if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return { ok: false, why: 'The link must be a full https:// address.' };
+  var assessment = String(d.assessment || '').trim();
+  var name = String(d.name || '').trim() || assessment;
+  if (!name) return { ok: false, why: 'Give it an assessment name (or a name).' };
+  var sh = _ensureTeacherTabs_() && _ss().getSheetByName(T_LINKS);
+  sh.appendRow([String(d.category || 'Reflection').trim() || 'Reflection', assessment,
+                String(d.year || '').trim(), name, url, String(d.note || '').trim()]);
+  return teacherPanelData();
+}
+
+function teacherRemoveLink(row) {
+  if (!_isAdminCaller_()) return { ok: false };
+  row = Number(row) || 0;
+  var sh = _ss().getSheetByName(T_LINKS);
+  if (sh && row >= 2 && row <= sh.getLastRow()) sh.deleteRow(row);
+  return teacherPanelData();
+}
+
+function teacherSetPageUrl(url) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  url = String(url || '').trim().replace(/\?.*$/, '');
+  if (url && !_isExecUrl(url)) return { ok: false, why: 'That is not a web-app address. It should end /exec.' };
+  _setKept_('TEACHER_PAGE_URL', url);
+  return teacherPanelData();
 }
 
 /* The page. Google has already signed the visitor in — this deployment is restricted to the
@@ -2120,92 +2324,87 @@ function _teacherHtml(o) {
   } else if (o.trouble) {
     main = '<p class="say">The list of links could not be read just now. Reload the page in a minute.</p>';
   } else if (!o.groups.length) {
-    main = '<p class="say">No links yet.</p><p class="fine">Add them to the “' + e(T_LINKS) + '” tab of the labs ' +
-           'spreadsheet: a Section, a Name and the Link, one spreadsheet to a row.</p>';
+    main = '<p class="say">No links yet.</p><p class="fine">Add them from the labs spreadsheet: ' +
+           '🧪 Biology Labs ▸ 🔗 Teacher page.</p>';
   } else {
-    main = o.groups.map(function (g) {
-      return '<section><h2>' + e(g.title) + '<span>' + g.links.length + '</span></h2><ul>' +
-        g.links.map(function (l) {
-          return '<li><a href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
-                 '<span class="nm">' + e(l.name) + '</span>' +
-                 (l.note ? '<span class="nt">' + e(l.note) + '</span>' : '') +
-                 '<span class="go" aria-hidden="true">Open →</span></a></li>';
-        }).join('') + '</ul></section>';
-    }).join('') +
-    '<p class="fine">Each link opens only for the people its file is shared with. This page lists the ' +
-    'spreadsheets; it does not share them.</p>';
+    var total = 0;
+    var body = o.groups.map(function (g) {
+      total += g.links.length;
+      return '<section class="grp"><h2 class="grp__h">' + e(g.title) + '<span class="n">' + g.links.length + '</span></h2>' +
+        '<div class="cards">' + g.links.map(function (l) {
+          return '<a class="card" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+                 '<span class="card__name">' + e(l.name) +
+                    (l.year ? '<span class="chip">' + e(l.year) + '</span>' : '') + '</span>' +
+                 (l.detail ? '<span class="card__detail">' + e(l.detail) + '</span>' : '') +
+                 '<span class="card__go">Open <span class="arw" aria-hidden="true">→</span></span></a>';
+        }).join('') + '</div></section>';
+    }).join('');
+    main = body +
+      '<p class="foot">Each link opens only for the people its spreadsheet is shared with — this page lists them, ' +
+      'it does not share them. To add, remove or change anything here: in the labs spreadsheet, ' +
+      '🧪&nbsp;Biology&nbsp;Labs ▸ 🔗&nbsp;Teacher&nbsp;page.</p>';
+    o.total = total;
   }
+  var who = o.email
+    ? '<span class="who"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">' +
+      '<circle cx="12" cy="8.2" r="4" fill="currentColor"/><path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>' +
+      'Signed in as <b>' + e(o.email) + '</b>' +
+      (o.state === 'ok' && o.total ? '<span class="who__dot">·</span>' + o.total + ' spreadsheet' + (o.total === 1 ? '' : 's') : '') +
+      '</span>'
+    : '';
   return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">' +
     '<style>' +
-    ':root{--ink:#0A141C;--card:#101D27;--line:rgba(150,190,215,.22);--chalk:#EDF4F8;--dim:#A9BECB;--mute:#7F94A2;--cyan:#4FC3F7;--accent:#E879F9;' +
+    ':root{--ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);' +
+    '--chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--accent:#E879F9;' +
     '--serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}' +
-    '*{box-sizing:border-box}html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(--sans)}' +
-    '.wrap{max-width:880px;margin:0 auto;padding:clamp(20px,5vw,48px) clamp(16px,4vw,32px) 48px}' +
-    '.eye{font:500 10.5px/1.3 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}' +
-    '.eye b{color:var(--accent);font-weight:500}' +
-    'h1{font:400 clamp(34px,5vw,52px)/1.05 var(--serif);letter-spacing:-.018em;margin:8px 0 10px}h1 em{font-style:italic;color:var(--accent)}' +
-    '.lede{color:#C5D4DD;max-width:60ch;margin:0}' +
-    '.who{margin:18px 0 30px;font:500 10.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}.who b{color:var(--dim);font-weight:500;text-transform:none;letter-spacing:0}' +
-    '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:0 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500}' +
+    '*{box-sizing:border-box}' +
+    'html,body{margin:0;background:radial-gradient(1100px 460px at 82% -12%,rgba(232,121,249,.07),transparent 62%),var(--ink);' +
+    'color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}' +
+    '.wrap{max-width:840px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 56px}' +
+    '.eye{font:600 10.5px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}.eye b{color:var(--accent)}' +
+    'h1{font:400 clamp(36px,5.4vw,56px)/1.02 var(--serif);letter-spacing:-.02em;margin:10px 0 12px}h1 em{font-style:italic;color:var(--accent)}' +
+    '.lede{color:#C5D4DD;max-width:58ch;margin:0 0 22px;font-size:15.5px}' +
+    '.who{display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border:1px solid var(--line2);border-radius:999px;' +
+    'background:rgba(120,200,230,.06);font-size:13px;color:var(--dim)}.who svg{color:var(--cyan);opacity:.85;flex:none}' +
+    '.who b{color:var(--chalk);font-weight:500}.who__dot{margin:0 7px;color:var(--mute)}' +
+    '.grp{margin:30px 0 0}' +
+    '.grp__h{display:flex;align-items:center;gap:11px;font:600 10.5px/1.3 var(--mono);letter-spacing:.17em;text-transform:uppercase;' +
+    'color:var(--dim);margin:0 0 12px}.grp__h .n{color:var(--mute);font-weight:500}' +
+    '.grp__h::after{content:"";flex:1;height:1px;background:var(--line)}' +
+    '.cards{display:grid;gap:8px}' +
+    '.card{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 18px;' +
+    'padding:14px 18px;border-radius:12px;background:var(--card);border:1px solid var(--line);color:inherit;text-decoration:none;' +
+    'transition:border-color .18s,background .18s}' +
+    '.card::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);opacity:0;transition:opacity .18s}' +
+    '.card:hover,.card:focus-visible{border-color:var(--line2);background:var(--cardhi)}' +
+    '.card:hover::before,.card:focus-visible::before{opacity:.9}' +
+    '.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
+    '.card__name{font-weight:600;font-size:15.5px;overflow-wrap:anywhere;display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
+    '.chip{font:600 10px/1 var(--mono);letter-spacing:.05em;color:#F1CFFB;background:rgba(232,121,249,.13);' +
+    'border:1px solid rgba(232,121,249,.32);padding:4px 9px;border-radius:999px;white-space:nowrap}' +
+    '.card__detail{grid-column:1;color:var(--dim);font-size:13px;margin-top:3px;overflow-wrap:anywhere}' +
+    '.card__go{grid-column:2;grid-row:1/span 2;display:inline-flex;align-items:center;gap:6px;font:600 10.5px/1 var(--mono);' +
+    'letter-spacing:.12em;text-transform:uppercase;color:var(--accent);white-space:nowrap}' +
+    '.card__go .arw{transition:transform .18s}.card:hover .card__go .arw{transform:translateX(3px)}' +
+    '.foot{margin-top:32px;color:var(--mute);font-size:12.5px;max-width:66ch;border-top:1px solid var(--line);padding-top:15px}' +
+    '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:22px 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500;color:var(--chalk)}' +
     '.fine{color:var(--mute);font-size:13.5px;max-width:62ch}' +
-    'section{margin:0 0 30px}' +
-    'h2{display:flex;align-items:baseline;gap:10px;font:500 10.5px/1.3 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim);' +
-    'margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}h2 span{color:var(--mute)}' +
-    'ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}' +
-    'a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:center;padding:12px 16px;border-radius:10px;' +
-    'background:var(--card);border:1px solid var(--line);color:inherit;text-decoration:none;transition:border-color .2s,background .2s}' +
-    'a:hover,a:focus-visible{border-color:rgba(232,121,249,.6);background:#15222D}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
-    '.nm{font-weight:500;overflow-wrap:anywhere}.nt{grid-column:1;color:var(--dim);font-size:13.5px;overflow-wrap:anywhere}' +
-    '.go{grid-column:2;grid-row:1/span 2;font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);white-space:nowrap}' +
-    '@media (max-width:520px){a{grid-template-columns:1fr}.go{grid-column:1;grid-row:auto;margin-top:6px}}' +
-    '@media (prefers-reduced-motion:reduce){a{transition:none}}' +
+    '@media (max-width:520px){.card{grid-template-columns:1fr}.card__go{grid-column:1;grid-row:auto;margin-top:8px}}' +
+    '@media (prefers-reduced-motion:reduce){.card,.card__go .arw{transition:none}}' +
     '</style></head><body><div class="wrap">' +
     '<p class="eye">Biology Hub · <b>Teachers only</b></p>' +
     '<h1>Assessment <em>system</em></h1>' +
     '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place: each assessment’s own, the test copies, and the records they write to.</p>' +
-    (o.email ? '<p class="who">Signed in as <b>' + e(o.email) + '</b></p>' : '<p class="who">Not signed in</p>') +
-    main + '</div></body></html>';
+    who + main + '</div></body></html>';
 }
 
 /* 🧪 Biology Labs ▸ 🔗 Set up the teacher page: makes the tab (with the two records it can fill
    in itself) and says, in order, what is still to do. Safe to run again: it never touches a row
    that is already there. */
-function setUpTeacherPage() {
-  var ui = SpreadsheetApp.getUi(), ss = _ss();
-  var sh = ss.getSheetByName(T_LINKS), made = false;
-  if (!sh) {
-    sh = ss.insertSheet(T_LINKS);
-    made = true;
-    var rows = [['Section', 'Name', 'Link', 'Note']];
-    var tid = _trackerId();
-    if (tid) rows.push(['Records', 'Student Progress Tracker', 'https://docs.google.com/spreadsheets/d/' + tid + '/edit',
-                        'Every cohort, every reflection: the workbook each assessment writes to']);
-    rows.push(['Records', 'Student data (the labs)', ss.getUrl(), 'Lab hand-ins and the class lists']);
-    sh.getRange(1, 1, rows.length, 4).setValues(rows);
-    _dress2(sh, [
-      { h:'Section', w:190, edit:true, note:'The heading this link sits under on the teacher page — for example Reflection spreadsheets, Test system, Records.' },
-      { h:'Name', w:260, edit:true, note:'What the link is called on the page.' },
-      { h:'Link', w:430, edit:true, note:'The full address, starting https:// — copy it from the spreadsheet\'s address bar or Share ▸ Copy link. Only https addresses are shown.' },
-      { h:'Note', w:380, edit:true, note:'One line under the name. Optional.' }
-    ], { tab: '#9D3FB0' });
-  }
-  var dom = _schoolDomain(), url = _teacherPageUrl(), more = _teacherEmails().length;
-  var lines = [];
-  lines.push(made ? '✅  Made the “' + T_LINKS + '” tab, with the tracker and this spreadsheet already in it.'
-                  : '✅  The “' + T_LINKS + '” tab is there (' + Math.max(0, sh.getLastRow() - 1) + ' rows).');
-  lines.push('1.  In that tab, add a row for each spreadsheet: a Section (for example “Reflection spreadsheets” or ' +
-             '“Test system”), a Name, and the Link.');
-  lines.push((url ? '✅' : '2.') + '  The page\'s own address' + (url ? ' is set.' :
-             ' — once:\n     Deploy ▸ New deployment ▸ ⚙ ▸ Web app\n       Execute as: Me\n       Who has access: Anyone within ' +
-             (dom || 'your school') + '   ← not “Anyone”\n     Deploy, copy the Web app URL, and type it into TEACHER_PAGE_URL near the top of this script.'));
-  lines.push('3.  Teachers: you are always in' + (more ? ', with ' + more + ' more on TEACHERS.' :
-             '. To add colleagues, type their school addresses into TEACHERS near the top, separated by commas.'));
-  lines.push('4.  Deploy ▸ Manage deployments ▸ the deployment the labs use ▸ ✎ ▸ Version: New version ▸ Deploy, so the hub ' +
-             'learns who is a teacher. Do the same for the teacher page\'s deployment whenever you paste a new copy of this script.');
-  ui.alert('Biology Labs — the teacher page', lines.join('\n\n'), ui.ButtonSet.OK);
-}
+function setUpTeacherPage() { showTeacherPanel(); }  /* kept: the panel superseded the old setup */
 
 /* The tracker workbook and the school's domain, remembered the same way SHEET_ID is so
    that pasting a fresh copy of this file over the top never wipes what was typed in. */

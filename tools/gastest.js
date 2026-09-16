@@ -991,6 +991,44 @@ ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted 
   ss.deleteSheet(tab);
 });
 
+console.log('— the teacher-page control panel —');
+ok &= run('add teachers and links from the dialog, read live, no code edit', () => {
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  let d = teacherPanelData();
+  if (!d.ok || d.owner !== OWNER) throw new Error('panel refused the owner: ' + JSON.stringify(d).slice(0,120));
+  d = teacherAddTeacher('Dr Colleague', 'Colleague@X.kr ');
+  if (!d.teachers.some(t => t.email === 'colleague@x.kr' && t.name === 'Dr Colleague')) throw new Error('teacher not added');
+  if (!_isTeacher('colleague@x.kr')) throw new Error('the added teacher is not recognised by _isTeacher');
+  if (teacherAddTeacher('Oops', 'pupil@pupils.x.kr').ok !== false) throw new Error('a pupil address was accepted as a teacher');
+  if (teacherAddTeacher('again', 'colleague@x.kr').ok !== false) throw new Error('a duplicate teacher was accepted');
+  d = teacherAddLink({ category: 'Reflection', assessment: 'Topic 7 · Digestion', year: 'Y10 · 2026', url: 'https://docs.google.com/spreadsheets/d/AAA/edit', note: 'the digestion test' });
+  const mine = d.links.filter(l => /AAA/.test(l.url))[0];
+  if (!mine || mine.assessment !== 'Topic 7 · Digestion' || mine.year !== 'Y10 · 2026' || mine.category !== 'Reflection') throw new Error('link stored wrong: ' + JSON.stringify(mine));
+  if (teacherAddLink({ category: 'Reflection', assessment: 'x', url: 'not a url' }).ok !== false) throw new Error('a bad link was accepted');
+  if (teacherSetPageUrl('https://evil.example/exec').ok !== false) throw new Error('a non-webapp url was accepted');
+  d = teacherSetPageUrl('https://script.google.com/a/macros/x.kr/s/AKfyP/exec');
+  if (!d.pageLive || props.get('TEACHER_PAGE_URL') !== 'https://script.google.com/a/macros/x.kr/s/AKfyP/exec') throw new Error('page url not saved');
+  const html = doGet({ parameter: { page: 'teachers' } }).html;
+  if (!/AAA/.test(html)) throw new Error('the link did not render for the owner');
+  if (!/Topic 7 · Digestion/.test(html) || !/Y10 · 2026/.test(html)) throw new Error('the assessment/year did not render');
+  d = teacherRemoveLink(mine.row);
+  if (d.links.some(l => /AAA/.test(l.url))) throw new Error('link not removed');
+  d = teacherRemoveTeacher('colleague@x.kr');
+  if (d.teachers.some(t => t.email === 'colleague@x.kr')) throw new Error('teacher not removed');
+  if (_isTeacher('colleague@x.kr')) throw new Error('_isTeacher still recognises a removed teacher');
+});
+ok &= run('the panel refuses a student / web-app caller', () => {
+  VISITOR = 'stu@pupils.x.kr';
+  if (teacherPanelData().ok !== false) throw new Error('panel data leaked to a student');
+  if (teacherAddTeacher('x', 'x@x.kr').ok !== false) throw new Error('a student added a teacher');
+  if (teacherAddLink({ url: 'https://docs.google.com/x' }).ok !== false) throw new Error('a student added a link');
+  if (teacherSetPageUrl('https://script.google.com/a/macros/x.kr/s/AK/exec').ok !== false) throw new Error('a student set the url');
+  VISITOR = ''; SCHOOL_DOMAIN = '';
+  props.delete('TEACHER_PAGE_URL'); props.delete('SCHOOL_DOMAIN');
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+});
+
 const st = ss.getSheetByName('Students');
 console.log('Students: ' + (st.getLastRow() - 1) + ' rows × ' + st.getLastColumn() + ' cols');
 const dg = ss.getSheetByName('Digestion');
