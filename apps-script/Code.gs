@@ -62,11 +62,13 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
      SCHOOL_DOMAIN   your school's email domain, so somebody signing in with a personal
                      account is told that plainly rather than being shown an empty record.
 
-   SET THEM AS SCRIPT PROPERTIES, not here: Project Settings ▸ Script Properties ▸ add
-   TRACKER_ID and SCHOOL_DOMAIN. This file is published in a public repository, so a value
-   typed below would be published with it. Left empty below, the script reads the Script
-   Properties; a value typed below is copied into them and wins. Leave both unset and the hub
-   never offers the card; every lab goes on working exactly as before.
+   Type them into the two lines below, in YOUR Apps Script — that copy is private to your
+   Google account. (Or add them in Project Settings ▸ Script Properties; either works.) A value
+   typed below is copied into Script Properties the first time it is read — 🩺 Check the
+   set-up reads both — so pasting a fresh copy of this file over the top later, with these
+   lines blank again, never wipes them. The one place never to type them is the copy in the
+   public GitHub repository. Leave both unset and the hub never offers the card; every lab
+   goes on working exactly as before.
    -------------------------------------------------------------------------- */
 var TRACKER_ID     = '';
 var SCHOOL_DOMAIN  = '';
@@ -632,9 +634,9 @@ function checkSetup() {
      nothing about which of the two is wrong. */
   var tid = _trackerId();
   if (!tid) {
-    lines.push('•  the record card on the hub is off. To switch it on, add TRACKER_ID and ' +
-               'SCHOOL_DOMAIN in Project Settings ▸ Script Properties (not in this code — the ' +
-               'repository is public), and fill in the `record` block in the hub\'s js/local.js.');
+    lines.push('•  the record card on the hub is off. To switch it on, type TRACKER_ID and ' +
+               'SCHOOL_DOMAIN into the two lines near the top of this script (or add them in ' +
+               'Project Settings ▸ Script Properties), then run this check again.');
   } else {
     var tOk = false, tName = '', cohorts = [], tRows = 0, unfRows = -1;
     try {
