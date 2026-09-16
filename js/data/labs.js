@@ -51,7 +51,7 @@ window.LABS_REGISTER = {
       "url": "https://nlcsbiology.com/plants-lab/",
       "store": "plants-lab.v1",
       "stations": 12,
-      "questions": 107,
+      "questions": 116,
       "status": "live"
     }
   ],

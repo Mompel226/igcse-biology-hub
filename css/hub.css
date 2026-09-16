@@ -50,6 +50,56 @@ a{color:inherit;text-decoration:none}
 .masthead h1 em{font-style:italic;color:var(--cyan)}
 .lede{margin-top:8px;max-width:58ch;color:#C5D4DD;font-size:15px}
 .masthead__r{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
+.masthead__hub{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
+
+/* ---- your record ----
+   The one thing up here that is about the reader rather than the page, so it is the one
+   thing that stays when the year tabs and the IB switch go. Two lines: who it is for, and
+   what pressing it does. It is a button until there is somewhere to go, then a link — the
+   `--go` card — because a link that sometimes does not link is a worse thing than two. */
+.acct{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+/* the figure on the left says "account" before a word is read; the two lines sit centred
+   beside it, so the card reads as one control rather than a note with a border round it */
+.acct__card{
+  display:flex;flex-direction:row;align-items:center;gap:11px;text-align:left;
+  min-width:212px;max-width:300px;padding:8px 14px 8px 9px;
+  border:1px solid rgba(150,190,215,.34);border-radius:999px;background:rgba(7,15,21,.62);
+  transition:border-color .2s,background .2s,color .2s
+}
+.acct__ico{
+  flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;
+  color:#BFE3F5;background:rgba(120,200,230,.10);box-shadow:inset 0 0 0 1px rgba(150,215,240,.35);
+  transition:background .2s,color .2s,box-shadow .2s
+}
+.acct__ico svg{display:block}
+.acct__txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.acct__card:hover:not(:disabled) .acct__ico,.acct__card:focus-visible .acct__ico{
+  color:#fff;background:rgba(120,200,230,.2);box-shadow:inset 0 0 0 1px rgba(150,215,240,.7)}
+.acct__card--go .acct__ico{color:var(--cyan);background:rgba(120,200,230,.16)}
+/* signed out, "Sign in" is the whole point of the control, so it is the loudest word on it */
+#acctBtn:not(:disabled) .acct__act{font-size:14px;font-weight:600;color:#fff;letter-spacing:.005em}
+#acctBtn:not(:disabled){border-color:rgba(150,215,240,.5)}
+/* Where the card stands alone — the front, and each section's page — it is centred against
+   the heading beside it, not dropped to the foot of the masthead. On the revision page it
+   shares the column with the year tabs and the IB switch, which stay at the foot. */
+body[data-view]:not([data-view="revision"]) .masthead__r{align-self:center}
+.acct__lbl{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--chalk-dim);line-height:1.25;
+  /* a roster name can run long, and it is the line under it that has to stay readable */
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.acct__act{font-size:12.5px;color:#D7E3EA;line-height:1.35}
+.acct__card:hover:not(:disabled),.acct__card:focus-visible{border-color:rgba(150,215,240,.7);background:rgba(120,200,230,.1)}
+.acct__card:hover:not(:disabled) .acct__act{color:#fff}
+.acct__card:disabled{cursor:default}
+/* nothing recorded yet is not a failure, so it is dimmed rather than struck out */
+.acct__card:disabled .acct__act{color:var(--chalk-mute)}
+.acct__card--go{border-color:rgba(150,215,240,.6);background:rgba(120,200,230,.14)}
+.acct__card--go .acct__lbl{color:#BFE3F5}
+.acct__card--go .acct__act{color:#fff}
+.acct__card--go .acct__act::after{content:" \2192";color:var(--cyan)}
+.acct__gsi{display:flex;justify-content:flex-end;min-height:0}
 
 .maker{margin-top:10px;font-size:13.5px;color:#C5D4DD}
 .maker::before{content:"";display:inline-block;width:22px;height:1px;background:var(--cyan);opacity:.8;vertical-align:middle;margin-right:10px}
@@ -378,7 +428,9 @@ noscript p{padding:20px}
 @media (max-width:900px){
   .hub{gap:12px;padding-bottom:16px}
   .masthead{grid-template-columns:1fr;align-items:start;gap:12px;padding-top:16px}
-  .masthead__r{align-items:flex-start}
+  .masthead__r,.masthead__hub{align-items:flex-start}
+  .acct,.acct__gsi{align-items:flex-start;justify-content:flex-start}
+  .acct__card{min-width:0;max-width:none;width:100%}
   .years{align-items:flex-start;max-width:none}
   .ytabs,.path{justify-content:flex-start}
   .doors{flex-direction:column;flex:none;min-height:0;gap:10px}
@@ -441,10 +493,13 @@ body[data-view="entry"]{
 }
 .crumb::before{content:"\2190";font-size:13px;color:var(--chalk-mute)}
 .crumb:hover,.crumb:focus-visible{color:var(--chalk)}
-/* the hub's own controls only make sense in the hub */
-body[data-view="entry"] .masthead__r,body[data-view="ccas"] .masthead__r,
-body:not([data-view="revision"])[data-view] .masthead__r{display:none}
-body:not([data-view="revision"])[data-view] .masthead{grid-template-columns:minmax(0,1fr)}
+/* the hub's own controls only make sense in the hub — but the record card beside them is
+   about the reader, not the page, so it is the inner wrapper that goes and not the column */
+body[data-view="entry"] .masthead__hub,body[data-view="ccas"] .masthead__hub,
+body:not([data-view="revision"])[data-view] .masthead__hub{display:none}
+/* with the controls gone and no card standing in for them, the column has nothing left in
+   it and the masthead should close up rather than hold a gap open for it */
+body:not([data-view="revision"])[data-view]:not([data-acct]) .masthead{grid-template-columns:minmax(0,1fr)}
 
 .doors--entry{flex:1 0 auto;flex-direction:column;gap:8px;min-height:0}
 .doors--row{display:flex;gap:8px;flex:1 1 0;min-height:250px}
@@ -470,6 +525,17 @@ body[data-view="entry"] .lede{max-width:70ch}
 .door__sub{font-family:var(--serif);font-style:italic;font-size:clamp(15px,1.3vw,21px);line-height:1.25;color:var(--accent);margin-top:3px}
 .door--hero .door__sub{font-size:clamp(17px,1.5vw,24px)}
 .band--entry{padding-top:2px;margin-top:-2px}
+/* the front row: the hero, and beside it the one door only a signed-in student sees — their
+   own assessments. The row sizes to the hero as the hero alone did (no share of the height
+   the four below take). The student's door is one resting door-width of the row beneath —
+   (row − gaps) ÷ doors, with --row-n set by js/hub.js and 8px being `.doors`' own gap — so
+   at rest its edges line up with the last door below. It never grows when lit, or the hero
+   would shrink under it. Hidden, it takes no room and the hero spans the row. */
+.doors--top{flex:none;min-height:0}
+.doors--top>.door--hero{flex:1 1 0;min-width:0}
+.door--mine{flex:0 0 calc((100% - (var(--row-n,4) - 1) * 8px) / var(--row-n,4));min-width:0}
+.door--mine.is-on{flex-grow:0}
+
 .door--entry .door__detail{color:var(--chalk-dim)}
 .door--light.door--entry .door__detail{color:#2A343C}
 
@@ -477,6 +543,8 @@ body[data-view="entry"] .lede{max-width:70ch}
 body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
 
 @media (max-width:900px){
+  .doors--top{flex-direction:column;gap:10px}
+  .door--mine{flex:none;min-height:220px}
   .doors--row{flex-direction:column;flex:none;min-height:0;gap:10px}
   .door--hero{height:auto;min-height:0}
   .door--hero .door__body{padding-top:clamp(150px,40vw,220px)}

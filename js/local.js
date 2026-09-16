@@ -51,5 +51,31 @@ window.HUB_LOCAL = {
      nowhere, because your students are not on their class list.                            */
   submitUrl: '',
 
+  /* The Client ID your labs already sign in with — the same string as `googleClientId` in
+     each lab's js/config.js. Needed only by the record card below; leave it empty and the
+     hub behaves exactly as it always did.                                                 */
+  googleClientId: '',
+
+  /* ── your record, top right ─────────────────────────────────
+     OPTIONAL, and off unless you fill it in. Some schools run a reflection system that
+     builds each student a page of their own after a test. If yours does, this puts a card
+     top right that takes a student to theirs — but only after asking your own Apps Script
+     whether they are on the list and have anything recorded yet, so nobody is sent to an
+     empty page and nobody outside the school is shown a door they cannot open.
+
+     To switch it on you need three things: this block, `googleClientId` above, and the
+     `record` action in the Apps Script — set TRACKER_ID and SCHOOL_DOMAIN at the top of
+     apps-script/Code.gs, then Deploy ▸ Manage deployments ▸ New version.
+
+       label    who the card is for, said out loud, since this hub is public
+       domain   your school's email domain, so somebody signed in to a personal account is
+                told that rather than shown an empty record
+       url      the address of the student page, with ?page=student on the end. If your
+                system deploys one per assessment, any of them will do — they are all
+                windows onto the same collated workbook.
+
+     Leave it null and no card appears.                                                    */
+  record: null,
+
   site: null, doors: [], open: [], credits: []
 };
