@@ -24,6 +24,7 @@ body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-eve
 /* ---- the shell: sticky, so the tabs and "signed in" never move between views ---- */
 .top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ink) 92%,transparent);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.age{font:500 11px/1 var(--mono);color:var(--mute);letter-spacing:.04em;white-space:nowrap}
 .top__in{max-width:1120px;margin:0 auto;padding:10px clamp(16px,4vw,32px) 12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
 .eye{font:600 10px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin:0;flex:1 1 100%}
 .eye b{color:var(--accent);transition:color .3s}
@@ -259,6 +260,7 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
     <p class="eye">Biology Hub · <b>Teachers only</b></p>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Teacher views"></nav>
     <span class="who" id="who"></span>
+    <span class="age" id="age" aria-live="polite"></span>
     <button class="rf" id="rf" title="Read the sheet again">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>
   </div>
@@ -309,7 +311,57 @@ var BOOT = __BOOT__;
       note:'Nothing here changes a mark. Completion is worked out from the labs the students have handed in, every time this page opens.' }
   };
   var ORDER = ['teachers','progress','students','homework'];
-  var cache = {}, cur = null, busy = false;
+  var cache = {}, stamp = {}, cur = null, inflight = {}, prefetched = false;
+  /* Cookies would be the wrong tool — they cap at about 4KB and the Lab-progress payload is
+     hundreds. sessionStorage holds megabytes, is per-tab, and dies with the window, which is
+     exactly the life a teacher's working session should have. Ten minutes, then it re-reads. */
+  var KEEP_MS = 10*60*1000;
+  function ssGet(tab){
+    try { var raw=sessionStorage.getItem('teach.'+tab); if(!raw) return null;
+      var o=JSON.parse(raw);
+      if(!o||!o.at||(Date.now()-o.at)>KEEP_MS) return null;
+      stamp[tab]=o.at;                         /* age is the SHEET read, not this page load */
+      return o.r; } catch(e){ return null; }
+  }
+  function ssPut(tab,r){ stamp[tab]=Date.now();
+    var body = JSON.stringify({at:stamp[tab], r:r});
+    try { sessionStorage.setItem('teach.'+tab, body); return; } catch(e){}
+    /* Out of room. Lab progress is both the biggest payload and the one worth keeping, so give it
+       the space rather than let the largest view be the one that never caches: drop the others and
+       try once more. Still no? Memory only — the page works, it just re-reads after a reload. */
+    try { ORDER.forEach(function(k){ if (k!==tab) sessionStorage.removeItem('teach.'+k); });
+      sessionStorage.setItem('teach.'+tab, body); } catch(e2){}
+  }
+  function ssDel(tab){ try { sessionStorage.removeItem('teach.'+tab); } catch(e){} }
+
+  /* One request per view at a time, however many things ask for it. A second asker just waits for
+     the first answer instead of starting another read of the whole spreadsheet. */
+  function fetchTab(tab, cb){
+    if (inflight[tab]) { inflight[tab].push(cb); return; }
+    inflight[tab] = [cb];
+    google.script.run
+      .withSuccessHandler(function(r){
+        var cbs=inflight[tab]; delete inflight[tab];
+        if (r && r.ok) { cache[tab]=r; ssPut(tab,r); }
+        cbs.forEach(function(f){ f(r); }); })
+      .withFailureHandler(function(e){
+        var cbs=inflight[tab]; delete inflight[tab];
+        cbs.forEach(function(f){ f({ ok:false, why:'Could not reach the spreadsheet: '+((e&&e.message)||e) }); }); })
+      .uiData(tab);
+  }
+  /* Once the first view is up, quietly read the other three while the teacher is still looking at
+     this one. Every later tab click is then instant rather than another wait. */
+  function prefetch(){
+    if (prefetched) return; prefetched = true;
+    var rest = ORDER.filter(function(k){ return k!==cur; });
+    (function next(){ if (!rest.length) return;
+      var k = rest.shift();
+      if (cache[k]) return next();
+      var saved = ssGet(k);                    /* a reload still has it — don't re-read the sheet */
+      if (saved) { cache[k] = saved; return next(); }
+      fetchTab(k, next);
+    })();
+  }
 
   /* Every tab is always here. A tab that quietly vanishes when a setting is missing leaves the
      teacher with nothing to act on — the view itself says what is needed instead.
@@ -337,6 +389,15 @@ var BOOT = __BOOT__;
       b.setAttribute('tabindex', on ? '0' : '-1');   /* one stop for the whole bar, as a tablist should be */
     });
   }
+  /* A cached view must never pass for a live one. Say how old it is, plainly. */
+  function ago(ms){
+    var m = Math.round(ms/60000);
+    return m < 1 ? 'just now' : m === 1 ? '1 min ago' : m + ' min ago';
+  }
+  function showAge(){
+    var t = stamp[cur];
+    $('age').textContent = t ? 'read ' + ago(Date.now() - t) : '';
+  }
   function chrome(){
     document.documentElement.style.setProperty('--accent', VIEWS[cur].accent);
     markTabs();
@@ -347,25 +408,22 @@ var BOOT = __BOOT__;
     $('who').innerHTML = BOOT.email
       ? '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4" fill="currentColor"/>'+
         '<path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>'+esc(BOOT.email) : '';
+    showAge();
   }
-  var queued = null;
   function go(tab, force){
-    /* A click during a slow read used to vanish without trace — no highlight, no cursor, nothing.
-       Remember the last one and honour it when the read lands. */
-    if (busy) { queued = tab; return; }
-    cur = tab; chrome();
-    if (cache[tab] && !force) return draw();
+    cur = tab; chrome();                       /* highlight at once, whatever the data is doing */
+    if (force) { delete cache[tab]; ssDel(tab); }
+    else {
+      if (cache[tab]) return draw();
+      var saved = ssGet(tab);
+      if (saved) { cache[tab] = saved; draw(); prefetch(); return; }
+    }
     $('view').innerHTML = '<div class="load">Loading</div>';
-    busy = true;
-    google.script.run
-      .withSuccessHandler(function(r){ busy=false;
-        if (r && r.ok) { cache[tab] = r; draw(); }
-        else $('view').innerHTML = '<div class="err">'+esc((r&&r.why)||'Could not read that just now.')+'</div>';
-        if (queued) { var w=queued; queued=null; go(w); } })
-      .withFailureHandler(function(e){ busy=false;
-        $('view').innerHTML = '<div class="err">Could not reach the spreadsheet: '+esc(e&&e.message||e)+'</div>';
-        if (queued) { var w2=queued; queued=null; go(w2); } })
-      .uiData(tab);
+    fetchTab(tab, function(r){
+      if (cur !== tab) return;                 /* they moved on while this was in the air */
+      if (r && r.ok) { draw(); showAge(); prefetch(); }
+      else $('view').innerHTML = '<div class="err">'+esc((r&&r.why)||'Could not read that just now.')+'</div>';
+    });
   }
   function draw(){
     var r = cache[cur];
@@ -552,14 +610,19 @@ var BOOT = __BOOT__;
   /* ─────────── boot ─────────── */
   $('rf').addEventListener('click', function(){
     var b=$('rf'); b.classList.add('spin'); setTimeout(function(){ b.classList.remove('spin'); },700);
+    /* re-read THIS view now, and drop the others so they re-read when next opened — after a
+       refresh the teacher expects fresh numbers everywhere, not just where they happen to stand */
+    ORDER.forEach(function(k){ if (k!==cur) { delete cache[k]; ssDel(k); } });
+    prefetched = false;
     go(cur, true);
   });
   window.__view = { esc:esc, r0:r0, r1:r1, pc:pc, heat:heat, short:short, openDraw:openDraw, $:$,
     cmpClass:cmpClass,
     /* a view that writes must replace what the shell has cached, or leaving the tab and coming
        back shows the state from BEFORE the write — homework just set looks like it never saved */
-    put:function(tab, r){ cache[tab] = r; } };
+    put:function(tab, r){ cache[tab] = r; ssPut(tab, r); showAge(); } };
   buildTabs();
+  setInterval(showAge, 30000);               /* the label must age by itself, or it lies */
   go(BOOT.tab || 'teachers');
 })();
 </script>
