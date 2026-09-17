@@ -27,6 +27,11 @@
   .item .s{color:var(--dim);font-size:12px;word-break:break-word}
   .item a{color:#0b6bcb;text-decoration:none}
   .cat{background:var(--soft);color:var(--ink);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:5px 10px;font-weight:600}
+  .tag{flex:none;align-self:center;font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .tag--reflection{color:#8B2F9E;border-color:#E4B7EE;background:#F7E9FB}
+  .tag--test{color:#8A5A00;border-color:#F3D08A;background:#FBEED2}
+  .tag--survey{color:#0B6B5E;border-color:#9BE0D5;background:#E0F5F1}
+  .tag--other{color:#4a5a63;border-color:#cdd8dd;background:#eef2f4}
   .empty{color:var(--dim);padding:10px;font-style:italic}
   .msg{font-size:12px;margin:6px 0;min-height:16px}
   .msg.bad{color:var(--bad)} .msg.ok{color:var(--ink)}
@@ -70,19 +75,22 @@
     </div>
     <div class="msg" id="tMsg"></div>
 
-    <h2>Spreadsheets <small>shown on the page</small></h2>
-    <p class="intro">One row per spreadsheet. The same test in another year is another row.</p>
+    <h2>Spreadsheets <small>grouped by the cohort's graduation year</small></h2>
+    <p class="intro">One row per spreadsheet. The <b>graduation year</b> is the cohort: this year's
+       Y10 is <b>2028</b>, next year's Y10 is <b>2029</b> — so the same test for another cohort is
+       another row, and the page always shows the right year group on its own.</p>
     <div class="list" id="linkList"></div>
     <div class="row">
-      <label style="flex:0 0 130px">Category
-        <select id="lCat"></select></label>
-      <label>Assessment<input id="lAss" type="text" placeholder="Topic 7 · Digestion"></label>
-      <label style="flex:0 0 110px">Year<input id="lYear" type="text" placeholder="Y10 · 2026"></label>
+      <label style="flex:0 0 140px">Type
+        <input id="lType" type="text" list="typeList" placeholder="Reflection">
+        <datalist id="typeList"></datalist></label>
+      <label>Assessment<input id="lAss" type="text" placeholder="Topic 7 · Human Nutrition"></label>
+      <label style="flex:0 0 130px">Graduation year<input id="lYear" type="text" placeholder="2028"></label>
     </div>
     <div class="row">
       <label style="flex:1 1 320px">Link (https://…)
-        <input id="lUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…/edit"></label>
-      <label style="flex:1 1 160px">Note (optional)<input id="lNote" type="text"></label>
+        <input id="lUrl" type="url" placeholder="https://docs.google.com/…"></label>
+      <label style="flex:1 1 150px">Note (optional)<input id="lNote" type="text"></label>
       <button id="lAdd">Add spreadsheet</button>
     </div>
     <div class="msg" id="lMsg"></div>
@@ -109,9 +117,9 @@
     $('pageHint').style.display = live ? 'none' : '';
     $('pageOwn').textContent = live ? 'The page is set up.' : 'The page is not switched on yet.';
 
-    // categories
-    var sel = $('lCat'); sel.innerHTML='';
-    (d.categories||['Reflection']).forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+    // type suggestions
+    var dl = $('typeList'); dl.innerHTML='';
+    (d.types||['Reflection']).forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
 
     // teachers
     var tl = $('teacherList');
@@ -122,16 +130,23 @@
              '<button class="x" data-rmt="'+esc(t.email)+'">Remove</button></div>';
     }).join('');
 
-    // links, grouped by category in first-seen order
+    // links, grouped by cohort (graduation year); Records and no-year at the ends
     var ll = $('linkList');
     if(!d.links.length){ ll.innerHTML='<div class="empty">No spreadsheets yet.</div>'; }
     else {
-      var order=[], by={};
-      d.links.forEach(function(l){ var c=l.category||'Links'; if(!by[c]){by[c]=[];order.push(c);} by[c].push(l); });
-      ll.innerHTML = order.map(function(c){
-        return '<div class="cat">'+esc(c)+'</div>' + by[c].map(function(l){
-          var sub=[]; if(l.assessment&&l.assessment!==l.name)sub.push(l.assessment); if(l.year)sub.push(l.year); if(l.note)sub.push(l.note);
-          return '<div class="item"><div class="g"><div class="t">'+esc(l.name)+'</div>'+
+      var order=[], by={}, keyOf=function(l){
+        if(/^records?$/i.test(l.type)) return {k:'!records', label:'Records', sort:-1};
+        if(l.cohort) return {k:'g'+l.cohort.title, label:l.cohort.title+(l.cohort.yearGroup?' · '+l.cohort.yearGroup+' this year':''), sort:(l.grad.match(/\d{4}/)||[9999])[0]};
+        return {k:'~none', label:'No graduation year', sort:99999};
+      };
+      d.links.forEach(function(l){ var g=keyOf(l); if(!by[g.k]){by[g.k]={label:g.label,sort:+g.sort,items:[]};order.push(g.k);} by[g.k].items.push(l); });
+      order.sort(function(a,b){ return by[a].sort-by[b].sort; });
+      ll.innerHTML = order.map(function(k){
+        var grp=by[k];
+        return '<div class="cat">'+esc(grp.label)+'</div>' + grp.items.map(function(l){
+          var sub=[]; if(l.assessment&&l.assessment!==l.name)sub.push(l.assessment); if(l.note)sub.push(l.note);
+          return '<div class="item"><span class="tag tag--'+(l.typeClass||'other')+'">'+esc(l.type)+'</span>'+
+                 '<div class="g"><div class="t">'+esc(l.name)+'</div>'+
                  '<div class="s">'+(sub.length?esc(sub.join(' · '))+' — ':'')+'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">open ↗</a></div></div>'+
                  '<button class="x" data-rml="'+l.row+'">Remove</button></div>';
         }).join('');
@@ -163,8 +178,8 @@
 
   $('lAdd').onclick = function(){
     busy(true); msg('lMsg','Adding…');
-    var d={ category:$('lCat').value, assessment:$('lAss').value, year:$('lYear').value, name:'', url:$('lUrl').value, note:$('lNote').value };
-    google.script.run.withSuccessHandler(function(r){ busy(false); if(r&&r.ok){$('lAss').value='';$('lYear').value='';$('lUrl').value='';$('lNote').value='';render(r);msg('lMsg','Added.');} else msg('lMsg',(r&&r.why)||'Could not add.',true); })
+    var d={ type:$('lType').value||'Reflection', assessment:$('lAss').value, grad:$('lYear').value, name:'', url:$('lUrl').value, note:$('lNote').value };
+    google.script.run.withSuccessHandler(function(r){ busy(false); if(r&&r.ok){$('lAss').value='';$('lUrl').value='';$('lNote').value='';render(r);msg('lMsg','Added.');} else msg('lMsg',(r&&r.why)||'Could not add.',true); })
       .withFailureHandler(function(){busy(false);msg('lMsg','Could not add.',true);}).teacherAddLink(d);
   };
 </script>

@@ -1003,16 +1003,17 @@ ok &= run('add teachers and links from the dialog, read live, no code edit', () 
   if (!_isTeacher('colleague@x.kr')) throw new Error('the added teacher is not recognised by _isTeacher');
   if (teacherAddTeacher('Oops', 'pupil@pupils.x.kr').ok !== false) throw new Error('a pupil address was accepted as a teacher');
   if (teacherAddTeacher('again', 'colleague@x.kr').ok !== false) throw new Error('a duplicate teacher was accepted');
-  d = teacherAddLink({ category: 'Reflection', assessment: 'Topic 7 · Digestion', year: 'Y10 · 2026', url: 'https://docs.google.com/spreadsheets/d/AAA/edit', note: 'the digestion test' });
+  d = teacherAddLink({ type: 'Reflection', assessment: 'Topic 7 · Digestion', grad: '2028', url: 'https://docs.google.com/spreadsheets/d/AAA/edit', note: 'the digestion test' });
   const mine = d.links.filter(l => /AAA/.test(l.url))[0];
-  if (!mine || mine.assessment !== 'Topic 7 · Digestion' || mine.year !== 'Y10 · 2026' || mine.category !== 'Reflection') throw new Error('link stored wrong: ' + JSON.stringify(mine));
-  if (teacherAddLink({ category: 'Reflection', assessment: 'x', url: 'not a url' }).ok !== false) throw new Error('a bad link was accepted');
+  if (!mine || mine.assessment !== 'Topic 7 · Digestion' || mine.grad !== '2028' || mine.type !== 'Reflection') throw new Error('link stored wrong: ' + JSON.stringify(mine));
+  if (!mine.cohort || mine.cohort.title !== 'Class of 2028') throw new Error('cohort label wrong: ' + JSON.stringify(mine.cohort));
+  if (teacherAddLink({ type: 'Reflection', assessment: 'x', url: 'not a url' }).ok !== false) throw new Error('a bad link was accepted');
   if (teacherSetPageUrl('https://evil.example/exec').ok !== false) throw new Error('a non-webapp url was accepted');
   d = teacherSetPageUrl('https://script.google.com/a/macros/x.kr/s/AKfyP/exec');
   if (!d.pageLive || props.get('TEACHER_PAGE_URL') !== 'https://script.google.com/a/macros/x.kr/s/AKfyP/exec') throw new Error('page url not saved');
   const html = doGet({ parameter: { page: 'teachers' } }).html;
   if (!/AAA/.test(html)) throw new Error('the link did not render for the owner');
-  if (!/Topic 7 · Digestion/.test(html) || !/Y10 · 2026/.test(html)) throw new Error('the assessment/year did not render');
+  if (!/Topic 7 · Digestion/.test(html) || !/Class of 2028/.test(html)) throw new Error('the assessment/cohort did not render');
   d = teacherRemoveLink(mine.row);
   if (d.links.some(l => /AAA/.test(l.url))) throw new Error('link not removed');
   d = teacherRemoveTeacher('colleague@x.kr');
@@ -1033,21 +1034,50 @@ ok &= run('an old 4-column links tab is migrated, the misaligned row put right',
     'https://docs.google.com/spreadsheets/d/HN/edit?gid=1#gid=1']]);
   const d = teacherPanelData();                       // opening the panel migrates the tab
   const hdr = ss.getSheetByName(T_LINKS).getRange(1, 1, 1, 6).getValues()[0].map(x => String(x).replace(/^✎\s*/, '').trim());
-  if (hdr.join(',') !== 'Category,Assessment,Year,Name,Link,Note') throw new Error('headers not migrated: ' + hdr.join(','));
+  if (hdr.join(',') !== 'Type,Assessment,Graduation year,Name,Link,Note') throw new Error('headers not migrated: ' + hdr.join(','));
   const hn = d.links.filter(l => /HN/.test(l.url))[0];
-  if (!hn || hn.category !== 'Reflection' || hn.assessment !== 'Topic 7 - Human Nutrition' || hn.year !== '2026')
+  if (!hn || hn.type !== 'Reflection' || hn.assessment !== 'Topic 7 - Human Nutrition' || hn.grad !== '2026')
     throw new Error('the misaligned row was not fixed: ' + JSON.stringify(hn));
   const trk = d.links.filter(l => /TRK/.test(l.url))[0];
-  if (!trk || trk.category !== 'Records' || trk.assessment !== 'Student Progress Tracker')
+  if (!trk || trk.type !== 'Records' || trk.assessment !== 'Student Progress Tracker')
     throw new Error('the old seed row was not migrated: ' + JSON.stringify(trk));
   // a fresh add now lands aligned
-  const d2 = teacherAddLink({ category: 'Test system', assessment: 'X', year: 'Y10 · 2027', url: 'https://docs.google.com/spreadsheets/d/NEW/edit' });
+  const d2 = teacherAddLink({ type: 'Test', assessment: 'X', grad: '2027', url: 'https://docs.google.com/spreadsheets/d/NEW/edit' });
   const nw = d2.links.filter(l => /NEW/.test(l.url))[0];
-  if (!nw || nw.year !== 'Y10 · 2027' || nw.category !== 'Test system') throw new Error('a new add after migration is misaligned: ' + JSON.stringify(nw));
+  if (!nw || nw.grad !== '2027' || nw.type !== 'Test') throw new Error('a new add after migration is misaligned: ' + JSON.stringify(nw));
   // idempotent: a second open changes nothing
   const before = ss.getSheetByName(T_LINKS).getLastRow();
   teacherPanelData();
   if (ss.getSheetByName(T_LINKS).getLastRow() !== before) throw new Error('re-migration changed the row count');
+});
+ok &= run('the cohort label: graduation year is the anchor, the year group rolls forward', () => {
+  const sep26 = new Date(2026, 8, 15), sep27 = new Date(2027, 8, 15);
+  const a = _cohortLabel_('2028', sep26);
+  if (!a || a.title !== 'Class of 2028' || a.yearGroup !== 'Y10' || a.academic !== '2026–27') throw new Error('2028 in 2026: ' + JSON.stringify(a));
+  if (_cohortLabel_('2027', sep26).yearGroup !== 'Y11') throw new Error('2027 should be Y11 in 2026');
+  if (_cohortLabel_('2029', sep26).yearGroup !== 'Y9') throw new Error('2029 should be Y9 in 2026');
+  if (_cohortLabel_('2028', sep27).yearGroup !== 'Y11') throw new Error('the same 2028 cohort should be Y11 a year later');
+  if (_cohortLabel_('Class of 2028', sep26).yearGroup !== 'Y10') throw new Error('a "Class of 2028" string was not parsed');
+  if (_cohortLabel_('2040', sep26).yearGroup !== '') throw new Error('a far-off year should show no year group');
+  if (_cohortLabel_('', sep26) !== null) throw new Error('no year should be null');
+});
+ok &= run('the page organises: records pinned, cohorts by graduation year, types in order', () => {
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  teacherPanelData();
+  teacherAddLink({ type:'Survey',     assessment:'End of unit survey', grad:'2028', url:'https://x/survey' });
+  teacherAddLink({ type:'Test',       assessment:'Topic 7 test',       grad:'2028', url:'https://x/test' });
+  teacherAddLink({ type:'Reflection', assessment:'Topic 7 reflection', grad:'2028', url:'https://x/refl' });
+  teacherAddLink({ type:'Reflection', assessment:'Topic 1 reflection', grad:'2027', url:'https://x/y11' });
+  teacherAddLink({ type:'Records',    assessment:'Tracker',            grad:'',     url:'https://x/trk' });
+  const g = _teacherPageGroups_(new Date(2026, 8, 15));
+  if (!g.records.some(r => /trk/.test(r.url))) throw new Error('the record was not pinned to Records');
+  if (g.cohorts.map(c => c.grad).join(',') !== '2027,2028') throw new Error('cohorts not nearest-graduation first: ' + g.cohorts.map(c => c.grad));
+  const c2028 = g.cohorts.filter(c => c.grad === 2028)[0];
+  if (c2028.yearGroup !== 'Y10') throw new Error('cohort year group wrong: ' + c2028.yearGroup);
+  if (c2028.types.map(t => t.type).join(',') !== 'Reflection,Test,Survey') throw new Error('types not in reading order: ' + c2028.types.map(t => t.type));
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
 ok &= run('the panel refuses a student / web-app caller', () => {
   VISITOR = 'stu@pupils.x.kr';
