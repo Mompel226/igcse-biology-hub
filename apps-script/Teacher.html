@@ -53,7 +53,8 @@ h1 em{font-style:italic;color:var(--accent);transition:color .3s}
 .empty{padding:26px 20px;color:var(--dim);font-size:14px;text-align:center;border:1px dashed var(--line2);border-radius:12px}
 .warn{margin:18px 0;padding:14px 16px;border:1px solid rgba(245,166,35,.4);background:rgba(245,166,35,.08);border-radius:12px;color:#F6D08A;font-size:13.5px}
 .err{margin:18px 0;padding:14px 16px;border:1px solid rgba(239,107,107,.4);background:rgba(239,107,107,.08);border-radius:12px;color:#F3B4B4;font-size:13.5px}
-.note{color:var(--mute);font-size:12.5px;margin:30px 0 0;border-top:1px solid var(--line);padding-top:14px;max-width:76ch}
+.note{color:var(--mute);font-size:12.5px;line-height:1.65;margin:30px 0 0;border-top:1px solid var(--line);padding-top:14px;max-width:none}
+@media (max-width:560px){.note{font-size:12px}}
 /* ---- shared furniture ---- */
 .sec{margin:30px 0 0}
 .sec__h{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 12px;margin:0 0 4px}
@@ -118,7 +119,11 @@ input::placeholder{color:var(--mute)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin:16px 0 0}
 .tile{position:relative;padding:15px 16px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
 .tile::before{content:"";position:absolute;left:0;top:13px;bottom:13px;width:3px;border-radius:0 3px 3px 0;background:var(--tc,var(--accent))}
-.tile__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.tile__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);display:flex;align-items:center;gap:5px}
+.q{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;
+  border:1px solid var(--line2);font:600 8px/1 var(--mono);color:var(--mute);cursor:help;flex:none}
+.tile:hover .q{color:var(--chalk);border-color:var(--chalk)}
+.stat div[title]{cursor:help}.hm th.lab[title]{cursor:pointer}
 .tile__v{font:400 28px/1 var(--serif);color:var(--chalk);margin-top:8px;font-variant-numeric:tabular-nums}
 .tile__v small{font:500 12px/1 var(--mono);color:var(--mute)}
 .tile__s{font-size:11.5px;color:var(--dim);margin-top:5px}
@@ -301,8 +306,10 @@ var BOOT = __BOOT__;
   var cache = {}, cur = null, busy = false;
 
   function tabsHtml(){
-    return ORDER.filter(function(k){ return k!=='students' || BOOT.hasStudents; })
-      .map(function(k){ return '<button class="tab'+(k===cur?' on':'')+'" data-tab="'+k+'">'+esc(VIEWS[k].label)+'</button>'; }).join('');
+    /* Every tab is always here. A tab that quietly vanishes when a setting is missing leaves the
+       teacher with nothing to act on — the view itself says what is needed instead. */
+    return ORDER.map(function(k){
+      return '<button class="tab'+(k===cur?' on':'')+'" data-tab="'+k+'">'+esc(VIEWS[k].label)+'</button>'; }).join('');
   }
   function chrome(){
     document.documentElement.style.setProperty('--accent', VIEWS[cur].accent);
@@ -460,7 +467,9 @@ var BOOT = __BOOT__;
              : (COH.filter(function(c){return String(c.grad)===String(stState.grad);})[0]||{classes:[]}).classes;
     if (pool.indexOf(stState.cls)<0) stState.cls='all';
     $('view').innerHTML =
-      (base?'':'<div class="warn">No reflection address is set, so the buttons have nowhere to go. Set it in 🧪 Biology Labs ▸ 🔗 Teacher page.</div>')+
+      (base?'':'<div class="warn"><b>The tracker address is not set yet, so the buttons below have nowhere to go.</b><br>'+
+        'In the labs spreadsheet: 🧪 Biology Labs ▸ 🔗 Teacher page ▸ “Open a student’s tracker”. It wants the '+
+        '<b>/exec</b> address of one of your reflection deployments — not a spreadsheet link. Everything else on this tab works without it.</div>')+
       '<div class="bar2"><div class="fld"><label for="tg">Cohort</label><select id="tg"><option value="all">All cohorts</option>'+
       COH.map(function(c){ return '<option value="'+c.grad+'"'+(String(c.grad)===String(stState.grad)?' selected':'')+'>'+esc(c.title+(c.yg?' · '+c.yg:''))+'</option>'; }).join('')+
       '</select></div><div class="fld"><label for="tc">Class</label><select id="tc"><option value="all">All classes</option>'+
@@ -556,11 +565,20 @@ var BOOT = __BOOT__;
       list.forEach(function(s){ var sm=summ(s); if(sm.started){started++;sumA+=sm.attain;} att+=sm.started; ftS+=sm.ft; qS+=sm.q;
         if(concern(sm)>0&&!isRvd(s)) flagged++; });
       out += '<div class="tiles">'+
-        tile('cyan','Students',n,'in view')+
-        tile('good','Avg score', started?pc(sumA/started):'—','on labs they have done')+
-        tile('magenta','Labs attempted', n?r1(att/n)+'<small> / '+LABS.length+'</small>':'—','per student')+
-        tile('cyan','Right first time', qS?pc(100*ftS/qS):'—','first try')+
-        tile('bad','Need a look', flagged, flagged?'flagged below':'nobody flagged')+'</div>';
+        tile('cyan','Students',n,'in view','How many students match the filters above.')+
+        tile('good','Avg score', started?pc(sumA/started):'—','on labs they have done',
+          'Each student\u2019s own average across the labs they have HANDED IN, then averaged over those students. '+
+          'A lab nobody has started is not counted at all, so a class is never marked down for work that was never set.')+
+        tile('magenta','Labs attempted', n?r1(att/n)+'<small> / '+LABS.length+'</small>':'—','per student',
+          'How many of the '+LABS.length+' live labs an average student has handed in at least once.')+
+        tile('cyan','Right first time', qS?pc(100*ftS/qS):'—','answered right at the first try',
+          'Out of every question inside the labs these students have handed in, the share they got right on '+
+          'their FIRST press of Check. It is not a share of students: it counts questions. '+
+          'A low number with a high average score means they are working answers out rather than knowing them.')+
+        tile('bad','Need a look', flagged, flagged?'flagged below':'nobody flagged',
+          'Students flagged as Struggling (under '+STRUGGLE+'% on the labs they have done) or Stuck '+
+          '(pressing Check '+STUCK_CPQ+'\u00d7 or more per question yet still under '+STUCK_MAX+'%). '+
+          'Not having started a lab is never flagged.')+'</div>';
       /* heatmap */
       var arr=list.map(function(s){return {s:s,sm:summ(s)};});
       arr.sort(function(a,b){
@@ -570,7 +588,10 @@ var BOOT = __BOOT__;
         if(pState.sort==='class') return a.s.cls.localeCompare(b.s.cls)||a.s.name.localeCompare(b.s.name);
         return (a.s.name||'').localeCompare(b.s.name||''); });
       var head='<tr><th class="cnr">Student</th>'+LABS.map(function(l){
-        return '<th class="lab" data-lab="'+esc(l.id)+'" title="'+esc(l.name+' · '+l.questions+' questions')+'">'+esc(short(l.name))+'<span class="lt">'+esc(l.topic||'')+'</span></th>'; }).join('')+'</tr>';
+        /* name only: the syllabus topic is long and was repeating the heading. It lives in the tip. */
+        return '<th class="lab" data-lab="'+esc(l.id)+'" title="'+esc(short(l.name)+' — '+(l.topic||'')+
+          '\n'+l.questions+' questions in all.\nClick to see this lab\u2019s hardest parts below.')+'">'+
+          esc(short(l.name))+'</th>'; }).join('')+'</tr>';
       var rows=arr.map(function(o){ var s=o.s;
         return '<tr><td class="name" data-i="'+s.__i+'"><div class="nm">'+esc(s.name||'(no name)')+'</div><div class="cl">'+esc(s.cls||'—')+'</div></td>'+
           LABS.map(function(l){ var e=s.byLab[l.id];
@@ -588,10 +609,11 @@ var BOOT = __BOOT__;
           P.order.forEach(function(nm){ var S=P.S[nm]; if(!S.t)return; var p2=100*S.d/S.t; if(!hd||p2<hd.p) hd={n:nm,p:p2}; });
           return '<div class="labc"><div class="labc__h"><span class="labc__n">'+esc(short(l.name))+'</span><span class="labc__t">'+esc(l.topic||'')+'</span></div>'+
             '<div class="pbar"><i style="width:'+r0(avg)+'%;background:'+g.bd+'"></i></div>'+
-            '<div class="stat"><div><b>'+pc(avg)+'</b><span>Avg score</span></div>'+
-            '<div><b>'+pc(n?100*P.st/n:0)+'</b><span>Started</span></div>'+
-            '<div><b>'+pc(n?100*P.cp/n:0)+'</b><span>Finished</span></div>'+
-            '<div><b>'+pc(P.q?100*P.ft/P.q:0)+'</b><span>Right 1st</span></div></div>'+
+            '<div class="stat">'+
+            '<div title="Average score of the students who have handed THIS lab in."><b>'+pc(avg)+'</b><span>Avg score</span></div>'+
+            '<div title="Share of the students in view who have handed this lab in at least once."><b>'+pc(n?100*P.st/n:0)+'</b><span>Started</span></div>'+
+            '<div title="Share of the students in view who have finished every question in this lab."><b>'+pc(n?100*P.cp/n:0)+'</b><span>Finished</span></div>'+
+            '<div title="Of every question answered in this lab, the share right at the first press of Check."><b>'+pc(P.q?100*P.ft/P.q:0)+'</b><span>Right 1st</span></div></div>'+
             (hd?'<div class="hard">Hardest: <b>'+esc(stName(l.id,hd.n))+'</b> · '+pc(hd.p)+'</div>':'')+'</div>'; }).join('')+'</div>');
       /* who needs a look */
       var all=list.map(function(s){return {s:s,sm:summ(s)};}).filter(function(o){return concern(o.sm)>0;})
@@ -641,7 +663,9 @@ var BOOT = __BOOT__;
       $('plist').innerHTML = out;
       wireP();
     }
-    function tile(c,k,v,s){ return '<div class="tile" style="--tc:var(--'+c+')"><div class="tile__k">'+esc(k)+'</div><div class="tile__v">'+v+'</div><div class="tile__s">'+esc(s)+'</div></div>'; }
+    function tile(c,k,v,s,tip){ return '<div class="tile" style="--tc:var(--'+c+')"'+(tip?' title="'+esc(tip)+'"':'')+'>'+
+      '<div class="tile__k">'+esc(k)+(tip?'<span class="q">?</span>':'')+'</div><div class="tile__v">'+v+'</div>'+
+      '<div class="tile__s">'+esc(s)+'</div></div>'; }
     function sec(t,d,b,n){ return '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(t)+'</span>'+(n?'<span class="sec__n">'+esc(n)+'</span>':'')+'</div>'+(d?'<p class="sec__d">'+esc(d)+'</p>':'')+b+'</section>'; }
     function wireP(){
       document.querySelectorAll('.hm td.name, .attr').forEach(function(el){ el.addEventListener('click', function(ev){
