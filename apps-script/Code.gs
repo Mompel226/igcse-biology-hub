@@ -20,6 +20,8 @@
  *      which one it is the first time you run it, and remembers.
  *      Then + (next to Files) ▸ HTML ▸ name it exactly  ClassroomImport
  *      and paste apps-script/ClassroomImport.html into it. Save.
+ *      (For the teacher page, add a second HTML file named exactly  TeacherPage
+ *       with apps-script/TeacherPage.html — only needed if you use the teacher page.)
  *   4. Services (+) ▸ Classroom ▸ Add.        (needed for the roster import)
  *   5. Run ▸ setup. Authorise when asked. It builds and styles every tab.
  *   6. Deploy ▸ New deployment ▸ Web app
@@ -32,7 +34,39 @@
  * Version: New version ▸ Deploy. Editing alone changes nothing.
  */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SETTINGS — the only lines you ever fill in. They are all here, so you never have to
+   look for them; the fuller explanation of each is further down, beside the code that uses it.
+
+   A value typed here is copied into Project Settings ▸ Script Properties the first time it is
+   read, so pasting a fresh copy of this file over the top later never wipes what you set.
+   NEVER type any of these into the copy in the public GitHub repository.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The labs Sheet ("Student data"). You do NOT normally fill this in — the script lives inside the
+   Sheet and works out its own id the first time you run it. Paste an id here only to point it at a
+   different Sheet. */
 var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
+
+/* Sign-in — needed for ANY hand-in to be recorded. The OAuth Client ID from Google Cloud: the SAME
+   string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
+   create one, see "Signing in" further down, or the README. Empty = nothing is recorded (the labs
+   still work; everyone still gets a completion code). */
+var CLIENT_ID = '';
+
+/* The record card on the hub — optional. TRACKER_ID is the id of the "Student Progress Tracker"
+   workbook: the long string in its address between /d/ and /edit (NOT an assessment's own
+   spreadsheet). SCHOOL_DOMAIN is your school's email domain. Leave both empty and the hub never
+   offers the card. See "The reflection record" below. */
+var TRACKER_ID     = '';
+var SCHOOL_DOMAIN  = '';
+
+/* The teacher page — optional. TEACHERS is other teachers' school addresses, comma-separated (you
+   are always in; type "none" to clear the rest). TEACHER_PAGE_URL is the /exec address of the
+   teacher-page deployment. You do not have to edit these by hand: 🧪 Biology Labs ▸ 🔗 Teacher page
+   manages both from a window. See "The teacher page" below. */
+var TEACHERS          = '';
+var TEACHER_PAGE_URL  = '';
 
 /* ---- The reflection record (optional) -------------------------------------
    Separate from the labs, and separate from this Sheet: the Assessment Reflection System
@@ -62,7 +96,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
      SCHOOL_DOMAIN   your school's email domain, so somebody signing in with a personal
                      account is told that plainly rather than being shown an empty record.
 
-   Type them into the two lines below, in YOUR Apps Script — that copy is private to your
+   Type them into SETTINGS at the top of this file, in YOUR Apps Script — that copy is private to your
    Google account. (Or add them in Project Settings ▸ Script Properties; either works.) A value
    typed below is copied into Script Properties the first time it is read — 🩺 Check the
    set-up reads both — so pasting a fresh copy of this file over the top later, with these
@@ -70,8 +104,6 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
    public GitHub repository. Leave both unset and the hub never offers the card; every lab
    goes on working exactly as before.
    -------------------------------------------------------------------------- */
-var TRACKER_ID     = '';
-var SCHOOL_DOMAIN  = '';
 
 /* ---- The teacher page (optional) ------------------------------------------
    A page for teachers only, holding the address of every spreadsheet in the Assessment
@@ -95,11 +127,9 @@ var SCHOOL_DOMAIN  = '';
                        a signed-in teacher on the list asks; it is never written into the website.
 
    🧪 Biology Labs ▸ 🔗 Teacher page makes the tab and walks through the rest. Like
-   TRACKER_ID, a value typed below is kept in Script Properties, and neither belongs in the
+   TRACKER_ID, a value typed in SETTINGS at the top is kept in Script Properties, and neither belongs in the
    public GitHub copy.
    -------------------------------------------------------------------------- */
-var TEACHERS          = '';
-var TEACHER_PAGE_URL  = '';
 
 /* Every lab that can hand in. `id` is what the site sends as `app`; `tab` is the
    tab it is written to. Add a row here (or in the Labs tab) as each lab is built.
@@ -179,17 +209,16 @@ var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
        Authorised JavaScript origins:  https://nlcsbiology.com
        (no path, no trailing slash. Leave redirect URIs empty.)
      Create, then copy the Client ID (it ends .apps.googleusercontent.com) into BOTH
-     places: here, and googleClientId in every lab's js/config.js.
+     places: SETTINGS at the top, and googleClientId in every lab's js/config.js.
      The full version of this is in the README, under "Sign-in: what the Client ID is".
 
    Leave it empty and nothing is recorded at all — the labs still work, and everyone gets
    a completion code to hand in by other means.
    -------------------------------------------------------------------------- */
-var CLIENT_ID = '';
 
-/* Pasting a fresh copy of this file used to wipe the Client ID typed in above, and every
+/* Pasting a fresh copy of this file used to wipe the Client ID you had typed, and every
    hand-in then came back "not recorded: sign-in is not set up" — silently, until a mark went
-   missing. So it is remembered the same way SHEET_ID is: fill the line above once, and from
+   missing. So it is remembered the same way SHEET_ID is: fill it in SETTINGS at the top once, and from
    then on an empty line means "use the one you remembered", not "forget it". */
 function _clientId() {
   var props;
