@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789650514">
+<link rel="stylesheet" href="css/hub.css?v=1789651516">
 </head>
 <body>
 
@@ -40,8 +40,11 @@
              This row exists only to put the apps rectangle to the LEFT of whatever the account
              corner is showing — Google's own button when signed out, one of our cards after. -->
         <div class="acct__row">
-        <a class="tools" href="applications.html"
-           title="Two free apps for teachers: a seating plan and a birthday reminder">
+        <!-- Staff only, and hidden until the sign-in says so. Nothing is protected by this: the
+             page and both repositories are public. It is here so a student is not offered a
+             seating-plan app they have no use for. -->
+        <a class="tools" href="applications.html" hidden
+           title="Free apps teachers have made: a seating plan and a birthday reminder">
           <span class="tools__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6" fill="currentColor"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6" fill="currentColor" opacity=".72"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6" fill="currentColor" opacity=".72"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6" fill="currentColor" opacity=".45"/></svg></span>Apps</a>
         <div class="acct__gsi" id="acctGsi" hidden></div>
         <!-- Everything else is one of our two cards. The figure says "an account" before a
@@ -130,11 +133,11 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<script src="js/data/labs.js?v=1789650514"></script>
-<script src="js/progress.js?v=1789650514"></script>
-<script src="js/signin.js?v=1789650514"></script>
-<script src="js/shelves.js?v=1789650514"></script>
-<script src="js/local.js?v=1789650514"></script>
-<script src="js/hub.js?v=1789650514"></script>
+<script src="js/data/labs.js?v=1789651516"></script>
+<script src="js/progress.js?v=1789651516"></script>
+<script src="js/signin.js?v=1789651516"></script>
+<script src="js/shelves.js?v=1789651516"></script>
+<script src="js/local.js?v=1789651516"></script>
+<script src="js/hub.js?v=1789651516"></script>
 </body>
 </html>
