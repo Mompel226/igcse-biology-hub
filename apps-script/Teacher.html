@@ -257,7 +257,7 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 <header class="top">
   <div class="top__in">
     <p class="eye">Biology Hub · <b>Teachers only</b></p>
-    <nav class="tabs" id="tabs" aria-label="Teacher views"></nav>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Teacher views"></nav>
     <span class="who" id="who"></span>
     <button class="rf" id="rf" title="Read the sheet again">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>
@@ -266,11 +266,11 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 <main class="wrap">
   <h1 id="h1"></h1>
   <p class="lede" id="lede"></p>
-  <div id="view"><div class="load">Loading</div></div>
+  <div id="view" role="tabpanel" tabindex="-1"><div class="load">Loading</div></div>
   <p class="note" id="note"></p>
 </main>
 <div class="scrim" id="scrim"></div>
-<aside class="draw" id="draw" aria-hidden="true" aria-label="Student detail">
+<aside class="draw" id="draw" aria-hidden="true" inert aria-label="Student detail">
   <div class="draw__h"><button class="draw__x" id="drawx" aria-label="Close">✕</button>
     <h2 class="draw__n" id="drawn"></h2><div class="draw__m" id="drawm"></div></div>
   <div class="draw__b" id="drawb"></div>
@@ -311,24 +311,42 @@ var BOOT = __BOOT__;
   var ORDER = ['teachers','progress','students','homework'];
   var cache = {}, cur = null, busy = false;
 
-  function tabsHtml(){
-    /* Every tab is always here. A tab that quietly vanishes when a setting is missing leaves the
-       teacher with nothing to act on — the view itself says what is needed instead. */
-    return ORDER.map(function(k){
-      return '<button class="tab'+(k===cur?' on':'')+'" data-tab="'+k+'">'+esc(VIEWS[k].label)+'</button>'; }).join('');
+  /* Every tab is always here. A tab that quietly vanishes when a setting is missing leaves the
+     teacher with nothing to act on — the view itself says what is needed instead.
+     Built once and then only toggled: rewriting the bar on every switch destroyed the very button
+     the user had just pressed, so a keyboard user lost their place to <body> each time. */
+  function buildTabs(){
+    $('tabs').innerHTML = ORDER.map(function(k){
+      return '<button class="tab" role="tab" id="tab-'+k+'" aria-controls="view" data-tab="'+k+'">'+
+             esc(VIEWS[k].label)+'</button>'; }).join('');
+    document.querySelectorAll('.tab').forEach(function(b){
+      b.addEventListener('click', function(){ go(b.getAttribute('data-tab')); });
+      b.addEventListener('keydown', function(e){
+        var i = ORDER.indexOf(b.getAttribute('data-tab')), n = ORDER.length, j = -1;
+        if (e.key==='ArrowRight') j=(i+1)%n; else if (e.key==='ArrowLeft') j=(i-1+n)%n;
+        else if (e.key==='Home') j=0; else if (e.key==='End') j=n-1;
+        if (j>=0){ e.preventDefault(); var t=document.getElementById('tab-'+ORDER[j]); t.focus(); go(ORDER[j]); }
+      });
+    });
+  }
+  function markTabs(){
+    document.querySelectorAll('.tab').forEach(function(b){
+      var on = b.getAttribute('data-tab')===cur;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.setAttribute('tabindex', on ? '0' : '-1');   /* one stop for the whole bar, as a tablist should be */
+    });
   }
   function chrome(){
     document.documentElement.style.setProperty('--accent', VIEWS[cur].accent);
-    $('tabs').innerHTML = tabsHtml();
+    markTabs();
+    $('view').setAttribute('aria-labelledby', 'tab-'+cur);
     $('h1').innerHTML = VIEWS[cur].h1;
     $('lede').textContent = VIEWS[cur].lede;
     $('note').textContent = VIEWS[cur].note;
     $('who').innerHTML = BOOT.email
       ? '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4" fill="currentColor"/>'+
         '<path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>'+esc(BOOT.email) : '';
-    document.querySelectorAll('.tab').forEach(function(b){
-      b.addEventListener('click', function(){ go(b.getAttribute('data-tab')); });
-    });
   }
   var queued = null;
   function go(tab, force){
@@ -336,7 +354,6 @@ var BOOT = __BOOT__;
        Remember the last one and honour it when the read lands. */
     if (busy) { queued = tab; return; }
     cur = tab; chrome();
-    try { history.replaceState(null,'', '?page='+tab); } catch(e){}
     if (cache[tab] && !force) return draw();
     $('view').innerHTML = '<div class="load">Loading</div>';
     busy = true;
@@ -434,7 +451,7 @@ var BOOT = __BOOT__;
   });
 
   /* ─────────── Students ─────────── */
-  var stState = { grad:'all', cls:'all', q:'' };
+  var stState = { grad:'all', cls:'all', q:'' }, stTimer = null;
   function vStudents(dir, base){
     var STUD = dir.students||[];
     if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
@@ -503,17 +520,31 @@ var BOOT = __BOOT__;
       '<span class="sec__n" id="scount"></span></div><div id="slist2"></div>';
     $('tg').addEventListener('change', function(){ stState.grad=this.value; stState.cls='all'; vStudents(dir, base); });
     $('tc').addEventListener('change', function(){ stState.cls=this.value; paint(); });
-    var t2=null;
-    $('tq').addEventListener('input', function(){ stState.q=this.value.trim(); clearTimeout(t2); t2=setTimeout(paint,140); });
+    $('tq').addEventListener('input', function(){ stState.q=this.value.trim();
+      clearTimeout(stTimer); stTimer=setTimeout(paint,140); });   /* hoisted: re-entry left orphan timers */
     paint();
   }
 
   /* ─────────── shared drawer ─────────── */
+  var drawCameFrom = null;
   function openDraw(title, meta, html){
     $('drawn').textContent = title; $('drawm').innerHTML = meta; $('drawb').innerHTML = html;
-    $('draw').classList.add('on'); $('draw').setAttribute('aria-hidden','false'); $('scrim').classList.add('on');
+    drawCameFrom = document.activeElement;
+    var d=$('draw');
+    d.classList.add('on'); d.setAttribute('aria-hidden','false'); d.removeAttribute('inert');
+    $('scrim').classList.add('on');
+    $('drawx').focus();
   }
-  function closeDraw(){ $('draw').classList.remove('on'); $('draw').setAttribute('aria-hidden','true'); $('scrim').classList.remove('on'); }
+  function closeDraw(){
+    var d=$('draw');
+    if (!d.classList.contains('on')) return;
+    /* inert while closed: otherwise the Close button stays in the tab order inside an
+       aria-hidden container, and a keyboard user tabs into an invisible control */
+    if (d.contains(document.activeElement)) { try { (drawCameFrom||document.body).focus(); } catch(e){} }
+    d.classList.remove('on'); d.setAttribute('aria-hidden','true'); d.setAttribute('inert','');
+    $('scrim').classList.remove('on');
+    drawCameFrom = null;
+  }
   $('drawx').addEventListener('click', closeDraw);
   $('scrim').addEventListener('click', closeDraw);
   document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeDraw(); });
@@ -528,6 +559,7 @@ var BOOT = __BOOT__;
     /* a view that writes must replace what the shell has cached, or leaving the tab and coming
        back shows the state from BEFORE the write — homework just set looks like it never saved */
     put:function(tab, r){ cache[tab] = r; } };
+  buildTabs();
   go(BOOT.tab || 'teachers');
 })();
 </script>
@@ -541,7 +573,7 @@ var BOOT = __BOOT__;
 
   /* ─────────────────────── Lab progress ─────────────────────── */
   var STRUGGLE = 50, STUCK_CPQ = 2, STUCK_MAX = 75;
-  var pState = { grad:'all', cls:'all', q:'', sort:'attention', lab:null, showRvd:false };
+  var pState = { grad:'all', cls:'all', q:'', sort:'attention', lab:null, showRvd:false }, pTimer = null;
   var REVIEWED = (function(){ try { return new Set(JSON.parse(localStorage.getItem('labprogress.reviewed')||'[]')); } catch(e){ return new Set(); } })();
   function keyOf(s){ return (s.cls||'')+'|'+(s.name||''); }
   function isRvd(s){ try { return REVIEWED.has(keyOf(s)); } catch(e){ return false; } }
@@ -754,8 +786,8 @@ var BOOT = __BOOT__;
     $('pg').addEventListener('change', function(){ pState.grad=this.value; pState.cls='all'; window.vProgress(D); });
     $('pcl').addEventListener('change', function(){ pState.cls=this.value; paint(); });
     $('ps').addEventListener('change', function(){ pState.sort=this.value; paint(); });
-    var t3=null;
-    $('pq').addEventListener('input', function(){ pState.q=this.value; clearTimeout(t3); t3=setTimeout(paint,150); });
+    $('pq').addEventListener('input', function(){ pState.q=this.value;
+      clearTimeout(pTimer); pTimer=setTimeout(paint,150); });
     paint();
   };
 
@@ -770,9 +802,10 @@ var BOOT = __BOOT__;
     function oneClass(){ return hState.rows.length===1?hState.rows[0].cls:''; }
     function classPupils(){ var c=oneClass(); return c?STUD.filter(function(s){return s.cls===c;}):[]; }
     function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due;}); }
-    function fmtD(iso){ if(!iso)return '—'; try{ return new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }catch(e){ return '—'; } }
-    function dueCls(iso){ if(!iso)return ''; var d=new Date(iso).getTime(), n=Date.now();
-      return d<n?'over':(d-n<3*86400000?'soon':''); }
+    /* The server words the date and decides overdue/soon in the SCHOOL's timezone, so the browser
+       does no date arithmetic at all — it cannot disagree about which day it is. */
+    function fmtD(h){ return h.dueText || '—'; }
+    function dueCls(h){ return h.overdue ? 'over' : (h.soon ? 'soon' : ''); }
 
     function paint(){
       var warn='';
@@ -783,8 +816,10 @@ var BOOT = __BOOT__;
       function opts(sel){ return '<option value="">Choose a class…</option>'+names.map(function(c){return '<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+esc(c)+'</option>';}).join(''); }
       var crows=hState.rows.map(function(r,i){
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
-          '<div class="fld" style="flex:0 0 180px"><label>Class</label><select data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
-          '<div class="fld" style="flex:0 0 180px"><label>Due</label><input type="date" data-due="'+i+'" value="'+esc(r.due||'')+'"></div>'+
+          '<div class="fld" style="flex:0 0 180px"><label for="hc'+i+'">Class</label>'+
+            '<select id="hc'+i+'" data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
+          '<div class="fld" style="flex:0 0 180px"><label for="hd'+i+'">Due</label>'+
+            '<input id="hd'+i+'" type="date" data-due="'+i+'" value="'+esc(r.due||'')+'"></div>'+
           (hState.rows.length>1?'<button class="act" data-rmrow="'+i+'">Remove</button>':'')+'</div>'; }).join('');
       var pupils=classPupils();
       var pbox = (oneClass()&&pupils.length)
@@ -831,7 +866,7 @@ var BOOT = __BOOT__;
           '<div class="bars" title="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
           '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
           '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
-          '<div class="hw__due '+dueCls(h.due)+'"><b>'+esc(fmtD(h.due))+'</b>due</div></div>'+
+          '<div class="hw__due '+dueCls(h)+'"><b>'+esc(fmtD(h))+'</b>due</div></div>'+
           (op?'<div class="hw__b">'+(h.pupils.map(function(x){
             return '<div class="prow"><div class="prow__n">'+esc(x.name||'(no name)')+'<span>'+esc(x.cls||'')+'</span></div>'+
               '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
@@ -920,7 +955,8 @@ var BOOT = __BOOT__;
           else say((r&&r.why)||'Could not set it.', true); })
         .withFailureHandler(function(){ hState.busy=false; say('Could not set it.', true); })
         .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks,
-          classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due+'T23:59:00',emails:emails}:{cls:r.cls,due:r.due+'T23:59:00',emails:[]}; }) });
+          /* send the plain date; the server pins it to the end of that day in the school's zone */
+          classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,emails:emails}:{cls:r.cls,due:r.due,emails:[]}; }) });
     }
     paint();
   };
