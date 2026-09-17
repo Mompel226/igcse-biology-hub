@@ -114,7 +114,13 @@ table.hm{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .flag.mid{color:#F1CFFB;border-color:rgba(232,121,249,.4);background:rgba(232,121,249,.1)}
 .attr__p{flex:none;text-align:right;font-variant-numeric:tabular-nums}
 .attr__p b{font:400 20px/1 var(--serif);color:var(--chalk)}.attr__p span{display:block;font:600 9px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:3px}
-.allok{padding:20px;color:var(--good);font-size:14px}.allok b{font-weight:600}
+.allok{padding:20px;color:var(--good);font-size:14px}.allok b{font-weight:600;color:var(--chalk)}
+.attr__rev{flex:none;font:600 9px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);background:transparent;
+  border:1px solid var(--line2);border-radius:999px;padding:8px 11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+.attr__rev:hover{color:var(--chalk);border-color:var(--chalk)}
+.attr.rvd{opacity:.55}.attr.rvd .attr__rev{color:var(--good);border-color:rgba(45,212,191,.4)}
+.rvdline{margin-top:14px}.rvdwrap{margin-top:10px}
+.attr__rev:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* stations */
 .stwrap{display:grid;gap:8px}
 .strow{display:grid;grid-template-columns:150px 1fr auto;align-items:center;gap:14px;padding:10px 15px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
@@ -175,7 +181,7 @@ noscript{display:block;margin:24px 0;padding:16px 18px;border:1px solid var(--li
   <div class="topbar" id="topbar"></div>
   <noscript>This page needs JavaScript to draw the charts. Please turn it on and reload.</noscript>
   <div id="app"></div>
-  <p class="note">This page only reads the marks; it changes nothing. A student appears once they have handed in at least one lab. “Progress” counts a lab not yet started as 0, so it blends how much a class has covered with how well. Retries = how many times a station was checked; right first time = answered correctly on the first check.</p>
+  <p class="note">This page only reads the marks; it changes nothing. Scores are averaged over the labs a student has actually handed in — a lab not yet started is shown as a blank in the grid, never counted as a zero, since with no set deadlines a missing lab may simply not have been assigned. Retries = how many times a station was checked; right first time = answered correctly on the first check. “Reviewed” ticks are kept in this browser only.</p>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -230,6 +236,15 @@ var DATA = __DATA__;
 
   var state = { grad:'all', cls:'all', q:'', sort:'attention', lab: LABS[0].id };
 
+  /* "Reviewed" — a teacher can tick a flagged student off once they’ve dealt with them, so the
+     list shows only who is still to look at. Remembered on THIS device (localStorage); it never
+     leaves the browser and changes no marks. Keyed by class+name (email is kept off this payload). */
+  var REVIEWED = (function(){ try { return new Set(JSON.parse(localStorage.getItem('labprogress.reviewed') || '[]')); } catch(e){ return new Set(); } })();
+  var showReviewed = false;
+  function keyOf(s){ return (s.cls||'') + '|' + (s.name||''); }
+  function isReviewed(s){ try { return REVIEWED.has(keyOf(s)); } catch(e){ return false; } }
+  function saveReviewed(){ try { var a=[]; REVIEWED.forEach(function(v){ a.push(v); }); localStorage.setItem('labprogress.reviewed', JSON.stringify(a)); } catch(e){} }
+
   /* ---- per-student summary over the live labs ---- */
   function summ(s){
     var sum=0, started=0, complete=0, checks=0, q=0, ft=0, handIns=0;
@@ -237,22 +252,29 @@ var DATA = __DATA__;
     var attain = started ? sum/started : 0;
     return { progress: sum/LABS.length, attain:attain, started:started, complete:complete, checks:checks, q:q, ft:ft, handIns:handIns, cpq: q?checks/q:0, coverage: started/LABS.length };
   }
-  /* concern flags for a student */
-  /* a flag marks something a teacher would actually want to act on — being merely below
-     average (50–70%) is normal and does not flag on its own */
+  /* A flag is only ever raised on how a student did on the labs they HAVE handed in — never on
+     labs they have not started. With no deadlines a missing lab may simply not be set yet, or
+     (for a year group that pre-dates this system) never have existed for them, so "not started"
+     and "thin coverage" would flag almost everyone and mean nothing. Two signals, both about work
+     actually done:
+       Struggling — averaging under 50% on the labs they have handed in.
+       Stuck      — checking twice or more per question on average, yet still under 75% (working
+                    hard at it but not getting there).
+     A student who has handed nothing in is never flagged. */
+  var STRUGGLE = 50, STUCK_CPQ = 2, STUCK_MAX = 75;
   function flags(sm){
     var f=[];
-    if(sm.started===0){ f.push({t:'Not started',k:'bad'}); return f; }
-    if(sm.coverage<0.5) f.push({t:'Low coverage',k:'warn'});
-    if(sm.attain<50) f.push({t:'Struggling',k:'bad'});
-    if(sm.cpq>=2 && sm.attain<75) f.push({t:'Lots of retries',k:'mid'});
-    if(sm.started && sm.handIns/sm.started>=3) f.push({t:'Many hand-ins',k:'mid'});
+    if(sm.started===0) return f;
+    if(sm.attain<STRUGGLE) f.push({t:'Struggling',k:'bad'});
+    if(sm.cpq>=STUCK_CPQ && sm.attain<STUCK_MAX) f.push({t:'Stuck',k:'mid'});
     return f;
   }
   function concern(sm){
-    if(sm.started===0) return 1000;
-    var sc=0; if(sm.coverage<0.5) sc+=300; if(sm.attain<50) sc+=200+(50-sm.attain);
-    if(sm.cpq>=2 && sm.attain<75) sc+=60; if(sm.started && sm.handIns/sm.started>=3) sc+=40; return sc;
+    if(sm.started===0) return 0;
+    var sc=0;
+    if(sm.attain<STRUGGLE) sc+=200+(STRUGGLE-sm.attain);
+    if(sm.cpq>=STUCK_CPQ && sm.attain<STUCK_MAX) sc+=60;
+    return sc;
   }
 
   function currentStudents(){
@@ -302,15 +324,18 @@ var DATA = __DATA__;
   }
 
   function tiles(list){
-    var n=list.length, cells=n*LABS.length, sumP=0, complete=0, notStarted=0, attn=0;
-    list.forEach(function(s){ var sm=summ(s); sumP+=sm.progress; if(sm.started===0) notStarted++; complete+=sm.complete; if(concern(sm)>0) attn++; });
-    var avgComplete = n? complete/n : 0;
+    var n=list.length, started=0, sumAttain=0, attempted=0, sumFt=0, sumTot=0, attn=0;
+    list.forEach(function(s){ var sm=summ(s);
+      if(sm.started>0){ started++; sumAttain+=sm.attain; }
+      attempted+=sm.started; sumFt+=sm.ft; sumTot+=sm.q;
+      if(concern(sm)>0 && !isReviewed(s)) attn++;
+    });
     var t = '<div class="tiles">';
-    t += tile('cyan','Students', n, list.length? (COHORTS.length && state.grad!=='all' ? 'in this cohort' : 'in view') : '');
-    t += tile('good','Avg progress', n? pctTxt(sumP/n):'—', 'across all labs');
-    t += tile('magenta','Labs complete', n? r1(avgComplete)+'<small> / '+LABS.length+'</small>':'—', 'per student, on average');
-    t += tile('warn','Not started', notStarted, notStarted? 'yet to hand in a lab':'everyone has begun');
-    t += tile('bad','Need a look', attn, attn? 'flagged below':'no flags right now');
+    t += tile('cyan','Students', n, n? (state.grad!=='all' ? 'in this cohort' : 'in view') : '');
+    t += tile('good','Avg score', started? pctTxt(sumAttain/started):'—', 'on the labs they’ve handed in');
+    t += tile('magenta','Labs attempted', n? r1(attempted/n)+'<small> / '+LABS.length+'</small>':'—', 'per student, on average');
+    t += tile('cyan','Right first time', sumTot? pctTxt(100*sumFt/sumTot):'—', 'answered right on the first try');
+    t += tile('bad','Need a look', attn, attn? 'flagged below':'nobody flagged');
     t += '</div>';
     return t;
   }
@@ -321,8 +346,8 @@ var DATA = __DATA__;
     var by = state.sort;
     arr.sort(function(a,b){
       if(by==='attention') return concern(b.sm)-concern(a.sm) || a.s.cls.localeCompare(b.s.cls) || a.s.name.localeCompare(b.s.name);
-      if(by==='progress') return b.sm.progress-a.sm.progress || a.s.name.localeCompare(b.s.name);
-      if(by==='progress-asc') return a.sm.progress-b.sm.progress || a.s.name.localeCompare(b.s.name);
+      if(by==='score') return b.sm.attain-a.sm.attain || a.s.name.localeCompare(b.s.name);
+      if(by==='score-asc') return (a.sm.started?a.sm.attain:999)-(b.sm.started?b.sm.attain:999) || a.s.name.localeCompare(b.s.name);
       if(by==='class') return a.s.cls.localeCompare(b.s.cls) || a.s.name.localeCompare(b.s.name);
       return (a.s.name||'').localeCompare(b.s.name||'');
     });
@@ -376,22 +401,39 @@ var DATA = __DATA__;
     return section('Lab by lab','How the class in view is doing on each lab — average score, how many have started and finished, how often they got it right first time, and the part they find hardest.','<div class="labgrid">'+cards+'</div>');
   }
 
+  function flagWhy(t){ return t==='Struggling'
+    ? 'Averaging under '+STRUGGLE+'% on the labs they have handed in'
+    : 'Checking '+STUCK_CPQ+'× or more per question on average, yet still under '+STUCK_MAX+'%'; }
+  function attnRow(o, reviewed){
+    var s=o.s, sm=o.sm, fl=flags(sm);
+    return '<div class="attr'+(reviewed?' rvd':'')+'" data-i="'+STUD.indexOf(s)+'">'+
+      '<div class="attr__i '+(sm.attain<STRUGGLE?'bad':'mid')+'">'+r0(sm.attain)+'</div>'+
+      '<div class="attr__m"><div class="attr__n">'+esc(s.name||'(no name)')+'<span class="cl">'+esc(s.cls||'')+'</span></div>'+
+      '<div class="attr__f">'+fl.map(function(f){ return '<span class="flag '+f.k+'" title="'+esc(flagWhy(f.t))+'">'+esc(f.t)+'</span>'; }).join('')+'</div></div>'+
+      '<div class="attr__p"><b>'+r0(sm.attain)+'<span style="font:400 12px/1 var(--mono);color:var(--mute)">%</span></b><span>avg · '+sm.started+' lab'+(sm.started===1?'':'s')+'</span></div>'+
+      '<button type="button" class="attr__rev" data-key="'+esc(keyOf(s))+'" data-on="'+(reviewed?'1':'0')+'" title="'+(reviewed?'Put back on the list':'Tick off — remembered on this device')+'">'+(reviewed?'Undo':'Reviewed')+'</button>'+
+      '</div>';
+  }
   function attention(list){
-    var flagged = list.map(function(s){ return {s:s, sm:summ(s)}; }).filter(function(o){ return concern(o.sm)>0; })
-                      .sort(function(a,b){ return concern(b.sm)-concern(a.sm); });
+    var all = list.map(function(s){ return {s:s, sm:summ(s)}; }).filter(function(o){ return concern(o.sm)>0; })
+                  .sort(function(a,b){ return concern(b.sm)-concern(a.sm); });
+    var active = all.filter(function(o){ return !isReviewed(o.s); });
+    var done   = all.filter(function(o){ return isReviewed(o.s); });
+    var toggle = done.length ? '<button type="button" class="linkbtn" id="rvdtog">'+(showReviewed?'Hide':'Show')+' '+done.length+' reviewed</button>' : '';
+    var doneList = done.length ? '<div class="att rvdwrap"'+(showReviewed?'':' hidden')+'>'+done.map(function(o){ return attnRow(o,true); }).join('')+'</div>' : '';
     var body;
-    if(!flagged.length){ body = '<div class="panel"><div class="allok"><b>Nothing flagged.</b> Everyone in view has started, is covering the labs, and is scoring reasonably.</div></div>'; }
-    else {
-      body = '<div class="att">'+flagged.slice(0,14).map(function(o){ var s=o.s, sm=o.sm, fl=flags(sm);
-        var top = fl[0]||{t:'',k:'warn'};
-        var ic = sm.started===0? {c:'bad',ch:'0'} : (sm.attain<50? {c:'bad',ch:r0(sm.attain)} : (top.k==='warn'?{c:'warn',ch:r0(sm.attain)}:{c:'mid',ch:r0(sm.attain)}));
-        return '<div class="attr" data-i="'+STUD.indexOf(s)+'"><div class="attr__i '+ic.c+'">'+ic.ch+'</div>'+
-          '<div class="attr__m"><div class="attr__n">'+esc(s.name||'(no name)')+'<span class="cl">'+esc(s.cls||'')+'</span></div>'+
-          '<div class="attr__f">'+fl.map(function(f){ return '<span class="flag '+f.k+'">'+esc(f.t)+'</span>'; }).join('')+'</div></div>'+
-          '<div class="attr__p"><b>'+sm.started+'<span style="font-family:var(--mono);font-size:13px">/'+LABS.length+'</span></b><span>labs started</span></div></div>';
-      }).join('')+'</div>'+(flagged.length>14?'<p class="sec__d" style="margin-top:12px">…and '+(flagged.length-14)+' more. Filter by class to work through a group.</p>':'');
+    if(!all.length){
+      body = '<div class="panel"><div class="allok"><b>Nobody flagged.</b> No one in view is averaging under '+STRUGGLE+'%, or stuck, on the labs they have handed in.</div></div>';
+    } else if(!active.length){
+      body = '<div class="allok" style="padding:14px 2px 4px"><b>All caught up.</b> Every flagged student is marked reviewed. '+toggle+'</div>'+doneList;
+    } else {
+      body = '<div class="att">'+active.slice(0,20).map(function(o){ return attnRow(o,false); }).join('')+'</div>'+
+        (active.length>20 ? '<p class="sec__d" style="margin-top:12px">…and '+(active.length-20)+' more. Filter by class to work through a group.</p>' : '')+
+        (toggle ? '<div class="rvdline">'+toggle+'</div>'+doneList : '');
     }
-    return section('Who needs a look','Students the numbers suggest are worth checking on — nobody has started, coverage is thin, scores are low, or they are pressing check a lot without getting there. Ordered by concern. Click for detail.',body, flagged.length? flagged.length+' flagged':'all clear');
+    return section('Who needs a look',
+      'Two things flag here, both about labs they have actually handed in — never about labs not started, which may simply not be set yet. Struggling: averaging under '+STRUGGLE+'%. Stuck: checking a lot per question yet still under '+STUCK_MAX+'%. Tick a student Reviewed once you have dealt with them and they drop off (remembered on this device). Click a row for the full picture.',
+      body, active.length ? active.length+' to look at' : (all.length ? 'all reviewed' : 'all clear'));
   }
 
   function stations(list){
@@ -418,7 +460,7 @@ var DATA = __DATA__;
     var classes = {}; list.forEach(function(s){ if(s.cls) classes[s.cls]=1; });
     var cls = Object.keys(classes).sort();
     if(cls.length<2) return section('Class against class','Pick a cohort (or all) with more than one class to compare them side by side.','<div class="empty">Only one class in view — nothing to compare.</div>');
-    var head = '<tr><th class="rowh">Class</th>'+LABS.map(function(l){ return '<th>'+esc(shortLab(l.name))+'</th>'; }).join('')+'<th>Overall</th><th>Pupils</th></tr>';
+    var head = '<tr><th class="rowh">Class</th>'+LABS.map(function(l){ return '<th>'+esc(shortLab(l.name))+'</th>'; }).join('')+'<th>Avg score</th><th>Pupils</th></tr>';
     var rows = cls.map(function(c){
       var sub = list.filter(function(s){ return s.cls===c; });
       var per = aggLabs(sub), n=sub.length;
@@ -426,11 +468,11 @@ var DATA = __DATA__;
         if(avg===null) return '<td><span style="color:var(--mute)">—</span></td>';
         var h=heat(avg); return '<td><span class="mini"><span class="mp"><i style="width:'+r0(avg)+'%;background:'+h.bd+'"></i></span><span style="color:'+h.fg+'">'+pctTxt(avg)+'</span></span></td>';
       }).join('');
-      var sumP=0; sub.forEach(function(s){ sumP+=summ(s).progress; });
-      var overall = n? sumP/n : 0; var ho=heat(overall);
-      return '<tr><td class="rowh">'+esc(c)+'</td>'+tds+'<td class="ov" style="color:'+ho.fg+'">'+pctTxt(overall)+'</td><td style="color:var(--mute)">'+n+'</td></tr>';
+      var sumA=0, na=0; sub.forEach(function(s){ var sm=summ(s); if(sm.started>0){ sumA+=sm.attain; na++; } });
+      var overall = na? sumA/na : null; var ho=overall===null?null:heat(overall);
+      return '<tr><td class="rowh">'+esc(c)+'</td>'+tds+'<td class="ov" style="color:'+(ho?ho.fg:'var(--mute)')+'">'+(overall===null?'—':pctTxt(overall))+'</td><td style="color:var(--mute)">'+n+'</td></tr>';
     }).join('');
-    return section('Class against class','Average score per lab for each class in view. The Overall column counts a lab not yet started as 0, so it rewards coverage as well as marks.','<div class="panel cmpwrap"><table class="cmp"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>');
+    return section('Class against class','Average score on the labs each class has actually done — a fair comparison whichever labs a class has reached. Each cell is one lab; the last column is across all of them.','<div class="panel cmpwrap"><table class="cmp"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>');
   }
 
   function section(title,desc,body,n){
@@ -446,8 +488,8 @@ var DATA = __DATA__;
       '<div class="ctl"><label for="fcls">Class</label><select class="sel" id="fcls"></select></div>'+
       '<div class="ctl"><label for="fsort">Sort students</label><select class="sel" id="fsort">'+
         '<option value="attention">Needs attention first</option>'+
-        '<option value="progress">Most progress</option>'+
-        '<option value="progress-asc">Least progress</option>'+
+        '<option value="score-asc">Lowest score first</option>'+
+        '<option value="score">Highest score first</option>'+
         '<option value="class">By class</option>'+
         '<option value="name">By name</option>'+
       '</select></div>'+
@@ -495,6 +537,10 @@ var DATA = __DATA__;
     document.querySelectorAll('.attr').forEach(function(el){ el.addEventListener('click',function(){ openStudent(+el.getAttribute('data-i')); }); });
     document.querySelectorAll('.hm th.lab').forEach(function(th){ th.addEventListener('click',function(){ state.lab=th.getAttribute('data-lab'); render(); var s=document.querySelector('.sec #stlab'); if(s) s.scrollIntoView({behavior:'smooth',block:'center'}); }); });
     var stlab=$('stlab'); if(stlab) stlab.addEventListener('change',function(){ state.lab=stlab.value; render(); });
+    /* the Reviewed tick — stop the click reaching the row (which would open the drawer) */
+    document.querySelectorAll('.attr__rev').forEach(function(b){ b.addEventListener('click',function(ev){ ev.stopPropagation();
+      var k=b.getAttribute('data-key'); if(b.getAttribute('data-on')==='1') REVIEWED['delete'](k); else REVIEWED.add(k); saveReviewed(); render(); }); });
+    var tg=$('rvdtog'); if(tg) tg.addEventListener('click',function(){ showReviewed=!showReviewed; render(); });
   }
 
   /* first paint */
