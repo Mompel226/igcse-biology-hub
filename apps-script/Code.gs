@@ -2414,7 +2414,9 @@ function _teacherPageGroups_(now) {
     if (!c.byType[l.type]) { c.byType[l.type] = []; c.typeOrder.push(l.type); }
     c.byType[l.type].push(entry);
   });
-  order.sort(function (a, b) { return a - b; });          /* nearest graduation first */
+  /* Y9 first, then Y10, then Y11 — which is the FURTHEST graduation year first, because a younger
+     cohort graduates later. Daniel reads his lists bottom-up through the school. */
+  order.sort(function (a, b) { return b - a; });
   /* the cohorts that are in school this year, so a teacher can read off "Y10 is Class of 2028" and,
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
@@ -2460,6 +2462,14 @@ function _parseStations_(str) {
 }
 /* The cohort a class belongs to, from the year group in its name (10A → Y10 → Class of 2028 this
    year). Same rule as the teacher page, so a class and its assessment spreadsheets line up. */
+/* Classes in YEAR order, not alphabetical order. Sorted as plain text, "10A" and "11A" both come
+   before "9A" because "1" precedes "9" — so every dropdown in the estate listed Y10 and Y11 ahead
+   of Y9. Compare the year group as a NUMBER first, then the letter after it. */
+function _byClass_(a, b) {
+  var ma = String(a == null ? '' : a).match(/\d+/), mb = String(b == null ? '' : b).match(/\d+/);
+  var na = ma ? +ma[0] : 999, nb = mb ? +mb[0] : 999;
+  return na - nb || String(a == null ? '' : a).localeCompare(String(b == null ? '' : b));
+}
 function _classCohort_(cls, now) {
   var m = String(cls || '').match(/\d+/);
   if (!m) return null;
@@ -2513,7 +2523,7 @@ function _labProgressData_(now) {
     (man.labs[k].stations || []).forEach(function (st) { names[k][st.id] = st.name; });
   });
   return { generatedAt: new Date().toISOString(), labs: labs, students: students,
-           classes: Object.keys(cset).sort(), stationNames: names };
+           classes: Object.keys(cset).sort(_byClass_), stationNames: names };
 }
 
 /* The page itself. Gated exactly like the teacher page: Google has signed the visitor in (school-
@@ -2534,9 +2544,9 @@ function _studentDirectory_(now) {
       out.push({ name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now) });
     });
   }
-  out.sort(function (a, b) { return (a.cls || '').localeCompare(b.cls || '') || (a.name || '').localeCompare(b.name || ''); });
+  out.sort(function (a, b) { return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || ''); });
   var cset = {}; out.forEach(function (s) { if (s.cls) cset[s.cls] = 1; });
-  return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort() };
+  return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort(_byClass_) };
 }
 /* ── Set homework, for teachers ─────────────────────────────────────────────
    A fourth teacher-only page (?page=homework). A teacher picks parts of labs — not whole labs —
@@ -2707,14 +2717,14 @@ function _hwPupils_(hw, roster) {
     var kept = [];
     hw.setFor.forEach(function (e) { if (byEmail[e]) kept.push(byEmail[e]); });
     return kept.sort(function (a, b) {
-      return (a.cls || '').localeCompare(b.cls || '') || (a.name || '').localeCompare(b.name || '');
+      return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || '');
     });
   }
   (hw.targets.emails || []).forEach(function (e) { e = _cleanEmail_(e); if (byEmail[e]) want[e] = 1; });
   var cls = String(hw.targets.cls || '').trim().toUpperCase();
   if (cls) roster.forEach(function (p) { if (p.cls === cls) want[p.email] = 1; });
   return Object.keys(want).map(function (e) { return byEmail[e]; })
-    .sort(function (a, b) { return (a.cls || '').localeCompare(b.cls || '') || (a.name || '').localeCompare(b.name || ''); });
+    .sort(function (a, b) { return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || ''); });
 }
 
 /* Read each lab tab ONCE, however many assignments reference it. Keyed by pupil email. */
@@ -2972,7 +2982,6 @@ function _teacherAppPage_(startTab) {
   var boot = {
     email: email,
     tab: startTab || 'teachers',
-    hasStudents: !!_trackerAppUrl_(),
     trackerBase: _trackerAppUrl_(),
     hubSet: !!_hubUrl_()
   };

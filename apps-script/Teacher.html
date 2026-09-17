@@ -286,6 +286,12 @@ var BOOT = __BOOT__;
   function r1(x){ return Math.round(x*10)/10; }
   function pc(x){ return r0(x)+'%'; }
   function heat(p){ var h=Math.max(0,Math.min(100,p))*1.32; return {bg:'hsl('+h+' 46% 20%)',bd:'hsl('+h+' 52% 40%)',fg:'hsl('+h+' 78% 76%)'}; }
+  /* Classes in YEAR order: sorted as text, "10A" and "11A" both come before "9A". */
+  function cmpClass(a,b){
+    var ma=String(a==null?'':a).match(/\d+/), mb=String(b==null?'':b).match(/\d+/);
+    var na=ma?+ma[0]:999, nb=mb?+mb[0]:999;
+    return na-nb || String(a==null?'':a).localeCompare(String(b==null?'':b));
+  }
   function short(n){ return String(n).replace(/\s*lab\s*$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}).trim(); }
 
   var VIEWS = {
@@ -324,8 +330,11 @@ var BOOT = __BOOT__;
       b.addEventListener('click', function(){ go(b.getAttribute('data-tab')); });
     });
   }
+  var queued = null;
   function go(tab, force){
-    if (busy) return;
+    /* A click during a slow read used to vanish without trace — no highlight, no cursor, nothing.
+       Remember the last one and honour it when the read lands. */
+    if (busy) { queued = tab; return; }
     cur = tab; chrome();
     try { history.replaceState(null,'', '?page='+tab); } catch(e){}
     if (cache[tab] && !force) return draw();
@@ -334,9 +343,11 @@ var BOOT = __BOOT__;
     google.script.run
       .withSuccessHandler(function(r){ busy=false;
         if (r && r.ok) { cache[tab] = r; draw(); }
-        else $('view').innerHTML = '<div class="err">'+esc((r&&r.why)||'Could not read that just now.')+'</div>'; })
+        else $('view').innerHTML = '<div class="err">'+esc((r&&r.why)||'Could not read that just now.')+'</div>';
+        if (queued) { var w=queued; queued=null; go(w); } })
       .withFailureHandler(function(e){ busy=false;
-        $('view').innerHTML = '<div class="err">Could not reach the spreadsheet: '+esc(e&&e.message||e)+'</div>'; })
+        $('view').innerHTML = '<div class="err">Could not reach the spreadsheet: '+esc(e&&e.message||e)+'</div>';
+        if (queued) { var w2=queued; queued=null; go(w2); } })
       .uiData(tab);
   }
   function draw(){
@@ -378,6 +389,7 @@ var BOOT = __BOOT__;
     });
     if (g.loose.length) body += '<section class="grp" data-cur="1"><div class="coh"><span class="coh__t">No graduation year</span><span class="n">'+g.loose.length+'</span></div>'+
       '<div class="cards">'+g.loose.map(function(l){ var k=typeClass(l.type); present[k]=1; return linkCard(l,'',k); }).join('')+'</div></section>';
+    if (sState.f!=='all' && !present[sState.f]) sState.f='all';   /* the chip it names may be gone */
     var chips='<button class="chip'+(sState.f==='all'?' on':'')+'" data-f="all">All</button>'+
       [['reflection','Reflection'],['test','Test'],['survey','Survey'],['records','Records'],['other','Other']]
       .filter(function(p){return present[p[0]];})
@@ -429,7 +441,7 @@ var BOOT = __BOOT__;
     var byClass={}, cm={};
     STUD.forEach(function(s){ (byClass[s.cls]=byClass[s.cls]||[]).push(s);
       if(s.cohort){ var c=cm[s.cohort.grad]||(cm[s.cohort.grad]={grad:s.cohort.grad,title:s.cohort.title,yg:s.cohort.yearGroup,classes:{}}); if(s.cls)c.classes[s.cls]=1; } });
-    var COH=Object.keys(cm).map(function(k){var c=cm[k];return {grad:+k,title:c.title,yg:c.yg,classes:Object.keys(c.classes).sort()};}).sort(function(a,b){return a.grad-b.grad;});
+    var COH=Object.keys(cm).map(function(k){var c=cm[k];return {grad:+k,title:c.title,yg:c.yg,classes:Object.keys(c.classes).sort(cmpClass)};}).sort(function(a,b){return b.grad-a.grad;});
     function link(e){ return base ? base+'?page=student&email='+encodeURIComponent(String(e||'').toLowerCase().trim()) : ''; }
     function initials(n){ var p=String(n||'').trim().split(/\s+/); return (((p[0]||'')[0]||'')+((p[p.length-1]||'')[0]||'')).toUpperCase(); }
     function match(s){
@@ -457,13 +469,26 @@ var BOOT = __BOOT__;
                    :'<span class="card__d">no address set</span>')+'</div></div>';
             }).join('')+'</div></section>';
         });
+        /* These were counted in the heading and then never listed, so a pupil in a class with no
+           year number (a set, an intervention group) could never be opened at all. */
         var loose=shown.filter(function(s){ return !s.cohort; });
-        if (loose.length) body+='<section class="grp"><div class="coh"><span class="coh__t">Class not recognised</span><span class="n">'+loose.length+'</span></div></section>';
+        if (loose.length) body+='<section class="grp"><div class="coh"><span class="coh__t">Class not recognised</span>'+
+          '<span class="pill--past">no year group</span><span class="n">'+loose.length+'</span></div>'+
+          '<div class="cards cards--wide">'+loose.map(function(s){ var u=link(s.email);
+            return '<div class="card"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
+              '<div class="card__m"><div class="card__n" title="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
+              '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
+              (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
+                 :'<span class="card__d">no address set</span>')+'</div></div>'; }).join('')+'</div></section>';
       }
       $('slist2').innerHTML = body;
       $('scount').textContent = shown.length+' of '+STUD.length;
     }
-    var pool = stState.grad==='all' ? Object.keys(byClass).sort()
+    /* If the remembered cohort is gone (left the school, classes renamed), the select shows
+       "All cohorts" because no option matches — while the filter still rejects everybody. The
+       view then looks broken with a control that says nothing is filtered. */
+    if (stState.grad!=='all' && !COH.some(function(c){ return String(c.grad)===String(stState.grad); })) stState.grad='all';
+    var pool = stState.grad==='all' ? Object.keys(byClass).sort(cmpClass)
              : (COH.filter(function(c){return String(c.grad)===String(stState.grad);})[0]||{classes:[]}).classes;
     if (pool.indexOf(stState.cls)<0) stState.cls='all';
     $('view').innerHTML =
@@ -498,7 +523,11 @@ var BOOT = __BOOT__;
     var b=$('rf'); b.classList.add('spin'); setTimeout(function(){ b.classList.remove('spin'); },700);
     go(cur, true);
   });
-  window.__view = { esc:esc, r0:r0, r1:r1, pc:pc, heat:heat, short:short, openDraw:openDraw, $:$ };
+  window.__view = { esc:esc, r0:r0, r1:r1, pc:pc, heat:heat, short:short, openDraw:openDraw, $:$,
+    cmpClass:cmpClass,
+    /* a view that writes must replace what the shell has cached, or leaving the tab and coming
+       back shows the state from BEFORE the write — homework just set looks like it never saved */
+    put:function(tab, r){ cache[tab] = r; } };
   go(BOOT.tab || 'teachers');
 })();
 </script>
@@ -507,7 +536,8 @@ var BOOT = __BOOT__;
    helpers from window.__view rather than repeating them. */
 (function(){
   "use strict";
-  var V = window.__view, $ = V.$, esc = V.esc, r0 = V.r0, r1 = V.r1, pc = V.pc, heat = V.heat, short = V.short;
+  var V = window.__view, $ = V.$, esc = V.esc, r0 = V.r0, r1 = V.r1, pc = V.pc, heat = V.heat, short = V.short,
+      cmpClass = V.cmpClass;
 
   /* ─────────────────────── Lab progress ─────────────────────── */
   var STRUGGLE = 50, STUCK_CPQ = 2, STUCK_MAX = 75;
@@ -521,7 +551,9 @@ var BOOT = __BOOT__;
     var LABS = D.labs||[], STUD = D.students||[], NAMES = D.stationNames||{};
     if (!LABS.length) return $('view').innerHTML = '<div class="empty">No labs are live yet.</div>';
     if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
-    if (!pState.lab) pState.lab = LABS[0].id;
+    /* a lab retired between refreshes would leave pState.lab naming nothing, and the station list
+       would fall back to another lab's data while still translating ids against the dead one */
+    if (!pState.lab || !LABS.some(function(l){ return l.id===pState.lab; })) pState.lab = LABS[0].id;
     STUD.forEach(function(s,i){ s.__i = i; });
     function stName(labId,id){ var m=NAMES[labId]; return (m&&m[id])||id; }
     function summ(s){
@@ -556,7 +588,7 @@ var BOOT = __BOOT__;
     var byClass={}, cm={};
     STUD.forEach(function(s){ if(s.cls)(byClass[s.cls]=byClass[s.cls]||[]).push(s);
       if(s.cohort){ var c=cm[s.cohort.grad]||(cm[s.cohort.grad]={grad:s.cohort.grad,title:s.cohort.title,yg:s.cohort.yearGroup,classes:{}}); if(s.cls)c.classes[s.cls]=1; } });
-    var COH=Object.keys(cm).map(function(k){var c=cm[k];return {grad:+k,title:c.title,yg:c.yg,classes:Object.keys(c.classes).sort()};}).sort(function(a,b){return a.grad-b.grad;});
+    var COH=Object.keys(cm).map(function(k){var c=cm[k];return {grad:+k,title:c.title,yg:c.yg,classes:Object.keys(c.classes).sort(cmpClass)};}).sort(function(a,b){return b.grad-a.grad;});
 
     function paint(){
       var list=pick(), out='';
@@ -628,6 +660,7 @@ var BOOT = __BOOT__;
       var body = !all.length
         ? '<div class="panel"><div style="padding:18px;color:var(--good)"><b>Nobody flagged.</b> No one in view is under '+STRUGGLE+'% or stuck.</div></div>'
         : '<div class="att">'+act.slice(0,20).map(function(o){return arow(o,false);}).join('')+'</div>'+
+          (act.length>20?'<p class="sec__d" style="margin-top:10px">Showing the 20 most pressing of '+act.length+'. Filter by class to work through the rest.</p>':'')+
           (done.length?'<div style="margin-top:12px"><button class="act" id="rvdtog">'+(pState.showRvd?'Hide':'Show')+' '+done.length+' reviewed</button></div>'+
             '<div class="att" style="margin-top:9px"'+(pState.showRvd?'':' hidden')+'>'+done.map(function(o){return arow(o,true);}).join('')+'</div>':'');
       out += sec('Who needs a look','Only two things flag, both about labs actually handed in — never about labs not started, which may simply not be set yet. Struggling: under '+STRUGGLE+'%. Stuck: checking a lot yet still under '+STUCK_MAX+'%.',
@@ -646,7 +679,7 @@ var BOOT = __BOOT__;
           :'<div class="empty">No station data for this lab yet.</div>'));
       /* class against class */
       var clist=cohortOnly(), cls={}; clist.forEach(function(s){ if(s.cls)cls[s.cls]=1; });
-      var cn=Object.keys(cls).sort();
+      var cn=Object.keys(cls).sort(cmpClass);
       if (cn.length>1){
         out += sec('Class against class','Average score on the labs each class has actually done.',
           '<div class="panel cmpwrap"><table class="cmp"><thead><tr><th class="rowh">Class</th>'+
@@ -672,9 +705,16 @@ var BOOT = __BOOT__;
         if (ev.target.closest('[data-rvd]')) return;
         drawStudent(STUD[+el.getAttribute('data-i')]); }); });
       document.querySelectorAll('[data-rvd]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
-        var k=b.getAttribute('data-rvd');
-        if (b.getAttribute('data-on')==='1') REVIEWED['delete'](k); else REVIEWED.add(k);
-        saveRvd(); paint(); }); });
+        var k=b.getAttribute('data-rvd'), on=b.getAttribute('data-on')==='1';
+        if (on) REVIEWED['delete'](k); else REVIEWED.add(k);
+        saveRvd();
+        /* Repainting rebuilt every heatmap row and reset the scroll, so working down the list
+           threw the teacher back to the top after each tick. Touch only this row. */
+        var row=b.closest('.attr');
+        if (row){ row.classList.toggle('rvd', !on); b.setAttribute('data-on', on?'0':'1'); b.textContent = on?'Reviewed':'Undo'; }
+        var t=document.querySelector('.tile:last-child .tile__v');
+        if (t){ var nn=0; pick().forEach(function(x){ if(concern(summ(x))>0 && !isRvd(x)) nn++; }); t.textContent=nn; }
+      }); });
       var tg=$('rvdtog'); if(tg) tg.addEventListener('click', function(){ pState.showRvd=!pState.showRvd; paint(); });
       var stl=$('stl'); if(stl) stl.addEventListener('change', function(){ pState.lab=stl.value; paint(); });
       document.querySelectorAll('.hm th.lab').forEach(function(th){ th.addEventListener('click', function(){ pState.lab=th.getAttribute('data-lab'); paint(); }); });
@@ -697,7 +737,8 @@ var BOOT = __BOOT__;
               return '<div class="dst"><span class="dst__n">'+esc(stName(l.id,x.name))+'</span><span class="dst__v">'+x.done+'/'+x.total+'</span>'+
                 '<span class="dst__bar"><i style="width:'+r0(p2)+'%;background:'+hh.bd+'"></i></span></div>'; }).join('')+'</div>'; }).join(''));
     }
-    var pool = pState.grad==='all' ? Object.keys(byClass).sort()
+    if (pState.grad!=='all' && !COH.some(function(c){ return String(c.grad)===String(pState.grad); })) pState.grad='all';
+    var pool = pState.grad==='all' ? Object.keys(byClass).sort(cmpClass)
              : (COH.filter(function(c){return String(c.grad)===String(pState.grad);})[0]||{classes:[]}).classes;
     if (pool.indexOf(pState.cls)<0) pState.cls='all';
     $('view').innerHTML =
@@ -738,7 +779,7 @@ var BOOT = __BOOT__;
       if (!D.hubSet) warn='<div class="warn">The hub address is not set, so the parts of each lab cannot be listed. Set it in 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
       else if (!D.manifestOk) warn='<div class="warn">The station list could not be read from the hub. Run tools/stations-manifest.mjs, publish the site, then Refresh.</div>';
       var classes={}; STUD.forEach(function(s){ if(s.cls)classes[s.cls]=1; });
-      var names=Object.keys(classes).sort();
+      var names=Object.keys(classes).sort(cmpClass);
       function opts(sel){ return '<option value="">Choose a class…</option>'+names.map(function(c){return '<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+esc(c)+'</option>';}).join(''); }
       var crows=hState.rows.map(function(r,i){
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
@@ -781,14 +822,15 @@ var BOOT = __BOOT__;
           '<div style="margin-top:14px"><button class="go" id="hset"'+(p.stations&&ready()?'':' disabled')+'>'+
           (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
       var list = !HW.length ? '<div class="empty">Nothing set yet.</div>' : HW.map(function(h){
-        var n=h.pupils.length||1, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id];
+        var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id];
+        var w=n||1;   /* nobody left is "nobody left", not "0 of 1 done" */
         var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+(h.joined?'<span class="churn">'+h.joined+' joined since</span>':'');
         return '<div class="hw"><div class="hw__h" data-hw="'+esc(h.id)+'">'+
           '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
           (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div></div>'+
-          '<div class="bars" title="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/n)+'%"></i>'+
-          '<i class="p" style="width:'+(100*pa/n)+'%"></i><i class="z" style="width:'+(100*z/n)+'%"></i></div>'+
-          '<div class="hw__k">'+d+' of '+n+' done</div>'+
+          '<div class="bars" title="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
+          '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
+          '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
           '<div class="hw__due '+dueCls(h.due)+'"><b>'+esc(fmtD(h.due))+'</b>due</div></div>'+
           (op?'<div class="hw__b">'+(h.pupils.map(function(x){
             return '<div class="prow"><div class="prow__n">'+esc(x.name||'(no name)')+'<span>'+esc(x.cls||'')+'</span></div>'+
@@ -815,7 +857,7 @@ var BOOT = __BOOT__;
         if(hState.rows.length===1){hState.whole=true;hState.pick={};} paint(); }); });
       document.querySelectorAll('[data-due]').forEach(function(i){ i.addEventListener('input', function(){
         hState.rows[+i.getAttribute('data-due')].due=i.value;
-        var g=$('hset'); if(g) g.disabled=!(picked().stations&&ready()); }); });
+        var g=$('hset'); if(g) g.disabled=!(picked().stations&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
       var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){ hState.rows.push({cls:'',due:''}); hState.whole=true; hState.pick={}; paint(); });
       document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1); paint(); }); });
       var w=$('whole'); if(w) w.addEventListener('change', function(){ hState.whole=w.checked; paint(); });
@@ -827,7 +869,8 @@ var BOOT = __BOOT__;
         var id=h.getAttribute('data-lab'); hState.open[id]=!hState.open[id]; paint(); }); });
       document.querySelectorAll('[data-all]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         var id=b.getAttribute('data-all'), lab=null; LABS.forEach(function(l){ if(l.id===id) lab=l; });
-        if(!lab) return; var mine=hState.picked[id]||{}, all=Object.keys(mine).length===(lab.stations||[]).length;
+        if(!lab) return; var mine=hState.picked[id]||{};
+        var all=(lab.stations||[]).length>0 && (lab.stations||[]).every(function(x){ return mine[x.id]; });
         hState.picked[id]={}; if(!all)(lab.stations||[]).forEach(function(x){ hState.picked[id][x.id]=1; }); paint(); }); });
       document.querySelectorAll('[data-pick]').forEach(function(b){ b.addEventListener('change', function(){
         var q=b.getAttribute('data-pick').split('|'); hState.picked[q[0]]=hState.picked[q[0]]||{};
@@ -838,7 +881,10 @@ var BOOT = __BOOT__;
         var id=b.getAttribute('data-again'), h=null; HW.forEach(function(x){ if(x.id===id) h=x; });
         if(!h) return; hState.picked={}; hState.open={};
         (h.tasks||[]).forEach(function(t){ hState.picked[t.labId]={}; (t.stationIds||[]).forEach(function(x){ hState.picked[t.labId][x]=1; }); hState.open[t.labId]=true; });
-        hState.title=h.title; hState.rows=[{cls:(h.targets&&h.targets.cls)||'',due:''}]; hState.whole=true; hState.pick={};
+        var was=(h.targets&&h.targets.cls)||'';
+        /* only carry the class over if it still exists, or the box shows "Choose a class…" while
+           the state still holds the old one and Set would write homework nobody is in */
+        hState.title=h.title; hState.rows=[{cls:(names.indexOf(was)>=0?was:''),due:''}]; hState.whole=true; hState.pick={};
         paint(); var t=$('ht'); if(t){ t.focus(); t.scrollIntoView({behavior:'smooth',block:'center'}); } }); });
       document.querySelectorAll('[data-ask]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         hState.confirmDel=b.getAttribute('data-ask'); paint(); }); });
@@ -851,7 +897,8 @@ var BOOT = __BOOT__;
     function send(fn, arg){
       if (hState.busy) return; hState.busy=true;
       google.script.run.withSuccessHandler(function(r){ hState.busy=false;
-          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; paint(); }
+          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[];
+            V.put('homework', {ok:true, data:D}); paint(); }
           else say((r&&r.why)||'That did not work.', true); })
         .withFailureHandler(function(){ hState.busy=false; say('That did not work.', true); })[fn](arg);
     }
@@ -867,6 +914,7 @@ var BOOT = __BOOT__;
       google.script.run
         .withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[];
+            V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
             hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:''}];
             paint(); say(r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.'); }
           else say((r&&r.why)||'Could not set it.', true); })
