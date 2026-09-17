@@ -2272,14 +2272,14 @@ function _ensureTeacherTabs_() {
   var lk = ss.getSheetByName(T_LINKS);
   if (!lk) {
     lk = ss.insertSheet(T_LINKS);
-    lk.getRange(1, 1, 1, 6).setValues([_LINK_HEADERS_]);
+    lk.getRange(1, 1, 1, _LINK_HEADERS_.length).setValues([_LINK_HEADERS_]);
     var tid = _trackerId_(), seed = [], selfUrl = '';
     if (tid) seed.push(['Records', 'Student Progress Tracker', '', 'Student Progress Tracker',
-                        'https://docs.google.com/spreadsheets/d/' + tid + '/edit', 'Every cohort, every reflection']);
+                        'https://docs.google.com/spreadsheets/d/' + tid + '/edit', 'Every cohort, every reflection', '']);
     try { selfUrl = ss.getUrl(); } catch (e) {}
     if (selfUrl) seed.push(['Records', 'Student data (the labs)', '', 'Student data',
-               selfUrl, 'Lab hand-ins and the class lists']);
-    if (seed.length) lk.getRange(2, 1, seed.length, 6).setValues(seed);
+               selfUrl, 'Lab hand-ins and the class lists', '']);
+    if (seed.length) lk.getRange(2, 1, seed.length, _LINK_HEADERS_.length).setValues(seed);
     _dress2_(lk, _linkColDefs_(), { tab:'#0ea5e9' });
   } else {
     _migrateLinksTab_(lk);
@@ -2287,7 +2287,7 @@ function _ensureTeacherTabs_() {
   return { teachers: T_TEACHERS, links: T_LINKS };
 }
 
-var _LINK_HEADERS_ = ['Type', 'Assessment', 'Graduation year', 'Name', 'Link', 'Note'];
+var _LINK_HEADERS_ = ['Type', 'Assessment', 'Graduation year', 'Name', 'Link', 'Note', 'Dashboard'];
 function _linkColDefs_() {
   return [
     { h:'Type',            w:130, edit:true, note:'What kind of thing this is — Reflection, Test, Survey, Records … Anything you like; the page groups by it.' },
@@ -2295,7 +2295,8 @@ function _linkColDefs_() {
     { h:'Graduation year', w:130, edit:true, note:'The cohort, by the year it graduates — this year’s Y10 is 2028, next year’s Y10 is 2029. The same test for another cohort is another row. Leave blank for something that is not tied to one cohort (a tracker, say).' },
     { h:'Name',            w:210, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
     { h:'Link',            w:420, edit:true, note:'The full address, starting https:// — from the spreadsheet or form’s address bar, or Share ▸ Copy link.' },
-    { h:'Note',            w:280, edit:true, note:'One line under the name. Optional.' }
+    { h:'Note',            w:280, edit:true, note:'One line under the name. Optional.' },
+    { h:'Dashboard',       w:420, edit:true, note:'Optional — a second way in, beside the spreadsheet. Both the test system and the reflection system serve a live teacher dashboard at their own web-app address ending /exec?page=dashboard; paste that here and the card offers it. Left blank, the card just opens the spreadsheet as before.' }
   ];
 }
 
@@ -2304,10 +2305,10 @@ function _linkColDefs_() {
    by looking for the one cell in the row that is an https address — which is what lets a tab left
    half-migrated, or one an old version wrote, still be read correctly. The other fields are then
    taken by their position relative to the address:
-     address at column 5 (0-based 4)  →  Type · Assessment · Graduation year · Name · [Link] · Note
+     address at column 5 (0-based 4)  →  Type · Assessment · Graduation year · Name · [Link] · Note · Dashboard
      address at column 3 (0-based 2)  →  old  Section · Name · [Link] · Note
    `kHead` is the 0-based Link column from the header, or -1. */
-function _readLinkRow_(r, kHead, rowNum) {
+function _readLinkRow_(r, kHead, rowNum, dHead) {
   var k = (kHead >= 0 && /^https:\/\//i.test(String(r[kHead] || '').trim())) ? kHead : -1;
   if (k < 0) for (var i = 0; i < r.length; i++) if (/^https:\/\//i.test(String(r[i] || '').trim())) { k = i; break; }
   if (k < 0) return null;
@@ -2322,8 +2323,17 @@ function _readLinkRow_(r, kHead, rowNum) {
   } else {                                             /* anything else: best effort */
     type = String(r[0] || '').trim(); assessment = String(r[k - 1] || r[1] || '').trim(); note = String(r[k + 1] || '').trim();
   }
+  /* The dashboard address is optional, and is read by its own header wherever the tab has one,
+     falling back to the seventh column of the current shape. It is deliberately NOT found by
+     scanning the row for an https cell the way the address above is: on a tab still six columns
+     wide the only other address in the row IS the spreadsheet, and a scan would hand it back as
+     a dashboard, giving every card two buttons that go to the same place. */
+  var dash = '';
+  var dRaw = String(((dHead != null && dHead >= 0) ? r[dHead] : (k === 4 ? r[6] : '')) || '').trim();
+  if (/^https:\/\/[^\s"'<>]+$/i.test(dRaw) && dRaw !== url) dash = dRaw;
+
   return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
-           name: name || assessment || 'Spreadsheet', url: url, note: note };
+           name: name || assessment || 'Spreadsheet', url: url, note: note, dash: dash };
 }
 
 /* A links tab made by an earlier version had four columns — Section · Name · Link · Note. The
@@ -2337,26 +2347,28 @@ function _migrateLinksTab_(sh) {
   var hdr = sh.getRange(1, 1, 1, wide).getValues()[0].map(function (h) {
     return String(h).replace(/^\s*✎\s*/, '').trim().toLowerCase();
   });
-  var already = wide === 6;
+  var already = wide === _LINK_HEADERS_.length;
   for (var w = 0; already && w < _LINK_HEADERS_.length; w++) if (hdr[w] !== _LINK_HEADERS_[w].toLowerCase()) already = false;
   if (already) return;
 
   var last = sh.getLastRow();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
+  var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
   var rows = last >= 2 ? sh.getRange(2, 1, last - 1, wide).getValues() : [];
   var out = [];
   rows.forEach(function (r) {
-    var o = _readLinkRow_(r, kHead, 0);
-    if (o) out.push([o.type, o.assessment, o.grad, o.name, o.url, o.note]);
+    var o = _readLinkRow_(r, kHead, 0, dHead);
+    if (o) out.push([o.type, o.assessment, o.grad, o.name, o.url, o.note, o.dash]);
   });
 
-  if (sh.getMaxColumns() < 6) sh.insertColumnsAfter(sh.getMaxColumns(), 6 - sh.getMaxColumns());
+  var need = _LINK_HEADERS_.length;
+  if (sh.getMaxColumns() < need) sh.insertColumnsAfter(sh.getMaxColumns(), need - sh.getMaxColumns());
   var data = [_LINK_HEADERS_].concat(out);
-  sh.getRange(1, 1, data.length, 6).setValues(data);
+  sh.getRange(1, 1, data.length, need).setValues(data);
   if (sh.getMaxRows() > data.length)
     sh.getRange(data.length + 1, 1, sh.getMaxRows() - data.length, sh.getMaxColumns()).clearContent();
-  if (sh.getLastColumn() > 6)
-    sh.getRange(1, 7, sh.getMaxRows(), sh.getLastColumn() - 6).clearContent();
+  if (sh.getLastColumn() > need)
+    sh.getRange(1, need + 1, sh.getMaxRows(), sh.getLastColumn() - need).clearContent();
   _dress2_(sh, _linkColDefs_(), { tab:'#0ea5e9' });
 }
 
@@ -2367,10 +2379,11 @@ function _teacherLinksRaw_() {
   if (!sh || sh.getLastRow() < 2) return [];
   var last = sh.getLastRow(), wide = sh.getLastColumn();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
+  var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
   var vals = sh.getRange(2, 1, last - 1, wide).getValues();
   var out = [];
   vals.forEach(function (r, i) {
-    var o = _readLinkRow_(r, kHead, i + 2);
+    var o = _readLinkRow_(r, kHead, i + 2, dHead);
     if (o) out.push(o);
   });
   return out;
@@ -2408,7 +2421,7 @@ function _teacherPageGroups_(now) {
   raw.forEach(function (l) {
     var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
     var co = _cohortLabel_(l.grad, now);
-    var entry = { name: l.name, url: l.url, type: l.type, assessment: l.assessment,
+    var entry = { name: l.name, url: l.url, dash: l.dash, type: l.type, assessment: l.assessment,
                   detail: (l.assessment && l.assessment !== l.name ? l.assessment : '') + (l.note ? (l.assessment && l.assessment !== l.name ? ' · ' : '') + l.note : '') };
     if (isRecord) { records.push(entry); return; }
     if (!co) { loose.push(entry); return; }
@@ -3107,12 +3120,17 @@ function teacherAddLink(d) {
   d = d || {};
   var url = String(d.url || '').trim();
   if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return { ok: false, why: 'The link must be a full https:// address.' };
+  var dash = String(d.dash || '').trim();
+  if (dash && !/^https:\/\/[^\s"'<>]+$/i.test(dash))
+    return { ok: false, why: 'The dashboard address must be a full https:// address, or left empty.' };
+  if (dash && dash === url)
+    return { ok: false, why: 'The dashboard address is the same as the link. Leave it empty unless it is the separate /exec?page=dashboard address.' };
   var assessment = String(d.assessment || '').trim();
   var name = String(d.name || '').trim() || assessment;
   if (!name) return { ok: false, why: 'Give it an assessment name (or a name).' };
   var sh = _ensureTeacherTabs_() && _ss_().getSheetByName(T_LINKS);
   sh.appendRow([String(d.type || 'Reflection').trim() || 'Reflection', assessment,
-                String(d.grad || '').trim(), name, url, String(d.note || '').trim()]);
+                String(d.grad || '').trim(), name, url, String(d.note || '').trim(), dash]);
   return teacherPanelData();
 }
 
@@ -3190,7 +3208,12 @@ function _teacherHtml_(o) {
       (l.detail ? '<div class="card__detail">' + e(l.detail) + '</div>' : '') + '</div>' +
       '<div class="card__act">' +
         '<button type="button" class="card__copy" data-url="' + e(l.url) + '">Copy link</button>' +
-        '<a class="card__open" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">Open <span class="arw" aria-hidden="true">→</span></a>' +
+        /* A row that names a dashboard offers both ways in, and the spreadsheet button then says
+           which one it is: "Open" beside "Dashboard" would leave a teacher guessing which opens
+           what. A row without one is left exactly as it was. */
+        (l.dash ? '<a class="card__dash" href="' + e(l.dash) + '" target="_blank" rel="noopener noreferrer">Dashboard <span class="arw" aria-hidden="true">→</span></a>' : '') +
+        '<a class="card__open" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+          (l.dash ? 'Spreadsheet' : 'Open') + ' <span class="arw" aria-hidden="true">→</span></a>' +
       '</div></div>';
   }
   if (o.state === 'nobody') {
@@ -3365,7 +3388,15 @@ function _teacherHtml_(o) {
     'color:var(--tc,var(--accent));text-decoration:none;padding:7px 11px;border:1px solid transparent;border-radius:999px}' +
     '.card__open:hover{background:color-mix(in srgb,var(--tc,var(--accent)) 12%,transparent)}' +
     '.card__open .arw{transition:transform .18s}.card:hover .card__open .arw{transform:translateX(3px)}' +
-    '.card__name:focus-visible,.card__copy:focus-visible,.card__open:focus-visible,.fchip:focus-visible{outline:2px solid var(--tc,var(--accent));outline-offset:2px}' +
+    /* The dashboard is the live thing behind the spreadsheet, so it carries the type colour as a
+       filled pill rather than the plain text button beside it. */
+    '.card__dash{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;' +
+    'color:var(--tc,var(--accent));text-decoration:none;padding:7px 11px;border-radius:999px;white-space:nowrap;' +
+    'border:1px solid color-mix(in srgb,var(--tc,var(--accent)) 45%,transparent);' +
+    'background:color-mix(in srgb,var(--tc,var(--accent)) 10%,transparent);transition:background .15s,border-color .15s}' +
+    '.card__dash:hover{background:color-mix(in srgb,var(--tc,var(--accent)) 22%,transparent);border-color:var(--tc,var(--accent))}' +
+    '.card__dash .arw{transition:transform .18s}.card:hover .card__dash .arw{transform:translateX(3px)}' +
+    '.card__name:focus-visible,.card__copy:focus-visible,.card__open:focus-visible,.card__dash:focus-visible,.fchip:focus-visible{outline:2px solid var(--tc,var(--accent));outline-offset:2px}' +
     '.none{color:var(--dim);font-size:14px;margin:24px 0}.linkbtn{color:var(--accent);background:none;border:0;font:inherit;cursor:pointer;text-decoration:underline;padding:0}' +
     '.foot{margin-top:34px;color:var(--mute);font-size:12.5px;max-width:66ch;border-top:1px solid var(--line);padding-top:15px}' +
     '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:22px 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500;color:var(--chalk)}' +

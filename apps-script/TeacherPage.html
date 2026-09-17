@@ -118,8 +118,15 @@
       <label style="flex:1 1 320px">Link (https://…)
         <input id="lUrl" type="url" placeholder="https://docs.google.com/…"></label>
       <label style="flex:1 1 150px">Note (optional)<input id="lNote" type="text"></label>
+    </div>
+    <div class="row">
+      <label style="flex:1 1 320px">Teacher dashboard (optional)
+        <input id="lDash" type="url" placeholder="https://script.google.com/…/exec?page=dashboard"></label>
       <button id="lAdd">Add spreadsheet</button>
     </div>
+    <p class="hint">A test or a reflection also serves a live teacher dashboard at its own web-app
+       address, ending <b>/exec?page=dashboard</b>. Put it here and the page offers it beside the
+       spreadsheet, so nobody has to open the spreadsheet first to get to it.</p>
     <div class="msg" id="lMsg"></div>
   </div>
 </div>
@@ -184,7 +191,8 @@
           var sub=[]; if(l.assessment&&l.assessment!==l.name)sub.push(l.assessment); if(l.note)sub.push(l.note);
           return '<div class="item"><span class="tag tag--'+(l.typeClass||'other')+'">'+esc(l.type)+'</span>'+
                  '<div class="g"><div class="t">'+esc(l.name)+'</div>'+
-                 '<div class="s">'+(sub.length?esc(sub.join(' · '))+' — ':'')+'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">open ↗</a></div></div>'+
+                 '<div class="s">'+(sub.length?esc(sub.join(' · '))+' — ':'')+'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">open ↗</a>'+
+                 (l.dash?' · <a href="'+esc(l.dash)+'" target="_blank" rel="noopener">dashboard ↗</a>':'')+'</div></div>'+
                  '<button class="x" data-rml="'+l.row+'">Remove</button></div>';
         }).join('');
       }).join('');
@@ -227,8 +235,8 @@
 
   $('lAdd').onclick = function(){
     busy(true); msg('lMsg','Adding…');
-    var d={ type:$('lType').value||'Reflection', assessment:$('lAss').value, grad:$('lYear').value, name:'', url:$('lUrl').value, note:$('lNote').value };
-    google.script.run.withSuccessHandler(function(r){ busy(false); if(r&&r.ok){$('lAss').value='';$('lUrl').value='';$('lNote').value='';render(r);msg('lMsg','Added.');} else msg('lMsg',(r&&r.why)||'Could not add.',true); })
+    var d={ type:$('lType').value||'Reflection', assessment:$('lAss').value, grad:$('lYear').value, name:'', url:$('lUrl').value, note:$('lNote').value, dash:$('lDash').value };
+    google.script.run.withSuccessHandler(function(r){ busy(false); if(r&&r.ok){$('lAss').value='';$('lUrl').value='';$('lNote').value='';$('lDash').value='';render(r);msg('lMsg','Added.');} else msg('lMsg',(r&&r.why)||'Could not add.',true); })
       .withFailureHandler(function(){busy(false);msg('lMsg','Could not add.',true);}).teacherAddLink(d);
   };
 </script>
