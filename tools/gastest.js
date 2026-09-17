@@ -160,6 +160,7 @@ class SS {
   getName() { return 'Test sheet'; }
   getId() { return 'FAKE_SHEET_ID'; }
   getSheetByName(n) { return this.sheets.find(s => s.name === n) || null; }
+  getSpreadsheetTimeZone() { return 'Asia/Seoul'; }
   getSheets() { return this.sheets.slice(); }
   getActiveSheet() { return this._active || this.sheets[0] || null; }
   setActiveSheet(sh) { this._active = sh; return sh; }
@@ -219,7 +220,20 @@ global.UrlFetchApp = { fetch: (url) => {
 const _tokenFetch = () => { FETCHES++; return { getResponseCode: () => 200,
   getContentText: () => JSON.stringify({ aud: 'CID', iss: TOKEN_ISS, exp: Math.floor(Date.now()/1000)+3600,
                                          email_verified: 'true', email: TOKEN_EMAIL, name: 'A Person' }) }; };
-global.Utilities = { base64EncodeWebSafe: b => 'b64' + String(b).length,
+global.Utilities = {
+  /* enough of the real thing to exercise the due-date path: a fixed offset stands in for the
+     zone database, which is all these tests need to prove the code never re-reads a timestamp */
+  parseDate: (str, tz, fmt) => {
+    const m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+    if (!m) throw new Error('parseDate: ' + str);
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - 9 * 3600 * 1000);
+  },
+  formatDate: (d, tz, fmt) => {
+    const x = new Date(d.getTime() + 9 * 3600 * 1000);
+    const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return x.getUTCDate() + ' ' + M[x.getUTCMonth()];
+  },
+  base64EncodeWebSafe: b => 'b64' + String(b).length,
                      computeDigest: (a, t) => String(t), DigestAlgorithm: { SHA_256: 1 },
                      base64DecodeWebSafe: s => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
                      newBlob: bytes => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }) };
@@ -263,6 +277,20 @@ ok &= run('every google.script.run call in the window exists', () => {
   if (!named.length) throw new Error('found no server calls to check');
   const missing = named.filter(n => !defined(n));
   if (missing.length) throw new Error('the window calls nothing named: ' + missing.join(', '));
+});
+ok &= run('the teacher page is reachable by keyboard and screen reader', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  if (!/role="tablist"/.test(h)) throw new Error('the tab bar is not a tablist');
+  if (!/role="tab"/.test(h) || !/aria-selected/.test(h)) throw new Error('the tabs do not say which is selected');
+  if (!/role="tabpanel"/.test(h)) throw new Error('the view is not a tabpanel');
+  /* closed, the drawer must be inert: otherwise its Close button stays in the tab order inside an
+     aria-hidden container and a keyboard user tabs into something invisible */
+  if (!/id="draw"[^>]*\binert\b/.test(h)) throw new Error('the drawer is not inert while closed');
+  if (!/ArrowRight/.test(h)) throw new Error('the tabs cannot be walked with the arrow keys');
+  /* every control the teacher types into needs a name */
+  if (/<label>Class<\/label>/.test(h) || /<label>Due<\/label>/.test(h)) {
+    throw new Error('a homework class/due control still has an unlabelled <label>');
+  }
 });
 ok &= run('every served page escapes the Apps Script sandbox iframe', () => {
   /* Apps Script serves a web-app page inside a sandbox iframe. A link without a target navigates
@@ -1449,6 +1477,30 @@ ok &= run('one go can set the same practice for several classes, each with its o
   if (bad.ok !== false) throw new Error('a missing date was accepted');
   if (_homeworkRows_().length !== half) throw new Error('it wrote some rows before giving up');
   mine.forEach(x => homeworkDelete(x.id));
+});
+ok &= run('a due date means the end of that day in the SCHOOL’s clock', () => {
+  /* The page used to send a naive "…T23:59:00", the server read it in the PROJECT's zone and the
+     browser rendered it in its OWN, so a deadline could show a day out and be called overdue on
+     the wrong day. The date is now pinned once, here, and the page is sent words and a verdict. */
+  const dir = _studentDirectory_();
+  const r = homeworkCreate({ title:'Clock', classes:[{ cls:dir.students[0].cls, due:'2026-09-25' }],
+    tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+  if (!r.ok) throw new Error('refused: ' + r.why);
+  const hw = _homeworkRows_().pop();
+  /* 23:59:59 on the 25th in Asia/Seoul is 14:59:59 UTC on the 25th */
+  const d = new Date(hw.due);
+  if (d.getUTCHours() !== 14 || d.getUTCDate() !== 25) {
+    throw new Error('not pinned to the end of the 25th in the school zone: ' + hw.due);
+  }
+  if (hw.dueText !== '25 Sep') throw new Error('the page is not sent the worded date: ' + hw.dueText);
+  if (typeof hw.overdue !== 'boolean' || typeof hw.soon !== 'boolean') throw new Error('no verdict was sent');
+  if (hw.overdue) throw new Error('a 2026 date was called overdue');
+  /* and a date the browser could never parse is refused rather than silently stored */
+  if (homeworkCreate({ title:'Bad', classes:[{ cls:dir.students[0].cls, due:'25/09/2026' }],
+      tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] }).ok !== false) {
+    throw new Error('a non-ISO date was accepted');
+  }
+  homeworkDelete(hw.id);
 });
 ok &= run('homework can be removed again', () => {
   const rows = _homeworkRows_(), last = rows[rows.length - 1];

@@ -2646,6 +2646,21 @@ function _hwCaller_() {
 
 /* The cohort a piece of homework belongs to, decided when it is set and never recomputed: by the
    time it is old enough to tidy away, the pupils have left and the roster can no longer say. */
+/* The school's clock. "Due the 25th" must mean the end of the 25th HERE — not in whatever zone the
+   script project sits in, nor the teacher's browser. Before this, the page sent a naive
+   "…T23:59:00", the server parsed it in the PROJECT's zone, and the browser rendered it back in its
+   OWN: a date could show a day early or late and be called overdue on the wrong day. Now every
+   decision about a due date is made in this one zone, and the page is sent the words and the
+   verdict rather than a timestamp to re-interpret. */
+function _tz_() {
+  try { return _ss_().getSpreadsheetTimeZone() || Session.getScriptTimeZone(); }
+  catch (e) { try { return Session.getScriptTimeZone(); } catch (e2) { return 'Etc/UTC'; } }
+}
+function _dueFrom_(v) {
+  var d = String(v == null ? '' : v).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  try { return Utilities.parseDate(d + ' 23:59:59', _tz_(), 'yyyy-MM-dd HH:mm:ss'); } catch (e) { return null; }
+}
 function _hwCohortOf_(cls, emails, roster, now) {
   if (cls) { var c = _classCohort_(cls, now); return c ? c.grad : ''; }
   var grads = {}, byEmail = {};
@@ -2670,6 +2685,7 @@ function _hwId_(taken) {
 
 /* Every assignment, as objects. Read by header so a dressed "✎ Title" still matches. */
 function _homeworkRows_() {
+  var _nowMs_ = Date.now();
   var sh = _ensureHomeworkTab_();
   if (sh.getLastRow() < 2) return [];
   /* one header read, not one per column: _headerCol_ re-reads the whole row each time it is asked */
@@ -2682,7 +2698,8 @@ function _homeworkRows_() {
     if (!id) continue;
     var spec = {};
     try { spec = JSON.parse(String(r[c.Spec - 1] || '{}')) || {}; } catch (e) { spec = {}; }
-    var due = r[c.Due - 1];
+    var due = r[c.Due - 1], dms = 0;
+    try { if (due) dms = new Date(due).getTime() || 0; } catch (e) {}
     out.push({
       row: i + 2, id: id,
       group: String(r[c.Group - 1] || '').trim(),
@@ -2694,6 +2711,10 @@ function _homeworkRows_() {
       who: String(r[c.Who - 1] || '').trim(),
       what: String(r[c.What - 1] || '').trim(),
       due: due ? new Date(due).toISOString() : null,
+      /* worded and judged here, in the school's zone, so the browser never re-reads a timestamp */
+      dueText: dms ? Utilities.formatDate(new Date(dms), _tz_(), 'd MMM') : '',
+      overdue: !!dms && dms < _nowMs_,
+      soon: !!dms && dms >= _nowMs_ && (dms - _nowMs_) < 3 * 24 * 3600 * 1000,
       targets: spec.targets || {}, tasks: spec.tasks || [],
       course: String(r[c.Course - 1] || '').trim(),
       courseWork: String(r[c.CourseWork - 1] || '').trim(),
@@ -2886,7 +2907,7 @@ function homeworkCreate(d) {
     var emails = (w.emails || []).map(_cleanEmail_).filter(function (e) { return !!e; });
     if (!cls && !emails.length) return { ok:false, why:'Choose a class, or some students.' };
     var due = null;
-    if (w.due) { var t2 = new Date(w.due); if (!isNaN(t2.getTime())) due = t2; }
+    if (w.due) due = _dueFrom_(w.due);          /* a plain yyyy-mm-dd, read in the school's zone */
     if (!due) return { ok:false, why: cls ? ('Give ' + cls + ' a due date.') : 'Give it a due date.' };
     jobs.push({ cls: cls, emails: emails, due: due });
   }
