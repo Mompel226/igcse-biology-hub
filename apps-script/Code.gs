@@ -1031,12 +1031,26 @@ function _dressRows_(sh, cols, from, rows) {
   var body2 = sh.getRange(from, 1, rows, cols.length);
   body2.setWraps(wrapGrid);
   body2.setDataValidations(ruleGrid);
-  cols.forEach(function (c, i) {
-    if (!c.fmt && !c.align && !c.bold) return;
-    var col = sh.getRange(from, i + 1, rows, 1);
-    if (c.fmt) col.setNumberFormat(c.fmt);
-    if (c.align) col.setHorizontalAlignment(c.align);
-    if (c.bold) col.setFontWeight('bold');
+  /* Number formats and alignments were set one column at a time — about ten columns, two calls
+     each, on every tab on every Tidy up, which was two thirds of the whole job. Both take a grid
+     like the two above, so read what is there once, overlay only the columns that ask for
+     something (leaving the rest exactly as they were), and write once. */
+  var wantsFmt = false, wantsAlign = false;
+  cols.forEach(function (c) { if (c.fmt) wantsFmt = true; if (c.align) wantsAlign = true; });
+  if (wantsFmt) {
+    var fg = body2.getNumberFormats();
+    for (var r1 = 0; r1 < fg.length; r1++)
+      for (var i1 = 0; i1 < cols.length; i1++) if (cols[i1].fmt) fg[r1][i1] = cols[i1].fmt;
+    body2.setNumberFormats(fg);
+  }
+  if (wantsAlign) {
+    var ag = body2.getHorizontalAlignments();
+    for (var r2 = 0; r2 < ag.length; r2++)
+      for (var i2 = 0; i2 < cols.length; i2++) if (cols[i2].align) ag[r2][i2] = cols[i2].align;
+    body2.setHorizontalAlignments(ag);
+  }
+  cols.forEach(function (c, i) {                       /* rare enough to leave alone */
+    if (c.bold) sh.getRange(from, i + 1, rows, 1).setFontWeight('bold');
   });
 }
 

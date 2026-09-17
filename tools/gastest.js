@@ -34,6 +34,14 @@ class Range {
     return this;
   }
   setWraps(v) { return this._grid('setWraps', v); }
+  /* the read-then-overlay-then-write pattern: the grid that comes back must be the range's own
+     shape, so a mistake in the overlay is caught by _grid on the way back in */
+  getNumberFormats() {
+    return Array.from({ length: this.nr }, () => Array.from({ length: this.nc }, () => ''));
+  }
+  getHorizontalAlignments() {
+    return Array.from({ length: this.nr }, () => Array.from({ length: this.nc }, () => 'general'));
+  }
   setNumberFormats(v) { return this._grid('setNumberFormats', v); }
   setHorizontalAlignments(v) { return this._grid('setHorizontalAlignments', v); }
   setDataValidations(v) { return this._grid('setDataValidations', v); }
@@ -75,7 +83,7 @@ class Sheet {
     if (start + num - 1 > this.maxR) throw new Error(`setRowHeights past the end of "${this.name}": rows ${start}..${start + num - 1} of ${this.maxR}`);
     return this;
   }
-  getRange(a, b, c, d) {
+  getRange(a, b, c, d) { global.__CALLS++;
     if (typeof a === 'string') { const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(a); if (!m) throw new Error('bad A1: ' + a);
       const col = s => s.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
       const r1 = +m[2], c1 = col(m[1]); const r2 = m[4] ? +m[4] : r1, c2 = m[3] ? col(m[3]) : c1;
@@ -220,6 +228,7 @@ global.Utilities = { base64EncodeWebSafe: b => 'b64' + String(b).length,
 global.jwt = (claims) => ['{"alg":"RS256"}', JSON.stringify(claims), 'sig']
   .map((x, i) => i === 2 ? x : Buffer.from(x).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')).join('.');
 global.TOK = jwt({ aud: 'CID', exp: Math.floor(Date.now() / 1000) + 3600, email: 'ana@x.kr' });
+global.__CALLS = 0;                 /* every crossing of the Sheets service boundary */
 global.OWNER = 'teacher@x.kr';
 global.VISITOR = '';
 global.Session = { getEffectiveUser: () => ({ getEmail: () => OWNER }), getActiveUser: () => ({ getEmail: () => VISITOR }) };
@@ -594,6 +603,21 @@ ok &= run('a renamed or moved pupil keeps every mark — only Name and Class are
   }
   stu.getRange(sr, 1).setValue(wasName); stu.getRange(sr, 2).setValue(wasCls);
   setup();
+});
+ok &= run('Tidy up does NOT get slower as the roster grows', () => {
+  /* It used to ask the sheet for one row and write one row PER PUPIL PER LAB, so a real school
+     roster turned Tidy up into minutes. The cost must now depend on the number of LABS, not the
+     number of pupils — this fails loudly if a per-pupil sheet call ever creeps back in. */
+  __CALLS = 0; setup(); const small = __CALLS;
+  const extra = [];
+  for (let i = 0; i < 60; i++) extra.push({ name: 'Extra ' + i, email: 'extra' + i + '@x.kr', userId: 'x' + i });
+  _upsertStudents_(extra, '9Z', 'Y9 Biology', 'cZ');
+  __CALLS = 0; setup(); const big = __CALLS;
+  /* 60 more pupils across 20 labs would have been ~2,400 extra calls the old way */
+  if (big - small > 150) {
+    throw new Error('Tidy up grew by ' + (big - small) + ' sheet calls for 60 more pupils (' +
+                    small + ' -> ' + big + ') — something is reading or writing per pupil again');
+  }
 });
 ok &= run('refreshDashboard twice running is the same', () => {
   refreshDashboard();
