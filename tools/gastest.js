@@ -292,6 +292,38 @@ ok &= run('the teacher page is reachable by keyboard and screen reader', () => {
     throw new Error('a homework class/due control still has an unlabelled <label>');
   }
 });
+ok &= run('a view already read is never read again — memory, then sessionStorage', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  /* Each tab costs a full spreadsheet read. Three things keep that to once per view:
+     go() checks the caches BEFORE asking the server, prefetch() warms the rest in the
+     background, and fetchTab() folds a second asker into the request already in flight. */
+  const go = h.slice(h.indexOf('function go(tab, force)'), h.indexOf('function draw('));
+  if (!go) throw new Error('go() has moved — this test can no longer see it');
+  const mem = go.indexOf('cache[tab]'), sess = go.indexOf('ssGet(tab)'), net = go.indexOf('fetchTab(');
+  if (mem < 0 || sess < 0 || net < 0) throw new Error('go() no longer checks memory, session and server');
+  if (!(mem < sess && sess < net)) throw new Error('go() asks the server before trying the caches');
+  if (!/function prefetch\(/.test(h)) throw new Error('the other views are no longer warmed in the background');
+  /* the bug this pins: prefetch once looked only at memory, so every reload re-read all
+     four views from the sheet even though sessionStorage still held them */
+  const pf = h.slice(h.indexOf('function prefetch()'), h.indexOf('function go(tab, force)'));
+  if (!/ssGet\(/.test(pf)) throw new Error('prefetch ignores sessionStorage and would re-read the sheet after a reload');
+  const ft = h.slice(h.indexOf('function fetchTab('), h.indexOf('function prefetch()'));
+  if (!/inflight\[tab\]\.push\(/.test(ft)) throw new Error('two askers for one view would start two spreadsheet reads');
+  /* nothing may sit in memory without also being written to the session, or a reload loses it */
+  const stray = [...h.matchAll(/cache\[(\w+)\]\s*=\s*r\b/g)].map(m => m[1]);
+  stray.forEach(v => { if (!/ssPut\(/.test(h.slice(h.indexOf('cache[' + v + '] = r'), h.indexOf('cache[' + v + '] = r') + 120)))
+    throw new Error('a payload is cached in memory but never persisted'); });
+});
+ok &= run('a cached view says how old it is', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  /* Caching without an age is how a teacher reads last lesson's numbers as if they were live. */
+  if (!/id="age"/.test(h)) throw new Error('nothing shows when the view was read');
+  if (!/setInterval\(showAge/.test(h)) throw new Error('the age is written once and then silently goes stale');
+  if (!/aria-live="polite"/.test(h)) throw new Error('the age changes without telling a screen reader');
+  /* the age must be the SHEET read, not this page load, or a restored view claims to be new */
+  const g = h.slice(h.indexOf('function ssGet('), h.indexOf('function ssPut('));
+  if (!/stamp\[tab\]\s*=\s*o\.at/.test(g)) throw new Error('a restored view is stamped with the page load, not the read');
+});
 ok &= run('every served page escapes the Apps Script sandbox iframe', () => {
   /* Apps Script serves a web-app page inside a sandbox iframe. A link without a target navigates
      INSIDE that frame, which tries to load script.google.com in a frame — Google refuses, and the
