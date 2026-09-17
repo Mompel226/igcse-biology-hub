@@ -45,10 +45,26 @@ if (SHARED) {
 } else {
   console.error('  labs-shared/ not found above ' + REPO + ' — progress files not refreshed');
 }
-const idx = resolve(REPO, 'index.html');
-const html = readFileSync(idx, 'utf8');
-const n = (html.match(/\?v=\d+/g) || []).length;
-if (!n) { console.error('index.html carries no ?v= stamps'); process.exit(1); }
-writeFileSync(idx, html.replace(/\?v=\d+/g, '?v=' + STAMP));
+/* Every page that carries ?v= stamps, not just the front one — a page left unstamped serves a
+   stale stylesheet to anyone who has visited before, which is a bug you only see on someone
+   else's machine. index.html must exist and must carry stamps; the rest are stamped if present. */
+const PAGES = ['index.html', 'applications.html'];
+let n = 0;
+for (const page of PAGES) {
+  const f = resolve(REPO, page);
+  if (!existsSync(f)) {
+    if (page === 'index.html') { console.error('index.html is missing'); process.exit(1); }
+    continue;
+  }
+  const html = readFileSync(f, 'utf8');
+  const hits = (html.match(/\?v=\d+/g) || []).length;
+  if (!hits) {
+    if (page === 'index.html') { console.error('index.html carries no ?v= stamps'); process.exit(1); }
+    console.error('  ' + page + ' carries no ?v= stamps — nothing to stamp');
+    continue;
+  }
+  writeFileSync(f, html.replace(/\?v=\d+/g, '?v=' + STAMP));
+  n += hits;
+}
 writeFileSync(resolve(REPO, 'version.txt'), STAMP + '\n');
 console.log('stamped ' + n + ' assets and version.txt with ' + STAMP);
