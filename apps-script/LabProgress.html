@@ -201,6 +201,8 @@ var DATA = __DATA__;
   function r0(x){ return Math.round(x); }
   function r1(x){ return Math.round(x*10)/10; }
   function pctTxt(x){ return r0(x)+'%'; }
+  /* the lab tabs store station ids; the manifest turns them back into words */
+  function stName(labId, id){ var m=(DATA.stationNames||{})[labId]; return (m && m[id]) || id; }
   function heat(pct){ var h=Math.max(0,Math.min(100,pct))*1.32; return {bg:'hsl('+h+' 46% 20%)',bd:'hsl('+h+' 52% 40%)',fg:'hsl('+h+' 78% 76%)'}; }
 
   /* ---- top bar (who · tabs · refresh) ---- */
@@ -211,7 +213,8 @@ var DATA = __DATA__;
     var tabs = '<nav class="tabs" aria-label="Teacher pages">'+
         (DATA.spreadsheetsUrl ? '<a class="tab" href="'+esc(DATA.spreadsheetsUrl)+'">Spreadsheets</a>' : '')+
         '<span class="tab is-on" aria-current="page">Lab progress</span>'+
-        (DATA.studentsUrl ? '<a class="tab" href="'+esc(DATA.studentsUrl)+'">Students</a>' : '')+'</nav>';
+        (DATA.studentsUrl ? '<a class="tab" href="'+esc(DATA.studentsUrl)+'">Students</a>' : '')+
+        (DATA.homeworkUrl ? '<a class="tab" href="'+esc(DATA.homeworkUrl)+'">Set homework</a>' : '')+'</nav>';
     var when=''; try{ when = new Date(DATA.generatedAt).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){}
     var refresh = '<button class="refresh" id="refresh"><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>'+
         (when ? '<span class="stamp">updated '+esc(when)+'</span>' : '');
@@ -447,7 +450,8 @@ var DATA = __DATA__;
     if(!names.length){ rows = '<div class="empty">No station data for this lab yet.</div>'; }
     else rows = '<div class="stwrap">'+names.map(function(nm){ var S=P.stations[nm]; var pc=100*S.done/S.total; var h=heat(pc);
         var cpq = S.total? S.checks/(S.total): 0; /* checks per attempt-slot; rough effort signal */
-        return '<div class="strow"><div class="strow__n" title="'+esc(nm)+'">'+esc(nm)+'</div>'+
+        var shown = stName(lid, nm);
+        return '<div class="strow"><div class="strow__n" title="'+esc(shown)+'">'+esc(shown)+'</div>'+
           '<div class="strow__b"><i style="width:'+r0(pc)+'%;background:'+h.bd+'"></i></div>'+
           '<div class="strow__v" style="color:'+h.fg+'">'+pctTxt(pc)+' <small>· '+S.n+' pupils</small></div></div>';
       }).join('')+'</div>';
@@ -522,7 +526,7 @@ var DATA = __DATA__;
         '<span class="dchip"><b>'+e.handIns+'</b> hand-in'+(e.handIns===1?'':'s')+'</span>'+
         (e.complete?'<span class="dchip" style="color:var(--good)">finished</span>':'')+'</div>';
       var st = (e.stations&&e.stations.length)? '<div style="margin-top:10px">'+e.stations.map(function(x){ var pc=x.total?100*x.done/x.total:0; var hh=heat(pc);
-          return '<div class="dst"><span class="dst__n">'+esc(x.name)+'</span><span class="dst__v">'+x.done+'/'+x.total+(x.checks?' · '+x.checks+'✓':'')+'</span><span class="dst__bar"><i style="width:'+r0(pc)+'%;background:'+hh.bd+'"></i></span></div>';
+          return '<div class="dst"><span class="dst__n">'+esc(stName(l.id, x.name))+'</span><span class="dst__v">'+x.done+'/'+x.total+(x.checks?' · '+x.checks+'✓':'')+'</span><span class="dst__bar"><i style="width:'+r0(pc)+'%;background:'+hh.bd+'"></i></span></div>';
         }).join('')+'</div>' : '';
       return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(shortLab(l.name))+'</span><span class="dlab__p" style="color:'+h.fg+'">'+e.done+'/'+e.total+' · '+pctTxt(e.pct)+'</span></div>'+chips+st+'</div>';
     }).join('');
@@ -553,7 +557,9 @@ var DATA = __DATA__;
   $('fgrad').addEventListener('change',function(){ state.grad=this.value; state.cls='all'; fillClasses(); render(); });
   $('fcls').addEventListener('change',function(){ state.cls=this.value; render(); });
   $('fsort').addEventListener('change',function(){ state.sort=this.value; render(); });
-  $('fq').addEventListener('input',function(){ state.q=this.value; render(); });
+  var _typing=null;
+  $('fq').addEventListener('input',function(){ state.q=this.value;
+    clearTimeout(_typing); _typing=setTimeout(render,150); });   /* a rebuild per keystroke is 300 rows */
   $('drawx').addEventListener('click',closeDraw);
   $('scrim').addEventListener('click',closeDraw);
   document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeDraw(); });

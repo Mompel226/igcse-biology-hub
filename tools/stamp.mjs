@@ -32,7 +32,16 @@ if (SHARED) {
   copyFileSync(resolve(SHARED, 'progress.js'), resolve(REPO, 'js/progress.js'));
   /* one Google sign-in for the whole site, the same file every lab copies in */
   copyFileSync(resolve(SHARED, 'signin.js'), resolve(REPO, 'js/signin.js'));
-  console.log('  shared        labs.json + progress.js + signin.js copied in');
+  /* Every lab's stations — ids, names and question counts only, no questions and no answer
+     hashes. Built by tools/stations-manifest.mjs. It is the only way anything outside a lab can
+     name a station or know how many questions one asks, which is what lets a teacher pick parts
+     of a lab to set, and what turns "ileum-villi" into "Small intestine" on the teacher pages.
+     Optional: a hub still works without it, it simply cannot name stations. */
+  const stations = resolve(SHARED, 'stations.json');
+  const haveStations = existsSync(stations);
+  if (haveStations) copyFileSync(stations, resolve(REPO, 'js/data/stations.json'));
+  console.log('  shared        labs.json + progress.js + signin.js' +
+              (haveStations ? ' + stations.json' : ' (no stations.json — run tools/stations-manifest.mjs)') + ' copied in');
 } else {
   console.error('  labs-shared/ not found above ' + REPO + ' — progress files not refreshed');
 }

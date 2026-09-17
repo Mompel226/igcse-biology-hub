@@ -1,0 +1,203 @@
+{
+  "generated": "2026-09-17T07:55:51.343Z",
+  "labs": {
+    "digestion-lab": {
+      "name": "Digestion Lab",
+      "questions": 123,
+      "stations": [
+        {
+          "id": "diet",
+          "name": "A balanced diet",
+          "questions": 9
+        },
+        {
+          "id": "overview",
+          "name": "The Alimentary Canal",
+          "questions": 9
+        },
+        {
+          "id": "mouth",
+          "name": "Mouth and teeth",
+          "questions": 8
+        },
+        {
+          "id": "salivary-glands",
+          "name": "Salivary glands",
+          "questions": 7
+        },
+        {
+          "id": "epiglottis",
+          "name": "Epiglottis",
+          "questions": 6
+        },
+        {
+          "id": "oesophagus",
+          "name": "Oesophagus",
+          "questions": 6
+        },
+        {
+          "id": "stomach",
+          "name": "Stomach",
+          "questions": 9
+        },
+        {
+          "id": "liver",
+          "name": "Liver and gall bladder",
+          "questions": 16
+        },
+        {
+          "id": "pancreas",
+          "name": "Pancreas",
+          "questions": 5
+        },
+        {
+          "id": "ileum-villi",
+          "name": "Small intestine",
+          "questions": 12
+        },
+        {
+          "id": "colon",
+          "name": "Large intestine",
+          "questions": 6
+        },
+        {
+          "id": "rectum-anus",
+          "name": "Rectum and anus",
+          "questions": 6
+        },
+        {
+          "id": "molecules-lab",
+          "name": "Molecules and enzymes",
+          "questions": 14
+        },
+        {
+          "id": "practicals",
+          "name": "Practicals",
+          "questions": 10
+        }
+      ]
+    },
+    "classification-lab": {
+      "name": "Classification Lab",
+      "questions": 64,
+      "stations": [
+        {
+          "id": "alive",
+          "name": "Alive?",
+          "questions": 9
+        },
+        {
+          "id": "naming",
+          "name": "Naming and grouping",
+          "questions": 6
+        },
+        {
+          "id": "dna",
+          "name": "DNA and the tree",
+          "questions": 6
+        },
+        {
+          "id": "keys",
+          "name": "Keys",
+          "questions": 6
+        },
+        {
+          "id": "kingdoms",
+          "name": "Five kingdoms",
+          "questions": 6
+        },
+        {
+          "id": "vertebrates",
+          "name": "Vertebrates",
+          "questions": 7
+        },
+        {
+          "id": "arthropods",
+          "name": "Arthropods",
+          "questions": 7
+        },
+        {
+          "id": "plants",
+          "name": "Plants",
+          "questions": 6
+        },
+        {
+          "id": "viruses",
+          "name": "Viruses",
+          "questions": 5
+        },
+        {
+          "id": "drawing",
+          "name": "Drawing a specimen",
+          "questions": 6
+        }
+      ]
+    },
+    "plants-lab": {
+      "name": "Plants Lab",
+      "questions": 116,
+      "stations": [
+        {
+          "id": "seed",
+          "name": "A seed wakes",
+          "questions": 8
+        },
+        {
+          "id": "root",
+          "name": "Roots and water uptake",
+          "questions": 7
+        },
+        {
+          "id": "stem",
+          "name": "Xylem and phloem",
+          "questions": 8
+        },
+        {
+          "id": "leaf",
+          "name": "The leaf",
+          "questions": 7
+        },
+        {
+          "id": "photosynthesis",
+          "name": "Photosynthesis",
+          "questions": 19
+        },
+        {
+          "id": "transpiration",
+          "name": "Water up, water out",
+          "questions": 9
+        },
+        {
+          "id": "potometer",
+          "name": "The potometer",
+          "questions": 14
+        },
+        {
+          "id": "translocation",
+          "name": "Sugar on the move",
+          "questions": 8
+        },
+        {
+          "id": "tropisms",
+          "name": "Bending to the light",
+          "questions": 9
+        },
+        {
+          "id": "flower",
+          "name": "The flower",
+          "questions": 9
+        },
+        {
+          "id": "fruit",
+          "name": "From flower to seed",
+          "questions": 10
+        },
+        {
+          "id": "adapted",
+          "name": "Built for its place",
+          "questions": 8
+        }
+      ]
+    }
+  }
+}

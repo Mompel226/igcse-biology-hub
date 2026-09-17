@@ -76,6 +76,21 @@
     </div>
     <div class="msg" id="trackerMsg"></div>
 
+    <h2>Set homework <span id="hubState" class="pill off">off</span></h2>
+    <p class="intro">Paste your hub's address — the one that serves its front page. It is usually a
+       sub-folder, e.g. <code>https://nlcsbiology.com/biology-hub</code>, <b>not</b> the bare domain.
+       Check it by opening <code>&lt;address&gt;/js/data/labs.json</code>: if that does not load, the
+       address is wrong. It is read
+       only to fetch the published list of each lab's stations — their names and how many questions
+       each asks — which is what lets you pick parts of a lab to set as homework. No student data
+       goes near it. Leave it empty and the Set homework page explains that it needs this.</p>
+    <div class="row">
+      <label style="flex:1 1 320px">Hub address
+        <input id="hubUrl" type="url" placeholder="https://nlcsbiology.com/biology-hub"></label>
+      <button id="hubSave">Save address</button>
+    </div>
+    <div class="msg" id="hubMsg"></div>
+
     <h2>Teachers <small>who may open the page</small></h2>
     <p class="intro">You (<span id="owner"></span>) can always open it. Add the other Biology
        teachers by their school address.</p>
@@ -134,6 +149,11 @@
     $('trackerState').className = 'pill' + (tLive?'':' off');
     $('trackerUrl').value = d.trackerUrl || '';
 
+    var hLive = d.hubLive;
+    $('hubState').textContent = hLive ? 'on' : 'off';
+    $('hubState').className = 'pill' + (hLive?'':' off');
+    $('hubUrl').value = d.hubUrl || '';
+
     // type suggestions
     var dl = $('typeList'); dl.innerHTML='';
     (d.types||['Reflection']).forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
@@ -191,6 +211,12 @@
     busy(true); msg('trackerMsg','Saving…');
     google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){render(d); msg('trackerMsg','Saved.');} else msg('trackerMsg',(d&&d.why)||'Could not save.',true); })
       .withFailureHandler(function(){busy(false);msg('trackerMsg','Could not save.',true);}).teacherSetTrackerUrl($('trackerUrl').value);
+  };
+
+  $('hubSave').onclick = function(){
+    busy(true); msg('hubMsg','Saving…');
+    google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){render(d); msg('hubMsg','Saved.');} else msg('hubMsg',(d&&d.why)||'Could not save.',true); })
+      .withFailureHandler(function(){busy(false);msg('hubMsg','Could not save.',true);}).teacherSetHubUrl($('hubUrl').value);
   };
 
   $('tAdd').onclick = function(){

@@ -100,7 +100,8 @@ var DATA = __DATA__;
     var tabs = '<nav class="tabs" aria-label="Teacher pages">'+
         (DATA.spreadsheetsUrl ? '<a class="tab" href="'+esc(DATA.spreadsheetsUrl)+'">Spreadsheets</a>' : '')+
         (DATA.progressUrl ? '<a class="tab" href="'+esc(DATA.progressUrl)+'">Lab progress</a>' : '')+
-        '<span class="tab is-on" aria-current="page">Students</span></nav>';
+        '<span class="tab is-on" aria-current="page">Students</span>'+
+        (DATA.homeworkUrl ? '<a class="tab" href="'+esc(DATA.homeworkUrl)+'">Set homework</a>' : '')+'</nav>';
     $('topbar').innerHTML = who + tabs;
   })();
 
@@ -179,7 +180,9 @@ var DATA = __DATA__;
   $('fgrad').value=state.grad;
   $('fgrad').addEventListener('change',function(){ state.grad=this.value; state.cls='all'; fillClasses(); render(); });
   $('fcls').addEventListener('change',function(){ state.cls=this.value; render(); });
-  $('fq').addEventListener('input',function(){ state.q=this.value.trim(); render(); });
+  var _typing=null;
+  $('fq').addEventListener('input',function(){ state.q=this.value.trim();
+    clearTimeout(_typing); _typing=setTimeout(render,150); });   /* a rebuild per keystroke is 300 cards */
   document.addEventListener('click',function(ev){ var b=ev.target.closest&&ev.target.closest('.scopy'); if(!b)return; ev.preventDefault();
     var u=b.getAttribute('data-url'), done=function(){ var t=b.textContent; b.textContent='Copied'; b.classList.add('ok'); setTimeout(function(){b.textContent=t;b.classList.remove('ok');},1300); };
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(done,function(){fb(u,done);}); } else fb(u,done);
