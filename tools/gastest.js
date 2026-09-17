@@ -17,6 +17,7 @@ class Range {
     return this;
   }
   setValue(x) { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sheet.put(this.r + i, this.c + j, x); return this; }
+  clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sheet.put(this.r + i, this.c + j, ''); return this; }
   /* The grid-at-a-time setters. They are checked for shape exactly like setValues, because a
      wrong-sized grid is the whole reason to batch carefully rather than call in a loop. */
   _grid(name, v) {
@@ -1017,6 +1018,36 @@ ok &= run('add teachers and links from the dialog, read live, no code edit', () 
   d = teacherRemoveTeacher('colleague@x.kr');
   if (d.teachers.some(t => t.email === 'colleague@x.kr')) throw new Error('teacher not removed');
   if (_isTeacher('colleague@x.kr')) throw new Error('_isTeacher still recognises a removed teacher');
+});
+ok &= run('an old 4-column links tab is migrated, the misaligned row put right', () => {
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  const old = ss.insertSheet(T_LINKS);
+  // the old shape, exactly as the first version made it
+  old.getRange(1, 1, 2, 4).setValues([
+    ['Section', 'Name', 'Link', 'Note'],
+    ['Records', 'Student Progress Tracker', 'https://docs.google.com/spreadsheets/d/TRK/edit', 'Every cohort'],
+  ]);
+  // a row added by the new dialog into the old tab: 6 values spilling to column E (Daniel's case)
+  old.getRange(3, 1, 1, 5).setValues([['Reflection', 'Topic 7 - Human Nutrition', '2026', 'Topic 7 - Human Nutrition',
+    'https://docs.google.com/spreadsheets/d/HN/edit?gid=1#gid=1']]);
+  const d = teacherPanelData();                       // opening the panel migrates the tab
+  const hdr = ss.getSheetByName(T_LINKS).getRange(1, 1, 1, 6).getValues()[0].map(x => String(x).replace(/^✎\s*/, '').trim());
+  if (hdr.join(',') !== 'Category,Assessment,Year,Name,Link,Note') throw new Error('headers not migrated: ' + hdr.join(','));
+  const hn = d.links.filter(l => /HN/.test(l.url))[0];
+  if (!hn || hn.category !== 'Reflection' || hn.assessment !== 'Topic 7 - Human Nutrition' || hn.year !== '2026')
+    throw new Error('the misaligned row was not fixed: ' + JSON.stringify(hn));
+  const trk = d.links.filter(l => /TRK/.test(l.url))[0];
+  if (!trk || trk.category !== 'Records' || trk.assessment !== 'Student Progress Tracker')
+    throw new Error('the old seed row was not migrated: ' + JSON.stringify(trk));
+  // a fresh add now lands aligned
+  const d2 = teacherAddLink({ category: 'Test system', assessment: 'X', year: 'Y10 · 2027', url: 'https://docs.google.com/spreadsheets/d/NEW/edit' });
+  const nw = d2.links.filter(l => /NEW/.test(l.url))[0];
+  if (!nw || nw.year !== 'Y10 · 2027' || nw.category !== 'Test system') throw new Error('a new add after migration is misaligned: ' + JSON.stringify(nw));
+  // idempotent: a second open changes nothing
+  const before = ss.getSheetByName(T_LINKS).getLastRow();
+  teacherPanelData();
+  if (ss.getSheetByName(T_LINKS).getLastRow() !== before) throw new Error('re-migration changed the row count');
 });
 ok &= run('the panel refuses a student / web-app caller', () => {
   VISITOR = 'stu@pupils.x.kr';

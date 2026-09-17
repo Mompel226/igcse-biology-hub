@@ -2120,7 +2120,7 @@ function _ensureTeacherTabs_() {
   var lk = ss.getSheetByName(T_LINKS);
   if (!lk) {
     lk = ss.insertSheet(T_LINKS);
-    lk.getRange(1, 1, 1, 6).setValues([['Category', 'Assessment', 'Year', 'Name', 'Link', 'Note']]);
+    lk.getRange(1, 1, 1, 6).setValues([_LINK_HEADERS_]);
     var tid = _trackerId(), seed = [], selfUrl = '';
     if (tid) seed.push(['Records', 'Student Progress Tracker', '', 'Student Progress Tracker',
                         'https://docs.google.com/spreadsheets/d/' + tid + '/edit', 'Every cohort, every reflection']);
@@ -2128,16 +2128,65 @@ function _ensureTeacherTabs_() {
     if (selfUrl) seed.push(['Records', 'Student data (the labs)', '', 'Student data',
                selfUrl, 'Lab hand-ins and the class lists']);
     if (seed.length) lk.getRange(2, 1, seed.length, 6).setValues(seed);
-    _dress2(lk, [
-      { h:'Category',   w:150, edit:true, note:'The heading this sits under on the teacher page — Reflection, Test system, Records …' },
-      { h:'Assessment', w:220, edit:true, note:'What the test or topic is — for example “Topic 7 · Digestion”.' },
-      { h:'Year',       w:120, edit:true, note:'The cohort or year this spreadsheet is for — the same test in another year is another row.' },
-      { h:'Name',       w:220, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
-      { h:'Link',       w:430, edit:true, note:'The full address, starting https:// — from the spreadsheet’s address bar or Share ▸ Copy link.' },
-      { h:'Note',       w:300, edit:true, note:'One line under the name. Optional.' }
-    ], { tab:'#0ea5e9' });
+    _dress2(lk, _linkColDefs_(), { tab:'#0ea5e9' });
+  } else {
+    _migrateLinksTab_(lk);
   }
   return { teachers: T_TEACHERS, links: T_LINKS };
+}
+
+var _LINK_HEADERS_ = ['Category', 'Assessment', 'Year', 'Name', 'Link', 'Note'];
+function _linkColDefs_() {
+  return [
+    { h:'Category',   w:150, edit:true, note:'The heading this sits under on the teacher page — Reflection, Test system, Records …' },
+    { h:'Assessment', w:220, edit:true, note:'What the test or topic is — for example “Topic 7 · Digestion”.' },
+    { h:'Year',       w:120, edit:true, note:'The cohort or year this spreadsheet is for — the same test in another year is another row.' },
+    { h:'Name',       w:220, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
+    { h:'Link',       w:430, edit:true, note:'The full address, starting https:// — from the spreadsheet’s address bar or Share ▸ Copy link.' },
+    { h:'Note',       w:300, edit:true, note:'One line under the name. Optional.' }
+  ];
+}
+
+/* A links tab made by an earlier version had four columns — Section · Name · Link · Note. The
+   dialog now writes six — Category · Assessment · Year · Name · Link · Note — so a row added into
+   the old tab landed in the wrong columns (the year under "Link", the address spilled past the
+   end). This puts an old tab right, keeping every row: it finds the address in each row wherever
+   it fell and rebuilds the six columns from it. Safe to run every time — a tab already in the new
+   shape is left untouched. */
+function _migrateLinksTab_(sh) {
+  var wide = sh.getLastColumn();
+  var hdr = sh.getRange(1, 1, 1, wide).getValues()[0].map(function (h) {
+    return String(h).replace(/^\s*✎\s*/, '').trim().toLowerCase();
+  });
+  var already = wide === 6;
+  for (var w = 0; already && w < _LINK_HEADERS_.length; w++) if (hdr[w] !== _LINK_HEADERS_[w].toLowerCase()) already = false;
+  if (already) return;
+
+  var last = sh.getLastRow();
+  var rows = last >= 2 ? sh.getRange(2, 1, last - 1, wide).getValues() : [];
+  var out = [];
+  rows.forEach(function (r) {
+    var k = -1;
+    for (var i = 0; i < r.length; i++) if (/^https:\/\//i.test(String(r[i]).trim())) { k = i; break; }
+    if (k < 0) return;                                   /* no address on this row — nothing to keep */
+    var cat = String(r[0] || '').trim() || 'Links', assessment = '', year = '', name = '', note = '', link = String(r[k]).trim();
+    if (k === 4) {                                       /* Category · Assessment · Year · Name · Link · Note */
+      assessment = String(r[1] || '').trim(); year = String(r[2] || '').trim();
+      name = String(r[3] || '').trim(); note = String(r[5] || '').trim();
+    } else {                                             /* old Section · Name · Link · Note (address at col 3), or best effort */
+      assessment = String(r[1] || '').trim(); note = String(r[k + 1] || '').trim();
+    }
+    out.push([cat, assessment, year, name || assessment, link, note]);
+  });
+
+  if (sh.getMaxColumns() < 6) sh.insertColumnsAfter(sh.getMaxColumns(), 6 - sh.getMaxColumns());
+  var data = [_LINK_HEADERS_].concat(out);
+  sh.getRange(1, 1, data.length, 6).setValues(data);
+  if (sh.getMaxRows() > data.length)
+    sh.getRange(data.length + 1, 1, sh.getMaxRows() - data.length, sh.getMaxColumns()).clearContent();
+  if (sh.getLastColumn() > 6)
+    sh.getRange(1, 7, sh.getMaxRows(), sh.getLastColumn() - 6).clearContent();
+  _dress2(sh, _linkColDefs_(), { tab:'#0ea5e9' });
 }
 
 /* Every link row, in full, for the dialog and for the page. Columns are found by header, so a
