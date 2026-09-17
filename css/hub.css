@@ -344,7 +344,13 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
    because its single door happened to be near the leftover height. Let the doors that are
    showing share the shelf, exactly as the front page's .doors row already does; hidden doors are
    display:none, so they take no part in the share. */
-.beyond>.door{flex:1 1 0;min-height:clamp(150px,19vh,230px)}
+/* flex-basis must be auto, not 0. With a basis of 0 every door took an EQUAL slice of the shelf
+   regardless of how much it holds, so on a shorter screen Bryant's biography was given the same
+   412px as a two-line banner and lost 40px off the bottom — and .door is overflow:hidden, so it
+   vanished silently. Basis auto starts each door at the height its content needs; flex-grow
+   shares out what is left over; flex-shrink 0 means a door is never squeezed below its content.
+   If the shelf genuinely does not fit, the page scrolls, which is the honest outcome. */
+.beyond>.door{flex:1 0 auto}
 .beyond:empty{display:none}   /* the open edition has no doors of its own */
 .beyond .band{margin-top:10px}
 .beyond .band:first-child{margin-top:2px}

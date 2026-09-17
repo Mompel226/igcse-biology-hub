@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789652119">
+<link rel="stylesheet" href="css/hub.css?v=1789652793">
 <style>
 /* A directory, not a brochure: the grid has to stay readable at two apps and at twenty, so a card
    carries only a picture, a name, one line and what it needs. Everything else waits in a sheet
@@ -97,8 +97,8 @@
       <span class="eyebrow">Free · open source · anyone can add one</span>
       <h1>Apps <em>teachers made</em></h1>
       <p class="lede">Small tools teachers built for their own classrooms. Both of the ones here run on
-         the files <strong>iSAMS</strong> already gives you: export two of them, open the app, and you have
-         a seating plan or a year of birthdays in <strong>under five minutes</strong>. Free, open, and
+         the files <strong>iSAMS</strong> already gives you: export three reports, drop them on the app,
+         and you have a seating plan or a year of birthdays in <strong>under five minutes</strong>. Free, open, and
          running on your own machine. If you have made something, it belongs here.</p>
       <p class="maker">Kept by <strong>Dr Daniel Mompel Riera</strong></p>
     </div>
@@ -111,7 +111,7 @@
 
       <li><a class="card" style="--ac:#2DD4BF" href="https://github.com/Mompel226/seating-plan"
              data-app="seating-plan" aria-describedby="s-seating-plan-sum">
-        <img class="card__thumb" src="assets/apps/seating-plan-card.jpg?v=1789652119" width="800" height="450" loading="lazy"
+        <img class="card__thumb" src="assets/apps/seating-plan-card.jpg?v=1789652793" width="800" height="450" loading="lazy"
              alt="A seating plan: benches of four in a room, each chair holding a card with a photograph and a name.">
         <span class="card__b">
           <span class="card__kind">Classroom</span>
@@ -124,7 +124,7 @@
 
       <li><a class="card" style="--ac:#E879F9" href="https://github.com/Mompel226/birthday-reminder"
              data-app="birthday-reminder" aria-describedby="s-birthday-sum">
-        <img class="card__thumb" src="assets/apps/birthday-calendar-card.jpg?v=1789652119" width="800" height="450" loading="lazy"
+        <img class="card__thumb" src="assets/apps/birthday-calendar-card.jpg?v=1789652793" width="800" height="450" loading="lazy"
              alt="A birthday calendar for September, with cards for today and the days after along the top.">
         <span class="card__b">
           <span class="card__kind">Pastoral</span>
@@ -148,8 +148,9 @@
     <ul class="notes">
       <li><b>Nothing leaves your machine.</b> No account and no server — each app runs locally and talks
         to nobody. Your classes sit in a folder you can open, read and delete yourself.</li>
-      <li><b>You need iSAMS.</b> Both apps read two files you export from it. Without iSAMS there is
-        nowhere for them to get your class from.</li>
+      <li><b>You need iSAMS.</b> Three reports give the full picture — the Export Wizard file, the
+        Students Simple Report and the Student ID Badge. Fewer still work, with less on the cards.
+        Without iSAMS there is nowhere for either app to get your class from.</li>
       <li><b>macOS will ask the first time.</b> These are not signed by Apple, so it checks with you
         before running one. Each app's read-me shows the three clicks. You do it once.</li>
     </ul>
@@ -168,15 +169,16 @@
 <div id="details" hidden>
 
   <div data-detail="seating-plan" data-ac="#2DD4BF" data-kind="Classroom"
-       data-shot="assets/apps/seating-plan.jpg?v=1789652119"
+       data-shot="assets/apps/seating-plan.jpg?v=1789652793"
        data-alt="A seating plan: six benches of four in a room with a whiteboard, screen and teacher's desk at the front. Each chair holds a card with a photograph, a first name and a surname."
        data-repo="https://github.com/Mompel226/seating-plan">
     <h3 data-name>Draw the room once, then <em>drag faces into chairs</em></h3>
-    <div data-what><p>Export your class from iSAMS, drop the two files on the app, and it has every name and
+    <div data-what><p>Export your class from iSAMS, drop the reports on the app, and it has every name and
       photograph. Lay the room out to match your own — benches, tables, the board, the door — and drag
       students into chairs. The first plan for a new class takes about five minutes.</p></div>
     <ul data-points>
       <li>Every chair shows the student's photograph, so you learn names in the first week</li>
+      <li>Calls each student what they actually go by, not only what the register says</li>
       <li>Shuffle the class, sort them A–Z, or move two people apart in one drag</li>
       <li>Mark who needs support, who needs the front, who should not sit together — in colours
           only you can read, not in words a student can read over your shoulder</li>
@@ -188,7 +190,7 @@
   </div>
 
   <div data-detail="birthday-reminder" data-ac="#E879F9" data-kind="Pastoral"
-       data-shot="assets/apps/birthday-calendar.jpg?v=1789652119"
+       data-shot="assets/apps/birthday-calendar.jpg?v=1789652793"
        data-alt="A birthday calendar for September, with cards along the top for today, tomorrow and the days after, and small student cards on the dates in the month grid."
        data-repo="https://github.com/Mompel226/birthday-reminder">
     <h3 data-name>A window that <em>finds you</em>, in the morning</h3>
@@ -238,9 +240,10 @@
   if (!dlg || typeof dlg.showModal !== 'function') return;   /* no dialog: cards stay plain links */
 
   var pool = document.getElementById('details');
-  var ISAMS = 'These apps read two exports from <b>iSAMS</b>. If your school does not use iSAMS this ' +
-              'will not work — the photographs come from the iSAMS Student ID Badge report and nothing ' +
-              'else produces that file. The read-me says what another system would and would not manage.';
+  var ISAMS = 'This reads reports exported from <b>iSAMS</b> — three of them for the full picture, ' +
+              'though fewer work with less on the cards. If your school does not use iSAMS it will ' +
+              'not work at all: the photographs come from the iSAMS Student ID Badge report and ' +
+              'nothing else produces that file. The read-me lists which reports, and why each one.';
   var last = null;
 
   function detail(id){ return pool.querySelector('[data-detail="' + id + '"]'); }
