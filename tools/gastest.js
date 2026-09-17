@@ -190,7 +190,9 @@ global.CacheService = { getScriptCache: () => ({
   get: (k) => (/^ID_/.test(k) ? null : (cacheStore.get(k) || null))
 }) };
 global.ContentService = { createTextOutput: t => ({ setMimeType: () => t }), MimeType: { TEXT: 1, JSON: 2, JAVASCRIPT: 3 } };
-global.HtmlService = { createHtmlOutputFromFile: () => ({ setWidth: () => ({ setHeight: () => ({}) }) }) };
+global.HtmlService = { createHtmlOutputFromFile: (name) => ({
+  getContent: () => fs.readFileSync('apps-script/' + name + '.html', 'utf8'),
+  setWidth: () => ({ setHeight: () => ({}) }) }) };
 global.ScriptApp = { getProjectTriggers: () => [], newTrigger: () => ({ forSpreadsheet: () => ({ onEdit: () => ({ create: () => {} }) }) }) };
 global.LockService = { getScriptLock: () => ({ waitLock: () => true, releaseLock: () => {} }) };
 global.Logger = { log: m => log('log: ' + m) };
@@ -1088,6 +1090,82 @@ ok &= run('the panel refuses a student / web-app caller', () => {
   VISITOR = ''; SCHOOL_DOMAIN = '';
   props.delete('TEACHER_PAGE_URL'); props.delete('SCHOOL_DOMAIN');
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+});
+
+console.log('— lab progress & the student finder —');
+const SEP26 = new Date(2026, 8, 15);
+ok &= run('per-station strings parse, and shrug off junk', () => {
+  const s = _parseStations_('mouth 8/8 in 11 · stomach 5/6 in 3 · liver 0/4');
+  if (s.length !== 3) throw new Error('parsed ' + s.length);
+  if (s[0].name !== 'mouth' || s[0].done !== 8 || s[0].total !== 8 || s[0].checks !== 11) throw new Error('mouth wrong: ' + JSON.stringify(s[0]));
+  if (s[1].checks !== 3 || s[2].checks !== 0) throw new Error('checks wrong: ' + JSON.stringify(s));
+  if (_parseStations_('').length !== 0) throw new Error('empty should be nothing');
+  if (_parseStations_('no numbers here').length !== 0) throw new Error('junk should be nothing');
+});
+ok &= run('a class name becomes its graduation cohort', () => {
+  const a = _classCohort_('10A', SEP26);
+  if (!a || a.grad !== 2028 || a.yearGroup !== 'Y10') throw new Error('10A: ' + JSON.stringify(a));
+  if (_classCohort_('9B', SEP26).grad !== 2029) throw new Error('9B should graduate 2029');
+  if (_classCohort_('11A', SEP26).yearGroup !== 'Y11') throw new Error('11A should be Y11');
+  if (_classCohort_('staff', SEP26) !== null) throw new Error('a class with no year should be null');
+});
+ok &= run('lab progress reads the marks — labs, roster, per-student entries, no email leak', () => {
+  const data = _labProgressData(SEP26);
+  if (!data.labs.some(l => l.id === 'digestion-lab')) throw new Error('Digestion is not among the live labs');
+  if (!data.students.length) throw new Error('no students');
+  data.students.forEach(s => { if ('email' in s) throw new Error('a raw email leaked into the lab-progress payload'); });
+  const withDig = data.students.filter(s => s.byLab['digestion-lab']);
+  if (!withDig.length) throw new Error('nobody has a Digestion entry, though hand-ins were recorded');
+  const e = withDig[0].byLab['digestion-lab'];
+  if (typeof e.pct !== 'number' || typeof e.done !== 'number' || typeof e.total !== 'number' || !Array.isArray(e.stations))
+    throw new Error('entry shape wrong: ' + JSON.stringify(e));
+  if (JSON.stringify(data.classes) !== JSON.stringify(data.classes.slice().sort())) throw new Error('classes not sorted');
+});
+ok &= run('the student directory lists the roster with emails, cohorts, sorted', () => {
+  const dir = _studentDirectory_(SEP26);
+  if (!dir.students.length) throw new Error('the directory is empty');
+  const s = dir.students[0];
+  if (!s.email || s.email.indexOf('@') < 0) throw new Error('a directory row has no email');
+  if (!('cohort' in s)) throw new Error('no cohort field');
+  const key = x => (x.cls || '') + ' ' + (x.name || '');
+  const sorted = dir.students.slice().sort((a, b) => key(a).localeCompare(key(b)));
+  if (JSON.stringify(dir.students.map(key)) !== JSON.stringify(sorted.map(key))) throw new Error('not sorted by class then name');
+});
+ok &= run('the tracker address is validated, kept, and builds per-pupil links', () => {
+  props.delete('TRACKER_APP_URL'); TRACKER_APP_URL = '';
+  if (_trackerAppUrl() !== '') throw new Error('an unset tracker url was not empty');
+  if (_studentTrackerUrl_('a@x.kr') !== '') throw new Error('a link was built with no base');
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  if (teacherSetTrackerUrl('https://evil.example/exec').ok !== false) throw new Error('a non-Google url was accepted');
+  const set = teacherSetTrackerUrl('https://script.google.com/a/macros/x.kr/s/AKtrack/exec');
+  if (!set.ok || !set.trackerLive) throw new Error('a good tracker url was refused: ' + JSON.stringify(set).slice(0, 120));
+  if (_studentTrackerUrl_('A@X.kr') !== 'https://script.google.com/a/macros/x.kr/s/AKtrack/exec?page=student&email=a%40x.kr')
+    throw new Error('per-pupil link wrong: ' + _studentTrackerUrl_('A@X.kr'));
+  TEACHER_PAGE_URL = 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec';
+  if (_pageUrl_('progress') !== 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec?page=progress') throw new Error('progress url: ' + _pageUrl_('progress'));
+  if (_pageUrl_('students') !== 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec?page=students') throw new Error('students url: ' + _pageUrl_('students'));
+  VISITOR = 'stu@pupils.x.kr';
+  if (teacherSetTrackerUrl('https://script.google.com/a/macros/x.kr/s/AK/exec').ok !== false) throw new Error('a student set the tracker url');
+  VISITOR = ''; SCHOOL_DOMAIN = '';
+  props.delete('TRACKER_APP_URL'); props.delete('TEACHER_PAGE_URL'); props.delete('SCHOOL_DOMAIN');
+  TEACHER_PAGE_URL = '';
+});
+ok &= run('lab-progress and students pages show data to a teacher, the door to everyone else', () => {
+  SCHOOL_DOMAIN = 'x.kr';
+  TEACHER_PAGE_URL = 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec';
+  props.set('TRACKER_APP_URL', 'https://script.google.com/a/macros/x.kr/s/AKtrack/exec');
+  ['progress', 'students'].forEach(page => {
+    VISITOR = ''; const nobody = doGet({ parameter: { page } }).html;
+    if (!/school Google account/.test(nobody)) throw new Error(page + ': signed-out visitor not sent to sign in');
+    VISITOR = 'pupil@pupils.x.kr'; const pupil = doGet({ parameter: { page } }).html;
+    if (/@x\.kr|AKtrack/.test(pupil)) throw new Error(page + ': a pupil was shown roster data or a tracker address');
+    if (!/not on its list/.test(pupil)) throw new Error(page + ': a pupil did not get the refusal page');
+    VISITOR = OWNER; const teacher = doGet({ parameter: { page } }).html;
+    if (/__DATA__/.test(teacher)) throw new Error(page + ': the data placeholder was left unfilled');
+    if (!/Lab progress|Students/.test(teacher)) throw new Error(page + ': the page did not render for a teacher');
+  });
+  VISITOR = ''; SCHOOL_DOMAIN = ''; TEACHER_PAGE_URL = '';
+  props.delete('TRACKER_APP_URL'); props.delete('TEACHER_PAGE_URL'); props.delete('SCHOOL_DOMAIN');
 });
 
 const st = ss.getSheetByName('Students');

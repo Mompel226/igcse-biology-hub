@@ -64,6 +64,18 @@
     </div>
     <div class="msg" id="pageMsg"></div>
 
+    <h2>Open a student's tracker <span id="trackerState" class="pill off">off</span></h2>
+    <p class="intro">Paste the <b>web app URL</b> of any one of your reflection deployments (they all
+       show the same tracker). The page then grows a <b>Students</b> tab where you pick a pupil and
+       open their own reflection tracker — scores, weak topics, what to revise. Leave it empty and
+       there is no Students tab.</p>
+    <div class="row">
+      <label style="flex:1 1 320px">Reflection web app URL (ends <code>/exec</code>)
+        <input id="trackerUrl" type="url" placeholder="https://script.google.com/…/exec"></label>
+      <button id="trackerSave">Save address</button>
+    </div>
+    <div class="msg" id="trackerMsg"></div>
+
     <h2>Teachers <small>who may open the page</small></h2>
     <p class="intro">You (<span id="owner"></span>) can always open it. Add the other Biology
        teachers by their school address.</p>
@@ -117,6 +129,11 @@
     $('pageHint').style.display = live ? 'none' : '';
     $('pageOwn').textContent = live ? 'The page is set up.' : 'The page is not switched on yet.';
 
+    var tLive = d.trackerLive;
+    $('trackerState').textContent = tLive ? 'on' : 'off';
+    $('trackerState').className = 'pill' + (tLive?'':' off');
+    $('trackerUrl').value = d.trackerUrl || '';
+
     // type suggestions
     var dl = $('typeList'); dl.innerHTML='';
     (d.types||['Reflection']).forEach(function(c){ var o=document.createElement('option'); o.value=c; dl.appendChild(o); });
@@ -168,6 +185,12 @@
     busy(true); msg('pageMsg','Saving…');
     google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){render(d); msg('pageMsg','Saved.');} else msg('pageMsg',(d&&d.why)||'Could not save.',true); })
       .withFailureHandler(function(){busy(false);msg('pageMsg','Could not save.',true);}).teacherSetPageUrl($('pageUrl').value);
+  };
+
+  $('trackerSave').onclick = function(){
+    busy(true); msg('trackerMsg','Saving…');
+    google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){render(d); msg('trackerMsg','Saved.');} else msg('trackerMsg',(d&&d.why)||'Could not save.',true); })
+      .withFailureHandler(function(){busy(false);msg('trackerMsg','Could not save.',true);}).teacherSetTrackerUrl($('trackerUrl').value);
   };
 
   $('tAdd').onclick = function(){
