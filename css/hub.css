@@ -588,7 +588,11 @@ body:not([data-view="revision"])[data-view] .masthead__hub{display:none}
 body:not([data-view="revision"])[data-view]:not([data-acct]) .masthead{grid-template-columns:minmax(0,1fr)}
 
 .doors--entry{flex:1 0 auto;flex-direction:column;gap:8px;min-height:0}
-.doors--row{display:flex;gap:8px;flex:1 1 0;min-height:250px}
+/* 250 was not enough for a door that is OPEN. Measured with each door open in turn: the bodies
+   want 260-319px, so at 250 the description was squeezed to two lines and you could not read what
+   the door was actually offering. The row now starts at a height that fits the longest of them
+   with room to breathe, and still grows into any space left over. */
+.doors--row{display:flex;gap:8px;flex:1 1 0;min-height:352px}
 /* the hero: full width, and its words always out, since this is the first thing anyone reads.
    Its words are in the flow, not pinned to the bottom, so a long paragraph makes the door
    taller instead of climbing out of the top of it; the picture sits behind at whatever height
