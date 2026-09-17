@@ -18,8 +18,8 @@
          title:'Biology Hub — Your School',
          description:'…',
          eyebrow:'Cambridge IGCSE Biology 0610 · Your School',
-         maker:'Made by <strong>Your Name</strong> · Biology, Your School',
-         byline:'Made by <strong>Your Name</strong> · <a href="mailto:you@school">you@school</a>'
+         maker:'Made by <a class="maker__me" href="https://github.com/you" target="_blank" rel="noopener"><strong>Your Name</strong></a> · Biology, Your School',
+         byline:'Something wrong, or an idea? <a href="mailto:you@school">Tell me</a>.'
        },
        doors: [ { id:'your-club', kind:'cca', eyebrow:'CCA · Beyond the syllabus',
                   title:'<em>Your club</em> — what it is',
