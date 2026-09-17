@@ -322,7 +322,14 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .door--light.is-on .door__title{text-shadow:0 0 28px rgba(247,246,242,.9)}
 
 /* the wide doors beneath the shelves, in bands — the clubs, then the societies */
-.beyond{display:flex;flex-direction:column;gap:8px}
+.beyond{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0}
+/* Every one of these shelves sits in the same .hub, which is at least a screen tall, so whatever
+   the doors do not use collects as a void above the footer — and each shelf holds a different
+   number of doors, so the void was a different size on each. Enterprises looked right only
+   because its single door happened to be near the leftover height. Let the doors that are
+   showing share the shelf, exactly as the front page's .doors row already does; hidden doors are
+   display:none, so they take no part in the share. */
+.beyond>.door{flex:1 1 0;min-height:clamp(150px,19vh,230px)}
 .beyond:empty{display:none}   /* the open edition has no doors of its own */
 .beyond .band{margin-top:10px}
 .beyond .band:first-child{margin-top:2px}
@@ -470,6 +477,10 @@ noscript p{padding:20px}
   .ytabs,.path{justify-content:flex-start}
   .doors{flex-direction:column;flex:none;min-height:0;gap:10px}
   .door{flex:none;height:auto;min-height:0;transition:none}
+  /* on a phone a door is as tall as its own content; sharing a screen-height shelf between
+     them would squash two banners into strips */
+  .beyond{flex:none}
+  .beyond>.door{flex:none;min-height:0}
   .door__body{position:relative;padding-top:clamp(120px,32vw,170px)}
   .chip{font-size:9px;padding:3px 7px}
   .door.is-on{flex-grow:1}
