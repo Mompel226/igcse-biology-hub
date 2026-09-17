@@ -2266,12 +2266,19 @@ function _teacherPageGroups_(now) {
     c.byType[l.type].push(entry);
   });
   order.sort(function (a, b) { return a - b; });          /* nearest graduation first */
+  /* the cohorts that are in school this year, so a teacher can read off "Y10 is Class of 2028" and,
+     if they like, hide everyone who has left or is not here yet */
+  var d = now || new Date();
+  var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
   var out = { records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
+    c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
     c.types = c.typeOrder.map(function (t) { return { type: t, links: c.byType[t] }; });
     return c;
-  }), loose: loose };
+  }), loose: loose,
+  thisYear: { academic: startYear + '–' + String(startYear + 1).slice(-2),
+              list: [{ yg: 'Y9', grad: startYear + 3 }, { yg: 'Y10', grad: startYear + 2 }, { yg: 'Y11', grad: startYear + 1 }] } };
   return out;
 }
 /* the order types read in: reflections, then the test itself, then surveys, then anything else */
@@ -2420,11 +2427,15 @@ function _typeClass_(t) {
 
 function _teacherHtml(o) {
   var e = _esc, main = '';
-  function card(l) {
-    return '<a class="card" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
-      '<span class="card__name">' + e(l.name) + '</span>' +
-      (l.detail ? '<span class="card__detail">' + e(l.detail) + '</span>' : '') +
-      '<span class="card__go">Open <span class="arw" aria-hidden="true">→</span></span></a>';
+  function card(l, cohortStr, kind) {
+    var s = ((l.name || '') + ' ' + (l.detail || '') + ' ' + (l.type || '') + ' ' + (l.assessment || '') + ' ' + (cohortStr || '')).toLowerCase();
+    return '<div class="card" data-type="' + e(kind) + '" data-s="' + e(s) + '">' +
+      '<div class="card__main"><a class="card__name" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' + e(l.name) + '</a>' +
+      (l.detail ? '<div class="card__detail">' + e(l.detail) + '</div>' : '') + '</div>' +
+      '<div class="card__act">' +
+        '<button type="button" class="card__copy" data-url="' + e(l.url) + '">Copy link</button>' +
+        '<a class="card__open" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">Open <span class="arw" aria-hidden="true">→</span></a>' +
+      '</div></div>';
   }
   if (o.state === 'nobody') {
     main = '<p class="say">Open this page signed in with your school Google account' +
@@ -2439,35 +2450,52 @@ function _teacherHtml(o) {
     main = '<p class="say">No links yet.</p><p class="fine">Add them from the labs spreadsheet: ' +
            '🧪 Biology Labs ▸ 🔗 Teacher page.</p>';
   } else {
-    var total = 0, body = '';
+    var total = 0, body = '', present = {};
     if (o.g.records.length) {
       total += o.g.records.length;
-      body += '<section class="grp"><h2 class="grp__h"><span class="co">Records</span>' +
+      body += '<section class="grp" data-current="1"><h2 class="grp__h"><span class="co">Records</span>' +
         '<span class="n">' + o.g.records.length + '</span></h2>' +
-        '<div class="cards">' + o.g.records.map(card).join('') + '</div></section>';
+        '<div class="cards">' + o.g.records.map(function (l) { return card(l, 'records', 'records'); }).join('') + '</div></section>';
     }
     o.g.cohorts.forEach(function (c) {
       var n = 0; c.types.forEach(function (t) { n += t.links.length; });
       total += n;
-      body += '<section class="grp cohort"><h2 class="coh">' +
+      var cohortStr = c.title + ' ' + c.yearGroup;
+      body += '<section class="grp cohort" data-current="' + (c.current ? '1' : '0') + '"><h2 class="coh">' +
         '<span class="coh__t">' + e(c.title) + '</span>' +
-        (c.yearGroup ? '<span class="chip chip--yg">' + e(c.yearGroup) + ' this year</span>' : '') +
-        (c.academic ? '<span class="coh__ay">' + e(c.academic) + '</span>' : '') +
+        (c.yearGroup ? '<span class="chip chip--yg">' + e(c.yearGroup) + ' this year</span>'
+                     : '<span class="chip chip--past">not in school</span>') +
+        (c.academic && c.yearGroup ? '<span class="coh__ay">' + e(c.academic) + '</span>' : '') +
         '<span class="n">' + n + '</span></h2>' +
         c.types.map(function (t) {
-          var cls = _typeClass_(t.type);
+          var cls = _typeClass_(t.type); present[cls] = 1;
           return '<div class="tb tb--' + cls + '">' +
             '<h3 class="tl">' + e(t.type) + '<span class="tn">' + t.links.length + '</span></h3>' +
-            '<div class="cards">' + t.links.map(card).join('') + '</div></div>';
+            '<div class="cards">' + t.links.map(function (l) { return card(l, cohortStr, cls); }).join('') + '</div></div>';
         }).join('') + '</section>';
     });
     if (o.g.loose.length) {
       total += o.g.loose.length;
-      body += '<section class="grp"><h2 class="grp__h"><span class="co">No graduation year set</span>' +
+      body += '<section class="grp" data-current="1"><h2 class="grp__h"><span class="co">No graduation year set</span>' +
         '<span class="n">' + o.g.loose.length + '</span></h2>' +
-        '<div class="cards">' + o.g.loose.map(card).join('') + '</div></section>';
+        '<div class="cards">' + o.g.loose.map(function (l) { var cls = _typeClass_(l.type); present[cls] = 1; return card(l, '', cls); }).join('') + '</div></section>';
     }
-    main = body +
+    /* the toolbar: search, filter by type, and hide cohorts who are not in school this year */
+    var chips = '<button type="button" class="fchip is-on" data-f="all">All</button>';
+    [['reflection', 'Reflection'], ['test', 'Test'], ['survey', 'Survey'], ['other', 'Other']].forEach(function (p) {
+      if (present[p[0]]) chips += '<button type="button" class="fchip" data-f="' + p[0] + '">' + p[1] + '</button>';
+    });
+    var ty = o.g.thisYear;
+    var legend = ty ? '<p class="legend"><span class="legend__k">This year · ' + e(ty.academic) + '</span>' +
+      ty.list.map(function (x) { return '<span class="legend__y"><b>' + e(x.yg) + '</b> Class of ' + x.grad + '</span>'; }).join('') + '</p>' : '';
+    var bar = '<div class="bar">' +
+      '<div class="search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.2-3.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+      '<input id="q" type="search" placeholder="Find a spreadsheet…" aria-label="Find a spreadsheet" autocomplete="off"></div>' +
+      '<div class="fchips">' + chips + '</div>' +
+      '<label class="curtog"><input id="cur" type="checkbox"><span>In school now</span></label>' +
+      '</div>';
+    main = legend + bar + '<div id="list">' + body + '</div>' +
+      '<p class="none" id="none" hidden>Nothing matches that. <button type="button" id="clear" class="linkbtn">Clear</button></p>' +
       '<p class="foot">Each link opens only for the people its spreadsheet is shared with — this page lists them, ' +
       'it does not share them. To add, remove or change anything: in the labs spreadsheet, ' +
       '🧪&nbsp;Biology&nbsp;Labs ▸ 🔗&nbsp;Teacher&nbsp;page.</p>';
@@ -2480,6 +2508,22 @@ function _teacherHtml(o) {
       (o.state === 'ok' && o.total ? '<span class="who__dot">·</span>' + o.total + ' spreadsheet' + (o.total === 1 ? '' : 's') : '') +
       '</span>'
     : '';
+  var js = o.state === 'ok' ? '<script>(function(){' +
+    'var q=document.getElementById("q"),cur=document.getElementById("cur"),none=document.getElementById("none"),' +
+    'chips=[].slice.call(document.querySelectorAll(".fchip")),cards=[].slice.call(document.querySelectorAll(".card")),f="all";' +
+    'function apply(){var term=(q.value||"").trim().toLowerCase(),only=cur.checked,shown=0;' +
+    'cards.forEach(function(c){var ok=(f==="all"||c.getAttribute("data-type")===f)&&(!term||c.getAttribute("data-s").indexOf(term)>=0);c.hidden=!ok;if(ok)shown++;});' +
+    'document.querySelectorAll(".tb").forEach(function(b){b.hidden=!b.querySelector(".card:not([hidden])");});' +
+    'document.querySelectorAll(".grp").forEach(function(g){var vis=g.querySelector(".card:not([hidden])");var hideCur=only&&g.getAttribute("data-current")==="0";g.hidden=!vis||hideCur;});' +
+    'none.hidden=shown>0;}' +
+    'q.addEventListener("input",apply);cur.addEventListener("change",apply);' +
+    'chips.forEach(function(b){b.addEventListener("click",function(){chips.forEach(function(x){x.classList.remove("is-on");x.setAttribute("aria-pressed","false");});b.classList.add("is-on");b.setAttribute("aria-pressed","true");f=b.getAttribute("data-f");apply();});});' +
+    'var cl=document.getElementById("clear");if(cl)cl.addEventListener("click",function(){q.value="";cur.checked=false;chips.forEach(function(x){x.classList.toggle("is-on",x.getAttribute("data-f")==="all");});f="all";apply();q.focus();});' +
+    'q.addEventListener("keydown",function(ev){if(ev.key==="Escape"){q.value="";apply();}});' +
+    'document.addEventListener("click",function(ev){var b=ev.target.closest&&ev.target.closest(".card__copy");if(!b)return;ev.preventDefault();var u=b.getAttribute("data-url"),done=function(){var t=b.textContent;b.textContent="Copied \\u2713";b.classList.add("ok");setTimeout(function(){b.textContent=t;b.classList.remove("ok");},1400);};' +
+    'if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(done,function(){fallback(u,done);});}else{fallback(u,done);}});' +
+    'function fallback(u,done){try{var ta=document.createElement("textarea");ta.value=u;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);done();}catch(e){}}' +
+    '})();</script>' : '';
   return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
@@ -2489,54 +2533,78 @@ function _teacherHtml(o) {
     '--chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--accent:#E879F9;' +
     '--reflection:#E879F9;--test:#F5A623;--survey:#2DD4BF;--other:#9AB0BE;' +
     '--serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}' +
-    '*{box-sizing:border-box}' +
+    '*{box-sizing:border-box}[hidden]{display:none!important}' +
     'html,body{margin:0;background:radial-gradient(1100px 460px at 82% -12%,rgba(232,121,249,.07),transparent 62%),var(--ink);' +
     'color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}' +
     '.wrap{max-width:860px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 56px}' +
     '.eye{font:600 10.5px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}.eye b{color:var(--accent)}' +
     'h1{font:400 clamp(36px,5.4vw,56px)/1.02 var(--serif);letter-spacing:-.02em;margin:10px 0 12px}h1 em{font-style:italic;color:var(--accent)}' +
-    '.lede{color:#C5D4DD;max-width:58ch;margin:0 0 22px;font-size:15.5px}' +
+    '.lede{color:#C5D4DD;max-width:58ch;margin:0 0 18px;font-size:15.5px}' +
     '.who{display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border:1px solid var(--line2);border-radius:999px;' +
     'background:rgba(120,200,230,.06);font-size:13px;color:var(--dim)}.who svg{color:var(--cyan);opacity:.85;flex:none}' +
     '.who b{color:var(--chalk);font-weight:500}.who__dot{margin:0 7px;color:var(--mute)}' +
-    '.grp{margin:34px 0 0}' +
+    /* the "this year" key */
+    '.legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:20px 0 0;padding:11px 15px;border:1px solid var(--line);' +
+    'border-radius:10px;background:rgba(120,200,230,.03);font-size:12.5px;color:var(--dim)}' +
+    '.legend__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}' +
+    '.legend__y b{color:var(--accent);font-weight:600;font-family:var(--mono);font-size:11px;margin-right:5px}' +
+    /* the toolbar */
+    '.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:16px 0 6px}' +
+    '.search{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-width:0;padding:9px 14px;border:1px solid var(--line2);' +
+    'border-radius:999px;background:var(--card)}.search svg{color:var(--mute);flex:none}' +
+    '.search input{flex:1;min-width:0;border:0;background:none;color:var(--chalk);font:15px/1 var(--sans);outline:none}' +
+    '.search input::placeholder{color:var(--mute)}' +
+    '.fchips{display:flex;flex-wrap:wrap;gap:6px}' +
+    '.fchip{font:600 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:8px 13px;' +
+    'border:1px solid var(--line2);border-radius:999px;background:transparent;cursor:pointer;transition:color .15s,background .15s,border-color .15s}' +
+    '.fchip:hover{color:var(--chalk)}.fchip.is-on{color:var(--ink);background:var(--chalk);border-color:var(--chalk)}' +
+    '.curtog{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);cursor:pointer;user-select:none}' +
+    '.curtog input{accent-color:var(--accent);width:15px;height:15px}' +
+    '.grp{margin:30px 0 0}' +
     '.grp__h{display:flex;align-items:center;gap:11px;font:600 10.5px/1.3 var(--mono);letter-spacing:.17em;text-transform:uppercase;' +
     'color:var(--dim);margin:0 0 12px}.grp__h .co{color:var(--chalk)}.grp__h .n{color:var(--mute);font-weight:500}' +
     '.grp__h::after{content:"";flex:1;height:1px;background:var(--line)}' +
-    /* cohort header: the class prominent, the current year group as a chip, the academic year quiet */
     '.coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line2)}' +
     '.coh__t{font:400 22px/1 var(--serif);letter-spacing:-.01em;color:var(--chalk)}' +
     '.chip--yg{font:600 10px/1 var(--mono);letter-spacing:.06em;color:#F1CFFB;background:rgba(232,121,249,.13);' +
     'border:1px solid rgba(232,121,249,.32);padding:5px 9px;border-radius:999px;text-transform:none}' +
+    '.chip--past{font:600 10px/1 var(--mono);letter-spacing:.06em;color:var(--mute);background:rgba(150,190,215,.08);' +
+    'border:1px solid var(--line2);padding:5px 9px;border-radius:999px;text-transform:none}' +
     '.coh__ay{font:500 11px/1 var(--mono);letter-spacing:.08em;color:var(--mute)}' +
     '.coh .n{margin-left:auto;font:600 10.5px/1 var(--mono);letter-spacing:.14em;color:var(--mute)}' +
-    /* a type block inside a cohort: a small coloured label, then its cards */
     '.tb{margin:16px 0 0}.tb .tl{display:flex;align-items:center;gap:8px;font:600 10px/1.3 var(--mono);letter-spacing:.15em;' +
     'text-transform:uppercase;color:var(--tc);margin:0 0 8px}.tb .tn{color:var(--mute);font-weight:500}' +
     '.tb--reflection{--tc:var(--reflection)}.tb--test{--tc:var(--test)}.tb--survey{--tc:var(--survey)}.tb--other{--tc:var(--other)}' +
     '.cards{display:grid;gap:8px}' +
-    '.card{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 18px;' +
-    'padding:13px 18px;border-radius:11px;background:var(--card);border:1px solid var(--line);color:inherit;text-decoration:none;' +
-    'transition:border-color .18s,background .18s}' +
+    '.card{position:relative;display:flex;align-items:center;gap:14px;padding:13px 16px 13px 18px;border-radius:11px;' +
+    'background:var(--card);border:1px solid var(--line);transition:border-color .18s,background .18s}' +
     '.card::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:var(--tc,var(--accent));opacity:0;transition:opacity .18s}' +
-    '.card:hover,.card:focus-visible{border-color:var(--line2);background:var(--cardhi)}' +
-    '.card:hover::before,.card:focus-visible::before{opacity:.9}' +
-    '.card:focus-visible{outline:2px solid var(--tc,var(--accent));outline-offset:2px}' +
-    '.card__name{font-weight:600;font-size:15px;overflow-wrap:anywhere}' +
-    '.card__detail{grid-column:1;color:var(--dim);font-size:13px;margin-top:2px;overflow-wrap:anywhere}' +
-    '.card__go{grid-column:2;grid-row:1/span 2;display:inline-flex;align-items:center;gap:6px;font:600 10.5px/1 var(--mono);' +
-    'letter-spacing:.12em;text-transform:uppercase;color:var(--tc,var(--accent));white-space:nowrap}' +
-    '.card__go .arw{transition:transform .18s}.card:hover .card__go .arw{transform:translateX(3px)}' +
+    '.card:hover,.card:focus-within{border-color:var(--line2);background:var(--cardhi)}' +
+    '.card:hover::before,.card:focus-within::before{opacity:.9}' +
+    '.card__main{flex:1 1 auto;min-width:0}' +
+    '.card__name{font-weight:600;font-size:15px;color:var(--chalk);text-decoration:none;overflow-wrap:anywhere}' +
+    '.card__name:hover,.card__name:focus-visible{color:var(--tc,var(--accent))}' +
+    '.card__detail{color:var(--dim);font-size:13px;margin-top:2px;overflow-wrap:anywhere}' +
+    '.card__act{flex:none;display:flex;align-items:center;gap:6px}' +
+    '.card__copy{font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:transparent;' +
+    'border:1px solid var(--line2);border-radius:999px;padding:7px 11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}' +
+    '.card__copy:hover{color:var(--chalk);border-color:var(--chalk)}.card__copy.ok{color:#0A141C;background:var(--survey);border-color:var(--survey)}' +
+    '.card__open{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;' +
+    'color:var(--tc,var(--accent));text-decoration:none;padding:7px 11px;border:1px solid transparent;border-radius:999px}' +
+    '.card__open:hover{background:color-mix(in srgb,var(--tc,var(--accent)) 12%,transparent)}' +
+    '.card__open .arw{transition:transform .18s}.card:hover .card__open .arw{transform:translateX(3px)}' +
+    '.card__name:focus-visible,.card__copy:focus-visible,.card__open:focus-visible,.fchip:focus-visible{outline:2px solid var(--tc,var(--accent));outline-offset:2px}' +
+    '.none{color:var(--dim);font-size:14px;margin:24px 0}.linkbtn{color:var(--accent);background:none;border:0;font:inherit;cursor:pointer;text-decoration:underline;padding:0}' +
     '.foot{margin-top:34px;color:var(--mute);font-size:12.5px;max-width:66ch;border-top:1px solid var(--line);padding-top:15px}' +
     '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:22px 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500;color:var(--chalk)}' +
     '.fine{color:var(--mute);font-size:13.5px;max-width:62ch}' +
-    '@media (max-width:520px){.card{grid-template-columns:1fr}.card__go{grid-column:1;grid-row:auto;margin-top:8px}.coh .n{margin-left:0}}' +
-    '@media (prefers-reduced-motion:reduce){.card,.card__go .arw{transition:none}}' +
+    '@media (max-width:560px){.card{flex-wrap:wrap}.card__act{width:100%;margin-top:4px}.coh .n{margin-left:0}}' +
+    '@media (prefers-reduced-motion:reduce){.card,.card__open .arw,.fchip{transition:none}}' +
     '</style></head><body><div class="wrap">' +
     '<p class="eye">Biology Hub · <b>Teachers only</b></p>' +
     '<h1>Assessment <em>system</em></h1>' +
     '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place — grouped by the cohort it belongs to, by the year they graduate.</p>' +
-    who + main + '</div></body></html>';
+    who + main + '</div>' + js + '</body></html>';
 }
 
 /* 🧪 Biology Labs ▸ 🔗 Teacher page: makes the tab (with the two records it can fill

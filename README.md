@@ -315,6 +315,13 @@ Signed in on the hub as a teacher, the corner card gains a **Teacher | Test** sw
 **Teacher** replaces the student's door with **Assessment system**, which opens a page listing
 every spreadsheet you put on it: each assessment's, the test copies, the tracker.
 
+The page groups them by **cohort — the year they graduate** (this year's Y10 is Class of 2028), and
+works out the current year group (Y9/Y10/Y11) itself, so it never goes stale. Records are pinned at
+the top; within a cohort the spreadsheets are grouped by **type** (Reflection · Test · Survey · …,
+colour-coded). There is a **search box**, **filter chips** by type, an **In-school-now** toggle to
+hide cohorts who have left, a **This year** key mapping year groups to cohorts, and a **Copy link**
+button on every card for pasting into Google Classroom or an email.
+
 **Nothing about that page is in this website.** Not its address, not a spreadsheet link, not who
 the teachers are. It is guarded twice:
 
