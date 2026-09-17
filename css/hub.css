@@ -152,6 +152,18 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .maker{margin-top:10px;font-size:13.5px;color:#C5D4DD}
 .maker::before{content:"";display:inline-block;width:22px;height:1px;background:var(--cyan);opacity:.8;vertical-align:middle;margin-right:10px}
 .maker strong{font-weight:500;color:var(--chalk)}
+/* The name is the way in to who made this, so it has to look pressable rather than like prose.
+   A quiet pill: it sits under the lede and must not compete with the doors. The arrow says it
+   leaves the site. */
+.maker__me{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;margin:0 2px;
+  border:1px solid var(--line2,rgba(150,190,215,.32));border-radius:999px;
+  background:rgba(7,15,21,.5);color:var(--chalk);text-decoration:none;white-space:nowrap;
+  transition:border-color .15s,color .15s,background .15s}
+.maker__me:hover,.maker__me:focus-visible{border-color:var(--cyan);color:var(--cyan);
+  background:color-mix(in srgb,var(--cyan) 9%,transparent)}
+.maker__me:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.maker__me strong{font-weight:500;color:inherit}
+.maker__me::after{content:"\2197";font:500 10px/1 var(--mono);opacity:.75}
 
 /* your year — three tabs, then that year's topics */
 .years{display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:600px}
