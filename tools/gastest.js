@@ -543,6 +543,48 @@ ok &= run('tidy up leaves every mark alone', () => {
   const after = JSON.stringify(ss.getSheetByName('Digestion').getRange(1, 1, 4, LAB_COLS.length).getValues());
   if (before !== after) throw new Error('Tidy up changed the data');
 });
+ok &= run('a renamed or moved pupil keeps every mark — only Name and Class are rewritten', () => {
+  /* The fast path rewrites columns A:B for the WHOLE tab in one call. That is only safe if it
+     writes back the sheet's own values for every row it is not deliberately changing, so this
+     pins it: change a pupil's name and class on the roster, run Tidy up, and demand that their
+     marks, checks, per-station text, code, email and snapshot come through untouched. */
+  const dig = ss.getSheetByName('Digestion');
+  const all = dig.getRange(2, 1, dig.getLastRow() - 1, LAB_COLS.length).getValues();
+  let r = -1;
+  for (let i = 0; i < all.length; i++) if (String(all[i][2]).trim() !== '') { r = i + 2; break; }
+  if (r < 0) throw new Error('no marked row to protect');
+  const email = _cleanEmail_(dig.getRange(r, LAB_EMAIL).getValue());
+
+  /* give the row something distinctive in every column the fast path must not touch */
+  dig.getRange(r, 13).setValue('KEEP-FLAGS');
+  dig.getRange(r, 14).setValue('mouth 8/8 in 11 · stomach 5/9 in 4');
+  dig.getRange(r, LAB_SNAP).setValue('KEEP-SNAPSHOT');
+  const before = dig.getRange(r, 3, 1, LAB_COLS.length - 2).getValues()[0];   /* cols 3..17 */
+
+  /* rename and move them on the roster */
+  const stu = ss.getSheetByName('Students'), ec = _emailCol_(stu);
+  const rows = stu.getRange(2, 1, stu.getLastRow() - 1, ec).getValues();
+  let sr = -1;
+  for (let i = 0; i < rows.length; i++) if (_cleanEmail_(rows[i][ec - 1]) === email) sr = i + 2;
+  if (sr < 0) throw new Error('that pupil is not on the roster');
+  const wasName = stu.getRange(sr, 1).getValue(), wasCls = stu.getRange(sr, 2).getValue();
+  stu.getRange(sr, 1).setValue('Renamed Pupil');
+  stu.getRange(sr, 2).setValue('11D');
+
+  setup();                                                   /* Tidy up */
+
+  const nowName = dig.getRange(r, 1).getValue(), nowCls = dig.getRange(r, 2).getValue();
+  if (nowName !== 'Renamed Pupil') throw new Error('the new name did not reach the lab tab: ' + nowName);
+  if (String(nowCls).toUpperCase() !== '11D') throw new Error('the new class did not reach the lab tab: ' + nowCls);
+
+  const after = dig.getRange(r, 3, 1, LAB_COLS.length - 2).getValues()[0];
+  if (JSON.stringify(before) !== JSON.stringify(after)) {
+    throw new Error('Tidy up changed a column it must not touch:\n   was ' +
+                    JSON.stringify(before) + '\n   now ' + JSON.stringify(after));
+  }
+  stu.getRange(sr, 1).setValue(wasName); stu.getRange(sr, 2).setValue(wasCls);
+  setup();
+});
 ok &= run('refreshDashboard twice running is the same', () => {
   refreshDashboard();
   const a = JSON.stringify(ss.getSheetByName('Students').getRange(2, 1, 3, 3 + LABS.length + 2).getValues());
