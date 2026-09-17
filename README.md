@@ -347,6 +347,10 @@ the labs spreadsheet ("Student data"). You never edit the code for any of this:
    **Type** (Reflection, Test, Survey…), the **Assessment**, the **Graduation year** (the cohort —
    this year's Y10 is 2028, next year's is 2029), and the **Link**. The same test for another cohort
    is another row; the page groups by cohort and works out the current year group (Y9/Y10/Y11) itself.
+   A row may also carry a **Dashboard** address. Both the test system and the reflection system serve
+   a live teacher dashboard at their own web-app address ending `/exec?page=dashboard`; put it there
+   and the card offers it beside the spreadsheet, so reaching the dashboard no longer means opening
+   the spreadsheet first and hunting for the link inside. Leave it blank and the card is unchanged.
 3. That is all. Teachers, links and the address are read live, so anything you add or change here
    takes effect at once — no new version, no redeploy. (A redeploy is only ever needed when the
    **code** itself changes.)
