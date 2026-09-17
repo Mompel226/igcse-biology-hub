@@ -2492,7 +2492,7 @@ function _teacherHtml(o) {
       '<div class="search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.2-3.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
       '<input id="q" type="search" placeholder="Find a spreadsheet…" aria-label="Find a spreadsheet" autocomplete="off"></div>' +
       '<div class="fchips">' + chips + '</div>' +
-      '<label class="curtog"><input id="cur" type="checkbox"><span>In school now</span></label>' +
+      '<label class="curtog"><input id="cur" type="checkbox" checked><span>Only current cohorts</span></label>' +
       '</div>';
     main = legend + bar + '<div id="list">' + body + '</div>' +
       '<p class="none" id="none" hidden>Nothing matches that. <button type="button" id="clear" class="linkbtn">Clear</button></p>' +
@@ -2523,6 +2523,7 @@ function _teacherHtml(o) {
     'document.addEventListener("click",function(ev){var b=ev.target.closest&&ev.target.closest(".card__copy");if(!b)return;ev.preventDefault();var u=b.getAttribute("data-url"),done=function(){var t=b.textContent;b.textContent="Copied \\u2713";b.classList.add("ok");setTimeout(function(){b.textContent=t;b.classList.remove("ok");},1400);};' +
     'if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(done,function(){fallback(u,done);});}else{fallback(u,done);}});' +
     'function fallback(u,done){try{var ta=document.createElement("textarea");ta.value=u;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);done();}catch(e){}}' +
+    'apply();' +
     '})();</script>' : '';
   return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
