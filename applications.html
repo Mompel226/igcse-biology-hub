@@ -3,45 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Apps for teachers — Biology Hub</title>
+<title>Apps teachers made — Biology Hub</title>
 <meta name="author" content="Dr Daniel Mompel Riera">
 <meta name="copyright" content="Dr Daniel Mompel Riera">
 <meta name="theme-color" content="#0A141C">
-<meta name="description" content="Two free, open-source Mac apps for teachers: a seating plan you can make in five minutes, and a birthday reminder that finds you. Everything stays on your own machine.">
+<meta name="description" content="A shelf for small, free, open-source apps that teachers have built for their own classrooms — and somewhere to put yours. Everything here runs on your own machine.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧬</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789650514">
+<link rel="stylesheet" href="css/hub.css?v=1789651516">
 <style>
-/* This page borrows the hub's palette and type from hub.css and adds only what a page of
-   two long entries needs. It is deliberately a page of its own rather than a hub view:
-   nobody has to sign in to read it, and a teacher at another school can be sent the link. */
-.apps{max-width:1120px;margin:0 auto;padding:0 var(--gutter) 40px}
-.apps__lede{max-width:62ch;color:var(--chalk-mute);font-size:16.5px;line-height:1.6}
-.app{margin:26px 0 0;border:1px solid var(--line);border-radius:16px;background:var(--panel,rgba(255,255,255,.02));overflow:hidden}
-.app__shot{display:block;width:100%;height:auto;border-bottom:1px solid var(--line);background:#0d1a22}
-.app__body{padding:clamp(16px,2.6vw,26px)}
-.app__eyebrow{font:600 10px/1.3 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#4FC3F7);margin:0 0 6px}
-.app__title{font:400 clamp(26px,3.4vw,36px)/1.1 var(--serif,Fraunces,Georgia,serif);margin:0 0 8px;color:var(--chalk,#EDF4F8)}
-.app__title em{font-style:italic;color:var(--accent,#4FC3F7)}
-.app__what{max-width:64ch;color:var(--chalk-mute);line-height:1.6;margin:0 0 14px}
-.app__pts{list-style:none;margin:0 0 18px;padding:0;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(248px,1fr))}
-.app__pts li{position:relative;padding-left:18px;color:var(--chalk-mute);font-size:14.5px;line-height:1.5}
-.app__pts li::before{content:"";position:absolute;left:0;top:.56em;width:7px;height:7px;border-radius:50%;background:var(--accent,#4FC3F7);opacity:.85}
-.app__go{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:999px;
+/* A directory, not a brochure: the grid has to stay readable at two apps and at twenty, so a card
+   carries only a picture, a name, one line and what it needs. Everything else waits in a sheet
+   that opens when the card is clicked — the shape the app stores and plugin directories settled on
+   because scrolling past twenty full write-ups to find one is what nobody wants to do. */
+/* width:100% matters: .hub is a column flex, and `margin:0 auto` on a flex item overrides the
+   default stretch, so the shelf sized itself to its cards and sat centred with the masthead
+   hanging off to the left. */
+.shelf{width:100%;margin:0;padding:0 0 46px}
+.shelf__bar{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin:6px 0 14px}
+.shelf__n{font:600 10px/1.3 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.16em;text-transform:uppercase;color:var(--chalk-mute)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));margin:0;padding:0;list-style:none}
+
+.card{display:flex;flex-direction:column;height:100%;border:1px solid var(--line);border-radius:14px;
+  background:rgba(255,255,255,.022);overflow:hidden;text-decoration:none;color:inherit;
+  transition:border-color .16s,transform .16s,background .16s}
+.card:hover,.card:focus-visible{border-color:var(--ac,#4FC3F7);background:rgba(255,255,255,.045);transform:translateY(-2px)}
+.card:focus-visible{outline:2px solid var(--ac,#4FC3F7);outline-offset:3px}
+/* height:auto matters: the img carries a height attribute, and as a flex item in a column that
+   definite height wins over aspect-ratio — the card came out 450px tall instead of 181px. */
+.card__thumb{display:block;flex:none;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;
+  background:#0d1a22;border-bottom:1px solid var(--line)}
+.card__b{padding:13px 15px 15px;display:flex;flex-direction:column;gap:7px;flex:1 1 auto}
+.card__kind{font:600 9px/1.3 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.15em;text-transform:uppercase;color:var(--ac,#4FC3F7)}
+.card__n{font:500 17px/1.25 var(--sans,Inter,system-ui,sans-serif);color:var(--chalk,#EDF4F8);margin:0}
+.card__s{font-size:13.5px;line-height:1.5;color:var(--chalk-mute);margin:0;flex:1 1 auto}
+.needs{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.need{font:500 10px/1 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 7px;border-radius:3px;border:1px solid var(--line2,rgba(150,190,215,.32));color:var(--chalk-mute)}
+.need--warn{border-color:rgba(245,166,35,.5);color:#F5A623}
+.card__more{font:500 12px/1 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.08em;text-transform:uppercase;color:var(--ac,#4FC3F7);margin-top:4px}
+
+/* the "add yours" tile: a directory that cannot be added to is just a list */
+.card--add{border-style:dashed;justify-content:center;align-items:center;text-align:center;padding:30px 20px;min-height:230px;gap:9px;--ac:#A78BFA}
+.card--add .card__n{font-size:16px}
+.card--add .card__s{flex:none;max-width:30ch}
+.card__plus{width:34px;height:34px;border-radius:50%;border:1px solid var(--ac);color:var(--ac);display:grid;place-items:center;font-size:19px;line-height:1}
+
+/* the sheet */
+.sheet{width:min(760px,calc(100vw - 28px));max-height:min(86vh,900px);padding:0;border:1px solid var(--line2,rgba(150,190,215,.32));
+  border-radius:16px;background:var(--ink,#0A141C);color:var(--chalk,#EDF4F8);overflow:hidden}
+.sheet::backdrop{background:rgba(4,9,13,.72);backdrop-filter:blur(3px)}
+.sheet__in{max-height:inherit;overflow:auto;-webkit-overflow-scrolling:touch}
+.sheet__x{position:absolute;top:10px;right:12px;z-index:2;width:32px;height:32px;border-radius:9px;
+  border:1px solid var(--line2,rgba(150,190,215,.32));background:rgba(7,15,21,.8);color:var(--chalk-mute);font-size:15px;cursor:pointer}
+.sheet__x:hover{color:var(--chalk,#EDF4F8)}
+.sheet__shot{display:block;width:100%;height:auto;border-bottom:1px solid var(--line)}
+.sheet__b{padding:clamp(16px,2.6vw,24px)}
+.sheet__kind{font:600 9.5px/1.3 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.16em;text-transform:uppercase;color:var(--ac,#4FC3F7);margin:0 0 6px}
+.sheet__n{font:400 clamp(24px,3.2vw,31px)/1.12 var(--serif,Fraunces,Georgia,serif);margin:0 0 9px}
+.sheet__n em{font-style:italic;color:var(--ac,#4FC3F7)}
+.sheet__w{max-width:62ch;color:var(--chalk-mute);line-height:1.6;margin:0 0 13px;font-size:15px}
+.sheet__pts{list-style:none;margin:0 0 15px;padding:0;display:grid;gap:7px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.sheet__pts li{position:relative;padding-left:17px;color:var(--chalk-mute);font-size:14px;line-height:1.5}
+.sheet__pts li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--ac,#4FC3F7)}
+.warn{margin:0 0 15px;padding:12px 14px;border:1px solid rgba(245,166,35,.42);border-left:3px solid #F5A623;
+  border-radius:10px;background:rgba(245,166,35,.06);color:var(--chalk-mute);font-size:13.5px;line-height:1.55}
+.warn b{color:#F5A623}
+.go{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;
   border:1px solid var(--line2,rgba(150,190,215,.32));background:transparent;color:var(--chalk,#EDF4F8);
   font:500 13.5px/1 var(--sans,Inter,system-ui,sans-serif);text-decoration:none;cursor:pointer}
-.btn:hover{border-color:var(--accent,#4FC3F7);color:var(--accent,#4FC3F7)}
-.btn--main{border-color:var(--accent,#4FC3F7);color:var(--accent,#4FC3F7)}
-.app--seat{--accent:#2DD4BF}
-.app--bday{--accent:#E879F9}
-.apps__note{margin:26px 0 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent,#4FC3F7);border-radius:12px;background:rgba(255,255,255,.02)}
-.apps__note h2{font:600 11px/1.3 var(--mono,"IBM Plex Mono",monospace);letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-mute);margin:0 0 8px}
-.apps__note p{margin:0 0 8px;max-width:70ch;color:var(--chalk-mute);font-size:14.5px;line-height:1.6}
-.apps__note p:last-child{margin-bottom:0}
-@media (max-width:600px){ .app__pts{grid-template-columns:1fr} }
+.btn:hover{border-color:var(--ac,#4FC3F7);color:var(--ac,#4FC3F7)}
+.btn--main{border-color:var(--ac,#4FC3F7);color:var(--ac,#4FC3F7)}
+.foot-note{margin:22px 0 0;color:var(--chalk-mute);font-size:13.5px;line-height:1.6;max-width:74ch}
+[hidden]{display:none!important}
+@media (max-width:600px){ .sheet__pts{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:reduce){ .card{transition:none} .card:hover{transform:none} }
 </style>
 </head>
 <body>
@@ -51,80 +90,228 @@
   <header class="masthead">
     <div class="masthead__l">
       <a class="crumb" href="index.html">Front door</a>
-      <span class="eyebrow">Free · open source · nothing leaves your Mac</span>
-      <h1>Apps for <em>teachers</em></h1>
-      <p class="lede">Two small Mac apps written for my own teaching and free for any school to use.
-         Neither needs an account, a server, or anyone's permission.</p>
-      <p class="maker">Made by <strong>Dr Daniel Mompel Riera</strong></p>
+      <span class="eyebrow">Free · open source · anyone can add one</span>
+      <h1>Apps <em>teachers made</em></h1>
+      <p class="lede">A shelf for the small tools teachers build for their own classrooms, and then find
+         everyone else wants too. All free, all open, all running on your own machine. If you have made
+         something, it belongs here.</p>
+      <p class="maker">Kept by <strong>Dr Daniel Mompel Riera</strong></p>
     </div>
   </header>
 
-  <main class="apps">
+  <main class="shelf">
+    <div class="shelf__bar"><span class="shelf__n" id="count">2 apps · both for macOS</span></div>
 
-    <section class="app app--seat">
-      <img class="app__shot" src="assets/apps/seating-plan.jpg?v=1789650514" width="1400" height="933" loading="lazy"
-           alt="A seating plan: six benches of four in a room with a whiteboard, screen and teacher's desk at the front. Each chair holds a card with a photograph, a first name and a surname.">
-      <div class="app__body">
-        <p class="app__eyebrow">Seating Plan</p>
-        <h2 class="app__title">Draw the room once, then <em>drag faces into chairs</em></h2>
-        <p class="app__what">Import a class from two iSAMS exports, lay out the benches the way your room
-          actually is, and drag photographs into seats. Shuffle them, sort them A–Z, or split up whoever
-          needs splitting up. It prints on one sheet, and <em>Student's view</em> turns the plan round so
-          it reads from where they are sitting.</p>
-        <ul class="app__pts">
-          <li>Photographs, so you learn names in the first week rather than the third</li>
-          <li>Several plans per class — the practical is not the test</li>
-          <li>Quiet labels only you can read, for who needs what</li>
-          <li>One sheet of A4, or the whole room on the screen</li>
-        </ul>
-        <div class="app__go">
-          <a class="btn btn--main" href="https://github.com/Mompel226/seating-plan" target="_blank" rel="noopener">Download it from GitHub</a>
-          <a class="btn" href="https://github.com/Mompel226/seating-plan#installing" target="_blank" rel="noopener">How to install</a>
-        </div>
-      </div>
-    </section>
+    <ul class="grid">
 
-    <section class="app app--bday">
-      <img class="app__shot" src="assets/apps/birthday-calendar.jpg?v=1789650514" width="1400" height="933" loading="lazy"
-           alt="A birthday calendar for September, with cards along the top for today, tomorrow and the days after, and small student cards on the dates in the month grid.">
-      <div class="app__body">
-        <p class="app__eyebrow">Birthday Reminder</p>
-        <h2 class="app__title">A window that <em>finds you</em>, in the morning</h2>
-        <p class="app__what">Wishing a fourteen-year-old a happy birthday costs nothing and lands more than
-          most of what we do that week. It fails because nobody tells you in time. This checks when you log
-          in and within five minutes of you opening the lid, then leaves you alone for the rest of the day.</p>
-        <ul class="app__pts">
-          <li>Friday covers the weekend, so you can say it to their face</li>
-          <li>Catches up on the days the Mac was shut</li>
-          <li><strong>Discreet mode</strong>: spots a projector and hides the name until you click</li>
-          <li>A calendar to browse, and a panel for preferred names</li>
-        </ul>
-        <div class="app__go">
-          <a class="btn btn--main" href="https://github.com/Mompel226/birthday-reminder" target="_blank" rel="noopener">Download it from GitHub</a>
-          <a class="btn" href="https://github.com/Mompel226/birthday-reminder#installing" target="_blank" rel="noopener">How to install</a>
-        </div>
-      </div>
-    </section>
+      <li><a class="card" style="--ac:#2DD4BF" href="https://github.com/Mompel226/seating-plan"
+             data-app="seating-plan" aria-describedby="s-seating-plan-sum">
+        <img class="card__thumb" src="assets/apps/seating-plan-card.jpg?v=1789651516" width="800" height="450" loading="lazy"
+             alt="A seating plan: benches of four in a room, each chair holding a card with a photograph and a name.">
+        <span class="card__b">
+          <span class="card__kind">Classroom</span>
+          <h2 class="card__n">Seating Plan</h2>
+          <span class="card__s" id="s-seating-plan-sum">Draw your room once, then drag faces into chairs. Prints on one sheet.</span>
+          <span class="needs"><span class="need">macOS</span><span class="need need--warn">Needs iSAMS</span></span>
+          <span class="card__more">What it does →</span>
+        </span>
+      </a></li>
 
-    <div class="apps__note">
-      <h2>Two things worth knowing</h2>
-      <p><strong>Nothing leaves your Mac.</strong> Each app is a small server that only your own browser can
-        reach, on a random port, behind a token made when it starts. There is no account, no cloud and no
-        outbound request of any kind. Your classes sit in a folder you can open, read and delete yourself.</p>
-      <p><strong>macOS will block them the first time,</strong> because they are not signed by a paid Apple
-        developer account. That is expected, and each app's read-me walks through the three clicks past it.
-        You do it once.</p>
-    </div>
+      <li><a class="card" style="--ac:#E879F9" href="https://github.com/Mompel226/birthday-reminder"
+             data-app="birthday-reminder" aria-describedby="s-birthday-sum">
+        <img class="card__thumb" src="assets/apps/birthday-calendar-card.jpg?v=1789651516" width="800" height="450" loading="lazy"
+             alt="A birthday calendar for September, with cards for today and the days after along the top.">
+        <span class="card__b">
+          <span class="card__kind">Pastoral</span>
+          <h2 class="card__n">Birthday Reminder</h2>
+          <span class="card__s" id="s-birthday-sum">Tells you whose birthday it is, in the morning, before the lesson.</span>
+          <span class="needs"><span class="need">macOS</span><span class="need need--warn">Needs iSAMS</span></span>
+          <span class="card__more">What it does →</span>
+        </span>
+      </a></li>
 
+      <li><a class="card card--add" href="mailto:dmompelriera@nlcsjeju.kr?subject=An%20app%20for%20the%20shelf"
+             data-app="add">
+        <span class="card__plus" aria-hidden="true">+</span>
+        <h2 class="card__n">Add yours</h2>
+        <span class="card__s">Built something your department keeps borrowing? Put it on the shelf.</span>
+        <span class="card__more">How →</span>
+      </a></li>
+
+    </ul>
+
+    <p class="foot-note">Everything here runs entirely on your own machine — no account, no server, nothing
+      sent anywhere. Each app is open source, so you can read exactly what it does before you run it,
+      and change it if it nearly fits.</p>
   </main>
 
   <footer class="made">
-    <p>Made by <strong>Dr Daniel Mompel Riera</strong> · NLCS Jeju ·
+    <p>Kept by <strong>Dr Daniel Mompel Riera</strong> · NLCS Jeju ·
        <a href="mailto:dmompelriera@nlcsjeju.kr">dmompelriera@nlcsjeju.kr</a></p>
-    <p><a class="crumb" href="index.html">← Back to the Biology Hub</a></p>
+    <p><a class="crumb" href="index.html">Back to the Biology Hub</a></p>
   </footer>
 
 </div>
+
+<!-- The detail of every app, in the page itself rather than in a script: it is readable with
+     JavaScript off, and a card without JavaScript is simply a link straight to the repository. -->
+<div id="details" hidden>
+
+  <div data-detail="seating-plan" data-ac="#2DD4BF" data-kind="Classroom"
+       data-shot="assets/apps/seating-plan.jpg?v=1789651516"
+       data-alt="A seating plan: six benches of four in a room with a whiteboard, screen and teacher's desk at the front. Each chair holds a card with a photograph, a first name and a surname."
+       data-repo="https://github.com/Mompel226/seating-plan">
+    <h3 data-name>Draw the room once, then <em>drag faces into chairs</em></h3>
+    <div data-what><p>Import a class, lay out the benches the way your room actually is, and drag photographs
+      into seats. Shuffle them, sort them A–Z, or split up whoever needs splitting up. It prints on one
+      sheet, and <em>Student's view</em> turns the plan round so it reads from where they are sitting.</p></div>
+    <ul data-points>
+      <li>Photographs, so you learn names in the first week rather than the third</li>
+      <li>Several plans per class — the practical is not the test</li>
+      <li>Quiet labels only you can read, for who needs what</li>
+      <li>One sheet of A4, or the whole room on the screen</li>
+    </ul>
+  </div>
+
+  <div data-detail="birthday-reminder" data-ac="#E879F9" data-kind="Pastoral"
+       data-shot="assets/apps/birthday-calendar.jpg?v=1789651516"
+       data-alt="A birthday calendar for September, with cards along the top for today, tomorrow and the days after, and small student cards on the dates in the month grid."
+       data-repo="https://github.com/Mompel226/birthday-reminder">
+    <h3 data-name>A window that <em>finds you</em>, in the morning</h3>
+    <div data-what><p>Wishing a fourteen-year-old a happy birthday costs nothing and lands more than most of
+      what we do that week. It fails because nobody tells you in time. This checks when you log in and
+      within five minutes of you opening the lid, then leaves you alone for the rest of the day.</p></div>
+    <ul data-points>
+      <li>Friday covers the weekend, so you can say it to their face</li>
+      <li>Catches up on the days the Mac was shut</li>
+      <li><strong>Discreet mode</strong>: spots a projector and hides the name until you click</li>
+      <li>A calendar to browse, and a panel for preferred names</li>
+    </ul>
+  </div>
+
+  <div data-detail="add" data-ac="#A78BFA" data-kind="Contribute"
+       data-repo="mailto:dmompelriera@nlcsjeju.kr?subject=An%20app%20for%20the%20shelf" data-repo-label="Send me the link">
+    <h3 data-name>Put your app <em>on the shelf</em></h3>
+    <div data-what><p>This shelf is not only mine. If you have written something that makes teaching easier —
+      a marking helper, a rota, a lab booking sheet, anything — other people are almost certainly doing the
+      same job by hand. Three things and it can sit here beside the rest.</p></div>
+    <ul data-points>
+      <li>Put the code somewhere public, so people can read it before they run it</li>
+      <li>Write a read-me that says what it needs — the system, and any school data it expects</li>
+      <li>Add one screenshot, taken with invented pupils and never a real child</li>
+    </ul>
+  </div>
+
+</div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetName">
+  <button type="button" class="sheet__x" id="sheetX" aria-label="Close">✕</button>
+  <div class="sheet__in">
+    <img class="sheet__shot" id="sheetShot" alt="" hidden>
+    <div class="sheet__b">
+      <p class="sheet__kind" id="sheetKind"></p>
+      <h2 class="sheet__n" id="sheetName"></h2>
+      <div class="sheet__w" id="sheetWhat"></div>
+      <ul class="sheet__pts" id="sheetPts"></ul>
+      <div class="warn" id="sheetWarn" hidden></div>
+      <div class="go" id="sheetGo"></div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+  var dlg = document.getElementById('sheet');
+  if (!dlg || typeof dlg.showModal !== 'function') return;   /* no dialog: cards stay plain links */
+
+  var pool = document.getElementById('details');
+  var ISAMS = 'These apps read two exports from <b>iSAMS</b>. If your school does not use iSAMS this ' +
+              'will not work — the photographs come from the iSAMS Student ID Badge report and nothing ' +
+              'else produces that file. The read-me says what another system would and would not manage.';
+  var last = null;
+
+  function detail(id){ return pool.querySelector('[data-detail="' + id + '"]'); }
+
+  function open(id, push){
+    var d = detail(id); if (!d) return false;
+    var ac = d.getAttribute('data-ac') || '#4FC3F7';
+    dlg.style.setProperty('--ac', ac);
+
+    var shot = document.getElementById('sheetShot'), src = d.getAttribute('data-shot');
+    if (src){ shot.src = src; shot.alt = d.getAttribute('data-alt') || ''; shot.hidden = false; }
+    else { shot.hidden = true; shot.removeAttribute('src'); }
+
+    document.getElementById('sheetKind').textContent = d.getAttribute('data-kind') || '';
+    document.getElementById('sheetName').innerHTML = d.querySelector('[data-name]').innerHTML;
+    document.getElementById('sheetWhat').innerHTML = d.querySelector('[data-what]').innerHTML;
+    document.getElementById('sheetPts').innerHTML = d.querySelector('[data-points]').innerHTML;
+
+    var warn = document.getElementById('sheetWarn');
+    if (id === 'add'){ warn.hidden = true; warn.innerHTML = ''; }
+    else { warn.innerHTML = ISAMS; warn.hidden = false; }
+
+    var repo = d.getAttribute('data-repo') || '';
+    var label = d.getAttribute('data-repo-label') || 'Get it on GitHub';
+    var go = document.getElementById('sheetGo');
+    go.innerHTML = '';
+    if (repo){
+      var a = document.createElement('a');
+      a.className = 'btn btn--main'; a.href = repo; a.textContent = label;
+      if (repo.indexOf('http') === 0){ a.target = '_blank'; a.rel = 'noopener'; }
+      go.appendChild(a);
+      if (repo.indexOf('http') === 0){
+        var b = document.createElement('a');
+        b.className = 'btn'; b.href = repo + '#installing'; b.target = '_blank'; b.rel = 'noopener';
+        b.textContent = 'How to install';
+        go.appendChild(b);
+      }
+    }
+    dlg.showModal();
+    dlg.querySelector('.sheet__in').scrollTop = 0;
+    /* a sheet you cannot link to is a sheet nobody can send a colleague */
+    if (push && location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+    return true;
+  }
+
+  /* Tidying up must not hang off the dialog's own close event: it is simply not dispatched in
+     every engine, and when it is missed the address bar keeps pointing at a sheet that is no
+     longer open. Do it in a function that every route calls, and make it safe to call twice. */
+  function tidy(){
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    if (last){ try { last.focus(); } catch (e) {} last = null; }
+  }
+  function close(){
+    if (dlg.open) dlg.close();
+    tidy();
+  }
+
+  document.querySelectorAll('.card[data-app]').forEach(function(card){
+    card.addEventListener('click', function(e){
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   /* let them open a new tab */
+      if (open(card.getAttribute('data-app'), true)){ e.preventDefault(); last = card; }
+    });
+  });
+
+  document.getElementById('sheetX').addEventListener('click', close);
+  /* clicking the backdrop, which is the dialog element itself outside its box */
+  dlg.addEventListener('click', function(e){ if (e.target === dlg) close(); });
+  /* The close and cancel events are not dispatched everywhere — verified here, where close() sets
+     open to false and fires nothing. The open ATTRIBUTE, though, is removed whichever way the
+     dialog goes away: our button, a click on the backdrop, or the Escape key the browser handles
+     itself. Watch that instead, and every route tidies up. */
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(function(){ if (!dlg.open) tidy(); })
+      .observe(dlg, { attributes: true, attributeFilter: ['open'] });
+  } else {
+    dlg.addEventListener('close', tidy);
+    dlg.addEventListener('cancel', function(){ setTimeout(tidy, 0); });
+  }
+
+  var start = location.hash.replace('#','');
+  if (start) open(start, false);
+})();
+</script>
 
 </body>
 </html>

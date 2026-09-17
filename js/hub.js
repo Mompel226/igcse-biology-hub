@@ -1089,11 +1089,26 @@
       });
     }
 
+    /* The apps shelf is for staff, so the way in only appears once somebody signs in on a staff
+       address. Pupils are @pupils.<domain>, which does not end in @<domain> and so never matches.
+       This hides a link, it does not guard anything: applications.html is a public page and the
+       apps themselves are public repositories. It is here so a fourteen-year-old is not offered a
+       seating-plan app. The domain comes from the edition's own record, never hard-coded, because
+       this file is shared with the open edition, where the school is somebody else's. */
+    var toolsLink = document.querySelector('.tools');
+    function tools(v) {
+      if (!toolsLink) return;
+      var d = String((REC && REC.domain) || '').toLowerCase();
+      var e = String((v && v.email) || '').toLowerCase();
+      toolsLink.hidden = !(d && e && e.slice(-(d.length + 1)) === '@' + d);
+    }
+
     /* Somebody is signed in: show them, at once from what is remembered, then ask. */
     function start(v, instant) {
       /* somebody else than who was shown: nothing of theirs may stand while this one is checked */
       if (!acting || acting.email !== v.email) { teacher = null; last = null; }
       acting = v;
+      tools(v);
       watchExpiry(v);
       var known = mineRemembered(v);
       if (known && known.teacher && !teacher) teacher = { page: '' };   /* only so the switch shows at once */
@@ -1153,6 +1168,7 @@
     }
     function stopActing() {
       acting = null; last = null;
+      tools(null);
       clearTimeout(expiryTimer); clearTimeout(outTimer);
     }
     function ranOut() {
