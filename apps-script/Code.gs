@@ -94,7 +94,7 @@ var SCHOOL_DOMAIN  = '';
      TEACHER_PAGE_URL  the /exec address of that second deployment. The hub is handed it only when
                        a signed-in teacher on the list asks; it is never written into the website.
 
-   🧪 Biology Labs ▸ 🔗 Set up the teacher page makes the tab and walks through the rest. Like
+   🧪 Biology Labs ▸ 🔗 Teacher page makes the tab and walks through the rest. Like
    TRACKER_ID, a value typed below is kept in Script Properties, and neither belongs in the
    public GitHub copy.
    -------------------------------------------------------------------------- */
@@ -739,12 +739,12 @@ function checkSetup() {
     lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 🔗 Teacher page sets it up.');
   } else {
     lines.push(tpUrl ? '✅  teacher page address is set'
-                     : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 🔗 Set up the teacher page');
+                     : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 🔗 Teacher page');
     lines.push('•  teachers who can open it: you (' + (_owner() || 'the owner') + ')' +
                (_teacherEmails().length ? ' and ' + _teacherEmails().length + ' more' : ' only'));
     var tpLinks = 0;
     try { _teacherLinks().forEach(function (g) { tpLinks += g.links.length; }); } catch (e) {}
-    lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Set up the teacher page makes it');
+    lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Teacher page makes it');
   }
   lines.push('');
   lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy.');
@@ -2401,7 +2401,7 @@ function _teacherHtml(o) {
     who + main + '</div></body></html>';
 }
 
-/* 🧪 Biology Labs ▸ 🔗 Set up the teacher page: makes the tab (with the two records it can fill
+/* 🧪 Biology Labs ▸ 🔗 Teacher page: makes the tab (with the two records it can fill
    in itself) and says, in order, what is still to do. Safe to run again: it never touches a row
    that is already there. */
 function setUpTeacherPage() { showTeacherPanel(); }  /* kept: the panel superseded the old setup */
