@@ -58,6 +58,14 @@ a{color:inherit;text-decoration:none}
    what pressing it does. It is a button until there is somewhere to go, then a link — the
    `--go` card — because a link that sometimes does not link is a worse thing than two. */
 .acct{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+/* the apps rectangle and whichever account card is showing, side by side */
+.acct__row{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.tools{flex:none;display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:3px;
+  border:1px solid rgba(150,190,215,.34);background:rgba(7,15,21,.62);color:var(--chalk-mute);
+  font:500 11.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;text-decoration:none;
+  transition:color .15s,border-color .15s}
+.tools:hover,.tools:focus-visible{color:var(--chalk);border-color:rgba(150,190,215,.7)}
+.tools__ico{display:grid;place-items:center;opacity:.85}
 /* the figure on the left says "account" before a word is read; the two lines sit centred
    beside it, so the card reads as one control rather than a note with a border round it */
 .acct__card{
@@ -473,6 +481,8 @@ noscript p{padding:20px}
   .acct__foot{align-items:center}
   .acct__for{text-align:left}
   .acct__card{min-width:0;max-width:none;width:100%}
+  /* the row keeps the rectangle beside the card on a phone too; the card shrinks to share */
+  .acct__row{width:100%;justify-content:flex-start}
   .years{align-items:flex-start;max-width:none}
   .ytabs,.path{justify-content:flex-start}
   .doors{flex-direction:column;flex:none;min-height:0;gap:10px}
