@@ -314,6 +314,59 @@ ok &= run('a view already read is never read again — memory, then sessionStora
   stray.forEach(v => { if (!/ssPut\(/.test(h.slice(h.indexOf('cache[' + v + '] = r'), h.indexOf('cache[' + v + '] = r') + 120)))
     throw new Error('a payload is cached in memory but never persisted'); });
 });
+ok &= run('help text never waits on the browser\u2019s own tooltip', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  /* title= is the browser's tooltip: it waits about a second before it appears, never appears at
+     all on a touch screen, and cannot be reached by keyboard. Daniel reported exactly that delay.
+     Every explanation goes through data-tip and our own bubble instead. */
+  const natives = [...h.matchAll(/\stitle="/g)].length;
+  if (natives) throw new Error(natives + ' explanation(s) still rely on the native title tooltip');
+  if (!/\.className = 'tip'/.test(h) || !/setAttribute\('role','tooltip'\)/.test(h))
+    throw new Error('there is no tooltip of our own');
+  if (!/\.tip\{position:fixed/.test(h)) throw new Error('the tooltip bubble has no styling of its own');
+  ['mouseover', 'focusin', 'keydown', 'click'].forEach(ev => {
+    if (!new RegExp("addEventListener\\('" + ev + "'").test(h))
+      throw new Error('the tooltip cannot be reached by ' + ev);
+  });
+  if (!/Escape/.test(h)) throw new Error('a tooltip that cannot be dismissed');
+  /* a tap must work: the ? exists to be asked, and an iPad has no hover at all */
+  if (!/closest\('button\.q'\)/.test(h)) throw new Error('tapping the ? does nothing on a touch screen');
+});
+ok &= run('the ? is a real button, not a span pretending to be one', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  if (/<span class="q">/.test(h)) throw new Error('the ? is a span: unfocusable, untappable, unannounced');
+  if (!/<button type="button" class="q"[\s\S]{0,40}?aria-label=/.test(h))
+    throw new Error('the ? is not a labelled button');
+  /* it must carry the tip itself, or focusing and tapping it reach nothing */
+  const tile = h.slice(h.indexOf('function tile(c,k,v,s,tip)'), h.indexOf('function sec(t,d,b,n)'));
+  /* the tip is built once into `t` and must land on BOTH the tile and the button — on the button
+     because focus and a tap land there, on the tile so hovering anywhere over it still answers */
+  if (!/<div class="tile"[^\n]*'\+t\+'/.test(tile)) throw new Error('hovering the tile itself answers nothing');
+  if (!/<button type="button" class="q"'\+t\+'/.test(tile))
+    throw new Error('the ? has no tip of its own, so keyboard and touch get nothing');
+});
+ok &= run('nothing offers a click it cannot honour', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  /* A hand cursor is a promise. The heatmap cell had one for months and was never clickable —
+     the same bug as the ? that never answered: an affordance with nothing behind it. */
+  const cbox = h.slice(h.indexOf('.cbox{'), h.indexOf('.cbox.done'));
+  if (/cursor:pointer/.test(cbox)) throw new Error('the heatmap cell still claims to be clickable');
+  if (!/cursor:help/.test(cbox)) throw new Error('the heatmap cell no longer shows it can be asked');
+  /* an empty cell used to say nothing at all when hovered */
+  if (!/class="cbox none" data-tip=/.test(h)) throw new Error('a not-started cell answers nothing');
+});
+ok &= run('anything that opens or sorts answers the keyboard too', () => {
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  if (!/closest\('\.lab__h, \.hw__h, \.hm th\.lab'\)/.test(h))
+    throw new Error('Enter and Space reach none of the toggles');
+  ['lab__h', 'hw__h'].forEach(c => {
+    const tag = h.match(new RegExp('class="' + c + '"[^>]*'));
+    if (!tag) throw new Error(c + ' has moved');
+    if (!/tabindex="0"/.test(tag[0])) throw new Error(c + ' cannot be reached by keyboard');
+    if (!/aria-expanded=/.test(tag[0])) throw new Error(c + ' never says whether it is open');
+  });
+  if (!/<th class="lab" tabindex="0"/.test(h)) throw new Error('the sortable column head is mouse-only');
+});
 ok &= run('a cached view says how old it is', () => {
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
   /* Caching without an age is how a teacher reads last lesson's numbers as if they were live. */
