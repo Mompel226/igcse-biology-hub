@@ -121,10 +121,18 @@ input::placeholder{color:var(--mute)}
 .tile{position:relative;padding:15px 16px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
 .tile::before{content:"";position:absolute;left:0;top:13px;bottom:13px;width:3px;border-radius:0 3px 3px 0;background:var(--tc,var(--accent))}
 .tile__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);display:flex;align-items:center;gap:5px}
-.q{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;
-  border:1px solid var(--line2);font:600 8px/1 var(--mono);color:var(--mute);cursor:help;flex:none}
+.q{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;
+  border:1px solid var(--line2);font:600 8px/1 var(--mono);color:var(--mute);cursor:help;flex:none;
+  background:none;padding:0;-webkit-appearance:none;appearance:none}
+.q:focus-visible{outline:2px solid var(--accent);outline-offset:2px;color:var(--chalk)}
+/* Our own tooltip. The native one waits on an OS delay of a second or more and never appears on a
+   touch screen, so a "?" that says hover-me was promising what title= cannot deliver. */
+.tip{position:fixed;z-index:60;left:0;top:0;max-width:min(300px,calc(100vw - 24px));
+  padding:8px 10px;border:1px solid var(--line2);border-radius:9px;background:var(--cardhi);
+  color:var(--chalk);font:500 12px/1.45 var(--sans);white-space:pre-line;
+  box-shadow:0 10px 28px rgba(0,0,0,.5);pointer-events:none}
 .tile:hover .q{color:var(--chalk);border-color:var(--chalk)}
-.stat div[title]{cursor:help}.hm th.lab[title]{cursor:pointer}
+.stat div[data-tip]{cursor:help}.hm th.lab[data-tip]{cursor:pointer}
 .tile__v{font:400 28px/1 var(--serif);color:var(--chalk);margin-top:8px;font-variant-numeric:tabular-nums}
 .tile__v small{font:500 12px/1 var(--mono);color:var(--mute)}
 .tile__s{font-size:11.5px;color:var(--dim);margin-top:5px}
@@ -144,7 +152,7 @@ table.hm{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hm .cl{font:500 10px/1.2 var(--mono);color:var(--mute);margin-top:1px}
 .hm td.cell{border-bottom:1px solid var(--line);padding:5px;width:84px}
 .cbox{position:relative;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font:600 12px/1 var(--mono);
-  border:1px solid transparent;cursor:pointer}
+  border:1px solid transparent;cursor:help}   /* it answers on hover; it has never been clickable */
 .cbox.done::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
 .cbox.none{color:var(--mute);border:1px dashed var(--line2)}
 .hmleg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 15px;border-top:1px solid var(--line);color:var(--mute);font-size:12px}
@@ -261,7 +269,7 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
     <nav class="tabs" id="tabs" role="tablist" aria-label="Teacher views"></nav>
     <span class="who" id="who"></span>
     <span class="age" id="age" aria-live="polite"></span>
-    <button class="rf" id="rf" title="Read the sheet again">
+    <button class="rf" id="rf" data-tip="Read the sheet again">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>
   </div>
 </header>
@@ -538,7 +546,7 @@ var BOOT = __BOOT__;
             '<span class="n">'+list.length+'</span></div><div class="cards cards--wide">'+
             list.map(function(s){ var u=link(s.email);
               return '<div class="card"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
-                '<div class="card__m"><div class="card__n" title="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
+                '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
                 '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
                 (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
                    :'<span class="card__d">no address set</span>')+'</div></div>';
@@ -551,7 +559,7 @@ var BOOT = __BOOT__;
           '<span class="pill--past">no year group</span><span class="n">'+loose.length+'</span></div>'+
           '<div class="cards cards--wide">'+loose.map(function(s){ var u=link(s.email);
             return '<div class="card"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
-              '<div class="card__m"><div class="card__n" title="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
+              '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
               '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
               (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
                  :'<span class="card__d">no address set</span>')+'</div></div>'; }).join('')+'</div></section>';
@@ -622,6 +630,79 @@ var BOOT = __BOOT__;
        back shows the state from BEFORE the write — homework just set looks like it never saved */
     put:function(tab, r){ cache[tab] = r; ssPut(tab, r); showAge(); } };
   buildTabs();
+  /* ---- tooltips -------------------------------------------------------------------------
+     One bubble, one delegated listener, whatever the view redraws. 120ms is long enough not to
+     flash as the pointer crosses a heatmap, short enough to feel like an answer. Hover, keyboard
+     focus and a tap on the ? all reach the same text. */
+  var TIP = null, tipFor = null, tipTimer = 0;
+  function tipBox(){
+    if (!TIP){ TIP = document.createElement('div'); TIP.className = 'tip'; TIP.id = 'tip';
+      TIP.setAttribute('role','tooltip'); TIP.hidden = true; document.body.appendChild(TIP); }
+    return TIP;
+  }
+  function placeTip(el, text){
+    var b = tipBox(); b.textContent = text; b.hidden = false;
+    b.style.left = '0px'; b.style.top = '0px';           /* measure before deciding a side */
+    var r = el.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight, pad = 8;
+    var y = r.top - h - pad; if (y < pad) y = r.bottom + pad;          /* flip under when tight */
+    y = Math.min(y, innerHeight - h - pad);
+    var x = Math.max(pad, Math.min(r.left + r.width/2 - w/2, innerWidth - w - pad));
+    b.style.left = Math.round(x)+'px'; b.style.top = Math.round(y)+'px';
+    el.setAttribute('aria-describedby','tip');
+    tipFor = el;
+  }
+  function showTip(el, now){
+    var text = el.getAttribute('data-tip'); if (!text) return;
+    if (tipFor === el && TIP && !TIP.hidden) return;   /* already answered, leave it alone */
+    clearTimeout(tipTimer);
+    if (now) { hideTip(); placeTip(el, text); return; }
+    tipTimer = setTimeout(function(){ hideTip(); placeTip(el, text); }, 120);
+  }
+  function hideTip(){
+    clearTimeout(tipTimer);
+    if (tipFor) tipFor.removeAttribute('aria-describedby');
+    if (TIP) TIP.hidden = true;
+    tipFor = null;
+  }
+  function tipTarget(n){ return n && n.closest ? n.closest('[data-tip]') : null; }
+  document.addEventListener('mouseover', function(e){
+    var el = tipTarget(e.target);
+    if (el) showTip(el); else if (tipFor || tipTimer) hideTip();
+  });
+  document.addEventListener('focusin',  function(e){ var el = tipTarget(e.target); if (el) showTip(el, true); });
+  document.addEventListener('focusout', hideTip);
+  document.addEventListener('keydown',  function(e){ if (e.key === 'Escape') hideTip(); });
+  /* a tap must work too: the ? is the one thing whose whole job is to be asked */
+  document.addEventListener('click', function(e){
+    var q = e.target.closest ? e.target.closest('button.q') : null;
+    if (!q) { hideTip(); return; }
+    e.preventDefault(); e.stopPropagation();
+    if (tipFor === q) hideTip(); else showTip(q, true);
+  }, true);
+  /* A bubble pinned to the viewport goes stale as soon as anything moves under it. Hiding on
+     every scroll looks right until a tap on a phone nudges the page by a pixel and the answer
+     vanishes before it is read — so follow the target instead, and only give up once it has
+     actually left the screen. */
+  window.addEventListener('scroll', function(){
+    if (!tipFor) return;
+    if (!tipFor.isConnected) return hideTip();
+    var r = tipFor.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) return hideTip();
+    placeTip(tipFor, TIP.textContent);
+  }, true);
+  window.addEventListener('resize', hideTip);
+
+  /* Anything that opens, sorts or expands must answer the keyboard too. These are divs and table
+     headers rather than buttons because of what they have to lay out, so Enter and Space are
+     wired here rather than in twelve places. */
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var el = e.target.closest ? e.target.closest('.lab__h, .hw__h, .hm th.lab') : null;
+    if (!el) return;
+    e.preventDefault();                        /* Space would otherwise scroll the page away */
+    el.click();
+  });
+
   setInterval(showAge, 30000);               /* the label must age by itself, or it lies */
   go(BOOT.tab || 'teachers');
 })();
@@ -716,15 +797,15 @@ var BOOT = __BOOT__;
         return (a.s.name||'').localeCompare(b.s.name||''); });
       var head='<tr><th class="cnr">Student</th>'+LABS.map(function(l){
         /* name only: the syllabus topic is long and was repeating the heading. It lives in the tip. */
-        return '<th class="lab" data-lab="'+esc(l.id)+'" title="'+esc(short(l.name)+' — '+(l.topic||'')+
+        return '<th class="lab" tabindex="0" data-lab="'+esc(l.id)+'" data-tip="'+esc(short(l.name)+' — '+(l.topic||'')+
           '\n'+l.questions+' questions in all.\nClick to see this lab\u2019s hardest parts below.')+'">'+
           esc(short(l.name))+'</th>'; }).join('')+'</tr>';
       var rows=arr.map(function(o){ var s=o.s;
         return '<tr><td class="name" data-i="'+s.__i+'"><div class="nm">'+esc(s.name||'(no name)')+'</div><div class="cl">'+esc(s.cls||'—')+'</div></td>'+
           LABS.map(function(l){ var e=s.byLab[l.id];
-            if(!e) return '<td class="cell"><div class="cbox none">·</div></td>';
+            if(!e) return '<td class="cell"><div class="cbox none" data-tip="'+esc(l.name)+': not handed in yet.">·</div></td>';
             var h=heat(e.pct);
-            return '<td class="cell"><div class="cbox'+(e.complete?' done':'')+'" style="background:'+h.bg+';border-color:'+h.bd+';color:'+h.fg+'" title="'+esc(l.name+': '+e.done+'/'+e.total+' · '+e.checks+' checks')+'">'+r0(e.pct)+'</div></td>'; }).join('')+'</tr>'; }).join('');
+            return '<td class="cell"><div class="cbox'+(e.complete?' done':'')+'" style="background:'+h.bg+';border-color:'+h.bd+';color:'+h.fg+'" data-tip="'+esc(l.name+': '+e.done+'/'+e.total+' · '+e.checks+' checks')+'">'+r0(e.pct)+'</div></td>'; }).join('')+'</tr>'; }).join('');
       out += sec('Every student, every lab','Colour and number are the score so far; a dot means finished, a dash means not started. Click a name for the full picture.',
         '<div class="panel"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
         '<div class="hmleg"><span>Lower</span><span class="hmgrad"></span><span>Higher</span></div></div>', arr.length+' shown');
@@ -737,10 +818,10 @@ var BOOT = __BOOT__;
           return '<div class="labc"><div class="labc__h"><span class="labc__n">'+esc(short(l.name))+'</span><span class="labc__t">'+esc(l.topic||'')+'</span></div>'+
             '<div class="pbar"><i style="width:'+r0(avg)+'%;background:'+g.bd+'"></i></div>'+
             '<div class="stat">'+
-            '<div title="Average score of the students who have handed THIS lab in."><b>'+pc(avg)+'</b><span>Avg score</span></div>'+
-            '<div title="Share of the students in view who have handed this lab in at least once."><b>'+pc(n?100*P.st/n:0)+'</b><span>Started</span></div>'+
-            '<div title="Share of the students in view who have finished every question in this lab."><b>'+pc(n?100*P.cp/n:0)+'</b><span>Finished</span></div>'+
-            '<div title="Of every question answered in this lab, the share right at the first press of Check."><b>'+pc(P.q?100*P.ft/P.q:0)+'</b><span>Right 1st</span></div></div>'+
+            '<div data-tip="Average score of the students who have handed THIS lab in."><b>'+pc(avg)+'</b><span>Avg score</span></div>'+
+            '<div data-tip="Share of the students in view who have handed this lab in at least once."><b>'+pc(n?100*P.st/n:0)+'</b><span>Started</span></div>'+
+            '<div data-tip="Share of the students in view who have finished every question in this lab."><b>'+pc(n?100*P.cp/n:0)+'</b><span>Finished</span></div>'+
+            '<div data-tip="Of every question answered in this lab, the share right at the first press of Check."><b>'+pc(P.q?100*P.ft/P.q:0)+'</b><span>Right 1st</span></div></div>'+
             (hd?'<div class="hard">Hardest: <b>'+esc(stName(l.id,hd.n))+'</b> · '+pc(hd.p)+'</div>':'')+'</div>'; }).join('')+'</div>');
       /* who needs a look */
       var all=list.map(function(s){return {s:s,sm:summ(s)};}).filter(function(o){return concern(o.sm)>0;})
@@ -791,8 +872,11 @@ var BOOT = __BOOT__;
       $('plist').innerHTML = out;
       wireP();
     }
-    function tile(c,k,v,s,tip){ return '<div class="tile" style="--tc:var(--'+c+')"'+(tip?' title="'+esc(tip)+'"':'')+'>'+
-      '<div class="tile__k">'+esc(k)+(tip?'<span class="q">?</span>':'')+'</div><div class="tile__v">'+v+'</div>'+
+    function tile(c,k,v,s,tip){ var t = tip ? ' data-tip="'+esc(tip)+'"' : '';
+      /* the ? is a real button, not a span: a span cannot be focused, cannot be tapped on an
+         iPad, and is invisible to a screen reader — so it promised help it could not give */
+      return '<div class="tile" style="--tc:var(--'+c+')"'+t+'>'+
+      '<div class="tile__k">'+esc(k)+(tip?'<button type="button" class="q"'+t+' aria-label="What '+esc(k)+' means">?</button>':'')+'</div><div class="tile__v">'+v+'</div>'+
       '<div class="tile__s">'+esc(s)+'</div></div>'; }
     function sec(t,d,b,n){ return '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(t)+'</span>'+(n?'<span class="sec__n">'+esc(n)+'</span>':'')+'</div>'+(d?'<p class="sec__d">'+esc(d)+'</p>':'')+b+'</section>'; }
     function wireP(){
@@ -893,7 +977,7 @@ var BOOT = __BOOT__;
       var labs=LABS.map(function(l){ var mine=hState.picked[l.id]||{}, n=0,q=0;
         (l.stations||[]).forEach(function(x){ if(mine[x.id]){n++;q+=x.questions;} });
         var all=n&&n===(l.stations||[]).length, op=!!hState.open[l.id];
-        return '<div class="lab'+(op?' open':'')+'"><div class="lab__h" data-lab="'+esc(l.id)+'">'+
+        return '<div class="lab'+(op?' open':'')+'"><div class="lab__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-lab="'+esc(l.id)+'">'+
           '<svg class="car" width="12" height="12" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'+
           '<span class="lab__n">'+esc(l.name)+'</span><span class="lab__t">'+esc(l.topic||'')+'</span>'+
           '<span class="lab__c'+(n?' on':'')+'">'+(n?n+' of '+(l.stations||[]).length+' · '+q+'q':(l.stations||[]).length+' stations')+'</span>'+
@@ -923,10 +1007,10 @@ var BOOT = __BOOT__;
         var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id];
         var w=n||1;   /* nobody left is "nobody left", not "0 of 1 done" */
         var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+(h.joined?'<span class="churn">'+h.joined+' joined since</span>':'');
-        return '<div class="hw"><div class="hw__h" data-hw="'+esc(h.id)+'">'+
+        return '<div class="hw"><div class="hw__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-hw="'+esc(h.id)+'">'+
           '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
           (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div></div>'+
-          '<div class="bars" title="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
+          '<div class="bars" data-tip="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
           '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
           '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
           '<div class="hw__due '+dueCls(h)+'"><b>'+esc(fmtD(h))+'</b>due</div></div>'+
