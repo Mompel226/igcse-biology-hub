@@ -2,6 +2,9 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<base target="_top">   <!-- Apps Script serves this inside a sandbox iframe: without this, every
+     link tries to load script.google.com INSIDE that frame and Google refuses to be framed
+     ("refused to connect"). An explicit target= on a link still wins, so _blank links are unaffected. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Students — teachers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">

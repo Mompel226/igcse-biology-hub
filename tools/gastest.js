@@ -255,6 +255,16 @@ ok &= run('every google.script.run call in the window exists', () => {
   const missing = named.filter(n => !defined(n));
   if (missing.length) throw new Error('the window calls nothing named: ' + missing.join(', '));
 });
+ok &= run('every served page escapes the Apps Script sandbox iframe', () => {
+  /* Apps Script serves a web-app page inside a sandbox iframe. A link without a target navigates
+     INSIDE that frame, which tries to load script.google.com in a frame — Google refuses, and the
+     teacher sees "refused to connect" instead of the next tab. <base target="_top"> is the fix. */
+  ['LabProgress', 'StudentFinder', 'Homework'].forEach(n => {
+    const h = fs.readFileSync('apps-script/' + n + '.html', 'utf8');
+    if (!/<base\s+target=["']_top["']/.test(h)) throw new Error(n + '.html has no <base target="_top">');
+  });
+  if (!/<base target="_top">/.test(SRC)) throw new Error('the teacher page built in Code.gs has no <base target="_top">');
+});
 ok &= run('EVERY window file the script opens is really there', () => {
   /* was a non-global .match, so it only ever checked the first of the five */
   const want = [...new Set([...SRC.matchAll(/createHtmlOutputFromFile\('([^']+)'\)/g)].map(m => m[1]))];

@@ -743,6 +743,34 @@ function checkSetup() {
      filled in, it is worth proving the workbook opens and the cohort tabs are there,
      because the card's own way of failing is a quiet "could not check just now" that says
      nothing about which of the two is wrong. */
+  /* The two newer addresses. Both are typed by hand, both are easy to confuse with a spreadsheet
+     link, and both fail SILENTLY when wrong — the page simply does not appear — so say so here. */
+  var rawTracker = String(_keptSetting_(TRACKER_APP_URL, 'TRACKER_APP_URL') || '').trim();
+  if (!rawTracker) {
+    lines.push('•  the Students tab is off. TRACKER_APP_URL is empty. It wants the /exec address of ' +
+               'one of your REFLECTION deployments — not a spreadsheet link.');
+  } else if (!_trackerAppUrl_()) {
+    lines.push('❌  TRACKER_APP_URL is not a web-app address, so the Students tab will not appear. ' +
+               'It must be the reflection system\u2019s /exec address (https://script.google.com/…/exec). ' +
+               'What is there now starts "' + rawTracker.slice(0, 44) + '…" — that looks like a ' +
+               'spreadsheet, which is TRACKER_ID\u2019s job, not this one.');
+  } else {
+    lines.push('✅  the Students tab is on.');
+  }
+  var rawHub = String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim();
+  if (!rawHub) {
+    lines.push('•  Set homework is off. HUB_URL is empty; it wants your hub\u2019s address, usually a ' +
+               'sub-folder such as https://…/biology-hub');
+  } else {
+    var manOk = false;
+    try { manOk = !!_manifest_(); } catch (e) {}
+    lines.push(manOk
+      ? '✅  Set homework can read the station list from ' + rawHub
+      : '❌  the station list could not be read from ' + rawHub + '/js/data/stations.json — open ' +
+        'that address in a browser. If it does not load, HUB_URL is wrong (a GitHub Pages project ' +
+        'site usually sits in a sub-folder), or the site has not been published since the list was built.');
+  }
+
   var tid = _trackerId_();
   if (!tid) {
     lines.push('•  the record card on the hub is off. To switch it on, type TRACKER_ID and ' +
@@ -1174,6 +1202,10 @@ var _PROGRESS_ROW = null;
 var _PROGRESS_JOB = null;      /* an import in progress, so the dialog can be told as well */
 var _PROGRESS_SEEN = null;
 function _step_(msg) {
+  /* A toast shows wherever this was started from. _PROGRESS_ROW is only set when a button on the
+     Setup tab was ticked, so running Tidy up from the MENU used to report nothing whatsoever until
+     the alert at the very end. */
+  try { _ss_().toast(msg, 'Working…', -1); } catch (e) {}
   if (_PROGRESS_ROW) {
     try { _btnSays_(_PROGRESS_ROW, '\u23F3  ' + msg); SpreadsheetApp.flush(); } catch (e) {}
   }
@@ -3259,6 +3291,10 @@ function _teacherHtml_(o) {
     'apply();' +
     '})();</script>' : '';
   return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
+    /* Apps Script serves this inside a sandbox iframe. Without this every tab link tries to load
+       script.google.com INSIDE that frame, and Google refuses to be framed — the browser then says
+       "refused to connect". An explicit target= on a link still wins over this. */
+    '<base target="_top">' +
     '<link rel="preconnect" href="https://fonts.googleapis.com">' +
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">' +
