@@ -268,7 +268,7 @@ ok &= run('every served page escapes the Apps Script sandbox iframe', () => {
   /* Apps Script serves a web-app page inside a sandbox iframe. A link without a target navigates
      INSIDE that frame, which tries to load script.google.com in a frame — Google refuses, and the
      teacher sees "refused to connect" instead of the next tab. <base target="_top"> is the fix. */
-  ['LabProgress', 'StudentFinder', 'Homework'].forEach(n => {
+  ['Teacher'].forEach(n => {
     const h = fs.readFileSync('apps-script/' + n + '.html', 'utf8');
     if (!/<base\s+target=["']_top["']/.test(h)) throw new Error(n + '.html has no <base target="_top">');
   });
@@ -295,7 +295,8 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
     'teacherAddLink', 'teacherRemoveLink',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
-    'homeworkCreate', 'homeworkDelete', 'homeworkRefresh'                     /* gated: _hwCaller_ */
+    'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
+    'uiData'                                                                 /* gated: _hwCaller_ */
   ];
   const callable = [...new Set([...SRC.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]))]
     .filter(n => !n.endsWith('_'));
@@ -306,7 +307,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the three that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',
-   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh', 'uiData'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -1125,11 +1126,17 @@ ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted 
     const h = page(who);
     if (/SECRET-ID|docs\.google\.com|Test &lt;b&gt;7/.test(h)) throw new Error(label + ' was shown a link');
   });
-  const h = page(OWNER);
-  if (!/SECRET-ID/.test(h)) throw new Error('the owner was not shown the link');
-  if (/<b>7<\/b>/.test(h) || !/Test &lt;b&gt;7&lt;\/b&gt;/.test(h)) throw new Error('a name was not escaped');
-  if (/javascript:/.test(h) || /Not a link/.test(h) || /Bad link/.test(h)) throw new Error('a non-https row was shown');
-  if (!/a &quot;note&quot; &amp; more/.test(h)) throw new Error('a note was not escaped');
+  /* The links now reach the page through uiData rather than being baked into the served HTML,
+     so prove it there — and prove the same door is shut to a pupil. */
+  VISITOR = OWNER;
+  const d0 = uiData('teachers');
+  if (!d0.ok) throw new Error('the owner was refused the links: ' + d0.why);
+  const flat = JSON.stringify(d0.data);
+  if (!/SECRET-ID/.test(flat)) throw new Error('the owner was not given the link');
+  if (/javascript:/.test(flat) || /Not a link/.test(flat) || /Bad link/.test(flat)) throw new Error('a non-https row was handed over');
+  VISITOR = 'pupil@pupils.x.kr';
+  if (uiData('teachers').ok !== false) throw new Error('a pupil was handed the links through uiData');
+  VISITOR = OWNER;
   if (String(doGet({ parameter: {} })) !== 'Biology Labs endpoint is running.') throw new Error('the health check changed');
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
   ss.deleteSheet(tab);
@@ -1154,9 +1161,10 @@ ok &= run('add teachers and links from the dialog, read live, no code edit', () 
   if (teacherSetPageUrl('https://evil.example/exec').ok !== false) throw new Error('a non-webapp url was accepted');
   d = teacherSetPageUrl('https://script.google.com/a/macros/x.kr/s/AKfyP/exec');
   if (!d.pageLive || props.get('TEACHER_PAGE_URL') !== 'https://script.google.com/a/macros/x.kr/s/AKfyP/exec') throw new Error('page url not saved');
-  const html = doGet({ parameter: { page: 'teachers' } }).html;
-  if (!/AAA/.test(html)) throw new Error('the link did not render for the owner');
-  if (!/Topic 7 · Digestion/.test(html) || !/Class of 2028/.test(html)) throw new Error('the assessment/cohort did not render');
+  /* the links reach the page through uiData now, not baked into the served HTML */
+  const got = JSON.stringify(uiData('teachers').data);
+  if (!/AAA/.test(got)) throw new Error('the link did not reach the owner');
+  if (!/Topic 7 · Digestion/.test(got) || !/Class of 2028/.test(got)) throw new Error('the assessment/cohort did not reach the page');
   d = teacherRemoveLink(mine.row);
   if (d.links.some(l => /AAA/.test(l.url))) throw new Error('link not removed');
   d = teacherRemoveTeacher('colleague@x.kr');

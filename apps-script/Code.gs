@@ -465,10 +465,13 @@ function _reject_(lab, row) {
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
   var page = e && e.parameter ? String(e.parameter.page || '') : '';
-  if (page === 'teachers') return _teacherPage_();
-  if (page === 'progress') return _progressPage_();
-  if (page === 'students') return _studentsPage_();
-  if (page === 'homework') return _homeworkPage_();
+  /* All four teacher views are ONE page now: the tabs swap in the browser instead of loading a
+     new document, so nothing flickers, the header never moves, and no link ever tries to open
+     script.google.com inside the sandbox frame. The old ?page= values still work — each simply
+     decides which tab opens first, so every bookmark and the hub's own door keep working. */
+  if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework') {
+    return _teacherAppPage_(page);
+  }
   return _text_('Biology Labs endpoint is running.');
 }
 
@@ -2520,31 +2523,6 @@ function _htmlOut_(html, title) {
   return HtmlService.createHtmlOutput(html).setTitle(title)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
-function _progressPage_() {
-  var email = '';
-  try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
-  var dom = _schoolDomain_();
-  if (!email) return _htmlOut_(_teacherHtml_({ state: 'nobody', dom: dom }), 'Lab progress');
-  if (!_isTeacher_(email)) return _htmlOut_(_teacherHtml_({ state: 'refused', email: email, dom: dom }), 'Lab progress');
-  var data;
-  try { data = _labProgressData_(); } catch (err) { data = { error: String(err), labs: [], students: [], classes: [] }; }
-  data.email = email;
-  data.spreadsheetsUrl = _teacherPageUrl_();
-  data.studentsUrl = _trackerAppUrl_() ? _pageUrl_('students') : '';
-  data.homeworkUrl = _pageUrl_('homework');
-  var json = JSON.stringify(data).replace(/</g, '\\u003c');
-  var html = HtmlService.createHtmlOutputFromFile('LabProgress').getContent()
-    .replace('__DATA__', function () { return json; });
-  return _htmlOut_(html, 'Lab progress');
-}
-
-/* ── Students, for teachers ─────────────────────────────────────────────────
-   A third teacher-only page (?page=students). The reflection system gives every pupil a tracker
-   of their own — scores, weak topics, what to revise — at one address that shows whoever opens it
-   their own page. A teacher, though, may open any pupil's (serveDashboard checks ?email against the
-   signed-in teacher). This page is just a fast way to find that pupil: the class list, searchable
-   and filterable by cohort and class, each with a button that opens their tracker. It reads the
-   roster only. It appears only once TRACKER_APP_URL is set. */
 function _studentDirectory_(now) {
   var ss = _ss_(), out = [];
   var stu = ss.getSheetByName(T_STUDENTS);
@@ -2560,26 +2538,6 @@ function _studentDirectory_(now) {
   var cset = {}; out.forEach(function (s) { if (s.cls) cset[s.cls] = 1; });
   return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort() };
 }
-function _studentsPage_() {
-  var email = '';
-  try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
-  var dom = _schoolDomain_();
-  if (!email) return _htmlOut_(_teacherHtml_({ state: 'nobody', dom: dom }), 'Students');
-  if (!_isTeacher_(email)) return _htmlOut_(_teacherHtml_({ state: 'refused', email: email, dom: dom }), 'Students');
-  var data;
-  try { data = _studentDirectory_(); } catch (err) { data = { error: String(err), students: [], classes: [] }; }
-  data.email = email;
-  data.spreadsheetsUrl = _teacherPageUrl_();
-  data.progressUrl = _pageUrl_('progress');
-  data.homeworkUrl = _pageUrl_('homework');
-  data.trackerBase = _trackerAppUrl_();               /* the page builds ?page=student&email=… itself */
-  var json = JSON.stringify(data).replace(/</g, '\\u003c');
-  var html = HtmlService.createHtmlOutputFromFile('StudentFinder').getContent()
-    .replace('__DATA__', function () { return json; });
-  return _htmlOut_(html, 'Students');
-}
-
-
 /* ── Set homework, for teachers ─────────────────────────────────────────────
    A fourth teacher-only page (?page=homework). A teacher picks parts of labs — not whole labs —
    says who they are for and when they are due, and afterwards sees who has done them.
@@ -3002,28 +2960,41 @@ function homeworkRefresh() {
   return { ok:true, data:_homeworkData_() };
 }
 
-function _homeworkPage_() {
+/* The one page, and the one endpoint behind it. Each view's data is fetched only when its tab is
+   first opened: Lab progress alone is half a megabyte, so loading all four up front would make the
+   page slow to open — which is exactly the sluggishness the single page is meant to remove. */
+function _teacherAppPage_(startTab) {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
   var dom = _schoolDomain_();
-  if (!email) return _htmlOut_(_teacherHtml_({ state:'nobody', dom:dom }), 'Set homework');
-  if (!_isTeacher_(email)) return _htmlOut_(_teacherHtml_({ state:'refused', email:email, dom:dom }), 'Set homework');
-  var data;
-  try { data = _homeworkData_(); }
-  catch (err) { data = { error:String(err), labs:[], students:[], classes:[], homework:[] }; }
-  data.email = email;
-  data.spreadsheetsUrl = _teacherPageUrl_();
-  data.progressUrl = _pageUrl_('progress');
-  data.studentsUrl = _trackerAppUrl_() ? _pageUrl_('students') : '';
-  var json = JSON.stringify(data).replace(/</g, '\\u003c');
-  var html = HtmlService.createHtmlOutputFromFile('Homework').getContent()
-    .replace('__DATA__', function () { return json; });
-  return _htmlOut_(html, 'Set homework');
+  if (!email) return _htmlOut_(_teacherHtml_({ state:'nobody', dom:dom }), 'Teachers');
+  if (!_isTeacher_(email)) return _htmlOut_(_teacherHtml_({ state:'refused', email:email, dom:dom }), 'Teachers');
+  var boot = {
+    email: email,
+    tab: startTab || 'teachers',
+    hasStudents: !!_trackerAppUrl_(),
+    trackerBase: _trackerAppUrl_(),
+    hubSet: !!_hubUrl_()
+  };
+  var json = JSON.stringify(boot).replace(/</g, '\\u003c');
+  var html = HtmlService.createHtmlOutputFromFile('Teacher').getContent()
+    .replace('__BOOT__', function () { return json; });
+  return _htmlOut_(html, 'Biology teachers');
 }
 
-/* ── The dialog, and the actions it calls ───────────────────────────────────
-   All gated by _isAdminCaller_, so only a teacher working inside the spreadsheet can read or
-   change any of this — never the public web app. */
+/* Everything the page asks for, in one gated door. */
+function uiData(which) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  try {
+    if (which === 'teachers')  return { ok:true, data:_teacherPageGroups_() };
+    if (which === 'progress')  return { ok:true, data:_labProgressData_() };
+    if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
+    if (which === 'homework')  return { ok:true, data:_homeworkData_() };
+  } catch (err) { return { ok:false, why:String(err) }; }
+  return { ok:false, why:'Unknown view.' };
+}
+
 function showTeacherPanel() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
   _ensureTeacherTabs_();
@@ -3145,27 +3116,6 @@ function teacherSetTrackerUrl(url) {
 /* The page. Google has already signed the visitor in — this deployment is restricted to the
    school — so Session.getActiveUser() is who they really are. Nobody, or somebody not on the
    list, gets the page's name and who it is for, and not a single link. */
-function _teacherPage_() {
-  var email = '';
-  try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
-  var o = { dom: _schoolDomain_(), email: email };
-  if (!email) o.state = 'nobody';
-  else if (!_isTeacher_(email)) o.state = 'refused';
-  else {
-    o.state = 'ok';
-    o.progressUrl = _pageUrl_('progress');
-    o.studentsUrl = _trackerAppUrl_() ? _pageUrl_('students') : '';
-    o.homeworkUrl = _pageUrl_('homework');
-    try { o.g = _teacherPageGroups_(); } catch (e) { o.g = null; o.trouble = true; }
-  }
-  return HtmlService.createHtmlOutput(_teacherHtml_(o))
-    .setTitle('Assessment system — teachers')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-/* The three teacher pages — Spreadsheets (?page=teachers), Lab progress (?page=progress) and
-   Students (?page=students) — all live at the one deployment, so each links to the others by
-   swapping the page parameter. */
 function _pageUrl_(which) {
   var u = _teacherPageUrl_();
   if (!u) return '';
