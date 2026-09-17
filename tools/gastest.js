@@ -552,6 +552,19 @@ ok &= run('refreshDashboard twice running is the same', () => {
 });
 
 console.log('\ntabs built: ' + ss.sheets.map(s => s.name).join(', '));
+ok &= run('Tidy up makes the teacher-facing tabs itself, and puts them at the front', () => {
+  /* they used to appear only when somebody happened to open the window that created them, which
+     looked like they were missing */
+  [T_HOMEWORK, T_TEACHERS, T_LINKS].forEach(n => {
+    if (!ss.getSheetByName(n)) throw new Error('setup did not make ' + n);
+  });
+  const names = ss.getSheets().map(x => x.name);
+  const lab1 = names.indexOf(LABS[0].name);
+  [T_HOMEWORK, T_TEACHERS, T_LINKS].forEach(n => {
+    if (names.indexOf(n) > lab1) throw new Error(n + ' sits behind the lab tabs');
+  });
+  if (names.indexOf('Students') > names.indexOf(T_HOMEWORK)) throw new Error('the homework tab is not after Students');
+});
 ok &= run('the tabs end up in syllabus order, however they started', () => {
   /* Shuffle them the way a real sheet drifts: the general tabs scattered, Digestion before
      Classification because it was built first, and the newest labs stuck on the end. */
@@ -562,7 +575,8 @@ ok &= run('the tabs end up in syllabus order, however they started', () => {
   const moved = _orderTabs_();
 
   const got = ss.getSheets().map(x => x.name);
-  const want = ['Setup', 'Labs', 'Students']
+  /* the tabs a teacher opens sit at the front, ahead of the twenty lab tabs */
+  const want = ['Setup', 'Labs', 'Students', T_HOMEWORK, T_TEACHERS, T_LINKS]
                  .concat(LABS.map(l => l.name))
                  .concat(['Rejected'])
                  .filter(n => ss.getSheetByName(n));
@@ -1023,6 +1037,8 @@ ok &= run('the teacher page address must be a web app, and points at the page', 
 ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted staff', () => {
   SCHOOL_DOMAIN = 'x.kr';
   setUpTeacherPage_.length;                      /* exists */
+  /* setup() now makes this tab itself, so clear any existing one before planting the old shape */
+  { const old = ss.getSheetByName(T_LINKS); if (old) ss.deleteSheet(old); }
   const tab = ss.insertSheet(T_LINKS);
   tab.getRange(1, 1, 4, 4).setValues([['Section', 'Name', 'Link', 'Note'],
     ['Reflection spreadsheets', 'Test <b>7</b>', 'https://docs.google.com/spreadsheets/d/SECRET-ID/edit', 'a "note" & more'],

@@ -829,6 +829,12 @@ function _buildAndStyle_() {
   notes = notes.concat(_repairLabEmails_());
   var gone = _ss_().getSheetByName('Summary');
   if (gone && gone.getLastRow() < 2) _ss_().deleteSheet(gone);      /* the Students tab is the summary now */
+  /* Make the teacher-facing tabs exist, rather than waiting for somebody to open the window that
+     happens to create them. Tidy up is where a teacher expects the workbook to be put right, and a
+     tab that only appears the first time a page is opened looks like it is missing. */
+  _step_('Making the homework and teacher tabs…');
+  try { _ensureHomeworkTab_(); } catch (e) {}
+  try { _ensureTeacherTabs_(); } catch (e) {}
   _step_('Putting the buttons back on the Setup tab…');
   _installButtons_();
   restyleAll_();
@@ -1586,9 +1592,10 @@ function _repairStudentColumns_() {
    it is, after the ones that are. */
 function _orderTabs_() {
   var ss = _ss_();
-  var want = [T_SETUP, T_LABS, T_STUDENTS]
+  /* the tabs a teacher actually opens sit at the front; the twenty lab tabs are data behind them */
+  var want = [T_SETUP, T_LABS, T_STUDENTS, T_HOMEWORK, T_TEACHERS, T_LINKS]
              .concat(LABS.map(function (l) { return l.name; }))
-             .concat([T_HOMEWORK, T_TEACHERS, T_LINKS, T_REJECTED]);
+             .concat([T_REJECTED]);
   var looking = null;
   try { looking = ss.getActiveSheet(); } catch (e) {}     /* put the teacher back where they were */
   var pos = 0, moved = 0;
@@ -1667,13 +1674,26 @@ function _seedLab_(lab, notes) {
     }
   }
 
+  /* Keeping every name and class true to the roster used to ask the sheet for one row, then write
+     one row, PER PUPIL PER LAB — three hundred pupils across twenty labs is twelve thousand calls,
+     and that is what made Tidy up run for minutes. Now: read the tab once, fix the names in memory,
+     and write the two columns back in a single call only if something actually changed. */
   var add = [];
+  var nLeft = sh.getLastRow() - 1;                 /* re-read AFTER the deletions above */
+  var cur = nLeft > 0 ? sh.getRange(2, 1, nLeft, LAB_EMAIL).getValues() : [];
+  var rowOf = {}, nameClass = [];
+  cur.forEach(function (r, i) {
+    nameClass.push([r[0], r[1]]);
+    var e = _cleanEmail_(r[LAB_EMAIL - 1]);
+    if (e) rowOf[e] = i;
+  });
+  var changed = false;
   people.forEach(function (p) {
     var email = _cleanEmail_(p[EMAIL_COL - 1]);
     if (!email) return;
-    if (have[email]) {                             /* already here: keep the name and class true to the roster */
-      var r = have[email], cur = sh.getRange(r, 1, 1, 2).getValues()[0];
-      if (cur[0] !== p[0] || cur[1] !== p[1]) sh.getRange(r, 1, 1, 2).setValues([[p[0], p[1]]]);
+    if (rowOf[email] !== undefined) {              /* already here: keep the name and class true to the roster */
+      var i = rowOf[email];
+      if (nameClass[i][0] !== p[0] || nameClass[i][1] !== p[1]) { nameClass[i] = [p[0], p[1]]; changed = true; }
       return;
     }
     var row = new Array(LAB_COLS.length).fill('');
@@ -1682,6 +1702,7 @@ function _seedLab_(lab, notes) {
     row[LAB_EMAIL - 1] = email;
     add.push(row);
   });
+  if (changed && nameClass.length) sh.getRange(2, 1, nameClass.length, 2).setValues(nameClass);
   if (add.length) {
     var at2 = sh.getLastRow() + 1;
     _room_(sh, at2 + add.length - 1);
