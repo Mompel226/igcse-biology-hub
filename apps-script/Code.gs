@@ -1,7 +1,10 @@
 /**
  * Biology Labs — one spreadsheet for every lab
  * ============================================
- * Copyright (c) 2025-2026 Daniel Mompel Riera. All rights reserved.
+ * Copyright (c) 2025-2026 Dr Daniel Mompel Riera
+ * Licensed under the GNU Affero General Public License v3.0 (see LICENSE).
+ * The teaching material it carries is CC BY-NC-SA 4.0 (see LICENSE-CONTENT).
+ * Commercial use needs my permission: dmompelriera@nlcsjeju.kr
  *
  * What this does
  *   • Collects hand-ins from every Biology Lab into one Sheet, a tab per lab.
