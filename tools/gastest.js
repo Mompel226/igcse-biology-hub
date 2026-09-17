@@ -1212,7 +1212,7 @@ ok &= run('the cohort label: graduation year is the anchor, the year group rolls
   if (_cohortLabel_('2040', sep26).yearGroup !== '') throw new Error('a far-off year should show no year group');
   if (_cohortLabel_('', sep26) !== null) throw new Error('no year should be null');
 });
-ok &= run('the page organises: records pinned, cohorts by graduation year, types in order', () => {
+ok &= run('the page organises: records pinned, YOUNGEST cohort first, types in order', () => {
   SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
   teacherPanelData();
@@ -1223,12 +1223,20 @@ ok &= run('the page organises: records pinned, cohorts by graduation year, types
   teacherAddLink({ type:'Records',    assessment:'Tracker',            grad:'',     url:'https://x/trk' });
   const g = _teacherPageGroups_(new Date(2026, 8, 15));
   if (!g.records.some(r => /trk/.test(r.url))) throw new Error('the record was not pinned to Records');
-  if (g.cohorts.map(c => c.grad).join(',') !== '2027,2028') throw new Error('cohorts not nearest-graduation first: ' + g.cohorts.map(c => c.grad));
+  /* Y9 first, then Y10, then Y11 — a younger cohort graduates LATER, so furthest year first */
+  if (g.cohorts.map(c => c.grad).join(',') !== '2028,2027') throw new Error('cohorts not youngest-year-group first: ' + g.cohorts.map(c => c.grad));
   const c2028 = g.cohorts.filter(c => c.grad === 2028)[0];
   if (c2028.yearGroup !== 'Y10') throw new Error('cohort year group wrong: ' + c2028.yearGroup);
   if (c2028.types.map(t => t.type).join(',') !== 'Reflection,Test,Survey') throw new Error('types not in reading order: ' + c2028.types.map(t => t.type));
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+});
+ok &= run('classes list in YEAR order, not alphabetical', () => {
+  /* sorted as plain text, "10A" and "11A" both come before "9A" — so every dropdown put Y10 and
+     Y11 ahead of Y9, which is the opposite of how the school reads a list */
+  const got = ['11A', '9B', '10A', '9A', '10B'].slice().sort(_byClass_).join(',');
+  if (got !== '9A,9B,10A,10B,11A') throw new Error('classes came out as ' + got);
+  if (['9A', '10A'].slice().sort().join(',') !== '10A,9A') throw new Error('the plain sort should still be wrong — the test is not proving anything');
 });
 ok &= run('the panel refuses a student / web-app caller', () => {
   VISITOR = 'stu@pupils.x.kr';
