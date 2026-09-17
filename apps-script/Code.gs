@@ -68,6 +68,13 @@ var SCHOOL_DOMAIN  = '';
 var TEACHERS          = '';
 var TEACHER_PAGE_URL  = '';
 
+/* Open-a-student's-tracker — optional. TRACKER_APP_URL is the /exec address of ANY one of the
+   reflection deployments (they all show the same collated tracker). With it set, the teacher page
+   grows a "Students" tab: pick a pupil, click, and their own reflection tracker opens — the same
+   page they see, which only their teachers may open for them. You do not have to edit this by hand:
+   🧪 Biology Labs ▸ 🔗 Teacher page manages it too. Empty = no Students tab. */
+var TRACKER_APP_URL   = '';
+
 /* ---- The reflection record (optional) -------------------------------------
    Separate from the labs, and separate from this Sheet: the Assessment Reflection System
    builds every student a page of their own after each test — scores, weak topics, what to
@@ -448,7 +455,10 @@ function _reject(lab, row) {
    ============================================================ */
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
-  if (e && e.parameter && String(e.parameter.page || '') === 'teachers') return _teacherPage();
+  var page = e && e.parameter ? String(e.parameter.page || '') : '';
+  if (page === 'teachers') return _teacherPage();
+  if (page === 'progress') return _progressPage();
+  if (page === 'students') return _studentsPage();
   return _text('Biology Labs endpoint is running.');
 }
 
@@ -2319,6 +2329,138 @@ function _typeRank_(t) {
   return 3;
 }
 
+
+/* ── Lab progress, for teachers ─────────────────────────────────────────────
+   A second teacher-only page (?page=progress) that reads the marks in THIS spreadsheet — every
+   built lab's tab — and shows a class how it is doing: who has done what, where they are
+   struggling, and how hard they are working at it. It reads only; it changes nothing.
+
+   What each lab tab holds per student (LAB_COLS): a best Score / Out of, complete-or-progress,
+   Checks (how many times they pressed Check — the effort), Right first time (knew it vs worked it
+   out), Hand-ins (how many times they submitted), and Per station ("mouth 8/8 in 11 · …" — the
+   score and checks at each part of the lab). That last one is what tells you WHICH topics a class
+   finds hard, so it is parsed out here. */
+function _parseStations_(str) {
+  var out = [];
+  String(str == null ? '' : str).split(' · ').forEach(function (p) {
+    var m = String(p).match(/^(.*?)\s+(\d+)\/(\d+)(?:\s+in\s+(\d+))?$/);
+    if (m) out.push({ name: m[1].trim(), done: +m[2], total: +m[3], checks: m[4] ? +m[4] : 0 });
+  });
+  return out;
+}
+/* The cohort a class belongs to, from the year group in its name (10A → Y10 → Class of 2028 this
+   year). Same rule as the teacher page, so a class and its assessment spreadsheets line up. */
+function _classCohort_(cls, now) {
+  var m = String(cls || '').match(/\d+/);
+  if (!m) return null;
+  var yg = +m[0];
+  if (yg < 7 || yg > 13) return null;
+  var d = now || new Date();
+  var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
+  var co = _cohortLabel_(startYear + (12 - yg), now);
+  return co ? { grad: co.grad, title: co.title, yearGroup: co.yearGroup } : null;
+}
+function _labProgressData(now) {
+  var ss = _ss();
+  var labs = [];
+  LABS.forEach(function (l) { if ((l.questions || 0) > 0 && ss.getSheetByName(l.name)) labs.push({ id: l.id, name: l.name, topic: l.topic, questions: l.questions }); });
+  var byEmail = {}, students = [];
+  var stu = ss.getSheetByName(T_STUDENTS);
+  if (stu && stu.getLastRow() >= 2) {
+    var ec = _emailCol(stu), last = stu.getLastRow();
+    stu.getRange(2, 1, last - 1, ec).getValues().forEach(function (r) {
+      var email = _cleanEmail(r[ec - 1]); if (!email) return;
+      var cls = String(r[1] || '').trim().toUpperCase();
+      var s = { name: String(r[0] || '').trim(), cls: cls, cohort: _classCohort_(cls, now), byLab: {} };
+      byEmail[email] = s; students.push(s);
+    });
+  }
+  labs.forEach(function (l) {
+    var sh = ss.getSheetByName(l.name); if (!sh || sh.getLastRow() < 2) return;
+    var n = sh.getLastRow() - 1;
+    var v = sh.getRange(2, 1, n, LAB_EMAIL).getValues();
+    for (var i = 0; i < n; i++) {
+      var r = v[i], email = _cleanEmail(r[LAB_EMAIL - 1]);
+      if (!email || !byEmail[email]) continue;
+      if (r[2] === '' || r[2] == null) continue;                 /* Score blank = not handed in */
+      var done = Number(r[2]) || 0, total = Number(r[3]) || l.questions || 0;
+      byEmail[email].byLab[l.id] = {
+        done: done, total: total, pct: total ? Math.round(1000 * done / total) / 10 : 0,
+        complete: String(r[5] || '') === 'complete',
+        checks: Number(r[6]) || 0, firstTime: Number(r[7]) || 0, handIns: Number(r[9]) || 0,
+        at: r[10] ? new Date(r[10]).toISOString() : null,
+        stations: _parseStations_(r[13])
+      };
+    }
+  });
+  var cset = {}; students.forEach(function (s) { if (s.cls) cset[s.cls] = 1; });
+  return { generatedAt: new Date().toISOString(), labs: labs, students: students, classes: Object.keys(cset).sort() };
+}
+
+/* The page itself. Gated exactly like the teacher page: Google has signed the visitor in (school-
+   only deployment), and only a teacher on the list sees anything. The data is read once, on the
+   server, and dropped into the page; the Refresh button just reloads, which reads it again. */
+function _htmlOut_(html, title) {
+  return HtmlService.createHtmlOutput(html).setTitle(title)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+function _progressPage() {
+  var email = '';
+  try { email = _cleanEmail(Session.getActiveUser().getEmail()); } catch (e) {}
+  var dom = _schoolDomain();
+  if (!email) return _htmlOut_(_teacherHtml({ state: 'nobody', dom: dom }), 'Lab progress');
+  if (!_isTeacher(email)) return _htmlOut_(_teacherHtml({ state: 'refused', email: email, dom: dom }), 'Lab progress');
+  var data;
+  try { data = _labProgressData(); } catch (err) { data = { error: String(err), labs: [], students: [], classes: [] }; }
+  data.email = email;
+  data.spreadsheetsUrl = _teacherPageUrl();
+  data.studentsUrl = _trackerAppUrl() ? _pageUrl_('students') : '';
+  var json = JSON.stringify(data).replace(/</g, '\\u003c');
+  var html = HtmlService.createHtmlOutputFromFile('LabProgress').getContent()
+    .replace('__DATA__', function () { return json; });
+  return _htmlOut_(html, 'Lab progress');
+}
+
+/* ── Students, for teachers ─────────────────────────────────────────────────
+   A third teacher-only page (?page=students). The reflection system gives every pupil a tracker
+   of their own — scores, weak topics, what to revise — at one address that shows whoever opens it
+   their own page. A teacher, though, may open any pupil's (serveDashboard checks ?email against the
+   signed-in teacher). This page is just a fast way to find that pupil: the class list, searchable
+   and filterable by cohort and class, each with a button that opens their tracker. It reads the
+   roster only. It appears only once TRACKER_APP_URL is set. */
+function _studentDirectory_(now) {
+  var ss = _ss(), out = [];
+  var stu = ss.getSheetByName(T_STUDENTS);
+  if (stu && stu.getLastRow() >= 2) {
+    var ec = _emailCol(stu), last = stu.getLastRow();
+    stu.getRange(2, 1, last - 1, ec).getValues().forEach(function (r) {
+      var email = _cleanEmail(r[ec - 1]); if (!email) return;
+      var cls = String(r[1] || '').trim().toUpperCase();
+      out.push({ name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now) });
+    });
+  }
+  out.sort(function (a, b) { return (a.cls || '').localeCompare(b.cls || '') || (a.name || '').localeCompare(b.name || ''); });
+  var cset = {}; out.forEach(function (s) { if (s.cls) cset[s.cls] = 1; });
+  return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort() };
+}
+function _studentsPage() {
+  var email = '';
+  try { email = _cleanEmail(Session.getActiveUser().getEmail()); } catch (e) {}
+  var dom = _schoolDomain();
+  if (!email) return _htmlOut_(_teacherHtml({ state: 'nobody', dom: dom }), 'Students');
+  if (!_isTeacher(email)) return _htmlOut_(_teacherHtml({ state: 'refused', email: email, dom: dom }), 'Students');
+  var data;
+  try { data = _studentDirectory_(); } catch (err) { data = { error: String(err), students: [], classes: [] }; }
+  data.email = email;
+  data.spreadsheetsUrl = _teacherPageUrl();
+  data.progressUrl = _pageUrl_('progress');
+  data.trackerBase = _trackerAppUrl();               /* the page builds ?page=student&email=… itself */
+  var json = JSON.stringify(data).replace(/</g, '\\u003c');
+  var html = HtmlService.createHtmlOutputFromFile('StudentFinder').getContent()
+    .replace('__DATA__', function () { return json; });
+  return _htmlOut_(html, 'Students');
+}
+
 /* ── The dialog, and the actions it calls ───────────────────────────────────
    All gated by _isAdminCaller_, so only a teacher working inside the spreadsheet can read or
    change any of this — never the public web app. */
@@ -2349,6 +2491,8 @@ function teacherPanelData() {
     domain: _schoolDomain(),
     pageUrl: String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '').replace(/\?.*$/, ''),
     pageLive: !!_teacherPageUrl(),
+    trackerUrl: String(_keptSetting_(TRACKER_APP_URL, 'TRACKER_APP_URL') || '').replace(/\?.*$/, ''),
+    trackerLive: !!_trackerAppUrl(),
     teachers: teachers,
     links: _teacherLinksRaw().map(function (l) {
       var co = _cohortLabel_(l.grad);
@@ -2420,6 +2564,13 @@ function teacherSetPageUrl(url) {
   _setKept_('TEACHER_PAGE_URL', url);
   return teacherPanelData();
 }
+function teacherSetTrackerUrl(url) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  url = String(url || '').trim().replace(/\?.*$/, '');
+  if (url && !_isExecUrl(url)) return { ok: false, why: 'That is not a web-app address. It should end /exec.' };
+  _setKept_('TRACKER_APP_URL', url);
+  return teacherPanelData();
+}
 
 /* The page. Google has already signed the visitor in — this deployment is restricted to the
    school — so Session.getActiveUser() is who they really are. Nobody, or somebody not on the
@@ -2432,11 +2583,33 @@ function _teacherPage() {
   else if (!_isTeacher(email)) o.state = 'refused';
   else {
     o.state = 'ok';
+    o.progressUrl = _pageUrl_('progress');
+    o.studentsUrl = _trackerAppUrl() ? _pageUrl_('students') : '';
     try { o.g = _teacherPageGroups_(); } catch (e) { o.g = null; o.trouble = true; }
   }
   return HtmlService.createHtmlOutput(_teacherHtml(o))
     .setTitle('Assessment system — teachers')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/* The three teacher pages — Spreadsheets (?page=teachers), Lab progress (?page=progress) and
+   Students (?page=students) — all live at the one deployment, so each links to the others by
+   swapping the page parameter. */
+function _pageUrl_(which) {
+  var u = _teacherPageUrl();
+  if (!u) return '';
+  return u.replace(/([?&])page=teachers\b/, '$1page=' + which);
+}
+/* Any reflection deployment's /exec, kept the way TEACHER_PAGE_URL is. Empty ⇒ no Students tab. */
+function _trackerAppUrl() {
+  var u = String(_keptSetting_(TRACKER_APP_URL, 'TRACKER_APP_URL') || '').trim();
+  return _isExecUrl(u) ? u.replace(/\?.*$/, '') : '';
+}
+/* The link that opens ONE pupil's tracker. serveDashboard in the reflection app reads ?email and,
+   for a teacher, shows that pupil's own page; for anyone else it shows only their own. */
+function _studentTrackerUrl_(email) {
+  var b = _trackerAppUrl();
+  return b ? b + '?page=student&email=' + encodeURIComponent(String(email || '').toLowerCase().trim()) : '';
 }
 
 function _esc(s) {
@@ -2537,6 +2710,11 @@ function _teacherHtml(o) {
       (o.state === 'ok' && o.total ? '<span class="who__dot">·</span>' + o.total + ' spreadsheet' + (o.total === 1 ? '' : 's') : '') +
       '</span>'
     : '';
+  var nav = (o.state === 'ok' && o.progressUrl)
+    ? '<nav class="tabs" aria-label="Teacher pages"><span class="tab is-on" aria-current="page">Spreadsheets</span>' +
+      '<a class="tab" href="' + e(o.progressUrl) + '">Lab progress</a>' +
+      (o.studentsUrl ? '<a class="tab" href="' + e(o.studentsUrl) + '">Students</a>' : '') + '</nav>'
+    : '';
   var js = o.state === 'ok' ? '<script>(function(){' +
     'var q=document.getElementById("q"),cur=document.getElementById("cur"),none=document.getElementById("none"),' +
     'chips=[].slice.call(document.querySelectorAll(".fchip")),cards=[].slice.call(document.querySelectorAll(".card")),f="all";' +
@@ -2573,6 +2751,11 @@ function _teacherHtml(o) {
     '.who{display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border:1px solid var(--line2);border-radius:999px;' +
     'background:rgba(120,200,230,.06);font-size:13px;color:var(--dim)}.who svg{color:var(--cyan);opacity:.85;flex:none}' +
     '.who b{color:var(--chalk);font-weight:500}.who__dot{margin:0 7px;color:var(--mute)}' +
+    /* the two-page switch (Spreadsheets · Lab progress) */
+    '.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:4px}' +
+    '.tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line2);border-radius:999px;background:var(--card);vertical-align:middle}' +
+    '.tab{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-decoration:none;padding:9px 15px;border-radius:999px;transition:color .15s,background .15s}' +
+    '.tab.is-on{color:var(--ink);background:var(--chalk)}.tab:not(.is-on):hover{color:var(--chalk)}.tab__a{opacity:.7}' +
     /* the "this year" key */
     '.legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:20px 0 0;padding:11px 15px;border:1px solid var(--line);' +
     'border-radius:10px;background:rgba(120,200,230,.03);font-size:12.5px;color:var(--dim)}' +
@@ -2634,7 +2817,7 @@ function _teacherHtml(o) {
     '<p class="eye">Biology Hub · <b>Teachers only</b></p>' +
     '<h1>Assessment <em>system</em></h1>' +
     '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place — grouped by the cohort it belongs to, by the year they graduate.</p>' +
-    who + main + '</div>' + js + '</body></html>';
+    '<div class="topbar">' + who + nav + '</div>' + main + '</div>' + js + '</body></html>';
 }
 
 /* 🧪 Biology Labs ▸ 🔗 Teacher page: makes the tab (with the two records it can fill

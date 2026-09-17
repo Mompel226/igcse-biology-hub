@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab progress — teachers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);
+  --chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--accent:#4FC3F7;
+  --good:#2DD4BF;--warn:#F5A623;--bad:#EF6B6B;--magenta:#E879F9;
+  --serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;background:radial-gradient(1100px 460px at 82% -12%,rgba(79,195,247,.07),transparent 62%),var(--ink);
+  color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 64px}
+a{color:inherit}
+.eye{font:600 10.5px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin:0}.eye b{color:var(--accent)}
+h1{font:400 clamp(34px,5.2vw,54px)/1.02 var(--serif);letter-spacing:-.02em;margin:10px 0 12px}h1 em{font-style:italic;color:var(--accent)}
+.lede{color:#C5D4DD;max-width:60ch;margin:0 0 18px;font-size:15.5px}
+/* top bar: who · tabs · refresh */
+.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:4px}
+.who{display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border:1px solid var(--line2);border-radius:999px;
+  background:rgba(120,200,230,.06);font-size:13px;color:var(--dim)}.who svg{color:var(--cyan);opacity:.85;flex:none}
+.who b{color:var(--chalk);font-weight:500}
+.tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line2);border-radius:999px;background:var(--card)}
+.tab{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-decoration:none;padding:9px 15px;border-radius:999px;transition:color .15s,background .15s}
+.tab.is-on{color:var(--ink);background:var(--chalk)}.tab:not(.is-on):hover{color:var(--chalk)}
+.refresh{display:inline-flex;align-items:center;gap:7px;font:600 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cyan);background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.34);border-radius:999px;padding:9px 15px;cursor:pointer;transition:background .15s,border-color .15s}
+.refresh:hover{background:rgba(79,195,247,.16)}.refresh svg{transition:transform .5s}.refresh.spin svg{transform:rotate(360deg)}
+.stamp{font:500 11.5px/1 var(--mono);letter-spacing:.04em;color:var(--mute)}
+/* controls */
+.controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 18px;margin:26px 0 4px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:rgba(120,200,230,.03)}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:0}
+.ctl>label{font:600 9.5px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.sel{appearance:none;-webkit-appearance:none;font:500 13.5px/1 var(--sans);color:var(--chalk);background:var(--card)
+  url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'><path d='M6 9l6 6 6-6' fill='none' stroke='%237E93A1' stroke-width='2.4' stroke-linecap='round'/></svg>") no-repeat right 12px center;
+  border:1px solid var(--line2);border-radius:9px;padding:10px 34px 10px 13px;cursor:pointer;max-width:100%}
+.sel:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.srch{display:flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid var(--line2);border-radius:9px;background:var(--card);width:100%;min-width:150px}
+.srch svg{color:var(--mute);flex:none}.srch input{flex:1;min-width:0;border:0;background:none;color:var(--chalk);font:14px/1 var(--sans);outline:none}.srch input::placeholder{color:var(--mute)}
+.ctl--grow{flex:1 1 180px}
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0 0}
+.tile{position:relative;padding:16px 17px 15px;border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden}
+.tile::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--tc,var(--cyan))}
+.tile__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
+.tile__v{font:400 30px/1 var(--serif);letter-spacing:-.01em;color:var(--chalk);margin-top:9px;font-variant-numeric:tabular-nums}
+.tile__v small{font:500 13px/1 var(--mono);color:var(--mute)}
+.tile__s{font-size:12px;color:var(--dim);margin-top:6px}
+/* sections */
+.sec{margin:38px 0 0}
+.sec__h{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 12px;margin:0 0 4px}
+.sec__t{font:400 23px/1.1 var(--serif);letter-spacing:-.01em;color:var(--chalk)}
+.sec__n{font:600 10px/1 var(--mono);letter-spacing:.14em;color:var(--mute)}
+.sec__d{color:var(--mute);font-size:13px;margin:2px 0 16px;max-width:70ch}
+.panel{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}
+/* heatmap */
+.hmwrap{overflow:auto;max-height:560px}
+table.hm{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeric:tabular-nums}
+.hm th,.hm td{padding:0;text-align:center}
+.hm thead th{position:sticky;top:0;z-index:3;background:var(--cardhi);border-bottom:1px solid var(--line2);padding:9px 6px;
+  font:600 10.5px/1.25 var(--mono);letter-spacing:.03em;color:var(--dim);vertical-align:bottom}
+.hm thead th.lab{cursor:pointer;width:86px;min-width:86px}.hm thead th.lab:hover{color:var(--chalk)}
+.hm thead th.lab .lt{font:500 9px/1.2 var(--mono);letter-spacing:.08em;color:var(--mute);display:block;margin-top:3px;text-transform:uppercase}
+.hm th.cnr{left:0;z-index:5;text-align:left;padding-left:16px;min-width:190px;width:100%}
+.hm td.name{position:sticky;left:0;z-index:2;background:var(--card);border-bottom:1px solid var(--line);border-right:1px solid var(--line2);
+  text-align:left;padding:9px 12px 9px 16px;cursor:pointer;width:100%}
+.hm tbody tr:hover td.name{background:var(--cardhi)}
+.hm .nm{font-weight:600;font-size:13px;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.hm .cl{font:500 10.5px/1.2 var(--mono);letter-spacing:.05em;color:var(--mute);margin-top:1px}
+.hm td.cell{border-bottom:1px solid var(--line);padding:5px;width:86px}
+.cellbox{position:relative;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font:600 12.5px/1 var(--mono);border:1px solid transparent;cursor:pointer;transition:transform .1s}
+.cellbox:hover{transform:scale(1.06)}
+.cellbox.done::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.9}
+.cellbox.empty{color:var(--mute);background:repeating-linear-gradient(135deg,transparent,transparent 5px,rgba(150,190,215,.05) 5px,rgba(150,190,215,.05) 6px);border:1px dashed var(--line2)}
+.hm tbody tr:last-child td{border-bottom:0}
+.hmleg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px;border-top:1px solid var(--line);color:var(--mute);font-size:12px}
+.hmleg .sw{display:inline-flex;align-items:center;gap:6px}.hmleg i{width:15px;height:15px;border-radius:4px;display:inline-block;border:1px solid var(--line2)}
+.hmgrad{width:120px;height:9px;border-radius:5px;background:linear-gradient(90deg,hsl(0 55% 42%),hsl(45 55% 42%),hsl(90 50% 40%),hsl(140 55% 40%))}
+/* per-lab cards */
+.labgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:12px}
+.labc{padding:15px 16px;border:1px solid var(--line);border-radius:13px;background:var(--card)}
+.labc__h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.labc__n{font-weight:600;font-size:14.5px;color:var(--chalk)}
+.labc__t{font:500 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.bar{height:7px;border-radius:4px;background:rgba(150,190,215,.12);margin:11px 0 12px;overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:4px;background:var(--good)}
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px}
+.stat div{display:flex;flex-direction:column}
+.stat b{font:500 15px/1.1 var(--sans);color:var(--chalk);font-variant-numeric:tabular-nums}
+.stat span{color:var(--mute);font:600 9px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.labc__hard{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim)}
+.labc__hard b{color:var(--warn);font-weight:600}
+/* attention list */
+.att{display:grid;gap:9px}
+.attr{display:flex;align-items:center;gap:13px;padding:12px 15px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;transition:border-color .15s,background .15s}
+.attr:hover{border-color:var(--line2);background:var(--cardhi)}
+.attr__i{flex:none;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--mono);
+  color:var(--ink);background:var(--warn)}
+.attr__i.bad{background:var(--bad)}.attr__i.warn{background:var(--warn)}.attr__i.mid{background:var(--magenta)}
+.attr__m{flex:1;min-width:0}
+.attr__n{font-weight:600;font-size:14px;color:var(--chalk)}.attr__n .cl{font:500 10.5px/1 var(--mono);color:var(--mute);margin-left:8px}
+.attr__f{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.flag{font:600 9.5px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--dim)}
+.flag.bad{color:#F3B4B4;border-color:rgba(239,107,107,.4);background:rgba(239,107,107,.1)}
+.flag.warn{color:#F6D08A;border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.1)}
+.flag.mid{color:#F1CFFB;border-color:rgba(232,121,249,.4);background:rgba(232,121,249,.1)}
+.attr__p{flex:none;text-align:right;font-variant-numeric:tabular-nums}
+.attr__p b{font:400 20px/1 var(--serif);color:var(--chalk)}.attr__p span{display:block;font:600 9px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:3px}
+.allok{padding:20px;color:var(--good);font-size:14px}.allok b{font-weight:600}
+/* stations */
+.stwrap{display:grid;gap:8px}
+.strow{display:grid;grid-template-columns:150px 1fr auto;align-items:center;gap:14px;padding:10px 15px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
+.strow__n{font-weight:500;font-size:13.5px;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strow__b{height:9px;border-radius:5px;background:rgba(150,190,215,.12);overflow:hidden}.strow__b>i{display:block;height:100%;border-radius:5px}
+.strow__v{font:600 12.5px/1 var(--mono);color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
+.strow__v small{color:var(--mute);font-weight:400}
+/* compare table */
+.cmpwrap{overflow:auto}
+table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeric:tabular-nums;min-width:420px}
+.cmp th,.cmp td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:center;font-size:13px}
+.cmp thead th{background:var(--cardhi);font:600 10px/1.3 var(--mono);letter-spacing:.06em;color:var(--dim);text-transform:uppercase;position:sticky;top:0}
+.cmp th.rowh,.cmp td.rowh{text-align:left;font-weight:600;color:var(--chalk);white-space:nowrap}
+.cmp td .mini{display:inline-flex;align-items:center;gap:8px}
+.cmp td .mp{width:44px;height:6px;border-radius:3px;background:rgba(150,190,215,.12);overflow:hidden;flex:none}.cmp td .mp>i{display:block;height:100%}
+.cmp tbody tr:last-child td{border-bottom:0}.cmp tbody tr:hover td{background:rgba(120,200,230,.04)}
+.cmp .ov{color:var(--chalk);font-weight:600}
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(4,10,14,.62);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.draw{position:fixed;top:0;right:0;height:100%;width:min(440px,94vw);background:var(--ink);border-left:1px solid var(--line2);
+  transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);z-index:41;display:flex;flex-direction:column;box-shadow:-24px 0 60px rgba(0,0,0,.4)}
+.draw.on{transform:none}
+.draw__h{padding:20px 22px 16px;border-bottom:1px solid var(--line)}
+.draw__x{position:absolute;top:16px;right:18px;width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--dim);cursor:pointer;font-size:17px;line-height:1}
+.draw__x:hover{color:var(--chalk);border-color:var(--chalk)}
+.draw__n{font:400 24px/1.1 var(--serif);color:var(--chalk);margin:0 34px 3px 0}
+.draw__meta{font:500 12px/1.4 var(--mono);color:var(--mute)}
+.draw__b{padding:18px 22px 30px;overflow:auto}
+.dlab{margin:0 0 16px;padding:0 0 15px;border-bottom:1px solid var(--line)}.dlab:last-child{border-bottom:0}
+.dlab__h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.dlab__n{font-weight:600;font-size:14px;color:var(--chalk)}
+.dlab__p{font:600 13px/1 var(--mono);color:var(--dim)}
+.dlab__miss{font:500 12px/1 var(--mono);color:var(--mute)}
+.dchips{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 3px}
+.dchip{font:600 9.5px/1 var(--mono);letter-spacing:.04em;color:var(--dim);border:1px solid var(--line2);border-radius:999px;padding:5px 9px}
+.dchip b{color:var(--chalk)}
+.dst{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin-top:11px;font-size:12.5px;align-items:center}
+.dst__n{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dst__v{font:600 11.5px/1 var(--mono);color:var(--mute);white-space:nowrap}
+.dst__bar{grid-column:1/3;height:6px;border-radius:3px;background:rgba(150,190,215,.12);overflow:hidden;margin-bottom:5px}.dst__bar>i{display:block;height:100%}
+.empty{padding:26px 20px;color:var(--dim);font-size:14px;text-align:center}
+.note{color:var(--mute);font-size:12.5px;margin:30px 0 0;border-top:1px solid var(--line);padding-top:14px;max-width:74ch}
+.err{margin:24px 0;padding:16px 18px;border:1px solid rgba(239,107,107,.4);background:rgba(239,107,107,.08);border-radius:12px;color:#F3B4B4;font-size:13.5px}
+noscript{display:block;margin:24px 0;padding:16px 18px;border:1px solid var(--line2);border-radius:12px;color:var(--dim)}
+@media (max-width:640px){
+  .strow{grid-template-columns:110px 1fr auto;gap:10px}
+  .hm th.cnr,.hm td.name{min-width:150px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eye">Biology Hub · <b>Teachers only</b></p>
+  <h1>Lab <em>progress</em></h1>
+  <p class="lede">How each class is getting on with the labs — who has done what, where they are getting stuck, and how hard they are working at it. Read straight from the marks in the Student data spreadsheet.</p>
+  <div class="topbar" id="topbar"></div>
+  <noscript>This page needs JavaScript to draw the charts. Please turn it on and reload.</noscript>
+  <div id="app"></div>
+  <p class="note">This page only reads the marks; it changes nothing. A student appears once they have handed in at least one lab. “Progress” counts a lab not yet started as 0, so it blends how much a class has covered with how well. Retries = how many times a station was checked; right first time = answered correctly on the first check.</p>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="draw" id="draw" aria-hidden="true" aria-label="Student detail">
+  <div class="draw__h"><button class="draw__x" id="drawx" aria-label="Close">✕</button>
+    <h2 class="draw__n" id="drawn"></h2><div class="draw__meta" id="drawm"></div></div>
+  <div class="draw__b" id="drawb"></div>
+</aside>
+
+<script>
+var DATA = __DATA__;
+(function(){
+  "use strict";
+  var LABS = (DATA && DATA.labs) || [], STUD = (DATA && DATA.students) || [];
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function r0(x){ return Math.round(x); }
+  function r1(x){ return Math.round(x*10)/10; }
+  function pctTxt(x){ return r0(x)+'%'; }
+  function heat(pct){ var h=Math.max(0,Math.min(100,pct))*1.32; return {bg:'hsl('+h+' 46% 20%)',bd:'hsl('+h+' 52% 40%)',fg:'hsl('+h+' 78% 76%)'}; }
+
+  /* ---- top bar (who · tabs · refresh) ---- */
+  (function(){
+    var who = DATA.email ? '<span class="who"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">'+
+        '<circle cx="12" cy="8.2" r="4" fill="currentColor"/><path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>'+
+        'Signed in as <b>'+esc(DATA.email)+'</b></span>' : '';
+    var tabs = '<nav class="tabs" aria-label="Teacher pages">'+
+        (DATA.spreadsheetsUrl ? '<a class="tab" href="'+esc(DATA.spreadsheetsUrl)+'">Spreadsheets</a>' : '')+
+        '<span class="tab is-on" aria-current="page">Lab progress</span>'+
+        (DATA.studentsUrl ? '<a class="tab" href="'+esc(DATA.studentsUrl)+'">Students</a>' : '')+'</nav>';
+    var when=''; try{ when = new Date(DATA.generatedAt).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){}
+    var refresh = '<button class="refresh" id="refresh"><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>'+
+        (when ? '<span class="stamp">updated '+esc(when)+'</span>' : '');
+    $('topbar').innerHTML = who + tabs + refresh;
+    var rb=$('refresh'); if(rb) rb.addEventListener('click',function(){ rb.classList.add('spin'); rb.disabled=true; location.reload(); });
+  })();
+
+  if (DATA && DATA.error){ $('app').innerHTML = '<div class="err">The marks could not be read just now: '+esc(DATA.error)+'. Try Refresh in a moment.</div>'; return; }
+  if (!LABS.length){ $('app').innerHTML = '<div class="empty">No labs are live yet — once a lab has questions and students have handed in, their progress shows here.</div>'; return; }
+  if (!STUD.length){ $('app').innerHTML = '<div class="empty">No students on the roster yet.</div>'; return; }
+
+  /* ---- cohorts & classes, derived from the roster ---- */
+  var byClass = {}; STUD.forEach(function(s){ (byClass[s.cls]=byClass[s.cls]||[]).push(s); });
+  var cohortMap = {};
+  STUD.forEach(function(s){
+    if(!s.cohort) return; var g=s.cohort.grad;
+    var c = cohortMap[g] || (cohortMap[g]={grad:g,title:s.cohort.title,yg:s.cohort.yearGroup,classes:{}});
+    if(s.cls) c.classes[s.cls]=1;
+  });
+  var COHORTS = Object.keys(cohortMap).map(function(k){ var c=cohortMap[k]; return {grad:+k,title:c.title,yg:c.yg,classes:Object.keys(c.classes).sort()}; })
+                       .sort(function(a,b){ return a.grad-b.grad; });
+
+  var state = { grad:'all', cls:'all', q:'', sort:'attention', lab: LABS[0].id };
+
+  /* ---- per-student summary over the live labs ---- */
+  function summ(s){
+    var sum=0, started=0, complete=0, checks=0, q=0, ft=0, handIns=0;
+    LABS.forEach(function(l){ var e=s.byLab[l.id]; if(e){ started++; sum+=e.pct; if(e.complete)complete++; checks+=e.checks; q+=e.total; ft+=e.firstTime; handIns+=e.handIns; } });
+    var attain = started ? sum/started : 0;
+    return { progress: sum/LABS.length, attain:attain, started:started, complete:complete, checks:checks, q:q, ft:ft, handIns:handIns, cpq: q?checks/q:0, coverage: started/LABS.length };
+  }
+  /* concern flags for a student */
+  /* a flag marks something a teacher would actually want to act on — being merely below
+     average (50–70%) is normal and does not flag on its own */
+  function flags(sm){
+    var f=[];
+    if(sm.started===0){ f.push({t:'Not started',k:'bad'}); return f; }
+    if(sm.coverage<0.5) f.push({t:'Low coverage',k:'warn'});
+    if(sm.attain<50) f.push({t:'Struggling',k:'bad'});
+    if(sm.cpq>=2 && sm.attain<75) f.push({t:'Lots of retries',k:'mid'});
+    if(sm.started && sm.handIns/sm.started>=3) f.push({t:'Many hand-ins',k:'mid'});
+    return f;
+  }
+  function concern(sm){
+    if(sm.started===0) return 1000;
+    var sc=0; if(sm.coverage<0.5) sc+=300; if(sm.attain<50) sc+=200+(50-sm.attain);
+    if(sm.cpq>=2 && sm.attain<75) sc+=60; if(sm.started && sm.handIns/sm.started>=3) sc+=40; return sc;
+  }
+
+  function currentStudents(){
+    var q = state.q.trim().toLowerCase();
+    return STUD.filter(function(s){
+      if(state.grad!=='all'){ if(!s.cohort || String(s.cohort.grad)!==String(state.grad)) return false; }
+      if(state.cls!=='all' && s.cls!==state.cls) return false;
+      if(q){ if((s.name||'').toLowerCase().indexOf(q)<0 && (s.cls||'').toLowerCase().indexOf(q)<0) return false; }
+      return true;
+    });
+  }
+  function cohortStudents(){ /* cohort + search, ignoring the single-class filter (for compare) */
+    var q = state.q.trim().toLowerCase();
+    return STUD.filter(function(s){
+      if(state.grad!=='all'){ if(!s.cohort || String(s.cohort.grad)!==String(state.grad)) return false; }
+      if(q){ if((s.name||'').toLowerCase().indexOf(q)<0 && (s.cls||'').toLowerCase().indexOf(q)<0) return false; }
+      return true;
+    });
+  }
+
+  /* aggregate a subset into per-lab and per-station roll-ups */
+  function aggLabs(list){
+    var per={}; LABS.forEach(function(l){ per[l.id]={sumPct:0,started:0,complete:0,checks:0,qTot:0,ft:0,ftTot:0,stations:{},order:[]}; });
+    list.forEach(function(s){ LABS.forEach(function(l){ var e=s.byLab[l.id]; if(!e) return; var P=per[l.id];
+      P.started++; P.sumPct+=e.pct; if(e.complete)P.complete++; P.checks+=e.checks; P.qTot+=e.total; P.ft+=e.firstTime; P.ftTot+=e.total;
+      (e.stations||[]).forEach(function(st){ var S=P.stations[st.name]; if(!S){ S=P.stations[st.name]={done:0,total:0,checks:0,n:0}; P.order.push(st.name); } S.done+=st.done; S.total+=st.total; S.checks+=st.checks; S.n++; });
+    }); });
+    return per;
+  }
+  function hardest(P){
+    var best=null; P.order.forEach(function(nm){ var S=P.stations[nm]; if(!S.total) return; var pc=100*S.done/S.total; if(best===null||pc<best.pc) best={name:nm,pc:pc}; });
+    return best;
+  }
+
+  /* ---- render pieces ---- */
+  function render(){
+    var list = currentStudents();
+    var app = '';
+    app += tiles(list);
+    app += heatmap(list);
+    app += labCards(list);
+    app += attention(list);
+    app += stations(list);
+    app += compare();
+    $('app').innerHTML = app;
+    wire();
+  }
+
+  function tiles(list){
+    var n=list.length, cells=n*LABS.length, sumP=0, complete=0, notStarted=0, attn=0;
+    list.forEach(function(s){ var sm=summ(s); sumP+=sm.progress; if(sm.started===0) notStarted++; complete+=sm.complete; if(concern(sm)>0) attn++; });
+    var avgComplete = n? complete/n : 0;
+    var t = '<div class="tiles">';
+    t += tile('cyan','Students', n, list.length? (COHORTS.length && state.grad!=='all' ? 'in this cohort' : 'in view') : '');
+    t += tile('good','Avg progress', n? pctTxt(sumP/n):'—', 'across all labs');
+    t += tile('magenta','Labs complete', n? r1(avgComplete)+'<small> / '+LABS.length+'</small>':'—', 'per student, on average');
+    t += tile('warn','Not started', notStarted, notStarted? 'yet to hand in a lab':'everyone has begun');
+    t += tile('bad','Need a look', attn, attn? 'flagged below':'no flags right now');
+    t += '</div>';
+    return t;
+  }
+  function tile(tc,k,v,s){ return '<div class="tile" style="--tc:var(--'+tc+')"><div class="tile__k">'+esc(k)+'</div><div class="tile__v">'+v+'</div>'+(s?'<div class="tile__s">'+esc(s)+'</div>':'')+'</div>'; }
+
+  function sortList(list){
+    var arr = list.map(function(s){ return {s:s, sm:summ(s)}; });
+    var by = state.sort;
+    arr.sort(function(a,b){
+      if(by==='attention') return concern(b.sm)-concern(a.sm) || a.s.cls.localeCompare(b.s.cls) || a.s.name.localeCompare(b.s.name);
+      if(by==='progress') return b.sm.progress-a.sm.progress || a.s.name.localeCompare(b.s.name);
+      if(by==='progress-asc') return a.sm.progress-b.sm.progress || a.s.name.localeCompare(b.s.name);
+      if(by==='class') return a.s.cls.localeCompare(b.s.cls) || a.s.name.localeCompare(b.s.name);
+      return (a.s.name||'').localeCompare(b.s.name||'');
+    });
+    return arr;
+  }
+
+  function heatmap(list){
+    if(!list.length) return section('Every student, every lab','Each square is one lab for one student — colour and number are the score so far. A dot marks a lab that is finished. Click a name for the full picture, or a lab heading to see its hardest parts.','<div class="empty">No students match these filters.</div>');
+    var arr = sortList(list);
+    var head='<tr><th class="cnr">Student</th>';
+    LABS.forEach(function(l){ head += '<th class="lab" data-lab="'+esc(l.id)+'" title="'+esc(l.name+(l.topic?' · '+l.topic:'')+' · '+l.questions+' questions')+'">'+esc(shortLab(l.name))+'<span class="lt">'+esc(l.topic||'')+'</span></th>'; });
+    head+='</tr>';
+    var rows = arr.map(function(o){
+      var s=o.s;
+      var tds = LABS.map(function(l){ var e=s.byLab[l.id];
+        if(!e) return '<td class="cell"><div class="cellbox empty">·</div></td>';
+        var h=heat(e.pct);
+        return '<td class="cell"><div class="cellbox'+(e.complete?' done':'')+'" style="background:'+h.bg+';border-color:'+h.bd+';color:'+h.fg+'" title="'+esc(l.name+': '+e.done+'/'+e.total+' ('+pctTxt(e.pct)+')'+(e.complete?' · finished':'')+' · '+e.checks+' checks')+'">'+r0(e.pct)+'</div></td>';
+      }).join('');
+      return '<tr data-email="'+esc(s.__k||'')+'" data-i="'+STUD.indexOf(s)+'"><td class="name" data-i="'+STUD.indexOf(s)+'"><div class="nm">'+esc(s.name||'(no name)')+'</div><div class="cl">'+esc(s.cls||'—')+'</div></td>'+tds+'</tr>';
+    }).join('');
+    var leg = '<div class="hmleg"><span class="sw">Lower <span class="hmgrad"></span> Higher</span>'+
+      '<span class="sw"><i style="background:hsl(140 46% 20%);border-color:hsl(140 52% 40%)"></i> finished (dot)</span>'+
+      '<span class="sw"><i class="empty" style="background:repeating-linear-gradient(135deg,transparent,transparent 4px,rgba(150,190,215,.08) 4px,rgba(150,190,215,.08) 5px)"></i> not started</span></div>';
+    var tbl='<div class="panel"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+leg+'</div>';
+    return section('Every student, every lab','Each square is one lab for one student — colour and number are the score so far. A dot marks a finished lab. Click a name for the full picture, or a lab heading for its hardest parts.',tbl,arr.length+' shown');
+  }
+  function shortLab(name){ return String(name).replace(/\s*lab\s*$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}).trim(); }
+
+  function labCards(list){
+    var per = aggLabs(list), n=list.length;
+    var cards = LABS.map(function(l){ var P=per[l.id];
+      var avg = P.started? P.sumPct/P.started : 0;
+      var cov = n? P.started/n : 0;
+      var comp = n? P.complete/n : 0;
+      var cpq = P.qTot? P.checks/P.qTot : 0;
+      var rft = P.ftTot? 100*P.ft/P.ftTot : 0;
+      var hd = hardest(P);
+      var g = heat(avg);
+      return '<div class="labc"><div class="labc__h"><span class="labc__n">'+esc(shortLab(l.name))+'</span><span class="labc__t">'+esc(l.topic||'')+'</span></div>'+
+        '<div class="bar"><i style="width:'+r0(avg)+'%;background:'+g.bd+'"></i></div>'+
+        '<div class="stat">'+
+          '<div><b>'+pctTxt(avg)+'</b><span>Avg score</span></div>'+
+          '<div><b>'+pctTxt(100*cov)+'</b><span>Started</span></div>'+
+          '<div><b>'+pctTxt(100*comp)+'</b><span>Finished</span></div>'+
+          '<div><b>'+pctTxt(rft)+'</b><span>Right 1st time</span></div>'+
+        '</div>'+
+        (hd? '<div class="labc__hard">Hardest part: <b>'+esc(hd.name)+'</b> · '+pctTxt(hd.pc)+' on average</div>':'')+
+      '</div>';
+    }).join('');
+    return section('Lab by lab','How the class in view is doing on each lab — average score, how many have started and finished, how often they got it right first time, and the part they find hardest.','<div class="labgrid">'+cards+'</div>');
+  }
+
+  function attention(list){
+    var flagged = list.map(function(s){ return {s:s, sm:summ(s)}; }).filter(function(o){ return concern(o.sm)>0; })
+                      .sort(function(a,b){ return concern(b.sm)-concern(a.sm); });
+    var body;
+    if(!flagged.length){ body = '<div class="panel"><div class="allok"><b>Nothing flagged.</b> Everyone in view has started, is covering the labs, and is scoring reasonably.</div></div>'; }
+    else {
+      body = '<div class="att">'+flagged.slice(0,14).map(function(o){ var s=o.s, sm=o.sm, fl=flags(sm);
+        var top = fl[0]||{t:'',k:'warn'};
+        var ic = sm.started===0? {c:'bad',ch:'0'} : (sm.attain<50? {c:'bad',ch:r0(sm.attain)} : (top.k==='warn'?{c:'warn',ch:r0(sm.attain)}:{c:'mid',ch:r0(sm.attain)}));
+        return '<div class="attr" data-i="'+STUD.indexOf(s)+'"><div class="attr__i '+ic.c+'">'+ic.ch+'</div>'+
+          '<div class="attr__m"><div class="attr__n">'+esc(s.name||'(no name)')+'<span class="cl">'+esc(s.cls||'')+'</span></div>'+
+          '<div class="attr__f">'+fl.map(function(f){ return '<span class="flag '+f.k+'">'+esc(f.t)+'</span>'; }).join('')+'</div></div>'+
+          '<div class="attr__p"><b>'+sm.started+'<span style="font-family:var(--mono);font-size:13px">/'+LABS.length+'</span></b><span>labs started</span></div></div>';
+      }).join('')+'</div>'+(flagged.length>14?'<p class="sec__d" style="margin-top:12px">…and '+(flagged.length-14)+' more. Filter by class to work through a group.</p>':'');
+    }
+    return section('Who needs a look','Students the numbers suggest are worth checking on — nobody has started, coverage is thin, scores are low, or they are pressing check a lot without getting there. Ordered by concern. Click for detail.',body, flagged.length? flagged.length+' flagged':'all clear');
+  }
+
+  function stations(list){
+    var per = aggLabs(list);
+    var lid = state.lab; if(!per[lid]) lid = LABS[0].id;
+    var P = per[lid];
+    var opts = LABS.map(function(l){ return '<option value="'+esc(l.id)+'"'+(l.id===lid?' selected':'')+'>'+esc(shortLab(l.name))+'</option>'; }).join('');
+    var rows;
+    var names = P.order.slice().filter(function(nm){ return P.stations[nm].total>0; })
+                       .sort(function(a,b){ return (P.stations[a].done/P.stations[a].total)-(P.stations[b].done/P.stations[b].total); });
+    if(!names.length){ rows = '<div class="empty">No station data for this lab yet.</div>'; }
+    else rows = '<div class="stwrap">'+names.map(function(nm){ var S=P.stations[nm]; var pc=100*S.done/S.total; var h=heat(pc);
+        var cpq = S.total? S.checks/(S.total): 0; /* checks per attempt-slot; rough effort signal */
+        return '<div class="strow"><div class="strow__n" title="'+esc(nm)+'">'+esc(nm)+'</div>'+
+          '<div class="strow__b"><i style="width:'+r0(pc)+'%;background:'+h.bd+'"></i></div>'+
+          '<div class="strow__v" style="color:'+h.fg+'">'+pctTxt(pc)+' <small>· '+S.n+' pupils</small></div></div>';
+      }).join('')+'</div>';
+    var sel = '<div class="ctl" style="margin:0 0 14px"><label for="stlab">Show stations for</label><select class="sel" id="stlab">'+opts+'</select></div>';
+    return section('Where they get stuck','Each lab is a set of stations — a body part, an organism, a structure. These are this lab’s stations, weakest first, by average score. A low bar is a topic to reteach.', sel+rows);
+  }
+
+  function compare(){
+    var list = cohortStudents();
+    var classes = {}; list.forEach(function(s){ if(s.cls) classes[s.cls]=1; });
+    var cls = Object.keys(classes).sort();
+    if(cls.length<2) return section('Class against class','Pick a cohort (or all) with more than one class to compare them side by side.','<div class="empty">Only one class in view — nothing to compare.</div>');
+    var head = '<tr><th class="rowh">Class</th>'+LABS.map(function(l){ return '<th>'+esc(shortLab(l.name))+'</th>'; }).join('')+'<th>Overall</th><th>Pupils</th></tr>';
+    var rows = cls.map(function(c){
+      var sub = list.filter(function(s){ return s.cls===c; });
+      var per = aggLabs(sub), n=sub.length;
+      var tds = LABS.map(function(l){ var P=per[l.id]; var avg=P.started? P.sumPct/P.started : null;
+        if(avg===null) return '<td><span style="color:var(--mute)">—</span></td>';
+        var h=heat(avg); return '<td><span class="mini"><span class="mp"><i style="width:'+r0(avg)+'%;background:'+h.bd+'"></i></span><span style="color:'+h.fg+'">'+pctTxt(avg)+'</span></span></td>';
+      }).join('');
+      var sumP=0; sub.forEach(function(s){ sumP+=summ(s).progress; });
+      var overall = n? sumP/n : 0; var ho=heat(overall);
+      return '<tr><td class="rowh">'+esc(c)+'</td>'+tds+'<td class="ov" style="color:'+ho.fg+'">'+pctTxt(overall)+'</td><td style="color:var(--mute)">'+n+'</td></tr>';
+    }).join('');
+    return section('Class against class','Average score per lab for each class in view. The Overall column counts a lab not yet started as 0, so it rewards coverage as well as marks.','<div class="panel cmpwrap"><table class="cmp"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>');
+  }
+
+  function section(title,desc,body,n){
+    return '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(title)+'</span>'+(n?'<span class="sec__n">'+esc(n)+'</span>':'')+'</div>'+
+      (desc?'<p class="sec__d">'+esc(desc)+'</p>':'')+body+'</section>';
+  }
+
+  /* ---- controls (built once) ---- */
+  function buildControls(){
+    var coh = '<option value="all">All cohorts</option>'+COHORTS.map(function(c){ return '<option value="'+c.grad+'">'+esc(c.title+(c.yg?' · '+c.yg+' this year':''))+'</option>'; }).join('');
+    var wrap = '<div class="controls">'+
+      '<div class="ctl"><label for="fgrad">Cohort</label><select class="sel" id="fgrad">'+coh+'</select></div>'+
+      '<div class="ctl"><label for="fcls">Class</label><select class="sel" id="fcls"></select></div>'+
+      '<div class="ctl"><label for="fsort">Sort students</label><select class="sel" id="fsort">'+
+        '<option value="attention">Needs attention first</option>'+
+        '<option value="progress">Most progress</option>'+
+        '<option value="progress-asc">Least progress</option>'+
+        '<option value="class">By class</option>'+
+        '<option value="name">By name</option>'+
+      '</select></div>'+
+      '<div class="ctl ctl--grow"><label for="fq">Find a student</label><div class="srch"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.2-3.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input id="fq" type="search" placeholder="name or class" autocomplete="off"></div></div>'+
+      '</div>';
+    return wrap;
+  }
+  function fillClasses(){
+    var sel=$('fcls'); if(!sel) return;
+    var pool;
+    if(state.grad==='all') pool = Object.keys(byClass).sort();
+    else { var c=COHORTS.filter(function(x){return String(x.grad)===String(state.grad);})[0]; pool = c? c.classes.slice() : []; }
+    sel.innerHTML = '<option value="all">All classes</option>'+pool.map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('');
+    if(pool.indexOf(state.cls)<0) state.cls='all';
+    sel.value = state.cls;
+  }
+
+  /* ---- drawer: one student's full picture ---- */
+  function openStudent(i){
+    var s = STUD[i]; if(!s) return;
+    var sm = summ(s);
+    $('drawn').textContent = s.name||'(no name)';
+    $('drawm').innerHTML = esc(s.cls||'—')+(s.cohort?' · '+esc(s.cohort.title)+(s.cohort.yg?' · '+esc(s.cohort.yg):''):'')+' &nbsp;·&nbsp; '+pctTxt(sm.progress)+' overall';
+    var body = LABS.map(function(l){ var e=s.byLab[l.id];
+      if(!e) return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(shortLab(l.name))+'</span><span class="dlab__miss">not started</span></div></div>';
+      var h=heat(e.pct);
+      var chips = '<div class="dchips">'+
+        '<span class="dchip"><b>'+e.checks+'</b> checks</span>'+
+        '<span class="dchip"><b>'+e.firstTime+'</b>/'+e.total+' right 1st time</span>'+
+        '<span class="dchip"><b>'+e.handIns+'</b> hand-in'+(e.handIns===1?'':'s')+'</span>'+
+        (e.complete?'<span class="dchip" style="color:var(--good)">finished</span>':'')+'</div>';
+      var st = (e.stations&&e.stations.length)? '<div style="margin-top:10px">'+e.stations.map(function(x){ var pc=x.total?100*x.done/x.total:0; var hh=heat(pc);
+          return '<div class="dst"><span class="dst__n">'+esc(x.name)+'</span><span class="dst__v">'+x.done+'/'+x.total+(x.checks?' · '+x.checks+'✓':'')+'</span><span class="dst__bar"><i style="width:'+r0(pc)+'%;background:'+hh.bd+'"></i></span></div>';
+        }).join('')+'</div>' : '';
+      return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(shortLab(l.name))+'</span><span class="dlab__p" style="color:'+h.fg+'">'+e.done+'/'+e.total+' · '+pctTxt(e.pct)+'</span></div>'+chips+st+'</div>';
+    }).join('');
+    $('drawb').innerHTML = body;
+    $('draw').classList.add('on'); $('draw').setAttribute('aria-hidden','false'); $('scrim').classList.add('on');
+  }
+  function closeDraw(){ $('draw').classList.remove('on'); $('draw').setAttribute('aria-hidden','true'); $('scrim').classList.remove('on'); }
+
+  /* ---- wire the rendered app ---- */
+  function wire(){
+    document.querySelectorAll('.hm td.name').forEach(function(td){ td.addEventListener('click',function(){ openStudent(+td.getAttribute('data-i')); }); });
+    document.querySelectorAll('.attr').forEach(function(el){ el.addEventListener('click',function(){ openStudent(+el.getAttribute('data-i')); }); });
+    document.querySelectorAll('.hm th.lab').forEach(function(th){ th.addEventListener('click',function(){ state.lab=th.getAttribute('data-lab'); render(); var s=document.querySelector('.sec #stlab'); if(s) s.scrollIntoView({behavior:'smooth',block:'center'}); }); });
+    var stlab=$('stlab'); if(stlab) stlab.addEventListener('change',function(){ state.lab=stlab.value; render(); });
+  }
+
+  /* first paint */
+  $('app').insertAdjacentHTML('beforebegin', ''); // no-op keeps order clear
+  document.querySelector('.wrap').insertBefore(htmlToNode(buildControls()), $('app'));
+  function htmlToNode(h){ var d=document.createElement('div'); d.innerHTML=h; return d.firstChild; }
+  fillClasses();
+  $('fgrad').value = state.grad;
+  $('fsort').value = state.sort;
+  $('fgrad').addEventListener('change',function(){ state.grad=this.value; state.cls='all'; fillClasses(); render(); });
+  $('fcls').addEventListener('change',function(){ state.cls=this.value; render(); });
+  $('fsort').addEventListener('change',function(){ state.sort=this.value; render(); });
+  $('fq').addEventListener('input',function(){ state.q=this.value; render(); });
+  $('drawx').addEventListener('click',closeDraw);
+  $('scrim').addEventListener('click',closeDraw);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeDraw(); });
+
+  render();
+})();
+</script>
+</body>
+</html>
