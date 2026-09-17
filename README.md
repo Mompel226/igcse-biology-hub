@@ -337,8 +337,9 @@ the labs spreadsheet ("Student data"). You never edit the code for any of this:
    Deploy, and copy the **Web app URL**.
 2. Open **🔗 Teacher page** from the menu. Paste that URL into **The page address** and Save. Add the
    other Biology teachers by name and school address. Add a row for each spreadsheet — its
-   **Category** (Reflection, Test system, Records…), the **Assessment**, the **Year**, and the
-   **Link**. The same test in another year is another row.
+   **Type** (Reflection, Test, Survey…), the **Assessment**, the **Graduation year** (the cohort —
+   this year's Y10 is 2028, next year's is 2029), and the **Link**. The same test for another cohort
+   is another row; the page groups by cohort and works out the current year group (Y9/Y10/Y11) itself.
 3. That is all. Teachers, links and the address are read live, so anything you add or change here
    takes effect at once — no new version, no redeploy. (A redeploy is only ever needed when the
    **code** itself changes.)

@@ -743,7 +743,7 @@ function checkSetup() {
     lines.push('•  teachers who can open it: you (' + (_owner() || 'the owner') + ')' +
                (_teacherEmails().length ? ' and ' + _teacherEmails().length + ' more' : ' only'));
     var tpLinks = 0;
-    try { _teacherLinks().forEach(function (g) { tpLinks += g.links.length; }); } catch (e) {}
+    try { tpLinks = _teacherLinksRaw().length; } catch (e) {}
     lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Teacher page makes it');
   }
   lines.push('');
@@ -2135,16 +2135,43 @@ function _ensureTeacherTabs_() {
   return { teachers: T_TEACHERS, links: T_LINKS };
 }
 
-var _LINK_HEADERS_ = ['Category', 'Assessment', 'Year', 'Name', 'Link', 'Note'];
+var _LINK_HEADERS_ = ['Type', 'Assessment', 'Graduation year', 'Name', 'Link', 'Note'];
 function _linkColDefs_() {
   return [
-    { h:'Category',   w:150, edit:true, note:'The heading this sits under on the teacher page — Reflection, Test system, Records …' },
-    { h:'Assessment', w:220, edit:true, note:'What the test or topic is — for example “Topic 7 · Digestion”.' },
-    { h:'Year',       w:120, edit:true, note:'The cohort or year this spreadsheet is for — the same test in another year is another row.' },
-    { h:'Name',       w:220, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
-    { h:'Link',       w:430, edit:true, note:'The full address, starting https:// — from the spreadsheet’s address bar or Share ▸ Copy link.' },
-    { h:'Note',       w:300, edit:true, note:'One line under the name. Optional.' }
+    { h:'Type',            w:130, edit:true, note:'What kind of thing this is — Reflection, Test, Survey, Records … Anything you like; the page groups by it.' },
+    { h:'Assessment',      w:230, edit:true, note:'What the test, topic or survey is — for example “Topic 7 · Human Nutrition”.' },
+    { h:'Graduation year', w:130, edit:true, note:'The cohort, by the year it graduates — this year’s Y10 is 2028, next year’s Y10 is 2029. The same test for another cohort is another row. Leave blank for something that is not tied to one cohort (a tracker, say).' },
+    { h:'Name',            w:210, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
+    { h:'Link',            w:420, edit:true, note:'The full address, starting https:// — from the spreadsheet or form’s address bar, or Share ▸ Copy link.' },
+    { h:'Note',            w:280, edit:true, note:'One line under the name. Optional.' }
   ];
+}
+
+/* Read one row of the links tab into a clean object, whatever shape the tab is in. The address is
+   found by the Link column when its header is present and that cell really is a link, and otherwise
+   by looking for the one cell in the row that is an https address — which is what lets a tab left
+   half-migrated, or one an old version wrote, still be read correctly. The other fields are then
+   taken by their position relative to the address:
+     address at column 5 (0-based 4)  →  Type · Assessment · Graduation year · Name · [Link] · Note
+     address at column 3 (0-based 2)  →  old  Section · Name · [Link] · Note
+   `kHead` is the 0-based Link column from the header, or -1. */
+function _readLinkRow_(r, kHead, rowNum) {
+  var k = (kHead >= 0 && /^https:\/\//i.test(String(r[kHead] || '').trim())) ? kHead : -1;
+  if (k < 0) for (var i = 0; i < r.length; i++) if (/^https:\/\//i.test(String(r[i] || '').trim())) { k = i; break; }
+  if (k < 0) return null;
+  var url = String(r[k]).trim();
+  if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return null;
+  var type, assessment, grad = '', name = '', note = '';
+  if (k === 4) {                                       /* the six-column shape */
+    type = String(r[0] || '').trim(); assessment = String(r[1] || '').trim();
+    grad = String(r[2] || '').trim(); name = String(r[3] || '').trim(); note = String(r[5] || '').trim();
+  } else if (k === 2) {                                /* the old four-column shape (Section · Name · Link · Note) */
+    type = String(r[0] || '').trim(); assessment = String(r[1] || '').trim(); note = String(r[3] || '').trim();
+  } else {                                             /* anything else: best effort */
+    type = String(r[0] || '').trim(); assessment = String(r[k - 1] || r[1] || '').trim(); note = String(r[k + 1] || '').trim();
+  }
+  return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
+           name: name || assessment || 'Spreadsheet', url: url, note: note };
 }
 
 /* A links tab made by an earlier version had four columns — Section · Name · Link · Note. The
@@ -2163,20 +2190,12 @@ function _migrateLinksTab_(sh) {
   if (already) return;
 
   var last = sh.getLastRow();
+  var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var rows = last >= 2 ? sh.getRange(2, 1, last - 1, wide).getValues() : [];
   var out = [];
   rows.forEach(function (r) {
-    var k = -1;
-    for (var i = 0; i < r.length; i++) if (/^https:\/\//i.test(String(r[i]).trim())) { k = i; break; }
-    if (k < 0) return;                                   /* no address on this row — nothing to keep */
-    var cat = String(r[0] || '').trim() || 'Links', assessment = '', year = '', name = '', note = '', link = String(r[k]).trim();
-    if (k === 4) {                                       /* Category · Assessment · Year · Name · Link · Note */
-      assessment = String(r[1] || '').trim(); year = String(r[2] || '').trim();
-      name = String(r[3] || '').trim(); note = String(r[5] || '').trim();
-    } else {                                             /* old Section · Name · Link · Note (address at col 3), or best effort */
-      assessment = String(r[1] || '').trim(); note = String(r[k + 1] || '').trim();
-    }
-    out.push([cat, assessment, year, name || assessment, link, note]);
+    var o = _readLinkRow_(r, kHead, 0);
+    if (o) out.push([o.type, o.assessment, o.grad, o.name, o.url, o.note]);
   });
 
   if (sh.getMaxColumns() < 6) sh.insertColumnsAfter(sh.getMaxColumns(), 6 - sh.getMaxColumns());
@@ -2189,55 +2208,79 @@ function _migrateLinksTab_(sh) {
   _dress2(sh, _linkColDefs_(), { tab:'#0ea5e9' });
 }
 
-/* Every link row, in full, for the dialog and for the page. Columns are found by header, so a
-   tab made the old way (Section · Name · Link · Note) still reads. */
+/* Every link row, in full, for the dialog and for the page. Format-robust: it reads a tab in the
+   current shape, one an earlier version wrote, or one left half-migrated (see _readLinkRow_). */
 function _teacherLinksRaw() {
   var sh = _ss().getSheetByName(T_LINKS);
   if (!sh || sh.getLastRow() < 2) return [];
   var last = sh.getLastRow(), wide = sh.getLastColumn();
-  var cCat = _headerCol_(sh, 'Category', _headerCol_(sh, 'Section', 1)),
-      cAss = _headerCol_(sh, 'Assessment', 0),
-      cYr  = _headerCol_(sh, 'Year', 0),
-      cNm  = _headerCol_(sh, 'Name', 2),
-      cLk  = _headerCol_(sh, 'Link', _headerCol_(sh, 'Section', 1) === 1 ? 3 : 5),
-      cNt  = _headerCol_(sh, 'Note', 0);
+  var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var vals = sh.getRange(2, 1, last - 1, wide).getValues();
-  var rich = [];
-  try { rich = sh.getRange(2, cLk, last - 1, 1).getRichTextValues(); } catch (e) {}
   var out = [];
   vals.forEach(function (r, i) {
-    var url = String(r[cLk - 1] || '').trim();
-    if (!/^https:\/\//i.test(url) && rich[i] && rich[i][0]) {
-      try { url = String(rich[i][0].getLinkUrl() || '').trim(); } catch (e) {}
-    }
-    if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return;
-    var assessment = cAss ? String(r[cAss - 1] || '').trim() : '';
-    var name = cNm ? String(r[cNm - 1] || '').trim() : '';
-    out.push({
-      row: i + 2,
-      category: String(r[cCat - 1] || '').trim() || 'Links',
-      assessment: assessment,
-      year: cYr ? String(r[cYr - 1] || '').trim() : '',
-      name: name || assessment || 'Spreadsheet',
-      url: url,
-      note: cNt ? String(r[cNt - 1] || '').trim() : ''
-    });
+    var o = _readLinkRow_(r, kHead, i + 2);
+    if (o) out.push(o);
   });
   return out;
 }
 
-/* The page's view: grouped by Category in first-seen order, each entry showing the year (and the
-   assessment, when the name is something else) beneath its name. */
-function _teacherLinks() {
-  var groups = [], by = {};
-  _teacherLinksRaw().forEach(function (l) {
-    if (!by[l.category]) { by[l.category] = { title: l.category, links: [] }; groups.push(by[l.category]); }
-    var detail = [];
-    if (l.assessment && l.assessment !== l.name) detail.push(l.assessment);
-    if (l.note) detail.push(l.note);
-    by[l.category].links.push({ name: l.name, url: l.url, year: l.year || '', detail: detail.join(' · ') });
+/* The cohort a spreadsheet belongs to, named by the year it graduates — the stable handle, because
+   a year group rolls forward every September (this year's Y10 is next year's Y11). From the
+   graduation year and today's date the CURRENT year group is worked out and shown alongside, so a
+   teacher sees both "Class of 2028" and "Y10 this year", and it stays right on its own next year.
+   The rule matches the school's: this year (Sept 2026) Y10 graduates 2028, Y11 2027, Y9 2029 — so
+   year group = 12 − graduation + the September the current year began. `now` is passed for testing. */
+function _cohortLabel_(grad, now) {
+  var m = String(grad == null ? '' : grad).match(/\d{4}/);
+  if (!m) return null;
+  var g = Number(m[0]);
+  now = now || new Date();
+  var startYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;   /* Aug onward = new school year */
+  var yg = 12 - g + startYear;
+  return {
+    grad: g,
+    title: 'Class of ' + g,
+    yearGroup: (yg >= 7 && yg <= 13) ? 'Y' + yg : '',
+    academic: startYear + '–' + String(startYear + 1).slice(-2)
+  };
+}
+
+/* Everything the page shows, organised. `records` (no graduation year, or Type "Records") are
+   pinned at the top because they span every cohort. The rest are grouped by cohort — nearest to
+   graduating first — and within a cohort by Type, so many spreadsheets stay easy to scan. Anything
+   with no graduation year that is not a record falls into a plain "No graduation year" group at the
+   end, so nothing is ever lost. */
+function _teacherPageGroups_(now) {
+  var raw = _teacherLinksRaw();
+  var records = [], cohorts = {}, order = [], loose = [];
+  raw.forEach(function (l) {
+    var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
+    var co = _cohortLabel_(l.grad, now);
+    var entry = { name: l.name, url: l.url, type: l.type, assessment: l.assessment,
+                  detail: (l.assessment && l.assessment !== l.name ? l.assessment : '') + (l.note ? (l.assessment && l.assessment !== l.name ? ' · ' : '') + l.note : '') };
+    if (isRecord) { records.push(entry); return; }
+    if (!co) { loose.push(entry); return; }
+    if (!cohorts[co.grad]) { cohorts[co.grad] = { grad: co.grad, title: co.title, yearGroup: co.yearGroup, academic: co.academic, byType: {}, typeOrder: [] }; order.push(co.grad); }
+    var c = cohorts[co.grad];
+    if (!c.byType[l.type]) { c.byType[l.type] = []; c.typeOrder.push(l.type); }
+    c.byType[l.type].push(entry);
   });
-  return groups;
+  order.sort(function (a, b) { return a - b; });          /* nearest graduation first */
+  var out = { records: records, cohorts: order.map(function (g) {
+    var c = cohorts[g];
+    c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
+    c.types = c.typeOrder.map(function (t) { return { type: t, links: c.byType[t] }; });
+    return c;
+  }), loose: loose };
+  return out;
+}
+/* the order types read in: reflections, then the test itself, then surveys, then anything else */
+function _typeRank_(t) {
+  t = String(t).toLowerCase();
+  if (/reflect/.test(t)) return 0;
+  if (/test|exam|paper/.test(t)) return 1;
+  if (/survey|encuesta|form|quiz|poll/.test(t)) return 2;
+  return 3;
 }
 
 /* ── The dialog, and the actions it calls ───────────────────────────────────
@@ -2271,8 +2314,13 @@ function teacherPanelData() {
     pageUrl: String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '').replace(/\?.*$/, ''),
     pageLive: !!_teacherPageUrl(),
     teachers: teachers,
-    links: _teacherLinksRaw(),
-    categories: ['Reflection', 'Test system', 'Records']
+    links: _teacherLinksRaw().map(function (l) {
+      var co = _cohortLabel_(l.grad);
+      l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;
+      l.typeClass = _typeClass_(l.type);
+      return l;
+    }),
+    types: ['Reflection', 'Test', 'Survey', 'Records']
   };
 }
 
@@ -2316,8 +2364,8 @@ function teacherAddLink(d) {
   var name = String(d.name || '').trim() || assessment;
   if (!name) return { ok: false, why: 'Give it an assessment name (or a name).' };
   var sh = _ensureTeacherTabs_() && _ss().getSheetByName(T_LINKS);
-  sh.appendRow([String(d.category || 'Reflection').trim() || 'Reflection', assessment,
-                String(d.year || '').trim(), name, url, String(d.note || '').trim()]);
+  sh.appendRow([String(d.type || 'Reflection').trim() || 'Reflection', assessment,
+                String(d.grad || '').trim(), name, url, String(d.note || '').trim()]);
   return teacherPanelData();
 }
 
@@ -2348,7 +2396,7 @@ function _teacherPage() {
   else if (!_isTeacher(email)) o.state = 'refused';
   else {
     o.state = 'ok';
-    try { o.groups = _teacherLinks(); } catch (e) { o.groups = []; o.trouble = true; }
+    try { o.g = _teacherPageGroups_(); } catch (e) { o.g = null; o.trouble = true; }
   }
   return HtmlService.createHtmlOutput(_teacherHtml(o))
     .setTitle('Assessment system — teachers')
@@ -2360,9 +2408,24 @@ function _esc(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
+/* which of the four colours a type reads in — matched loosely so "Reflections", "End-of-topic
+   test", "Encuesta"/"Survey" all land in the right family; everything else is neutral */
+function _typeClass_(t) {
+  t = String(t).toLowerCase();
+  if (/reflect/.test(t)) return 'reflection';
+  if (/test|exam|paper/.test(t)) return 'test';
+  if (/survey|encuesta|form|quiz|poll/.test(t)) return 'survey';
+  return 'other';
+}
 
 function _teacherHtml(o) {
   var e = _esc, main = '';
+  function card(l) {
+    return '<a class="card" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
+      '<span class="card__name">' + e(l.name) + '</span>' +
+      (l.detail ? '<span class="card__detail">' + e(l.detail) + '</span>' : '') +
+      '<span class="card__go">Open <span class="arw" aria-hidden="true">→</span></span></a>';
+  }
   if (o.state === 'nobody') {
     main = '<p class="say">Open this page signed in with your school Google account' +
            (o.dom ? ' (…@' + e(o.dom) + ')' : '') + '.</p>';
@@ -2370,27 +2433,43 @@ function _teacherHtml(o) {
     main = '<p class="say">This page is for Biology teachers. You are signed in as <b>' + e(o.email) +
            '</b>, which is not on its list.</p>' +
            '<p class="fine">If you teach Biology here, ask the teacher who runs this page to add your address.</p>';
-  } else if (o.trouble) {
-    main = '<p class="say">The list of links could not be read just now. Reload the page in a minute.</p>';
-  } else if (!o.groups.length) {
+  } else if (o.trouble || !o.g) {
+    main = '<p class="say">The list could not be read just now. Reload the page in a minute.</p>';
+  } else if (!o.g.records.length && !o.g.cohorts.length && !o.g.loose.length) {
     main = '<p class="say">No links yet.</p><p class="fine">Add them from the labs spreadsheet: ' +
            '🧪 Biology Labs ▸ 🔗 Teacher page.</p>';
   } else {
-    var total = 0;
-    var body = o.groups.map(function (g) {
-      total += g.links.length;
-      return '<section class="grp"><h2 class="grp__h">' + e(g.title) + '<span class="n">' + g.links.length + '</span></h2>' +
-        '<div class="cards">' + g.links.map(function (l) {
-          return '<a class="card" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
-                 '<span class="card__name">' + e(l.name) +
-                    (l.year ? '<span class="chip">' + e(l.year) + '</span>' : '') + '</span>' +
-                 (l.detail ? '<span class="card__detail">' + e(l.detail) + '</span>' : '') +
-                 '<span class="card__go">Open <span class="arw" aria-hidden="true">→</span></span></a>';
-        }).join('') + '</div></section>';
-    }).join('');
+    var total = 0, body = '';
+    if (o.g.records.length) {
+      total += o.g.records.length;
+      body += '<section class="grp"><h2 class="grp__h"><span class="co">Records</span>' +
+        '<span class="n">' + o.g.records.length + '</span></h2>' +
+        '<div class="cards">' + o.g.records.map(card).join('') + '</div></section>';
+    }
+    o.g.cohorts.forEach(function (c) {
+      var n = 0; c.types.forEach(function (t) { n += t.links.length; });
+      total += n;
+      body += '<section class="grp cohort"><h2 class="coh">' +
+        '<span class="coh__t">' + e(c.title) + '</span>' +
+        (c.yearGroup ? '<span class="chip chip--yg">' + e(c.yearGroup) + ' this year</span>' : '') +
+        (c.academic ? '<span class="coh__ay">' + e(c.academic) + '</span>' : '') +
+        '<span class="n">' + n + '</span></h2>' +
+        c.types.map(function (t) {
+          var cls = _typeClass_(t.type);
+          return '<div class="tb tb--' + cls + '">' +
+            '<h3 class="tl">' + e(t.type) + '<span class="tn">' + t.links.length + '</span></h3>' +
+            '<div class="cards">' + t.links.map(card).join('') + '</div></div>';
+        }).join('') + '</section>';
+    });
+    if (o.g.loose.length) {
+      total += o.g.loose.length;
+      body += '<section class="grp"><h2 class="grp__h"><span class="co">No graduation year set</span>' +
+        '<span class="n">' + o.g.loose.length + '</span></h2>' +
+        '<div class="cards">' + o.g.loose.map(card).join('') + '</div></section>';
+    }
     main = body +
       '<p class="foot">Each link opens only for the people its spreadsheet is shared with — this page lists them, ' +
-      'it does not share them. To add, remove or change anything here: in the labs spreadsheet, ' +
+      'it does not share them. To add, remove or change anything: in the labs spreadsheet, ' +
       '🧪&nbsp;Biology&nbsp;Labs ▸ 🔗&nbsp;Teacher&nbsp;page.</p>';
     o.total = total;
   }
@@ -2408,45 +2487,55 @@ function _teacherHtml(o) {
     '<style>' +
     ':root{--ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);' +
     '--chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--accent:#E879F9;' +
+    '--reflection:#E879F9;--test:#F5A623;--survey:#2DD4BF;--other:#9AB0BE;' +
     '--serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}' +
     '*{box-sizing:border-box}' +
     'html,body{margin:0;background:radial-gradient(1100px 460px at 82% -12%,rgba(232,121,249,.07),transparent 62%),var(--ink);' +
     'color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}' +
-    '.wrap{max-width:840px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 56px}' +
+    '.wrap{max-width:860px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 56px}' +
     '.eye{font:600 10.5px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}.eye b{color:var(--accent)}' +
     'h1{font:400 clamp(36px,5.4vw,56px)/1.02 var(--serif);letter-spacing:-.02em;margin:10px 0 12px}h1 em{font-style:italic;color:var(--accent)}' +
     '.lede{color:#C5D4DD;max-width:58ch;margin:0 0 22px;font-size:15.5px}' +
     '.who{display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border:1px solid var(--line2);border-radius:999px;' +
     'background:rgba(120,200,230,.06);font-size:13px;color:var(--dim)}.who svg{color:var(--cyan);opacity:.85;flex:none}' +
     '.who b{color:var(--chalk);font-weight:500}.who__dot{margin:0 7px;color:var(--mute)}' +
-    '.grp{margin:30px 0 0}' +
+    '.grp{margin:34px 0 0}' +
     '.grp__h{display:flex;align-items:center;gap:11px;font:600 10.5px/1.3 var(--mono);letter-spacing:.17em;text-transform:uppercase;' +
-    'color:var(--dim);margin:0 0 12px}.grp__h .n{color:var(--mute);font-weight:500}' +
+    'color:var(--dim);margin:0 0 12px}.grp__h .co{color:var(--chalk)}.grp__h .n{color:var(--mute);font-weight:500}' +
     '.grp__h::after{content:"";flex:1;height:1px;background:var(--line)}' +
+    /* cohort header: the class prominent, the current year group as a chip, the academic year quiet */
+    '.coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line2)}' +
+    '.coh__t{font:400 22px/1 var(--serif);letter-spacing:-.01em;color:var(--chalk)}' +
+    '.chip--yg{font:600 10px/1 var(--mono);letter-spacing:.06em;color:#F1CFFB;background:rgba(232,121,249,.13);' +
+    'border:1px solid rgba(232,121,249,.32);padding:5px 9px;border-radius:999px;text-transform:none}' +
+    '.coh__ay{font:500 11px/1 var(--mono);letter-spacing:.08em;color:var(--mute)}' +
+    '.coh .n{margin-left:auto;font:600 10.5px/1 var(--mono);letter-spacing:.14em;color:var(--mute)}' +
+    /* a type block inside a cohort: a small coloured label, then its cards */
+    '.tb{margin:16px 0 0}.tb .tl{display:flex;align-items:center;gap:8px;font:600 10px/1.3 var(--mono);letter-spacing:.15em;' +
+    'text-transform:uppercase;color:var(--tc);margin:0 0 8px}.tb .tn{color:var(--mute);font-weight:500}' +
+    '.tb--reflection{--tc:var(--reflection)}.tb--test{--tc:var(--test)}.tb--survey{--tc:var(--survey)}.tb--other{--tc:var(--other)}' +
     '.cards{display:grid;gap:8px}' +
     '.card{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 18px;' +
-    'padding:14px 18px;border-radius:12px;background:var(--card);border:1px solid var(--line);color:inherit;text-decoration:none;' +
+    'padding:13px 18px;border-radius:11px;background:var(--card);border:1px solid var(--line);color:inherit;text-decoration:none;' +
     'transition:border-color .18s,background .18s}' +
-    '.card::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);opacity:0;transition:opacity .18s}' +
+    '.card::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:var(--tc,var(--accent));opacity:0;transition:opacity .18s}' +
     '.card:hover,.card:focus-visible{border-color:var(--line2);background:var(--cardhi)}' +
     '.card:hover::before,.card:focus-visible::before{opacity:.9}' +
-    '.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
-    '.card__name{font-weight:600;font-size:15.5px;overflow-wrap:anywhere;display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
-    '.chip{font:600 10px/1 var(--mono);letter-spacing:.05em;color:#F1CFFB;background:rgba(232,121,249,.13);' +
-    'border:1px solid rgba(232,121,249,.32);padding:4px 9px;border-radius:999px;white-space:nowrap}' +
-    '.card__detail{grid-column:1;color:var(--dim);font-size:13px;margin-top:3px;overflow-wrap:anywhere}' +
+    '.card:focus-visible{outline:2px solid var(--tc,var(--accent));outline-offset:2px}' +
+    '.card__name{font-weight:600;font-size:15px;overflow-wrap:anywhere}' +
+    '.card__detail{grid-column:1;color:var(--dim);font-size:13px;margin-top:2px;overflow-wrap:anywhere}' +
     '.card__go{grid-column:2;grid-row:1/span 2;display:inline-flex;align-items:center;gap:6px;font:600 10.5px/1 var(--mono);' +
-    'letter-spacing:.12em;text-transform:uppercase;color:var(--accent);white-space:nowrap}' +
+    'letter-spacing:.12em;text-transform:uppercase;color:var(--tc,var(--accent));white-space:nowrap}' +
     '.card__go .arw{transition:transform .18s}.card:hover .card__go .arw{transform:translateX(3px)}' +
-    '.foot{margin-top:32px;color:var(--mute);font-size:12.5px;max-width:66ch;border-top:1px solid var(--line);padding-top:15px}' +
+    '.foot{margin-top:34px;color:var(--mute);font-size:12.5px;max-width:66ch;border-top:1px solid var(--line);padding-top:15px}' +
     '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:22px 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500;color:var(--chalk)}' +
     '.fine{color:var(--mute);font-size:13.5px;max-width:62ch}' +
-    '@media (max-width:520px){.card{grid-template-columns:1fr}.card__go{grid-column:1;grid-row:auto;margin-top:8px}}' +
+    '@media (max-width:520px){.card{grid-template-columns:1fr}.card__go{grid-column:1;grid-row:auto;margin-top:8px}.coh .n{margin-left:0}}' +
     '@media (prefers-reduced-motion:reduce){.card,.card__go .arw{transition:none}}' +
     '</style></head><body><div class="wrap">' +
     '<p class="eye">Biology Hub · <b>Teachers only</b></p>' +
     '<h1>Assessment <em>system</em></h1>' +
-    '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place: each assessment’s own, the test copies, and the records they write to.</p>' +
+    '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place — grouped by the cohort it belongs to, by the year they graduate.</p>' +
     who + main + '</div></body></html>';
 }
 
