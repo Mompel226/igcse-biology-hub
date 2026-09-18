@@ -2213,11 +2213,12 @@ function _ownTest_(d) {
   var ids = _testSheetIds_(teacher);
   if (!ids.length) {
     var chips = [];
-    try { chips = _teacherLinksScan_().unreadable.filter(function (u) { return _typeClass_(u.type) === 'test'; }); } catch (e) {}
+    var trouble = '';
+    try { var sc = _teacherLinksScan_(); trouble = sc.chipTrouble || ''; chips = sc.unreadable.filter(function (u) { return _typeClass_(u.type) === 'test'; }); } catch (e) {}
     if (chips.length) why.push('the Link of \u201c' + chips[0].name + '\u201d in \ud83d\udd17 Teacher links is a smart chip' +
                                (chips[0].shown ? ' (\u201c' + chips[0].shown + '\u201d)' : '') +
                                (_chipsOn_()
-                                 ? ', and Google did not give its address \u2014 use the spreadsheet\u2019s plain address'
+                                 ? ', and its address could not be read' + (trouble ? ' (' + trouble + ')' : '') + ' \u2014 run checkChips in the script editor, or use the spreadsheet\u2019s plain address'
                                  : ', which the hub reads only once the Google Sheets API is switched on in its script (Services \u25b8 + \u25b8 Google Sheets API) \u2014 or use the spreadsheet\u2019s plain address'));
     else why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
   }
@@ -2630,27 +2631,81 @@ function _cellUrl_(value, rich, formula) {
    the chips are then reported (_teacherLinksScan_), never guessed at. */
 function _chipsOn_() { return typeof Sheets !== 'undefined' && !!Sheets && !!Sheets.Spreadsheets; }
 function _colA1_(n) { var s = ''; while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+var _CHIP_TROUBLE_ = '';   /* why the last chip read gave no address — told to teachers, never pupils */
 function _chipGrid_(sh, row, nRows, nCols) {
-  if (!_chipsOn_() || nRows < 1 || nCols < 1) return null;
+  if (nRows < 1 || nCols < 1) return null;
+  _CHIP_TROUBLE_ = '';
+  var id, range, trouble = [];
+  try {                                   /* never throws: the teacher page and the banner both rest on this */
+    id = sh.getParent().getId();
+    range = "'" + sh.getName().replace(/'/g, "''") + "'!A" + row + ':' + _colA1_(nCols) + (row + nRows - 1);
+  } catch (e) { _CHIP_TROUBLE_ = 'the tab could not be located: ' + String(e && e.message || e).slice(0, 160); return null; }
+  var fields = 'sheets.data.rowData.values(chipRuns)';
+  /* 1 · through the Sheets service, when it is switched on */
+  if (_chipsOn_()) {
+    try {
+      var g1 = _chipParse_(Sheets.Spreadsheets.get(id, { ranges: [range], fields: fields }), nRows, nCols);
+      if (_chipAny_(g1)) return g1;
+      trouble.push('the Sheets service answered without any chip address');
+    } catch (e) { trouble.push('the Sheets service said: ' + String(e && e.message || e).slice(0, 160)); }
+  }
+  /* 2 · the same API asked directly. The service is a ready-made copy of Google's API and can lag
+     behind it, leaving newer fields such as chipRuns out; the raw answer has everything Google sent. */
   try {
-    var range = "'" + sh.getName().replace(/'/g, "''") + "'!A" + row + ':' + _colA1_(nCols) + (row + nRows - 1);
-    var res = Sheets.Spreadsheets.get(sh.getParent().getId(), { ranges: [range], fields: 'sheets.data.rowData.values(chipRuns)' });
-    var data = (((res && res.sheets) || [])[0] || {}).data || [];
-    var rows = (data[0] && data[0].rowData) || [], out = [];
-    for (var i = 0; i < nRows; i++) {
-      var vals = (rows[i] && rows[i].values) || [], line = [];
-      for (var j = 0; j < nCols; j++) {
-        var runs = (vals[j] && vals[j].chipRuns) || [], u = '';
-        for (var k = 0; k < runs.length && !u; k++) {
-          var p = runs[k] && runs[k].chip && runs[k].chip.richLinkProperties;
-          if (p && /^https:\/\//i.test(String(p.uri || ''))) u = String(p.uri).trim();
-        }
-        line.push(u);
-      }
-      out.push(line);
+    var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + id +
+                                '?ranges=' + encodeURIComponent(range) + '&fields=' + encodeURIComponent(fields),
+                                { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    var code = res.getResponseCode(), text = res.getContentText();
+    if (code === 200) {
+      var g2 = _chipParse_(JSON.parse(text), nRows, nCols);
+      if (_chipAny_(g2)) return g2;
+      trouble.push('Google answered without any chip address');
+    } else {
+      var msg = ''; try { msg = JSON.parse(text).error.message; } catch (e) { msg = text; }
+      trouble.push('asked directly, Google said ' + code + ': ' + String(msg).replace(/\s+/g, ' ').slice(0, 160));
     }
-    return out;
-  } catch (e) { return null; }
+  } catch (e) { trouble.push('asking Google directly failed: ' + String(e && e.message || e).slice(0, 160)); }
+  _CHIP_TROUBLE_ = trouble.join('; ');
+  return null;
+}
+/* Google's answer as a grid of addresses, '' where a cell holds no chip */
+function _chipParse_(res, nRows, nCols) {
+  var data = (((res && res.sheets) || [])[0] || {}).data || [];
+  var rows = (data[0] && data[0].rowData) || [], out = [];
+  for (var i = 0; i < nRows; i++) {
+    var vals = (rows[i] && rows[i].values) || [], line = [];
+    for (var j = 0; j < nCols; j++) {
+      var runs = (vals[j] && vals[j].chipRuns) || [], u = '';
+      for (var k = 0; k < runs.length && !u; k++) {
+        var p = runs[k] && runs[k].chip && runs[k].chip.richLinkProperties;
+        if (p && /^https:\/\//i.test(String(p.uri || ''))) u = String(p.uri).trim();
+      }
+      line.push(u);
+    }
+    out.push(line);
+  }
+  return out;
+}
+function _chipAny_(g) { return !!g && g.some(function (r) { return r.some(function (u) { return !!u; }); }); }
+
+/* Run this from the Apps Script editor (Run ▸ checkChips) if a chip in 🔗 Teacher links will not read.
+   The log shows what Google returns for that tab, both ways the hub asks, so the cause is seen, not
+   guessed. Read only. */
+function checkChips() {
+  var sh = _ss_().getSheetByName(T_LINKS);
+  if (!sh || sh.getLastRow() < 2) { Logger.log('No rows in ' + T_LINKS + '.'); return; }
+  var n = sh.getLastRow() - 1, w = sh.getLastColumn();
+  Logger.log('Google Sheets API service switched on in this code: ' + _chipsOn_());
+  var g = _chipGrid_(sh, 2, n, w);
+  Logger.log(g ? 'Chip addresses read: ' + JSON.stringify(g.map(function (r) { return r.filter(String); })) : 'No chip addresses read.');
+  if (_CHIP_TROUBLE_) Logger.log('Why: ' + _CHIP_TROUBLE_);
+  try {
+    var range = "'" + sh.getName().replace(/'/g, "''") + "'!A2:" + _colA1_(w) + (n + 1);
+    var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sh.getParent().getId() + '?ranges=' +
+                                encodeURIComponent(range) + '&fields=' + encodeURIComponent('sheets.data.rowData.values(chipRuns,formattedValue)'),
+                                { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    Logger.log('Google, asked directly (' + res.getResponseCode() + '): ' + res.getContentText().slice(0, 3000));
+  } catch (e) { Logger.log('Asking Google directly failed: ' + e); }
 }
 
 /* A block of the links tab as its values AND as the address each cell holds. Three reads for the
@@ -2808,7 +2863,7 @@ function _teacherLinksScan_() {
                       name: String(r[3] || r[1] || '').trim() || 'a row',
                       shown: kHead >= 0 ? String(r[kHead] == null ? '' : r[kHead]).trim() : '' });
   });
-  return { rows: rows, unreadable: unreadable, chipsOn: _chipsOn_() };
+  return { rows: rows, unreadable: unreadable, chipsOn: _chipsOn_(), chipTrouble: unreadable.length ? _CHIP_TROUBLE_ : '' };
 }
 
 /* The cohort a spreadsheet belongs to, named by the year it graduates — the stable handle, because
@@ -2859,7 +2914,7 @@ function _teacherPageGroups_(now) {
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
   var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
-  var out = { unreadable: scan.unreadable, chipsOn: scan.chipsOn, records: records, cohorts: order.map(function (g) {
+  var out = { unreadable: scan.unreadable, chipsOn: scan.chipsOn, chipTrouble: scan.chipTrouble, records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
     c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
@@ -3473,6 +3528,7 @@ function showTeacherPanel() {
 
 function teacherPanelData() {
   if (!_isAdminCaller_()) return { ok: false };
+  var _scan0_;
   _ensureTeacherTabs_();
   var teachers = [];
   try {
@@ -3496,8 +3552,8 @@ function teacherPanelData() {
     hubUrl: String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim(),
     hubLive: !!_hubUrl_(),
     teachers: teachers,
-    unreadable: _teacherLinksScan_().unreadable, chipsOn: _chipsOn_(),
-    links: _teacherLinksRaw_().map(function (l) {
+    unreadable: (_scan0_ = _teacherLinksScan_()).unreadable, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
+    links: _scan0_.rows.map(function (l) {         /* the same reading: one call to Google, not two */
       var co = _cohortLabel_(l.grad);
       l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;
       l.typeClass = _typeClass_(l.type);
