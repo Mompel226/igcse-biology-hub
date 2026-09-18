@@ -2210,17 +2210,19 @@ function _ownTest_(d) {
     return _json_({ ok: false, why: 'not a school account', email: who.email, domain: dom });
   var email = _cleanEmail_(who.email), teacher = _isTeacher_(email);
   var now = Date.now(), best = null, why = [];
-  var ids = _testSheetIds_();
+  var ids = _testSheetIds_(teacher);
   if (!ids.length) {
     var chips = [];
     try { chips = _teacherLinksScan_().unreadable.filter(function (u) { return _typeClass_(u.type) === 'test'; }); } catch (e) {}
     if (chips.length) why.push('the Link of \u201c' + chips[0].name + '\u201d in \ud83d\udd17 Teacher links is a smart chip' +
                                (chips[0].shown ? ' (\u201c' + chips[0].shown + '\u201d)' : '') +
-                               ', which the hub cannot read \u2014 replace it with the spreadsheet\u2019s plain address');
+                               (_chipsOn_()
+                                 ? ', and Google did not give its address \u2014 use the spreadsheet\u2019s plain address'
+                                 : ', which the hub reads only once the Google Sheets API is switched on in its script (Services \u25b8 + \u25b8 Google Sheets API) \u2014 or use the spreadsheet\u2019s plain address'));
     else why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
   }
   ids.forEach(function (id) {
-    var snap = _testSnapshot_(id);
+    var snap = _testSnapshot_(id, teacher);          /* a teacher testing sees it as it is NOW */
     if (!snap || snap.fail) { why.push((snap && snap.fail) || 'a Test spreadsheet could not be read'); return; }
     var mine = _testFor_(snap, email, now);
     if (!mine) { why.push('\u201c' + snap.title + '\u201d does not list ' + email + ' on any of its Marks tabs'); return; }
@@ -2247,7 +2249,11 @@ function _testBefore_(a, b) {
   return (a.opensAt || 0) < (b.opensAt || 0);
 }
 
-function _testSheetIds_() {
+function _testSheetIds_(fresh) {
+  /* read on every student's visit, and a chip costs a call to the Sheets API: the list is kept a
+     minute for students; a teacher (`fresh`) always reads it now */
+  var cache = null, key = 'testids1';
+  try { cache = CacheService.getScriptCache(); if (!fresh) { var hit = cache.get(key); if (hit) return JSON.parse(hit); } } catch (e) {}
   var seen = {}, ids = [];
   _teacherLinksRaw_().forEach(function (l) {
     if (_typeClass_(l.type) !== 'test') return;
@@ -2258,6 +2264,7 @@ function _testSheetIds_() {
     var m = String(l.url).match(/^https:\/\/docs\.google\.com\/(?:a\/[^\/]+\/)?spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/);
     if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
   });
+  try { if (cache) cache.put(key, JSON.stringify(ids), 60); } catch (e) {}
   return ids;
 }
 
@@ -2265,9 +2272,11 @@ function _testSheetIds_() {
    of a test a whole year group opens the hub within a minute, and this script's executions are a
    shared, limited pool. So a submission or an override reaches the banner within a minute, not at
    once — the test's own page is always exact. null = not a test system (or unreadable). */
-function _testSnapshot_(id) {
+function _testSnapshot_(id, fresh) {
   var key = 'tsnap3:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes */
-  try { cache = CacheService.getScriptCache(); hit = cache.get(key); } catch (e) {}
+  /* `fresh`: a teacher checking their own change reads the sheet now — one person, not a class of
+     thirty — and that reading still refreshes the shared copy the students are served */
+  try { cache = CacheService.getScriptCache(); if (!fresh) hit = cache.get(key); } catch (e) {}
   if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} }
   var snap = null;
   try { snap = _readTestSnapshot_(id); } catch (e) { snap = null; }
@@ -2585,12 +2594,11 @@ function _linkColDefs_() {
 /* The address a cell holds, however Sheets is keeping it. Four ways, all met in practice:
      typed or pasted as text         the value IS the address
      a link put on some text         Insert ▸ Link: the value is the words, the address is the link
-     a smart chip                    NOT READABLE HERE. Paste a Drive link and Sheets offers to turn it
-                                     into a chip; the value is then only the file's name, and neither
-                                     getValues nor getRichTextValues ever returns the address (the
-                                     Sheets API's chipRuns does, but only with Drive permission, which
-                                     this script does not ask for). Such a row is reported by
-                                     _teacherLinksScan_, not silently dropped.
+     a smart chip                    NOT here. Paste a Drive link and Sheets offers to turn it into a
+                                     chip; the value is then only the file's name, and neither getValues
+                                     nor getRichTextValues ever returns the address. The Sheets API's
+                                     chipRuns does — see _chipGrid_ (no Drive permission: that is only
+                                     for WRITING chips). A chip still unread is reported, not dropped.
      =HYPERLINK("address", "label")  the value is the label, the address is in the formula
    `rich` is the cell's RichTextValue (null for a number or a date); `formula` its formula, or ''. */
 function _cellUrl_(value, rich, formula) {
@@ -2613,20 +2621,59 @@ function _cellUrl_(value, rich, formula) {
   return '';
 }
 
+/* SMART CHIPS. Apps Script's own reading gives only a chip's name (see _cellUrl_); the address comes
+   from the Sheets API, which needs the "Google Sheets API" service switched on in this script:
+   Services  ▸  + (Add a service)  ▸  Google Sheets API  ▸  Add, identifier "Sheets". No new
+   permission: it uses the spreadsheet access this script already has (Google asks for Drive access
+   only to WRITE a chip, which this never does). One call for a whole block. Returns a grid of
+   addresses ('' where a cell holds no chip), or null when the service is off or the read fails —
+   the chips are then reported (_teacherLinksScan_), never guessed at. */
+function _chipsOn_() { return typeof Sheets !== 'undefined' && !!Sheets && !!Sheets.Spreadsheets; }
+function _colA1_(n) { var s = ''; while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+function _chipGrid_(sh, row, nRows, nCols) {
+  if (!_chipsOn_() || nRows < 1 || nCols < 1) return null;
+  try {
+    var range = "'" + sh.getName().replace(/'/g, "''") + "'!A" + row + ':' + _colA1_(nCols) + (row + nRows - 1);
+    var res = Sheets.Spreadsheets.get(sh.getParent().getId(), { ranges: [range], fields: 'sheets.data.rowData.values(chipRuns)' });
+    var data = (((res && res.sheets) || [])[0] || {}).data || [];
+    var rows = (data[0] && data[0].rowData) || [], out = [];
+    for (var i = 0; i < nRows; i++) {
+      var vals = (rows[i] && rows[i].values) || [], line = [];
+      for (var j = 0; j < nCols; j++) {
+        var runs = (vals[j] && vals[j].chipRuns) || [], u = '';
+        for (var k = 0; k < runs.length && !u; k++) {
+          var p = runs[k] && runs[k].chip && runs[k].chip.richLinkProperties;
+          if (p && /^https:\/\//i.test(String(p.uri || ''))) u = String(p.uri).trim();
+        }
+        line.push(u);
+      }
+      out.push(line);
+    }
+    return out;
+  } catch (e) { return null; }
+}
+
 /* A block of the links tab as its values AND as the address each cell holds. Three reads for the
-   whole block, never three per cell. */
-function _linkGrid_(sh, row, nRows, nCols) {
+   whole block, never three per cell — and a fourth, to the Sheets API, only when one of `chipCols`
+   (0-based: the Link and Dashboard columns) has words in it but no address: a smart chip. */
+function _linkGrid_(sh, row, nRows, nCols, chipCols) {
   if (nRows < 1 || nCols < 1) return { values: [], urls: [] };
   var rg = sh.getRange(row, 1, nRows, nCols);
   var values = rg.getValues(), rich = [], forms = [];
   try { rich = rg.getRichTextValues(); } catch (e) {}
   try { forms = rg.getFormulas(); } catch (e) {}
-  return {
-    values: values,
-    urls: values.map(function (r, i) {
-      return r.map(function (v, j) { return _cellUrl_(v, rich[i] ? rich[i][j] : null, forms[i] ? forms[i][j] : ''); });
-    })
-  };
+  var urls = values.map(function (r, i) {
+    return r.map(function (v, j) { return _cellUrl_(v, rich[i] ? rich[i][j] : null, forms[i] ? forms[i][j] : ''); });
+  });
+  var cols = (chipCols || []).filter(function (c) { return c >= 0 && c < nCols; });
+  var gap = cols.length > 0 && values.some(function (r, i) {
+    return cols.some(function (c) { return String(r[c] == null ? '' : r[c]).trim() !== '' && !urls[i][c]; });
+  });
+  if (gap) {
+    var chips = _chipGrid_(sh, row, nRows, nCols);
+    if (chips) urls = urls.map(function (r, i) { return r.map(function (u, j) { return u || (chips[i] && chips[i][j]) || ''; }); });
+  }
+  return { values: values, urls: urls };
 }
 
 /* Read one row of the links tab into a clean object, whatever shape the tab is in. The address is
@@ -2717,7 +2764,7 @@ function _migrateLinksTab_(sh) {
   var last = sh.getLastRow();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
-  var grid = _linkGrid_(sh, 2, last - 1, wide);
+  var grid = _linkGrid_(sh, 2, last - 1, wide, [kHead, dHead]);
   var out = [];
   for (var i = 0; i < grid.values.length; i++) {
     var r = grid.values[i];
@@ -2747,11 +2794,11 @@ function _teacherLinksRaw_() { return _teacherLinksScan_().rows; }
    the teacher (the page, the dialog, test mode) instead of disappearing or being misread. */
 function _teacherLinksScan_() {
   var sh = _ss_().getSheetByName(T_LINKS);
-  if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [] };
+  if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [], chipsOn: _chipsOn_() };
   var last = sh.getLastRow(), wide = sh.getLastColumn();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
-  var grid = _linkGrid_(sh, 2, last - 1, wide);
+  var grid = _linkGrid_(sh, 2, last - 1, wide, [kHead, dHead]);
   var rows = [], unreadable = [];
   grid.values.forEach(function (r, i) {
     var o = _readLinkRow_(r, kHead, i + 2, dHead, grid.urls[i]);
@@ -2761,7 +2808,7 @@ function _teacherLinksScan_() {
                       name: String(r[3] || r[1] || '').trim() || 'a row',
                       shown: kHead >= 0 ? String(r[kHead] == null ? '' : r[kHead]).trim() : '' });
   });
-  return { rows: rows, unreadable: unreadable };
+  return { rows: rows, unreadable: unreadable, chipsOn: _chipsOn_() };
 }
 
 /* The cohort a spreadsheet belongs to, named by the year it graduates — the stable handle, because
@@ -2812,7 +2859,7 @@ function _teacherPageGroups_(now) {
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
   var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
-  var out = { unreadable: scan.unreadable, records: records, cohorts: order.map(function (g) {
+  var out = { unreadable: scan.unreadable, chipsOn: scan.chipsOn, records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
     c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
@@ -3449,7 +3496,7 @@ function teacherPanelData() {
     hubUrl: String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim(),
     hubLive: !!_hubUrl_(),
     teachers: teachers,
-    unreadable: _teacherLinksScan_().unreadable,
+    unreadable: _teacherLinksScan_().unreadable, chipsOn: _chipsOn_(),
     links: _teacherLinksRaw_().map(function (l) {
       var co = _cohortLabel_(l.grad);
       l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;
