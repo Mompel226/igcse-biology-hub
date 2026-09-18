@@ -472,7 +472,7 @@ var BOOT = __BOOT__;
       un.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', ')+'. '+
       (un.length===1?'Its Link is a smart chip':'Their Links are smart chips')+
       (g.chipsOn
-        ? ', and Google did not give the address inside. In 🔗 Teacher links, replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.'
+        ? ', and the address inside could not be read'+(g.chipTrouble?' ('+esc(g.chipTrouble)+')':'')+'. In the labs spreadsheet’s script, Run ▸ checkChips shows what Google returns; or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.'
         : '. This page reads chips once the Google Sheets API is switched on in the labs spreadsheet’s script — in the Apps Script editor: Services ▸ + ▸ Google Sheets API ▸ Add. Or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.')+
       '</div>' : '';
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
