@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1789683144">
+<link rel="stylesheet" href="css/hub.css?v=1789707044">
 </head>
 <body>
 
@@ -26,6 +26,21 @@
       <p class="lede">Four doors, one for each part of the subject. Behind each door is a map you can point at;
          behind the map are the labs, where you practise.</p>
       <p class="maker" id="siteMaker">Made by <strong>Dr Daniel Mompel Riera</strong></p>
+
+      <!-- "Sit a test": shown only to someone seated for a test that opens later or is open now —
+           a teacher only in test mode. Filled in by js/hub.js from the labs script, which reads
+           the test system's own schedule. Before it opens there is no link: the way in appears
+           here when it does. -->
+      <section class="sit" id="sit" hidden aria-labelledby="sitName">
+        <div class="sit__pic" id="sitPic" aria-hidden="true"><picture><source type="image/webp" srcset="assets/doors/sit-240.webp 240w, assets/doors/sit-480.webp 480w" sizes="(max-width:560px) 84px, 112px"><img src="assets/doors/sit-480.jpg" srcset="assets/doors/sit-240.jpg 240w, assets/doors/sit-480.jpg 480w" sizes="(max-width:560px) 84px, 112px" alt="" width="480" height="480" loading="lazy" decoding="async" draggable="false"></picture></div>
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="sitEye">Sit a test</span></span>
+          <span class="sit__name" id="sitName"></span>
+          <span class="sit__when" id="sitWhen"></span>
+        </div>
+        <a class="sit__go" id="sitGo" hidden>Sit the test <span aria-hidden="true">&rarr;</span></a>
+      </section>
+      <p class="sit-note" id="sitNote" hidden></p>
     </div>
     <div class="masthead__r">
 
@@ -133,11 +148,11 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<script src="js/data/labs.js?v=1789683144"></script>
-<script src="js/progress.js?v=1789683144"></script>
-<script src="js/signin.js?v=1789683144"></script>
-<script src="js/shelves.js?v=1789683144"></script>
-<script src="js/local.js?v=1789683144"></script>
-<script src="js/hub.js?v=1789683144"></script>
+<script src="js/data/labs.js?v=1789707044"></script>
+<script src="js/progress.js?v=1789707044"></script>
+<script src="js/signin.js?v=1789707044"></script>
+<script src="js/shelves.js?v=1789707044"></script>
+<script src="js/local.js?v=1789707044"></script>
+<script src="js/hub.js?v=1789707044"></script>
 </body>
 </html>

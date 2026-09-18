@@ -859,6 +859,84 @@
     var teacher = null;     /* for a teacher on the labs script's list: { page } — null for everybody else */
     var last    = null;     /* the last answer, so switching mode redraws without asking again */
 
+    /* ---------- "Sit a test" ----------
+       One banner under the credit, for whoever is SEATED for a test — the labs script works that
+       out from the test system itself (_ownTest_ in apps-script/Code.gs), by the test's own rules.
+       A pupil sees it while their test opens later or is open now, and never otherwise. A teacher
+       sees exactly what a pupil would, in test mode only: they are seated on the test system's
+       "Marks · Test" tab. In test mode a teacher also gets a quiet line when there is nothing to
+       show, so an empty space never looks like a broken banner.
+       The link is given only once the test is OPEN — before that its page can only say "not yet",
+       so nobody is sent there early. And it opens in THIS tab: the test counts every time a student
+       leaves its tab, so the hub must not be left open beside it. */
+    var sitEl   = document.getElementById('sit'),
+        sitNote = document.getElementById('sitNote'),
+        sitEye  = document.getElementById('sitEye'),
+        sitName = document.getElementById('sitName'),
+        sitWhen = document.getElementById('sitWhen'),
+        sitGo   = document.getElementById('sitGo');
+    var sitLast = null, sitTimer = null;
+    function sitHide() {
+      clearTimeout(sitTimer);
+      if (sitEl) { sitEl.hidden = true; sitEl.classList.remove('is-open'); }
+      if (sitNote) sitNote.hidden = true;
+    }
+    /* "today at 09:00", "tomorrow at 09:00", "Tue 22 Sep at 09:00" — in the reader's own time */
+    function sitAt(ms) {
+      var d = new Date(ms), now = new Date();
+      var day = function (x) { return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); };
+      var hm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      var dd = Math.round((day(d) - day(now)) / 864e5);
+      if (dd === 0) return 'today at ' + hm;
+      if (dd === 1) return 'tomorrow at ' + hm;
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' at ' + hm;
+    }
+    function sitAsk(who) {
+      if (!sitEl || !URL_ || !who || !who.token) return;
+      fetch(URL_, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'test', token: who.token }) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!acting || acting.email !== who.email) return;   /* signed out, or somebody else, meanwhile */
+          sitLast = (j && j.ok) ? j : null;
+          sitDraw();
+        })
+        .catch(function () {});   /* a failed check shows nothing: the banner is a shortcut, never the only way in */
+    }
+    function sitDraw() {
+      sitHide();
+      var j = sitLast;
+      if (!j || !acting || !sitEl) return;
+      var t = !!j.teacher;
+      if (t && mode() !== 'test') return;                    /* teacher mode: the banner is not for you */
+      var pre = t ? 'Test mode \u00b7 ' : '';
+      if (j.state === 'open' || j.state === 'upcoming') {
+        var open = j.state === 'open';
+        sitName.textContent = j.name || 'Your test';
+        sitEye.textContent  = pre + (open ? 'Open now' : 'Sit a test');
+        sitWhen.textContent = open
+          ? (j.closesAt ? 'Closes ' + sitAt(j.closesAt) + '.' : 'You can start now.')
+          : 'Opens ' + sitAt(j.opensAt) + '. The link appears here when it opens.';
+        sitEl.classList.toggle('is-open', open);
+        if (open && j.url) { sitGo.href = j.url; sitGo.hidden = false; }
+        else { sitGo.hidden = true; sitGo.removeAttribute('href'); }
+        sitEl.hidden = false;
+        /* ask again at the moment it opens or closes, so a page left open changes with it — the
+           server's answer, not this device's clock, decides; nothing is scheduled days ahead */
+        var next = open ? j.closesAt : j.opensAt, wait = next ? next - Date.now() + 1500 : 0;
+        if (wait > 0 && wait < 12 * 3600e3) sitTimer = setTimeout(function () { if (acting) sitAsk(acting); }, wait);
+        return;
+      }
+      if (t && sitNote) {
+        sitNote.textContent =
+          j.state === 'done'   ? 'Test mode \u00b7 You have handed in ' + (j.name || 'your test') + ', so no test shows here.' :
+          j.state === 'closed' ? 'Test mode \u00b7 ' + (j.name || 'Your test') + ' has closed, so no test shows here.' :
+          j.state === 'waiting' ? 'Test mode \u00b7 ' + (j.name || 'Your test') + ' has no start time yet, so no test shows here. Set one, or press \u23f0 Start now in its dashboard.' :
+          'Test mode \u00b7 No test shows here. To see one, add yourself to the \u201cMarks \u00b7 Test\u201d tab of a test that opens later or is open now.';
+        sitNote.hidden = false;
+      }
+    }
+
     /* Two cards, one shown at a time, because they are two different things: a button does
        something on this page, a link goes somewhere else. Swapping the text inside one
        element would have made a link that sometimes did not link. */
@@ -903,6 +981,7 @@
       try { localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); } catch (e2) {}
       footer(true);
       if (last && acting) render(last.who, last.j);
+      sitDraw();
     });
     if (outBtn) outBtn.addEventListener('click', function () {
       SI.out();                   /* the listener below puts the corner back */
@@ -1125,6 +1204,7 @@
         showPersonal(null);
         ask(v, false);
       }
+      sitAsk(v);
     }
 
     /* One place hears every change: a sign-in on this page, one renewed in the background, and
@@ -1168,6 +1248,7 @@
     }
     function stopActing() {
       acting = null; last = null;
+      sitLast = null; sitHide();
       tools(null);
       clearTimeout(expiryTimer); clearTimeout(outTimer);
     }

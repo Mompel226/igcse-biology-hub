@@ -283,6 +283,9 @@ function doPost(e) {
        only ever their own. */
     if (String(d.action || '') === 'record') return _ownRecord_(d);
 
+    /* And when their own test opens, and the way in. Read-only, their own only. */
+    if (String(d.action || '') === 'test') return _ownTest_(d);
+
     var lab = _labById_(String(d.app || ''));
     if (!lab) return _text_('unknown lab');
 
@@ -2163,6 +2166,265 @@ function _ownRecord_(d) {
                  /* absent — not false — for everybody who is not a teacher on the list */
                  teacher: isTeacher || undefined,
                  teacherPage: isTeacher ? _teacherPageUrl_() : undefined });
+}
+
+/* ============================================================
+   "SIT A TEST" — when the signed-in person's own test opens, and the way in.
+
+   The test system (its own spreadsheet, its own web app) publishes its schedule into a tab of
+   its spreadsheet, "⏰ Hub schedule", written by its OWN functions (§hub-mirror, in its
+   2_TestPlatform.gs). The hub cannot ask that web app — it is restricted to the school, so a
+   cross-site request meets Google's sign-in page — but this script can open the spreadsheet
+   by id, the same way it opens the tracker.
+
+   From that tab, the Marks tabs (the roster), LiveProgress and TestResponses, this works out
+   what the test's own form will do for this one person, by the same rules in the same order:
+       which version    the letter on their Marks tab; a class tab wins over "Marks · Test"
+       when it opens    their own override  →  their class's window  →  the whole test's time
+                        (the test's §family-schedule, 18 Sep 2026: one set of times for every
+                        version; an override left under the active test still counts)
+       when it closes   the same, plus extra time as the test adds it in "window" timer mode
+       done?            TestResponses says submitted, marking, marked or failed
+   Each rule below is a copy of the test system's, named after the one it copies. They are
+   copies because the hub cannot call across; if the test system changes a rule, change it here.
+
+   Which spreadsheets: every "Test" row of 🔗 Teacher links whose Link is a Google Sheet, for a
+   cohort still in school (or no cohort). A sheet without the tab is simply not a test system.
+   A teacher is seated exactly as a pupil is — on "Marks · Test" — so test mode shows them what a
+   pupil sees, by the same path.
+
+   Returned: ONLY this person's own — the state, the test's name, their own open and close
+   instants, the way in. Never the class map, anyone else's time, anyone's status, a question.
+   The email comes from the verified token, never from the request. Read only.
+   ============================================================ */
+var T_HUB_SCHEDULE   = '⏰ Hub schedule';
+var HUB_SCHEDULE_KEY = 'HUB_SCHEDULE_JSON';
+var TEST_SNAP_SECONDS = 60;   /* one read of a test spreadsheet serves every student for this long */
+
+function _ownTest_(d) {
+  if (!_clientId_()) return _json_({ ok: false, why: 'sign-in is not set up' });
+  var who = _whoIs_(d.token);
+  if (!who) return _json_({ ok: false, why: 'not signed in' });
+  var dom = _schoolDomain_();
+  if (dom && !_inDomain_(who.email, dom))
+    return _json_({ ok: false, why: 'not a school account', email: who.email, domain: dom });
+  var email = _cleanEmail_(who.email);
+  var now = Date.now(), best = null;
+  _testSheetIds_().forEach(function (id) {
+    var mine = _testFor_(_testSnapshot_(id), email, now);
+    if (mine && (!best || _testBefore_(mine, best))) best = mine;
+  });
+  var out = { ok: true, teacher: _isTeacher_(email), state: best ? best.state : 'none' };
+  if (best) {
+    out.name = best.name; out.opensAt = best.opensAt; out.closesAt = best.closesAt;
+    /* The way in only once it is OPEN. The page shows no link before then, but hiding it there is
+       not enough: a link sitting in this answer is one look at the browser's network tab away from
+       opening the test early. */
+    if (best.url && best.state === 'open') out.url = best.url;
+  }
+  return _json_(out);
+}
+
+/* the one to show when someone sits more than one: open now, then the soonest to open, then the rest */
+function _testBefore_(a, b) {
+  var rank = { open: 0, upcoming: 1, waiting: 2, done: 3, closed: 4 };
+  if (rank[a.state] !== rank[b.state]) return rank[a.state] < rank[b.state];
+  return (a.opensAt || 0) < (b.opensAt || 0);
+}
+
+function _testSheetIds_() {
+  var seen = {}, ids = [];
+  _teacherLinksRaw_().forEach(function (l) {
+    if (_typeClass_(l.type) !== 'test') return;
+    var co = _cohortLabel_(l.grad);
+    if (co && !co.yearGroup) return;                              /* a cohort no longer in school */
+    var m = String(l.url).match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/);
+    if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
+  });
+  return ids;
+}
+
+/* One test spreadsheet, read once and shared by every student for TEST_SNAP_SECONDS: at the start
+   of a test a whole year group opens the hub within a minute, and this script's executions are a
+   shared, limited pool. So a submission or an override reaches the banner within a minute, not at
+   once — the test's own page is always exact. null = not a test system (or unreadable). */
+function _testSnapshot_(id) {
+  var key = 'tsnap2:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes */
+  try { cache = CacheService.getScriptCache(); hit = cache.get(key); } catch (e) {}
+  if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} }
+  var snap = null;
+  try { snap = _readTestSnapshot_(id); } catch (e) { snap = null; }
+  if (cache) {
+    try { var s = snap ? JSON.stringify(snap) : '-'; if (s.length < 95000) cache.put(key, s, TEST_SNAP_SECONDS); } catch (e) {}
+  }
+  return snap;
+}
+
+function _readTestSnapshot_(id) {
+  var wb;
+  try { wb = SpreadsheetApp.openById(id); } catch (e) { return null; }
+  var tab = wb.getSheetByName(T_HUB_SCHEDULE);
+  if (!tab) return null;
+  var mirror = null;
+  var head = tab.getRange(1, 1, Math.min(Math.max(tab.getLastRow(), 1), 12), 2).getValues();
+  for (var i = 0; i < head.length; i++)
+    if (String(head[i][0]).trim() === HUB_SCHEDULE_KEY) { try { mirror = JSON.parse(String(head[i][1])); } catch (e) {} }
+  if (!mirror || mirror.v !== 1 || !mirror.versions || !mirror.marks) return null;
+  var M = mirror.marks;
+  if (!(M.email > 0) || !(M.cls > 0) || !(M.dataStart > 0)) return null;
+
+  /* The way in comes out of a cell, so it is only ever accepted as a Google Apps Script web app. */
+  var url = String(mirror.formUrl || '').replace(/[?#].*$/, '');
+  if (!/^https:\/\/script\.google\.com\/(a\/macros\/[^\/?#]+|macros)\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) url = '';
+
+  var ids = {};
+  Object.keys(mirror.versions).forEach(function (k) { if (mirror.versions[k] && mirror.versions[k].id) ids[String(mirror.versions[k].id)] = 1; });
+
+  /* seats — copies getStudentContext: every Marks tab, the ACTIVE test's column positions for all
+     of them; the first class tab that has you wins, and beats "Marks · Test" (where the last hit
+     stands). Class is the cell, or the tab's class when the cell is blank. */
+  var seats = {}, width = Math.max(M.email, M.cls, M.extraTime > 0 ? M.extraTime : 0);
+  wb.getSheets().forEach(function (sh) {
+    var info = _marksTabInfo_(sh.getName(), String(M.prefix || 'Marks · '));
+    if (!info) return;
+    var last = sh.getLastRow();
+    if (last < M.dataStart) return;
+    sh.getRange(M.dataStart, 1, last - M.dataStart + 1, width).getValues().forEach(function (r) {
+      var em = String(r[M.email - 1] || '').toLowerCase();
+      if (!em) return;
+      var prev = seats[em];
+      if (prev && !prev.t) return;                                /* a class tab already has them */
+      seats[em] = { c: String(r[M.cls - 1] || '') || info.className, v: info.version,
+                    x: M.extraTime > 0 ? _extraTimePct_(r[M.extraTime - 1]) : 0, t: info.isTest ? 1 : 0 };
+    });
+  });
+
+  /* per-student overrides (LiveProgress) and submissions (TestResponses), for this test's versions only */
+  var live = {}, done = {};
+  _eachRow_(wb.getSheetByName('LiveProgress'), ['Email', 'Test ID', 'Release Override', 'Lockout Override'], function (v) {
+    if (!ids[String(v[1])]) return;
+    var rel = _ms_(v[2]), lock = _ms_(v[3]);
+    if (rel || lock) live[String(v[0]).toLowerCase() + '|' + String(v[1])] = [rel, lock];
+  });
+  _eachRow_(wb.getSheetByName('TestResponses'), ['Email', 'Test ID', 'Status'], function (v) {
+    if (!ids[String(v[1])]) return;
+    if (/^(submitted|marking|marked|failed)$/.test(String(v[2]).trim().toLowerCase()))
+      done[String(v[0]).toLowerCase() + '|' + String(v[1])] = 1;
+  });
+
+  var versions = {};
+  Object.keys(mirror.versions).forEach(function (k) {
+    var e = mirror.versions[k] || {};
+    versions[k] = { id: String(e.id || ''), name: String(e.name || e.id || 'Test').slice(0, 120),
+                    releaseAt: String(e.releaseAt || ''), lockoutAt: String(e.lockoutAt || ''),
+                    classes: (e.classes && typeof e.classes === 'object') ? e.classes : {} };
+  });
+  return { url: url, activeId: String(mirror.activeId || ''), timerMode: String(mirror.timerMode || ''),
+           timeLimitMinutes: Number(mirror.timeLimitMinutes) || 90,
+           versions: versions, seats: seats, live: live, done: done };
+}
+
+/* Read only the named columns of a tab — found by their headings, one column at a time — and hand
+   each row's values to fn in that order. LiveProgress carries a long event log in one column;
+   reading whole rows would drag all of it across for four small cells.
+   The heading row is FOUND, not assumed: LiveProgress and TestResponses both put a title in row 1
+   and their column names in row 2 (the test system's LIVE_HEADER_ROWS / RESPONSES_HEADER_ROWS = 2).
+   Assuming row 1 found no columns at all, so every override and every submission went unseen and
+   a student who had already handed in was told their test was open — caught by the side-by-side
+   test against the test system's own code, 18 Sep 2026. */
+function _eachRow_(sh, names, fn) {
+  if (!sh) return;
+  var last = sh.getLastRow(), wide = sh.getLastColumn();
+  if (last < 2 || wide < 1) return;
+  var top = sh.getRange(1, 1, Math.min(last, 5), wide).getValues(), hr = -1, at = null;
+  for (var r = 0; r < top.length && hr < 0; r++) {
+    var hdr = top[r].map(function (h) { return String(h).trim(); });
+    var a = names.map(function (n) { return hdr.indexOf(n); });
+    if (a[0] >= 0 && a[1] >= 0) { hr = r + 1; at = a; }            /* 1-based heading row */
+  }
+  if (hr < 0 || last <= hr) return;
+  var n = last - hr;
+  var cols = at.map(function (c) { return c < 0 ? null : sh.getRange(hr + 1, c + 1, n, 1).getValues(); });
+  for (var i = 0; i < n; i++) fn(cols.map(function (c) { return c ? c[i][0] : ''; }));
+}
+
+/* This person's test in one snapshot, or null if they have no seat there. */
+function _testFor_(snap, email, now) {
+  if (!snap || !snap.seats) return null;
+  var seat = snap.seats[email];
+  if (!seat) return null;
+  var e = snap.versions[seat.v] || snap.versions[''];                /* copies _resolveAssessmentForStudent_'s fallback */
+  if (!e || !e.id) return null;
+  var k = email + '|' + e.id;
+  /* copies _readReleaseLockoutOverride_: their own row; else a row left under the active test */
+  var ov = snap.live[k] || (snap.activeId && e.id !== snap.activeId ? snap.live[email + '|' + snap.activeId] : null) || [0, 0];
+  var cw = _classWindow_(e.classes, seat.c);
+  var rel  = ov[0] || cw[0] || _ms_(e.releaseAt);
+  var lock = ov[1] || cw[1] || _ms_(e.lockoutAt);
+  lock = _extraClose_(lock, rel, seat.x, snap.timerMode, snap.timeLimitMinutes);
+  /* copies the form's own gate: Begin is enabled only once a start time EXISTS and has passed
+     (getTestBootstrap's `released`). No start time at all is not "open" — the form says "Waiting for
+     your teacher to start the test" until one is set or ⏰ Start now is pressed. */
+  var state = snap.done[k] ? 'done' : (lock && now > lock) ? 'closed' : !rel ? 'waiting' : (now < rel) ? 'upcoming' : 'open';
+  return { state: state, name: e.name, opensAt: rel || 0, closesAt: lock || 0, url: snap.url };
+}
+
+/* copies parseMarksTabName_: "Marks · 10A · B" → 10A, version B; "Marks · Test" is the teachers' seat */
+function _marksTabInfo_(name, prefix) {
+  if (!name || name.indexOf(prefix) !== 0) return null;
+  var rest = name.substring(prefix.length).trim();
+  if (!rest) return null;
+  var version = '', className = rest;
+  var m = rest.match(/^(.+?)\s*[·]\s*([A-Za-z])$/);
+  if (m) { className = m[1].trim(); version = m[2].toUpperCase(); }
+  return { className: className, version: version, isTest: className.toUpperCase() === 'TEST' };
+}
+
+/* copies _readClassSchedule_: the class's own key first, then the same label ignoring case and spaces */
+function _classWindow_(map, cls) {
+  cls = String(cls == null ? '' : cls).trim();
+  if (!cls || !map) return [0, 0];
+  var e = map[cls];
+  if (!e) {
+    var norm = function (x) { return String(x == null ? '' : x).trim().toLowerCase().replace(/\s+/g, ''); };
+    for (var key in map) if (map.hasOwnProperty(key) && norm(key) === norm(cls)) { e = map[key]; break; }
+  }
+  return e ? [_ms_(e.releaseAt), _ms_(e.lockoutAt)] : [0, 0];
+}
+
+/* copies _windowExtraClose_: only in "window" timer mode is extra time added to the close */
+function _extraClose_(lockoutMs, releaseMs, pct, mode, limitMin) {
+  if (!lockoutMs) return lockoutMs;
+  if (String(mode) !== 'window') return lockoutMs;
+  if (pct < 0) return 0;                                            /* unlimited: no close at all */
+  if (!pct) return lockoutMs;
+  var winLen = (releaseMs && lockoutMs > releaseMs) ? (lockoutMs - releaseMs) : ((Number(limitMin) || 90) * 60000);
+  return lockoutMs + Math.round(pct / 100 * winLen);
+}
+
+/* copies _parseExtraTimePercent_ */
+function _extraTimePct_(v) {
+  if (v == null) return 0;
+  if (/unlim/i.test(String(v))) return -1;
+  if (typeof v === 'number' && isFinite(v)) {
+    var num = v;
+    if (num > 0 && num <= 2) num = num * 100;
+    return Math.max(0, Math.min(200, Math.round(num)));
+  }
+  var s = String(v).trim();
+  if (!s) return 0;
+  var m = s.match(/(\d+)/);
+  if (!m) return 0;
+  var n = parseInt(m[1], 10);
+  return Math.max(0, Math.min(200, isFinite(n) ? n : 0));
+}
+
+/* copies _parseIsoMs_ */
+function _ms_(s) {
+  if (!s) return 0;
+  if (s instanceof Date) return s.getTime();
+  var n = Date.parse(String(s));
+  return isNaN(n) ? 0 : n;
 }
 
 /* ============================================================
