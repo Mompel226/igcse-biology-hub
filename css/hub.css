@@ -77,7 +77,7 @@ a{color:inherit;text-decoration:none}
    beside it, so the card reads as one control rather than a note with a border round it */
 .acct__card{
   display:flex;flex-direction:row;align-items:center;gap:11px;text-align:left;
-  min-width:212px;max-width:300px;padding:8px 14px 8px 9px;
+  min-width:212px;max-width:min(312px,calc(100vw - 36px));padding:8px 14px 8px 9px;   /* 312, not 300: "For NLCS Jeju students and teachers" fits whole — but never wider than a 320 px phone, where it shortens with … instead */
   border:1px solid rgba(150,190,215,.34);border-radius:999px;background:rgba(7,15,21,.62);
   transition:border-color .2s,background .2s,color .2s
 }
@@ -572,7 +572,7 @@ noscript p{padding:20px}
   .acct,.acct__gsi,.acct__foot{align-items:flex-start;justify-content:flex-start}
   .acct__foot{align-items:center}
   .acct__for{text-align:left}
-  .acct__card{min-width:0;max-width:none;width:100%}
+  .acct__card{min-width:0;max-width:calc(100vw - 36px);width:100%}
   /* the row keeps the rectangle beside the card on a phone too; the card shrinks to share */
   .acct__row{width:100%;justify-content:flex-start}
   .years{align-items:flex-start;max-width:none}
