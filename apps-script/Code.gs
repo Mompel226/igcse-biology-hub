@@ -2300,22 +2300,70 @@ function _linkColDefs_() {
   ];
 }
 
+/* The address a cell holds, however Sheets is keeping it. Four ways, all met in practice:
+     typed or pasted as text         the value IS the address
+     a link put on some text         Insert ▸ Link: the value is the words, the address is the link
+     a smart chip                    paste a Drive link and Sheets offers to turn it into a chip; the
+                                     VALUE is then the file's own name and the address lives only in
+                                     the link, so reading values alone finds no address at all
+     =HYPERLINK("address", "label")  the value is the label, the address is in the formula
+   `rich` is the cell's RichTextValue (null for a number or a date); `formula` its formula, or ''. */
+function _cellUrl_(value, rich, formula) {
+  var isUrl = function (x) { return /^https:\/\//i.test(String(x || '').trim()); };
+  var v = String(value == null ? '' : value).trim();
+  if (isUrl(v)) return v;
+  if (rich) {
+    var u = '';
+    try { u = rich.getLinkUrl() || ''; } catch (e) {}
+    if (!u) {
+      try {                                  /* a link on only part of the text: look run by run */
+        var runs = rich.getRuns();
+        for (var i = 0; i < runs.length && !u; i++) u = runs[i].getLinkUrl() || '';
+      } catch (e) {}
+    }
+    if (isUrl(u)) return String(u).trim();
+  }
+  var m = String(formula || '').match(/^=\s*HYPERLINK\(\s*"([^"]+)"/i);
+  if (m && isUrl(m[1])) return m[1].trim();
+  return '';
+}
+
+/* A block of the links tab as its values AND as the address each cell holds. Three reads for the
+   whole block, never three per cell. */
+function _linkGrid_(sh, row, nRows, nCols) {
+  if (nRows < 1 || nCols < 1) return { values: [], urls: [] };
+  var rg = sh.getRange(row, 1, nRows, nCols);
+  var values = rg.getValues(), rich = [], forms = [];
+  try { rich = rg.getRichTextValues(); } catch (e) {}
+  try { forms = rg.getFormulas(); } catch (e) {}
+  return {
+    values: values,
+    urls: values.map(function (r, i) {
+      return r.map(function (v, j) { return _cellUrl_(v, rich[i] ? rich[i][j] : null, forms[i] ? forms[i][j] : ''); });
+    })
+  };
+}
+
 /* Read one row of the links tab into a clean object, whatever shape the tab is in. The address is
-   found by the Link column when its header is present and that cell really is a link, and otherwise
-   by looking for the one cell in the row that is an https address — which is what lets a tab left
-   half-migrated, or one an old version wrote, still be read correctly. The other fields are then
-   taken by their position relative to the address:
+   found by the Link column when its header is present and that cell really holds a link, and
+   otherwise by looking for the one cell in the row that holds an https address — which is what lets
+   a tab left half-migrated, or one an old version wrote, still be read correctly. The other fields
+   are then taken by their position relative to the address:
      address at column 5 (0-based 4)  →  Type · Assessment · Graduation year · Name · [Link] · Note · Dashboard
      address at column 3 (0-based 2)  →  old  Section · Name · [Link] · Note
-   `kHead` is the 0-based Link column from the header, or -1. */
-function _readLinkRow_(r, kHead, rowNum, dHead) {
-  var k = (kHead >= 0 && /^https:\/\//i.test(String(r[kHead] || '').trim())) ? kHead : -1;
-  if (k < 0) for (var i = 0; i < r.length; i++) if (/^https:\/\//i.test(String(r[i] || '').trim())) { k = i; break; }
+   `r` is the row's values and `urls` the address each of its cells holds (see _linkGrid_); with no
+   `urls`, only a typed address is seen. `kHead` / `dHead` are the 0-based Link and Dashboard
+   columns from the header, or -1. */
+function _readLinkRow_(r, kHead, rowNum, dHead, urls) {
+  urls = urls || r;
+  var isUrl = function (x) { return /^https:\/\//i.test(String(x || '').trim()); };
+  var k = (kHead >= 0 && isUrl(urls[kHead])) ? kHead : -1;
+  if (k < 0) for (var i = 0; i < urls.length; i++) if (isUrl(urls[i])) { k = i; break; }
   if (k < 0) return null;
-  var url = String(r[k]).trim();
+  var url = String(urls[k]).trim();
   if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return null;
   var type, assessment, grad = '', name = '', note = '';
-  if (k === 4) {                                       /* the six-column shape */
+  if (k === 4) {                                       /* the six- and seven-column shapes */
     type = String(r[0] || '').trim(); assessment = String(r[1] || '').trim();
     grad = String(r[2] || '').trim(); name = String(r[3] || '').trim(); note = String(r[5] || '').trim();
   } else if (k === 2) {                                /* the old four-column shape (Section · Name · Link · Note) */
@@ -2323,45 +2371,74 @@ function _readLinkRow_(r, kHead, rowNum, dHead) {
   } else {                                             /* anything else: best effort */
     type = String(r[0] || '').trim(); assessment = String(r[k - 1] || r[1] || '').trim(); note = String(r[k + 1] || '').trim();
   }
+  /* a chip shows the file's own name: the best label there is when the row gives none */
+  var shown = String(r[k] == null ? '' : r[k]).trim();
+  if (isUrl(shown)) shown = '';
   /* The dashboard address is optional, and is read by its own header wherever the tab has one,
      falling back to the seventh column of the current shape. It is deliberately NOT found by
      scanning the row for an https cell the way the address above is: on a tab still six columns
      wide the only other address in the row IS the spreadsheet, and a scan would hand it back as
      a dashboard, giving every card two buttons that go to the same place. */
   var dash = '';
-  var dRaw = String(((dHead != null && dHead >= 0) ? r[dHead] : (k === 4 ? r[6] : '')) || '').trim();
+  var dRaw = String(((dHead != null && dHead >= 0) ? urls[dHead] : (k === 4 ? urls[6] : '')) || '').trim();
   if (/^https:\/\/[^\s"'<>]+$/i.test(dRaw) && dRaw !== url) dash = dRaw;
 
   return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
-           name: name || assessment || 'Spreadsheet', url: url, note: note, dash: dash };
+           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash };
 }
 
-/* A links tab made by an earlier version had four columns — Section · Name · Link · Note. The
-   dialog now writes six — Category · Assessment · Year · Name · Link · Note — so a row added into
-   the old tab landed in the wrong columns (the year under "Link", the address spilled past the
-   end). This puts an old tab right, keeping every row: it finds the address in each row wherever
-   it fell and rebuilds the six columns from it. Safe to run every time — a tab already in the new
-   shape is left untouched. */
+/* The links tab has had three shapes: the old four columns (Section · Name · Link · Note), then six
+   (Type · Assessment · Graduation year · Name · Link · Note), now seven, with Dashboard last.
+   Upgrading only ever ADDS. It never rewrites a row it cannot read, because a row lost here cannot
+   be got back, while a tab left in an older shape still reads perfectly well (_readLinkRow_ takes
+   any of them):
+     six columns → seven   the Dashboard heading is written into column G and nothing else is
+                           touched, so a smart chip, a link on some words or a =HYPERLINK() in the
+                           Link column stays exactly as it was. (The first version of this rebuilt
+                           every row from its values — and a row whose link was a chip has no
+                           address among its values, so it was dropped. Caught on 18 Sep 2026,
+                           before it ran on a live tab.)
+     column G already used by something of yours   left alone.
+     the old four columns  rebuilt, reading each address as _linkGrid_ does; if even one row
+                           cannot be read, the tab is left exactly as it is.
+   Safe to run every time. */
 function _migrateLinksTab_(sh) {
-  var wide = sh.getLastColumn();
+  var need = _LINK_HEADERS_.length;
+  var wide = Math.max(sh.getLastColumn(), 1);
   var hdr = sh.getRange(1, 1, 1, wide).getValues()[0].map(function (h) {
     return String(h).replace(/^\s*✎\s*/, '').trim().toLowerCase();
   });
-  var already = wide === _LINK_HEADERS_.length;
-  for (var w = 0; already && w < _LINK_HEADERS_.length; w++) if (hdr[w] !== _LINK_HEADERS_[w].toLowerCase()) already = false;
-  if (already) return;
+  var same = function (n) {
+    for (var i = 0; i < n; i++) if (hdr[i] !== _LINK_HEADERS_[i].toLowerCase()) return false;
+    return true;
+  };
+  if (wide === need && same(need)) return;                        /* already current */
 
+  if (same(need - 1)) {                                           /* the six-column shape */
+    if (wide >= need) {                                           /* is column G free — heading and every cell? */
+      var colG = sh.getRange(1, need, Math.max(sh.getLastRow(), 1), 1).getValues();
+      for (var g = 0; g < colG.length; g++) if (String(colG[g][0]).trim() !== '') return;
+    }
+    if (sh.getMaxColumns() < need) sh.insertColumnsAfter(sh.getMaxColumns(), need - sh.getMaxColumns());
+    sh.getRange(1, need).setValue(_LINK_HEADERS_[need - 1]);
+    _dress2_(sh, _linkColDefs_(), { tab:'#0ea5e9' });
+    return;
+  }
+
+  /* an older shape: rebuild, but only if every row can be read */
   var last = sh.getLastRow();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
-  var rows = last >= 2 ? sh.getRange(2, 1, last - 1, wide).getValues() : [];
+  var grid = _linkGrid_(sh, 2, last - 1, wide);
   var out = [];
-  rows.forEach(function (r) {
-    var o = _readLinkRow_(r, kHead, 0, dHead);
-    if (o) out.push([o.type, o.assessment, o.grad, o.name, o.url, o.note, o.dash]);
-  });
+  for (var i = 0; i < grid.values.length; i++) {
+    var r = grid.values[i];
+    if (r.every(function (c) { return String(c == null ? '' : c).trim() === ''; })) continue;   /* a blank row */
+    var o = _readLinkRow_(r, kHead, 0, dHead, grid.urls[i]);
+    if (!o) return;                                               /* one we cannot read: touch nothing */
+    out.push([o.type, o.assessment, o.grad, o.name, o.url, o.note, o.dash]);
+  }
 
-  var need = _LINK_HEADERS_.length;
   if (sh.getMaxColumns() < need) sh.insertColumnsAfter(sh.getMaxColumns(), need - sh.getMaxColumns());
   var data = [_LINK_HEADERS_].concat(out);
   sh.getRange(1, 1, data.length, need).setValues(data);
@@ -2373,17 +2450,18 @@ function _migrateLinksTab_(sh) {
 }
 
 /* Every link row, in full, for the dialog and for the page. Format-robust: it reads a tab in the
-   current shape, one an earlier version wrote, or one left half-migrated (see _readLinkRow_). */
+   current shape, one an earlier version wrote, or one left half-migrated (see _readLinkRow_), and it
+   reads an address however the cell holds it (see _cellUrl_) — a smart chip included. */
 function _teacherLinksRaw_() {
   var sh = _ss_().getSheetByName(T_LINKS);
   if (!sh || sh.getLastRow() < 2) return [];
   var last = sh.getLastRow(), wide = sh.getLastColumn();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
-  var vals = sh.getRange(2, 1, last - 1, wide).getValues();
+  var grid = _linkGrid_(sh, 2, last - 1, wide);
   var out = [];
-  vals.forEach(function (r, i) {
-    var o = _readLinkRow_(r, kHead, i + 2, dHead);
+  grid.values.forEach(function (r, i) {
+    var o = _readLinkRow_(r, kHead, i + 2, dHead, grid.urls[i]);
     if (o) out.push(o);
   });
   return out;
