@@ -2208,13 +2208,21 @@ function _ownTest_(d) {
   var dom = _schoolDomain_();
   if (dom && !_inDomain_(who.email, dom))
     return _json_({ ok: false, why: 'not a school account', email: who.email, domain: dom });
-  var email = _cleanEmail_(who.email);
-  var now = Date.now(), best = null;
-  _testSheetIds_().forEach(function (id) {
-    var mine = _testFor_(_testSnapshot_(id), email, now);
-    if (mine && (!best || _testBefore_(mine, best))) best = mine;
+  var email = _cleanEmail_(who.email), teacher = _isTeacher_(email);
+  var now = Date.now(), best = null, why = [];
+  var ids = _testSheetIds_();
+  if (!ids.length) why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
+  ids.forEach(function (id) {
+    var snap = _testSnapshot_(id);
+    if (!snap || snap.fail) { why.push((snap && snap.fail) || 'a Test spreadsheet could not be read'); return; }
+    var mine = _testFor_(snap, email, now);
+    if (!mine) { why.push('\u201c' + snap.title + '\u201d does not list ' + email + ' on any of its Marks tabs'); return; }
+    if (!best || _testBefore_(mine, best)) best = mine;
   });
-  var out = { ok: true, teacher: _isTeacher_(email), state: best ? best.state : 'none' };
+  var out = { ok: true, teacher: teacher, state: best ? best.state : 'none' };
+  /* A teacher testing the banner is told WHY nothing shows — a guess sends them to fix the wrong
+     thing. A pupil is never told: the reasons name spreadsheets and the roster. */
+  if (teacher && !best && why.length) out.why = why.slice(0, 3);
   if (best) {
     out.name = best.name; out.opensAt = best.opensAt; out.closesAt = best.closesAt;
     /* The way in only once it is OPEN. The page shows no link before then, but hiding it there is
@@ -2238,7 +2246,9 @@ function _testSheetIds_() {
     if (_typeClass_(l.type) !== 'test') return;
     var co = _cohortLabel_(l.grad);
     if (co && !co.yearGroup) return;                              /* a cohort no longer in school */
-    var m = String(l.url).match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/);
+    /* every shape Google writes a Sheet's address in: signed in to two accounts it is
+       …/spreadsheets/u/1/d/<id>/…, and a Workspace link can read …/a/<school>/spreadsheets/d/<id>/… */
+    var m = String(l.url).match(/^https:\/\/docs\.google\.com\/(?:a\/[^\/]+\/)?spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/);
     if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
   });
   return ids;
@@ -2249,29 +2259,32 @@ function _testSheetIds_() {
    shared, limited pool. So a submission or an override reaches the banner within a minute, not at
    once — the test's own page is always exact. null = not a test system (or unreadable). */
 function _testSnapshot_(id) {
-  var key = 'tsnap2:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes */
+  var key = 'tsnap3:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes */
   try { cache = CacheService.getScriptCache(); hit = cache.get(key); } catch (e) {}
   if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} }
   var snap = null;
   try { snap = _readTestSnapshot_(id); } catch (e) { snap = null; }
-  if (cache) {
-    try { var s = snap ? JSON.stringify(snap) : '-'; if (s.length < 95000) cache.put(key, s, TEST_SNAP_SECONDS); } catch (e) {}
+  if (cache) {   /* a failure is kept 10 s, not a minute, so fixing it shows almost at once */
+    try { var s = snap ? JSON.stringify(snap) : '-'; if (s.length < 95000) cache.put(key, s, snap && !snap.fail ? TEST_SNAP_SECONDS : 10); } catch (e) {}
   }
   return snap;
 }
 
 function _readTestSnapshot_(id) {
   var wb;
-  try { wb = SpreadsheetApp.openById(id); } catch (e) { return null; }
+  try { wb = SpreadsheetApp.openById(id); }
+  catch (e) { return { fail: 'the hub cannot open one of the Test spreadsheets \u2014 share it with the account this script runs as (Viewer is enough)' }; }
+  var title = ''; try { title = String(wb.getName() || ''); } catch (e) {}
   var tab = wb.getSheetByName(T_HUB_SCHEDULE);
-  if (!tab) return null;
+  if (!tab) return { fail: '\u201c' + title + '\u201d has no \u23f0 Hub schedule tab \u2014 paste the new test-system code, then open that spreadsheet once' };
   var mirror = null;
   var head = tab.getRange(1, 1, Math.min(Math.max(tab.getLastRow(), 1), 12), 2).getValues();
   for (var i = 0; i < head.length; i++)
     if (String(head[i][0]).trim() === HUB_SCHEDULE_KEY) { try { mirror = JSON.parse(String(head[i][1])); } catch (e) {} }
-  if (!mirror || mirror.v !== 1 || !mirror.versions || !mirror.marks) return null;
+  if (!mirror || mirror.v !== 1 || !mirror.versions || !mirror.marks ||
+      !(mirror.marks.email > 0) || !(mirror.marks.cls > 0) || !(mirror.marks.dataStart > 0))
+    return { fail: '\u201c' + title + '\u201d: its \u23f0 Hub schedule tab cannot be read \u2014 open that spreadsheet once to rewrite it' };
   var M = mirror.marks;
-  if (!(M.email > 0) || !(M.cls > 0) || !(M.dataStart > 0)) return null;
 
   /* The way in comes out of a cell, so it is only ever accepted as a Google Apps Script web app. */
   var url = String(mirror.formUrl || '').replace(/[?#].*$/, '');
@@ -2319,7 +2332,7 @@ function _readTestSnapshot_(id) {
                     releaseAt: String(e.releaseAt || ''), lockoutAt: String(e.lockoutAt || ''),
                     classes: (e.classes && typeof e.classes === 'object') ? e.classes : {} };
   });
-  return { url: url, activeId: String(mirror.activeId || ''), timerMode: String(mirror.timerMode || ''),
+  return { title: title, url: url, activeId: String(mirror.activeId || ''), timerMode: String(mirror.timerMode || ''),
            timeLimitMinutes: Number(mirror.timeLimitMinutes) || 90,
            versions: versions, seats: seats, live: live, done: done };
 }
@@ -2350,7 +2363,7 @@ function _eachRow_(sh, names, fn) {
 
 /* This person's test in one snapshot, or null if they have no seat there. */
 function _testFor_(snap, email, now) {
-  if (!snap || !snap.seats) return null;
+  if (!snap || snap.fail || !snap.seats) return null;
   var seat = snap.seats[email];
   if (!seat) return null;
   var e = snap.versions[seat.v] || snap.versions[''];                /* copies _resolveAssessmentForStudent_'s fallback */

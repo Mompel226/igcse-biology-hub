@@ -932,7 +932,9 @@
           j.state === 'done'   ? 'Test mode \u00b7 You have handed in ' + (j.name || 'your test') + ', so no test shows here.' :
           j.state === 'closed' ? 'Test mode \u00b7 ' + (j.name || 'Your test') + ' has closed, so no test shows here.' :
           j.state === 'waiting' ? 'Test mode \u00b7 ' + (j.name || 'Your test') + ' has no start time yet, so no test shows here. Set one, or press \u23f0 Start now in its dashboard.' :
-          'Test mode \u00b7 No test shows here. To see one, add yourself to the \u201cMarks \u00b7 Test\u201d tab of a test that opens later or is open now.';
+          (j.why && j.why.length
+            ? 'Test mode \u00b7 No test shows here: ' + j.why[0] + (j.why.length > 1 ? ' \u00b7 and ' + (j.why.length - 1) + ' more' : '') + '.'
+            : 'Test mode \u00b7 No test shows here. To see one, add yourself to the \u201cMarks \u00b7 Test\u201d tab of a test that opens later or is open now.');
         sitNote.hidden = false;
       }
     }
