@@ -176,7 +176,14 @@
 
     // links, grouped by cohort (graduation year); Records and no-year at the ends
     var ll = $('linkList');
-    if(!d.links.length){ ll.innerHTML='<div class="empty">No spreadsheets yet.</div>'; }
+    var un = d.unreadable || [];
+    var unHtml = un.length ? '<div class="cat">Cannot be read — the Link is a smart chip</div>' + un.map(function(u){
+      return '<div class="item"><span class="tag tag--other">'+esc(u.type||'?')+'</span>'+
+             '<div class="g"><div class="t">'+esc(u.name)+'</div>'+
+             '<div class="s">'+(u.shown?'The Link shows “'+esc(u.shown)+'”. ':'')+'Replace the chip with the spreadsheet’s plain address — or remove this row and add it again below, which always saves a plain address.</div></div>'+
+             '<button class="x" data-rml="'+u.row+'">Remove</button></div>';
+    }).join('') : '';
+    if(!d.links.length){ ll.innerHTML = unHtml || '<div class="empty">No spreadsheets yet.</div>'; }
     else {
       var order=[], by={}, keyOf=function(l){
         if(/^records?$/i.test(l.type)) return {k:'!records', label:'Records', sort:-1};
@@ -195,7 +202,7 @@
                  (l.dash?' · <a href="'+esc(l.dash)+'" target="_blank" rel="noopener">dashboard ↗</a>':'')+'</div></div>'+
                  '<button class="x" data-rml="'+l.row+'">Remove</button></div>';
         }).join('');
-      }).join('');
+      }).join('') + unHtml;
     }
   }
 

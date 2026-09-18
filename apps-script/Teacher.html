@@ -465,8 +465,16 @@ var BOOT = __BOOT__;
       '<a class="open" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+(l.dash?'Spreadsheet':'Open')+'</a></div></div>';
   }
   function vSpreadsheets(g){
+    /* Rows whose Link this page cannot read — in practice a smart chip, which shows the file's name and
+       hides its address — are named here, rather than silently left out or opened at the wrong place. */
+    var un = (g && g.unreadable) || [];
+    var warn = un.length ? '<div class="warn">'+(un.length===1?'1 row is':un.length+' rows are')+' not shown: '+
+      un.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', ')+'. '+
+      (un.length===1?'Its Link is a smart chip':'Their Links are smart chips')+
+      ' — the file’s name, with the address hidden inside where this page cannot read it. In 🔗 Teacher links, replace '+
+      (un.length===1?'it':'each')+' with the spreadsheet’s plain address, and don’t let Sheets turn it back into a chip.</div>' : '';
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
-      return $('view').innerHTML = '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
+      return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
     var present={}, body='';
     if (g.records.length) body += '<section class="grp" data-cur="1"><div class="coh"><span class="coh__t">Records</span><span class="n">'+g.records.length+'</span></div>'+
       '<div class="cards">'+g.records.map(function(l){ present.records=1; return linkCard(l,'records','records'); }).join('')+'</div></section>';
@@ -487,7 +495,7 @@ var BOOT = __BOOT__;
       [['reflection','Reflection'],['test','Test'],['survey','Survey'],['records','Records'],['other','Other']]
       .filter(function(p){return present[p[0]];})
       .map(function(p){ return '<button class="chip'+(sState.f===p[0]?' on':'')+'" data-f="'+p[0]+'">'+p[1]+'</button>'; }).join('');
-    $('view').innerHTML =
+    $('view').innerHTML = warn +
       '<div class="bar2"><div class="fld fld--grow"><label for="sq">Find</label><input id="sq" type="search" placeholder="a spreadsheet…" value="'+esc(sState.q)+'"></div>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+chips+'</div>'+
       '<label class="ck"><input type="checkbox" id="sonly"'+(sState.only?' checked':'')+'><span>Only current cohorts</span></label></div>'+

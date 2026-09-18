@@ -891,17 +891,31 @@
       if (dd === 1) return 'tomorrow at ' + hm;
       return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' at ' + hm;
     }
+    /* A teacher in test mode is never left looking at an empty space: while the hub is asked they see
+       that it is being checked (after a quiet spell the script can take several seconds to wake), and
+       if the check fails they are told so. A pupil sees nothing either way — the banner is a shortcut,
+       never the only way in. */
+    function sitSay(text) { sitHide(); if (sitNote) { sitNote.textContent = text; sitNote.hidden = false; } }
+    function sitTesting() { return !!(teacher && mode() === 'test'); }
     function sitAsk(who) {
       if (!sitEl || !URL_ || !who || !who.token) return;
+      if (sitTesting() && sitEl.hidden) sitSay('Test mode \u00b7 Checking your tests\u2026');
+      var failed = function () {
+        if (!acting || acting.email !== who.email) return;
+        sitLast = null;
+        if (sitTesting()) sitSay('Test mode \u00b7 The hub could not check your tests just now \u2014 reload the page to try again.');
+        else sitHide();
+      };
       fetch(URL_, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action: 'test', token: who.token }) })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           if (!acting || acting.email !== who.email) return;   /* signed out, or somebody else, meanwhile */
-          sitLast = (j && j.ok) ? j : null;
+          if (!j || !j.ok) return failed();
+          sitLast = j;
           sitDraw();
         })
-        .catch(function () {});   /* a failed check shows nothing: the banner is a shortcut, never the only way in */
+        .catch(failed);
     }
     function sitDraw() {
       sitHide();
