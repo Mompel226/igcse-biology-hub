@@ -139,6 +139,8 @@ window.HUB = {
     { door:'Plants',        text:'marram-grass leaf, Berkshire Community College',        licence:'CC0',
       url:'https://commons.wikimedia.org/wiki/File:Ammophila_arenaria_leaf_cross_section.jpg' },
     { door:'Life on Earth', text:'Champagne vent, NW Eifuku — Submarine Ring of Fire 2014, NOAA/PMEL, NSF', licence:'public domain',
-      url:'https://archive.oceanexplorer.noaa.gov/explorations/14fire/background/missionplan/media/eifuku_champagne_vent.html' }
+      url:'https://archive.oceanexplorer.noaa.gov/explorations/14fire/background/missionplan/media/eifuku_champagne_vent.html' },
+    { door:'Sit a test',    text:'a stoma on a tomato leaf, Dartmouth Electron Microscope Facility', licence:'public domain, shown as a duotone',
+      url:'https://commons.wikimedia.org/wiki/File:Tomato_leaf_stomate_1.jpg' }
   ]
 };

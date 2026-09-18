@@ -368,6 +368,36 @@ a fallback, but the window is the easy way.)
 
 ---
 
+## 🧪 "Sit a test" — a banner for a test that is coming or open
+
+<details>
+<summary><b>How a student finds their test, and when it opens</b></summary>
+
+Under the credit on the front page, a signed-in student sees one amber banner while they have a test
+that **opens later** (*"Opens today at 09:00. The link appears here when it opens."* — no link yet) or
+is **open now** (a live dot and **Sit the test →**). Nobody else sees anything. It opens the test in
+the same tab, on purpose: the test counts every time a student leaves its tab.
+
+It needs three things:
+
+1. **The Test System, from 18 Sep 2026 on** — its `Code.gs` and `2_TestPlatform.gs`. It then keeps a
+   **⏰ Hub schedule** tab in its own spreadsheet, rewritten whenever a start or close time, the
+   active test or its web-app address changes, and each time the spreadsheet is opened. The times on
+   the banner are worked out by the test system's own rules — class windows, personal overrides,
+   extra time — so they always agree with what the test itself will do.
+2. **A row in 🔗 Teacher links** with Type **Test** whose **Link is that test spreadsheet** (typed, or
+   pasted as a chip — both are read).
+3. **This script redeployed** (✏️ pencil ▸ New version) — both deployments, the labs endpoint that
+   answers the banner and the teacher page.
+
+A teacher sees exactly what a student would, in **test mode**, once they are on the test's
+**Marks · Test** tab (the test system's 🧑‍🏫 Set up Teacher Test tab); in teacher mode it stays hidden.
+
+What it is told is only that person's own: whether they have a test, its name, when it opens and
+closes for *them*, and the way in — which is accepted only if it is a Google Apps Script web app.
+Never a class's times, anyone else's, or a single question.
+</details>
+
 ## 🗂️ Once it is running — what you actually do
 
 <details>
