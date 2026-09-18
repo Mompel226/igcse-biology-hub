@@ -471,8 +471,10 @@ var BOOT = __BOOT__;
     var warn = un.length ? '<div class="warn">'+(un.length===1?'1 row is':un.length+' rows are')+' not shown: '+
       un.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', ')+'. '+
       (un.length===1?'Its Link is a smart chip':'Their Links are smart chips')+
-      ' — the file’s name, with the address hidden inside where this page cannot read it. In 🔗 Teacher links, replace '+
-      (un.length===1?'it':'each')+' with the spreadsheet’s plain address, and don’t let Sheets turn it back into a chip.</div>' : '';
+      (g.chipsOn
+        ? ', and Google did not give the address inside. In 🔗 Teacher links, replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.'
+        : '. This page reads chips once the Google Sheets API is switched on in the labs spreadsheet’s script — in the Apps Script editor: Services ▸ + ▸ Google Sheets API ▸ Add. Or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.')+
+      '</div>' : '';
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
       return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
     var present={}, body='';

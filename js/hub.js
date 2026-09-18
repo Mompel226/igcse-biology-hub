@@ -897,8 +897,15 @@
        never the only way in. */
     function sitSay(text) { sitHide(); if (sitNote) { sitNote.textContent = text; sitNote.hidden = false; } }
     function sitTesting() { return !!(teacher && mode() === 'test'); }
+    var sitAskedAt = 0;
+    /* Coming back to this tab after a while (the dashboard or a spreadsheet was open in another)
+       asks again, so what changed there shows here without signing out and in. */
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && acting && Date.now() - sitAskedAt > 20000) sitAsk(acting);
+    });
     function sitAsk(who) {
       if (!sitEl || !URL_ || !who || !who.token) return;
+      sitAskedAt = Date.now();
       if (sitTesting() && sitEl.hidden) sitSay('Test mode \u00b7 Checking your tests\u2026');
       var failed = function () {
         if (!acting || acting.email !== who.email) return;
@@ -997,7 +1004,9 @@
       try { localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); } catch (e2) {}
       footer(true);
       if (last && acting) render(last.who, last.j);
-      sitDraw();
+      /* ask again rather than redraw the last answer: a teacher switches mode to SEE the test as it
+         is now — after changing a time or a row — not as it was when they signed in */
+      if (acting) sitAsk(acting); else sitDraw();
     });
     if (outBtn) outBtn.addEventListener('click', function () {
       SI.out();                   /* the listener below puts the corner back */

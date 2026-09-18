@@ -180,7 +180,9 @@
     var unHtml = un.length ? '<div class="cat">Cannot be read — the Link is a smart chip</div>' + un.map(function(u){
       return '<div class="item"><span class="tag tag--other">'+esc(u.type||'?')+'</span>'+
              '<div class="g"><div class="t">'+esc(u.name)+'</div>'+
-             '<div class="s">'+(u.shown?'The Link shows “'+esc(u.shown)+'”. ':'')+'Replace the chip with the spreadsheet’s plain address — or remove this row and add it again below, which always saves a plain address.</div></div>'+
+             '<div class="s">'+(u.shown?'The Link shows “'+esc(u.shown)+'”. ':'')+
+             (d.chipsOn ? 'Google did not give the address inside it: replace the chip with the spreadsheet’s plain address.'
+                        : 'Chips are read once the Google Sheets API is switched on in this script (Apps Script editor: Services ▸ + ▸ Google Sheets API ▸ Add). Or remove this row and add it again below, which saves a plain address.')+'</div></div>'+
              '<button class="x" data-rml="'+u.row+'">Remove</button></div>';
     }).join('') : '';
     if(!d.links.length){ ll.innerHTML = unHtml || '<div class="empty">No spreadsheets yet.</div>'; }
