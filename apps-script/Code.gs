@@ -2211,7 +2211,14 @@ function _ownTest_(d) {
   var email = _cleanEmail_(who.email), teacher = _isTeacher_(email);
   var now = Date.now(), best = null, why = [];
   var ids = _testSheetIds_();
-  if (!ids.length) why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
+  if (!ids.length) {
+    var chips = [];
+    try { chips = _teacherLinksScan_().unreadable.filter(function (u) { return _typeClass_(u.type) === 'test'; }); } catch (e) {}
+    if (chips.length) why.push('the Link of \u201c' + chips[0].name + '\u201d in \ud83d\udd17 Teacher links is a smart chip' +
+                               (chips[0].shown ? ' (\u201c' + chips[0].shown + '\u201d)' : '') +
+                               ', which the hub cannot read \u2014 replace it with the spreadsheet\u2019s plain address');
+    else why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
+  }
   ids.forEach(function (id) {
     var snap = _testSnapshot_(id);
     if (!snap || snap.fail) { why.push((snap && snap.fail) || 'a Test spreadsheet could not be read'); return; }
@@ -2578,9 +2585,12 @@ function _linkColDefs_() {
 /* The address a cell holds, however Sheets is keeping it. Four ways, all met in practice:
      typed or pasted as text         the value IS the address
      a link put on some text         Insert ▸ Link: the value is the words, the address is the link
-     a smart chip                    paste a Drive link and Sheets offers to turn it into a chip; the
-                                     VALUE is then the file's own name and the address lives only in
-                                     the link, so reading values alone finds no address at all
+     a smart chip                    NOT READABLE HERE. Paste a Drive link and Sheets offers to turn it
+                                     into a chip; the value is then only the file's name, and neither
+                                     getValues nor getRichTextValues ever returns the address (the
+                                     Sheets API's chipRuns does, but only with Drive permission, which
+                                     this script does not ask for). Such a row is reported by
+                                     _teacherLinksScan_, not silently dropped.
      =HYPERLINK("address", "label")  the value is the label, the address is in the formula
    `rich` is the cell's RichTextValue (null for a number or a date); `formula` its formula, or ''. */
 function _cellUrl_(value, rich, formula) {
@@ -2633,7 +2643,10 @@ function _readLinkRow_(r, kHead, rowNum, dHead, urls) {
   urls = urls || r;
   var isUrl = function (x) { return /^https:\/\//i.test(String(x || '').trim()); };
   var k = (kHead >= 0 && isUrl(urls[kHead])) ? kHead : -1;
-  if (k < 0) for (var i = 0; i < urls.length; i++) if (isUrl(urls[i])) { k = i; break; }
+  /* Never the Dashboard column. When the Link is a smart chip (see _cellUrl_: a chip's address
+     cannot be read), the first address left in the row IS the dashboard — taking it made "Open"
+     go to the students' form and, being the wrong column, lost the row's graduation year. */
+  if (k < 0) for (var i = 0; i < urls.length; i++) if (i !== dHead && isUrl(urls[i])) { k = i; break; }
   if (k < 0) return null;
   var url = String(urls[k]).trim();
   if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) return null;
@@ -2727,19 +2740,28 @@ function _migrateLinksTab_(sh) {
 /* Every link row, in full, for the dialog and for the page. Format-robust: it reads a tab in the
    current shape, one an earlier version wrote, or one left half-migrated (see _readLinkRow_), and it
    reads an address however the cell holds it (see _cellUrl_) — a smart chip included. */
-function _teacherLinksRaw_() {
+function _teacherLinksRaw_() { return _teacherLinksScan_().rows; }
+
+/* The rows it can read, and the rows it cannot — a row with something in it but no address this
+   script can see, which in practice is a smart chip in the Link column. Those are named back to
+   the teacher (the page, the dialog, test mode) instead of disappearing or being misread. */
+function _teacherLinksScan_() {
   var sh = _ss_().getSheetByName(T_LINKS);
-  if (!sh || sh.getLastRow() < 2) return [];
+  if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [] };
   var last = sh.getLastRow(), wide = sh.getLastColumn();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
   var grid = _linkGrid_(sh, 2, last - 1, wide);
-  var out = [];
+  var rows = [], unreadable = [];
   grid.values.forEach(function (r, i) {
     var o = _readLinkRow_(r, kHead, i + 2, dHead, grid.urls[i]);
-    if (o) out.push(o);
+    if (o) { rows.push(o); return; }
+    if (!r.some(function (c) { return String(c == null ? '' : c).trim() !== ''; })) return;   /* a blank row */
+    unreadable.push({ row: i + 2, type: String(r[0] || '').trim(),
+                      name: String(r[3] || r[1] || '').trim() || 'a row',
+                      shown: kHead >= 0 ? String(r[kHead] == null ? '' : r[kHead]).trim() : '' });
   });
-  return out;
+  return { rows: rows, unreadable: unreadable };
 }
 
 /* The cohort a spreadsheet belongs to, named by the year it graduates — the stable handle, because
@@ -2769,7 +2791,7 @@ function _cohortLabel_(grad, now) {
    with no graduation year that is not a record falls into a plain "No graduation year" group at the
    end, so nothing is ever lost. */
 function _teacherPageGroups_(now) {
-  var raw = _teacherLinksRaw_();
+  var scan = _teacherLinksScan_(), raw = scan.rows;
   var records = [], cohorts = {}, order = [], loose = [];
   raw.forEach(function (l) {
     var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
@@ -2790,7 +2812,7 @@ function _teacherPageGroups_(now) {
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
   var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
-  var out = { records: records, cohorts: order.map(function (g) {
+  var out = { unreadable: scan.unreadable, records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
     c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
@@ -3427,6 +3449,7 @@ function teacherPanelData() {
     hubUrl: String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim(),
     hubLive: !!_hubUrl_(),
     teachers: teachers,
+    unreadable: _teacherLinksScan_().unreadable,
     links: _teacherLinksRaw_().map(function (l) {
       var co = _cohortLabel_(l.grad);
       l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;
