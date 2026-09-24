@@ -682,7 +682,7 @@ body[data-view="entry"] .lede{max-width:70ch}
    — Bio English Lab, Write-Up Lab, and (signed in) the student's own assessments. The hero keeps
    its share when one of the small doors is lit: the row beneath moves, the front row breathes. */
 .doors--top{flex:none;min-height:0}
-.doors--top>.door--hero{flex:3 1 0;min-width:0}
+.doors--top>.door--hero{flex:2.4 1 0;min-width:0}   /* a little under half: the small doors' subtitles fit on one line */
 .doors--top>.door--top,.doors--top>.door--mine{flex:1 1 0;min-width:0}
 /* The three small front-row doors line up whatever wraps: each block of words reserves the same
    space (a two-line title, a two-line subtitle, a one-line eyebrow and foot) and sits at the
@@ -691,13 +691,16 @@ body[data-view="entry"] .lede{max-width:70ch}
 @media (min-width:901px){
   .doors--top>.door--top .door__no,.doors--top>.door--mine .door__no{white-space:nowrap}
   .doors--top>.door--top .door__title,.doors--top>.door--mine .door__title{font-size:clamp(20px,1.55vw,30px);min-height:2.35em;display:grid;align-content:end}
-  .doors--top>.door--top .door__sub,.doors--top>.door--mine .door__sub{min-height:2.6em;display:grid;align-content:end}
+  .doors--top>.door--top .door__sub,.doors--top>.door--mine .door__sub{font-size:clamp(14px,1.15vw,19px);min-height:2.6em;display:grid;align-content:end}
   /* the foot is ONE line whatever the width: the detail gives way (…) before the link is pushed to a
      second line, which is what lifted the student's door a line above its neighbours on a laptop */
   .doors--top>.door--top .door__foot,.doors--top>.door--mine .door__foot{flex-wrap:nowrap;align-items:baseline;gap:10px}
   .doors--top>.door--top .door__detail,.doors--top>.door--mine .door__detail{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .doors--top>.door--top .door__go,.doors--top>.door--mine .door__go{flex:none;white-space:nowrap}
-  .doors--top>.door--hero.is-on{flex-grow:3.6}
+  /* at rest the invisible Open link still took its width and cut the detail short ("1,770 ques…");
+     it appears when the door is lit and wider, and the whole tile is the link anyway */
+  .doors--top>.door--top .door__go,.doors--top>.door--mine .door__go{display:none;flex:none;white-space:nowrap}
+  .doors--top>.door--top.is-on .door__go,.doors--top>.door--mine.is-on .door__go{display:inline-block}
+  .doors--top>.door--hero.is-on{flex-grow:3}
   .doors--top>.door--top.is-on,.doors--top>.door--mine.is-on{flex-grow:1.8}
   .doors--top>.door--top,.doors--top>.door--mine{min-height:clamp(280px,36vh,460px)}
 }
