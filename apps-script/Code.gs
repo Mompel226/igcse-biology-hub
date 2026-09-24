@@ -55,6 +55,11 @@
    different Sheet. */
 var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 
+/* What edition of this script is deployed: shown by the health check (open the /exec address in
+   a browser). Change the date when the script changes in a way a teacher should be able to
+   confirm has reached the deployment. */
+var SCRIPT_EDITION = '25 Sep 2026 — the labs save on their own';
+
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
    create one, see "Signing in" further down, or the README. Empty = nothing is recorded (the labs
@@ -516,7 +521,9 @@ function doGet(e) {
       page === 'english') {
     return _teacherAppPage_(page);
   }
-  return _text_('Biology Labs endpoint is running.');
+  /* The health check names the script's edition, so a paste can be confirmed from outside
+     without signing in: open the /exec address and read the line. */
+  return _text_('Biology Labs endpoint is running · ' + SCRIPT_EDITION);
 }
 
 
