@@ -223,7 +223,8 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .lab{border:1px solid var(--line);border-radius:11px;background:var(--cardhi);overflow:hidden}
 .lab__h{display:flex;align-items:center;gap:11px;padding:11px 13px;cursor:pointer;user-select:none}
 .lab__h:hover{background:rgba(150,190,215,.05)}
-.car{color:var(--mute);transition:transform .18s;flex:none}.lab.open .car{transform:rotate(90deg)}
+.car{color:var(--mute);transition:transform .18s;flex:none}/* not .open: that is the Open-link button above, and it turned an expanded lab into a pill */
+.lab.is-open .car{transform:rotate(90deg)}
 .lab__n{font-weight:600;font-size:14px;color:var(--chalk)}
 .lab__t{font:500 9.5px/1 var(--mono);color:var(--mute);text-transform:uppercase}
 .lab__c{margin-left:auto;font:600 9.5px/1 var(--mono);color:var(--mute)}.lab__c.on{color:var(--accent)}
@@ -263,6 +264,12 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .acts{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
 .gone{margin-top:9px;font-size:12.5px;color:#F6D08A}
 .churn{font:500 10.5px/1 var(--mono);color:var(--warn);margin-left:8px}
+/* Bio English */
+.yrs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
+.hmcard{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;margin-top:14px}
+.hm thead th.en{width:84px;min-width:84px}
+.hm thead th.en .lt{font:500 9px/1.2 var(--mono);color:var(--mute);display:block;margin-top:3px;text-transform:uppercase}
+.hm thead th.sum{color:var(--chalk);background:color-mix(in srgb,var(--accent) 12%,var(--cardhi))}
 @media (max-width:700px){.who{margin-left:0}.bars{width:100%}.size__h{margin-left:0;text-align:left}.hw__h{flex-wrap:wrap}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -320,10 +327,13 @@ var BOOT = __BOOT__;
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
       note:'Opening a tracker signs you in as yourself; it shows that pupil’s page because you are their teacher.' },
     homework:{ label:'Set homework', accent:'#F5A623', h1:'Set <em>homework</em>',
-      lede:'Pick the parts of a lab you have taught, say who they are for and when they are due.',
-      note:'Nothing here changes a mark. Completion is worked out from the labs the students have handed in, every time this page opens.' }
+      lede:'Pick what you have taught — lab stations, Bio English sets or both — say who it is for and when it is due.',
+      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab, every time this page opens.' },
+    english:{ label:'Bio English', accent:'#62D38A', h1:'Bio <em>English</em>',
+      lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
+      note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' }
   };
-  var ORDER = ['teachers','progress','students','homework'];
+  var ORDER = ['teachers','progress','english','students','homework'];
   var cache = {}, stamp = {}, cur = null, inflight = {}, prefetched = false;
   /* Cookies would be the wrong tool — they cap at about 4KB and the Lab-progress payload is
      hundreds. sessionStorage holds megabytes, is per-tab, and dies with the window, which is
@@ -444,6 +454,7 @@ var BOOT = __BOOT__;
     if (cur==='progress') return window.vProgress(r.data);
     if (cur==='students') return vStudents(r.data, r.trackerBase);
     if (cur==='homework') return window.vHomework(r.data);
+    if (cur==='english') return window.vEnglish(r.data);
   }
 
   /* ─────────── Spreadsheets ─────────── */
@@ -958,14 +969,122 @@ var BOOT = __BOOT__;
     paint();
   };
 
+  /* ─────────────────────── Bio English ─────────────────────── */
+  /* Every pupil of one year against the Bio English Lab sets of that year: how much of each set
+     they have answered and, on hover, how much was right first time. A set not opened is a dot. */
+  var eState = { yr:'', cls:'all', unit:'all', q:'' }, eTimer = null;
+  var EN_KIND = { kw:'Keywords', describe:'Describe', explain:'Explain', plan:'Plan', method:'How to' };
+  window.vEnglish = function(D){
+    var EN = D.english, STUD = D.students||[], PROG = D.progress||{};
+    if (!EN) return $('view').innerHTML = '<div class="warn">The list of Bio English Lab sets could not be read from the site just now, so there is nothing to show. Try Refresh in a minute.</div>';
+    if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
+    function yearOf(c){ var m=String(c||'').match(/\d+/); return m?m[0]:''; }
+    var YRS = (EN.years||[]).map(function(y){ return String(y.y); });
+    if (YRS.indexOf(eState.yr)<0) {            /* start on the year with the most pupils */
+      var cnt={}; STUD.forEach(function(s){ var y=yearOf(s.cls); cnt[y]=(cnt[y]||0)+1; });
+      eState.yr = YRS.slice().sort(function(a,b){ return (cnt[b]||0)-(cnt[a]||0); })[0] || '';
+    }
+    var year = (EN.years||[]).filter(function(y){ return String(y.y)===eState.yr; })[0] || { units:[] };
+    var units = (year.units||[]).filter(function(u){ return EN.units[u]; });
+    if (eState.unit!=='all' && eState.unit!=='how' && units.indexOf(eState.unit)<0) eState.unit='all';
+    var bySet = {}; (EN.sets||[]).forEach(function(s){ bySet[s.id]=s; });
+    var cols = [];
+    if (eState.unit==='all' || eState.unit==='how') (EN.sets||[]).forEach(function(s){ if(!s.unit) cols.push(s); });
+    if (eState.unit!=='how') (eState.unit==='all'?units:[eState.unit]).forEach(function(u){
+      (EN.units[u].sets||[]).forEach(function(id){ if(bySet[id]) cols.push(bySet[id]); }); });
+    var pool = STUD.filter(function(s){ return yearOf(s.cls)===eState.yr; });
+    var cset = {}; pool.forEach(function(s){ if(s.cls) cset[s.cls]=1; });
+    var classes = Object.keys(cset).sort(cmpClass);
+    if (eState.cls!=='all' && classes.indexOf(eState.cls)<0) eState.cls='all';
+    $('view').innerHTML =
+      '<div class="bar2"><div class="fld"><label for="ey">Year</label><select id="ey">'+
+      (EN.years||[]).map(function(y){ var k=String(y.y); return '<option value="'+esc(k)+'"'+(k===eState.yr?' selected':'')+'>'+esc(y.title||('Year '+k))+'</option>'; }).join('')+
+      '</select></div><div class="fld"><label for="ec">Class</label><select id="ec"><option value="all">All classes</option>'+
+      classes.map(function(c){ return '<option value="'+esc(c)+'"'+(c===eState.cls?' selected':'')+'>'+esc(c)+'</option>'; }).join('')+
+      '</select></div><div class="fld"><label for="eu">Topic</label><select id="eu"><option value="all">Every topic</option>'+
+      '<option value="how"'+(eState.unit==='how'?' selected':'')+'>How to answer</option>'+
+      units.map(function(u){ var U=EN.units[u]; return '<option value="'+esc(u)+'"'+(u===eState.unit?' selected':'')+'>'+esc('Topic '+U.n+' · '+U.title)+'</option>'; }).join('')+
+      '</select></div><div class="fld fld--grow"><label for="eq">Find a student</label><input id="eq" type="search" placeholder="name or class" value="'+esc(eState.q)+'"></div></div>'+
+      '<div id="elist"></div>';
+    $('ey').addEventListener('change', function(){ eState.yr=this.value; eState.cls='all'; eState.unit='all'; window.vEnglish(D); });
+    $('ec').addEventListener('change', function(){ eState.cls=this.value; paint(); });
+    $('eu').addEventListener('change', function(){ eState.unit=this.value; window.vEnglish(D); });
+    $('eq').addEventListener('input', function(){ eState.q=this.value; clearTimeout(eTimer); eTimer=setTimeout(paint,150); });
+    function box(d, t, f){
+      if (d<0 || !t) return '<div class="cbox none" data-tip="Not opened yet">·</div>';
+      var p=100*d/t, hh=heat(p);
+      return '<div class="cbox'+(d>=t?' done':'')+'" style="background:'+hh.bg+';border-color:'+hh.bd+';color:'+hh.fg+'" data-tip="'+
+        esc(d+' of '+t+' answered · '+f+' right first time'+(d?' ('+r0(100*f/d)+'%)':''))+'">'+r0(p)+'%</div>';
+    }
+    function paint(){
+      var q=eState.q.trim().toLowerCase();
+      var list=pool.filter(function(s){ return (eState.cls==='all'||s.cls===eState.cls) &&
+        (!q||((s.name||'')+' '+(s.cls||'')).toLowerCase().indexOf(q)>=0); });
+      if (!cols.length) return $('elist').innerHTML='<div class="empty">No Bio English sets for this year yet.</div>';
+      if (!list.length) return $('elist').innerHTML='<div class="empty">Nobody matches.</div>';
+      var head='<tr><th class="cnr">Student</th>'+
+        '<th class="en sum" data-tip="Keyword questions answered, out of all the keyword questions in the sets shown">Vocabulary<span class="lt">keywords</span></th>'+
+        '<th class="en sum" data-tip="Describe, explain, plan and how-to-answer questions answered, out of all those in the sets shown">Writing<span class="lt">answers</span></th>'+
+        cols.map(function(c){ var U=c.unit?EN.units[c.unit]:null;
+          return '<th class="en" data-tip="'+esc((U?'Topic '+U.n+' · ':'')+c.title+' · '+c.total+' questions')+'">'+
+            esc(U?'T'+U.n:'How to')+'<span class="lt">'+esc(EN_KIND[c.kind]||c.kind||'')+'</span></th>'; }).join('')+'</tr>';
+      var rows=list.map(function(s){
+        var g=(PROG[s.email]||{}).sets||{}, vd=0,vt=0,vf=0,wd=0,wt=0,wf=0;
+        var cells=cols.map(function(c){ var x=g[c.id], d=x?Math.min(x[0],c.total):0, f=x?Math.min(x[1],d):0;
+          if (c.kind==='kw'){ vt+=c.total; vd+=d; vf+=f; } else { wt+=c.total; wd+=d; wf+=f; }
+          return '<td class="cell">'+box(x?d:-1, c.total, f)+'</td>'; }).join('');
+        return '<tr><td class="name"><div class="nm">'+esc(s.name||s.email)+'</div><div class="cl">'+esc(s.cls||'')+'</div></td>'+
+          '<td class="cell">'+box(vt?vd:-1, vt, vf)+'</td><td class="cell">'+box(wt?wd:-1, wt, wf)+'</td>'+cells+'</tr>'; }).join('');
+      $('elist').innerHTML='<div class="hmcard"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
+        '<div class="hmleg"><span>Share of the set answered</span><span class="hmgrad"></span><span>· not opened yet</span></div></div>';
+    }
+    paint();
+  };
+
   /* ─────────────────────── Set homework ─────────────────────── */
-  var hState = { title:'', rows:[{cls:'',due:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false };
+  var hState = { title:'', rows:[{cls:'',due:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
+                 post:true, enYr:'' };
+  var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   window.vHomework = function(D){
-    var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[];
-    function picked(){ var tasks=[],st=0,q=0;
+    var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
+    function useEn(){ EN=D.english||null; ENS={}; if(EN)(EN.sets||[]).forEach(function(s){ ENS[s.id]=s; }); }
+    useEn();
+    function picked(){ var tasks=[],st=0,q=0,es=[];
       LABS.forEach(function(l){ var got=[]; (l.stations||[]).forEach(function(x){ if(hState.picked[l.id]&&hState.picked[l.id][x.id]){got.push(x.id);q+=x.questions;} });
         if(got.length){ tasks.push({labId:l.id,stationIds:got}); st+=got.length; } });
-      return {tasks:tasks,stations:st,questions:q}; }
+      var mine=hState.picked[ENID]||{};
+      if(EN)(EN.sets||[]).forEach(function(s){ if(mine[s.id]){ es.push(s.id); q+=s.total; } });
+      if(es.length) tasks.push({labId:ENID,stationIds:es});
+      return {tasks:tasks,stations:st,sets:es.length,questions:q,any:st+es.length}; }
+    function enIds(key){ if(!EN) return [];
+      if(key==='how') return (EN.sets||[]).filter(function(s){ return !s.unit; }).map(function(s){ return s.id; });
+      var U=EN.units[key]; return U?(U.sets||[]).filter(function(id){ return ENS[id]; }):[]; }
+    /* Year, then topic, then the sets — the same shape as the lab list above it */
+    function enBlock(){
+      if(!EN) return '';
+      var yrs=EN.years||[];
+      if(!yrs.some(function(y){ return String(y.y)===hState.enYr; })) hState.enYr=yrs.length?String(yrs[0].y):'';
+      var yr=yrs.filter(function(y){ return String(y.y)===hState.enYr; })[0]||{units:[]};
+      var mine=hState.picked[ENID]||{};
+      var keys=['how'].concat((yr.units||[]).filter(function(u){ return EN.units[u]; }));
+      var blocks=keys.map(function(k){ var ids=enIds(k); if(!ids.length) return '';
+        var U=k==='how'?null:EN.units[k], n=0,q=0; ids.forEach(function(id){ if(mine[id]){n++;q+=ENS[id].total;} });
+        var all=n===ids.length, op=!!hState.open['en:'+k];
+        return '<div class="lab'+(op?' is-open':'')+'"><div class="lab__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-enu="'+esc(k)+'">'+
+          '<svg class="car" width="12" height="12" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'+
+          '<span class="lab__n">'+esc(U?'Topic '+U.n:'How to answer')+'</span><span class="lab__t">'+esc(U?U.title:'every topic')+'</span>'+
+          '<span class="lab__c'+(n?' on':'')+'">'+(n?n+' of '+ids.length+' · '+q+'q':ids.length+' set'+(ids.length===1?'':'s'))+'</span>'+
+          '<button class="act" data-enall="'+esc(k)+'">'+(all?'None':'All')+'</button></div>'+
+          (op?'<div class="stn">'+ids.map(function(id){ var x=ENS[id], on=!!mine[id];
+            return '<label class="st'+(on?' on':'')+'"><input type="checkbox" data-enpick="'+esc(id)+'"'+(on?' checked':'')+'>'+
+              '<span>'+esc(x.title)+'</span><span class="st__q">'+x.total+'</span></label>'; }).join('')+'</div>':'')+'</div>'; }).join('');
+      var other=Object.keys(mine).filter(function(id){ var x=ENS[id]; return x&&x.unit&&(yr.units||[]).indexOf(x.unit)<0; }).length;
+      return '<div class="fld" style="margin-top:16px"><label>Bio English Lab — keywords and answer writing</label>'+
+        '<div class="yrs">'+yrs.map(function(y){ var k=String(y.y), on=k===hState.enYr;
+          return '<button class="act'+(on?' ok':'')+'" data-enyr="'+esc(k)+'" aria-pressed="'+(on?'true':'false')+'">'+esc(y.title||('Year '+k))+'</button>'; }).join('')+
+        (other?'<span class="size__k">+ '+other+' ticked in another year</span>':'')+'</div>'+
+        '<div class="labs">'+blocks+'</div></div>';
+    }
     function oneClass(){ return hState.rows.length===1?hState.rows[0].cls:''; }
     function classPupils(){ var c=oneClass(); return c?STUD.filter(function(s){return s.cls===c;}):[]; }
     function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due;}); }
@@ -997,7 +1116,7 @@ var BOOT = __BOOT__;
       var labs=LABS.map(function(l){ var mine=hState.picked[l.id]||{}, n=0,q=0;
         (l.stations||[]).forEach(function(x){ if(mine[x.id]){n++;q+=x.questions;} });
         var all=n&&n===(l.stations||[]).length, op=!!hState.open[l.id];
-        return '<div class="lab'+(op?' open':'')+'"><div class="lab__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-lab="'+esc(l.id)+'">'+
+        return '<div class="lab'+(op?' is-open':'')+'"><div class="lab__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-lab="'+esc(l.id)+'">'+
           '<svg class="car" width="12" height="12" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'+
           '<span class="lab__n">'+esc(l.name)+'</span><span class="lab__t">'+esc(l.topic||'')+'</span>'+
           '<span class="lab__c'+(n?' on':'')+'">'+(n?n+' of '+(l.stations||[]).length+' · '+q+'q':(l.stations||[]).length+' stations')+'</span>'+
@@ -1009,8 +1128,8 @@ var BOOT = __BOOT__;
       var nP=oneClass()?(hState.whole?pupils.length:Object.keys(hState.pick).length):0;
       var hint=p.questions?('About '+Math.max(5,r0(p.questions*0.8))+' minutes of practice'+
         (nP?' for '+nP+' student'+(nP===1?'':'s'):(nC>1?' for '+nC+' classes':''))+'. Short, focused tasks beat long ones.')
-        :'Open a lab and tick the stations you have taught.';
-      var builder = !LABS.length
+        :(EN?'Open a lab or a Bio English topic and tick what you have taught.':'Open a lab and tick the stations you have taught.');
+      var builder = !LABS.length && !EN
         ? '<div class="empty">No labs are ready to set yet.</div>'
         : '<div class="bar2" style="display:block"><div class="fld" style="margin-bottom:12px"><label for="ht">Title</label>'+
           '<input id="ht" type="text" maxlength="120" placeholder="e.g. Digestion — the gut, before Friday" value="'+esc(hState.title)+'"></div>'+
@@ -1018,10 +1137,13 @@ var BOOT = __BOOT__;
           '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap"><button class="act" id="addrow">+ Another class</button>'+
           (hState.rows.length>1?'<span class="size__k">each class gets its own date, and its own Classroom post</span>':'')+'</div>'+
           pbox+
-          '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+
-          '<div class="size"><span class="size__n">'+p.stations+'</span><span class="size__k">station'+(p.stations===1?'':'s')+'</span>'+
+          '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+
+          '<div class="size"><span class="size__n">'+p.stations+'</span><span class="size__k">lab station'+(p.stations===1?'':'s')+'</span>'+
+          (EN?'<span class="size__n">'+p.sets+'</span><span class="size__k">English set'+(p.sets===1?'':'s')+'</span>':'')+
           '<span class="size__n">'+p.questions+'</span><span class="size__k">questions</span><span class="size__h">'+esc(hint)+'</span></div>'+
-          '<div style="margin-top:14px"><button class="go" id="hset"'+(p.stations&&ready()?'':' disabled')+'>'+
+          '<label class="ck" style="margin-top:14px"><input type="checkbox" id="hpost"'+(hState.post&&D.classroomOk?' checked':'')+(D.classroomOk?'':' disabled')+'>'+
+          '<span>Post it in Google Classroom too'+(D.classroomOk?'':' — Google Classroom is not switched on in the script')+'</span></label>'+
+          '<div style="margin-top:14px"><button class="go" id="hset"'+(p.any&&ready()?'':' disabled')+'>'+
           (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
       var list = !HW.length ? '<div class="empty">Nothing set yet.</div>' : HW.map(function(h){
         var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id];
@@ -1059,14 +1181,14 @@ var BOOT = __BOOT__;
         if(hState.rows.length===1){hState.whole=true;hState.pick={};} paint(); }); });
       document.querySelectorAll('[data-due]').forEach(function(i){ i.addEventListener('input', function(){
         hState.rows[+i.getAttribute('data-due')].due=i.value;
-        var g=$('hset'); if(g) g.disabled=!(picked().stations&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
+        var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
       var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){ hState.rows.push({cls:'',due:''}); hState.whole=true; hState.pick={}; paint(); });
       document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1); paint(); }); });
       var w=$('whole'); if(w) w.addEventListener('change', function(){ hState.whole=w.checked; paint(); });
       document.querySelectorAll('[data-pup]').forEach(function(b){ b.addEventListener('change', function(){
         if(b.checked) hState.pick[b.getAttribute('data-pup')]=1; else delete hState.pick[b.getAttribute('data-pup')];
-        var g=$('hset'); if(g) g.disabled=!(picked().stations&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
-      document.querySelectorAll('.lab__h').forEach(function(h){ h.addEventListener('click', function(ev){
+        var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
+      document.querySelectorAll('.lab__h[data-lab]').forEach(function(h){ h.addEventListener('click', function(ev){
         if(ev.target.closest('[data-all]')) return;
         var id=h.getAttribute('data-lab'); hState.open[id]=!hState.open[id]; paint(); }); });
       document.querySelectorAll('[data-all]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
@@ -1083,6 +1205,9 @@ var BOOT = __BOOT__;
         var id=b.getAttribute('data-again'), h=null; HW.forEach(function(x){ if(x.id===id) h=x; });
         if(!h) return; hState.picked={}; hState.open={};
         (h.tasks||[]).forEach(function(t){ hState.picked[t.labId]={}; (t.stationIds||[]).forEach(function(x){ hState.picked[t.labId][x]=1; }); hState.open[t.labId]=true; });
+        Object.keys(hState.picked[ENID]||{}).forEach(function(id){ var x=ENS[id]; if(!x) return;
+          hState.open['en:'+(x.unit||'how')]=true;
+          if(x.unit&&EN) (EN.years||[]).forEach(function(y){ if((y.units||[]).indexOf(x.unit)>=0) hState.enYr=String(y.y); }); });
         var was=(h.targets&&h.targets.cls)||'';
         /* only carry the class over if it still exists, or the box shows "Choose a class…" while
            the state still holds the old one and Set would write homework nobody is in */
@@ -1094,12 +1219,24 @@ var BOOT = __BOOT__;
         hState.confirmDel=null; paint(); }); });
       document.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         hState.confirmDel=null; send('homeworkDelete', b.getAttribute('data-del')); }); });
+      document.querySelectorAll('[data-enyr]').forEach(function(b){ b.addEventListener('click', function(){ hState.enYr=b.getAttribute('data-enyr'); paint(); }); });
+      document.querySelectorAll('[data-enu]').forEach(function(h){ h.addEventListener('click', function(ev){
+        if(ev.target.closest('[data-enall]')) return;
+        var k='en:'+h.getAttribute('data-enu'); hState.open[k]=!hState.open[k]; paint(); }); });
+      document.querySelectorAll('[data-enall]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        var ids=enIds(b.getAttribute('data-enall')), mine=hState.picked[ENID]=hState.picked[ENID]||{};
+        var all=ids.length>0&&ids.every(function(id){ return mine[id]; });
+        ids.forEach(function(id){ if(all) delete mine[id]; else mine[id]=1; }); paint(); }); });
+      document.querySelectorAll('[data-enpick]').forEach(function(b){ b.addEventListener('change', function(){
+        var mine=hState.picked[ENID]=hState.picked[ENID]||{}, id=b.getAttribute('data-enpick');
+        if(b.checked) mine[id]=1; else delete mine[id]; paint(); }); });
+      var hp=$('hpost'); if(hp) hp.addEventListener('change', function(){ hState.post=hp.checked; });
       var g=$('hset'); if(g) g.addEventListener('click', submit);
     }
     function send(fn, arg){
       if (hState.busy) return; hState.busy=true;
       google.script.run.withSuccessHandler(function(r){ hState.busy=false;
-          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[];
+          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D}); paint(); }
           else say((r&&r.why)||'That did not work.', true); })
         .withFailureHandler(function(){ hState.busy=false; say('That did not work.', true); })[fn](arg);
@@ -1107,7 +1244,7 @@ var BOOT = __BOOT__;
     function submit(){
       if (hState.busy) return;
       var p=picked();
-      if(!p.stations) return say('Tick at least one station.', true);
+      if(!p.any) return say('Tick at least one lab station or English set.', true);
       if(!ready()) return say('Every class needs a date.', true);
       if(!hState.title.trim()) return say('Give it a title.', true);
       var ind = oneClass() && !hState.whole, emails = ind?Object.keys(hState.pick):[];
@@ -1115,13 +1252,16 @@ var BOOT = __BOOT__;
       hState.busy=true; say('Setting…');
       google.script.run
         .withSuccessHandler(function(r){ hState.busy=false;
-          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[];
+          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
             hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:''}];
-            paint(); say(r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.'); }
+            var m=r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.';
+            if(r.posted&&r.posted.length) m+=' Posted in Google Classroom for '+r.posted.join(', ')+'.';
+            if(r.notPosted&&r.notPosted.length) m+=' Not posted in Classroom — '+r.notPosted.join('; ')+'.';
+            paint(); say(m, !!(r.notPosted&&r.notPosted.length)); }
           else say((r&&r.why)||'Could not set it.', true); })
         .withFailureHandler(function(){ hState.busy=false; say('Could not set it.', true); })
-        .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks,
+        .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks, post:!!(hState.post&&D.classroomOk),
           /* send the plain date; the server pins it to the end of that day in the school's zone */
           classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,emails:emails}:{cls:r.cls,due:r.due,emails:[]}; }) });
     }

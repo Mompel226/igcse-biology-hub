@@ -15,6 +15,9 @@
  *     anyone may use them — their work simply does not land here.
  *   • Formats every tab so it is readable: nothing truncated, nothing too narrow,
  *     frozen headers, filters, banding. Re-apply it any time from the menu.
+ *   • Records Bio English Lab too (nlcsbiology.com/bio-english-lab — keywords and answer
+ *     writing) in its own tab, "✍️ Bio English", so one teacher page, one roster and one
+ *     homework list serve both. See "BIO ENGLISH LAB" at the end of this file.
  *
  * SET UP  (five minutes, once, for every lab)
  *   1. Make one new Google Sheet. The name does not matter.
@@ -265,6 +268,7 @@ function onOpen() {
     .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'setup')
     .addSeparator()
     .addItem('🔗  Teacher page — teachers, links, address', 'showTeacherPanel')
+    .addItem('📬  Email me when homework falls due (every morning)', 'installDailySummary')
     .addToUi();
 }
 
@@ -285,6 +289,11 @@ function doPost(e) {
 
     /* And when their own test opens, and the way in. Read-only, their own only. */
     if (String(d.action || '') === 'test') return _ownTest_(d);
+
+    /* Bio English Lab saves a pupil's work as they go, and asks for it back on another computer.
+       Neither is a hand-in, so both are answered here, before anything treats this as a lab. */
+    if (String(d.action || '') === 'english.save') return _englishSave_(d);
+    if (String(d.action || '') === 'english.mine') return _englishMine_(d);
 
     var lab = _labById_(String(d.app || ''));
     if (!lab) return _text_('unknown lab');
@@ -475,7 +484,8 @@ function doGet(e) {
      new document, so nothing flickers, the header never moves, and no link ever tries to open
      script.google.com inside the sandbox frame. The old ?page= values still work — each simply
      decides which tab opens first, so every bookmark and the hub's own door keep working. */
-  if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework') {
+  if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework' ||
+      page === 'english') {
     return _teacherAppPage_(page);
   }
   return _text_('Biology Labs endpoint is running.');
@@ -836,6 +846,16 @@ function checkSetup() {
     try { tpLinks = _teacherLinksRaw_().length; } catch (e) {}
     lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Teacher page makes it');
   }
+  /* Bio English Lab: its set list comes from the public site, so an unreachable site means
+     English homework cannot be scored — worth saying, never a fault in the labs. */
+  var enMan = null;
+  try { enMan = _englishManifest_(); } catch (e) {}
+  lines.push(enMan ? '✅  Bio English Lab: its ' + (enMan.sets || []).length + ' sets can be read'
+                   : '❌  Bio English Lab: ' + ENGLISH_URL + '/data/sets.json could not be read, so English homework cannot be scored just now');
+  var dailyOn = false;
+  try { dailyOn = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sendDueSummaries'; }); } catch (e) {}
+  lines.push(dailyOn ? '✅  the due-date email goes out every morning'
+                     : '•  the due-date email is off. 📬 in this menu switches it on.');
   lines.push('');
   lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy.');
 
@@ -871,6 +891,7 @@ function _buildAndStyle_() {
      tab that only appears the first time a page is opened looks like it is missing. */
   _step_('Making the homework and teacher tabs…');
   try { _ensureHomeworkTab_(); } catch (e) {}
+  try { _englishSheet_(); } catch (e) {}
   try { _ensureTeacherTabs_(); } catch (e) {}
   _step_('Putting the buttons back on the Setup tab…');
   _installButtons_();
@@ -911,6 +932,8 @@ function restyleAll_() {
     if (!sh || !t[1]) return;
     _dress2_(sh, t[1], { tab: t[2] });
   });
+  var en = _ss_().getSheetByName(T_ENGLISH);
+  if (en) _dress2_(en, ENGLISH_COLS, { tab: EN_TAB, freezeCols: 2 });
 }
 
 /* ------------------------------------------------------------
@@ -1650,7 +1673,7 @@ function _orderTabs_() {
   /* the tabs a teacher actually opens sit at the front; the twenty lab tabs are data behind them */
   var want = [T_SETUP, T_LABS, T_STUDENTS, T_HOMEWORK, T_TEACHERS, T_LINKS]
              .concat(LABS.map(function (l) { return l.name; }))
-             .concat([T_REJECTED]);
+             .concat([T_ENGLISH, T_REJECTED]);
   var looking = null;
   try { looking = ss.getActiveSheet(); } catch (e) {}     /* put the teacher back where they were */
   var pos = 0, moved = 0;
@@ -3246,6 +3269,7 @@ function _hwLabIndex_(labIds, need) {
   var ss = _ss_(), out = {};
   labIds.forEach(function (id) {
     if (id in out) return;
+    if (id === ENGLISH_ID) { out[id] = _englishIndex_(need); return; }
     var lab = null;
     LABS.forEach(function (l) { if (l.id === id) lab = l; });
     var sh = lab ? ss.getSheetByName(lab.name) : null;
@@ -3308,7 +3332,7 @@ function _hwScoreOne_(hw, email, index, man) {
 
 /* The page's whole payload: what can be set, what has been set, and how it is going. */
 function _homeworkData_(now) {
-  var man = _manifest_();
+  var man = _hwManifest_();
   var dir = _studentDirectory_(now);
   var roster = dir.students;
   var list = _homeworkRows_();
@@ -3364,7 +3388,9 @@ function _homeworkData_(now) {
     generatedAt: new Date().toISOString(),
     labs: labs, students: roster, classes: dir.classes,
     homework: out,
-    manifestOk: !!man, hubSet: !!_hubUrl_()
+    manifestOk: !!man.labsOk, hubSet: !!_hubUrl_(),
+    english: man.en ? { years: man.en.years || [], units: man.en.units || {}, sets: man.en.sets || [] } : null,
+    classroomOk: typeof Classroom !== 'undefined' && !!Classroom && !!Classroom.Courses
   };
 }
 
@@ -3406,7 +3432,7 @@ function homeworkCreate(d) {
   }
 
   /* readable columns, so the tab means something opened on its own */
-  var man = _manifest_();
+  var man = _hwManifest_();
   var whatBits = tasks.map(function (t) {
     var lm = man && man.labs ? man.labs[t.labId] : null;
     var nameOf = {};
@@ -3450,7 +3476,34 @@ function homeworkCreate(d) {
   } catch (err) {
     return { ok:false, why:'Could not save it: ' + err };
   } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
-  return { ok:true, made: made, group: group, data:_homeworkData_() };
+  /* Posted only once the rows are safely written and the lock is let go: Classroom can take
+     seconds per class, and pupils saving their work must not queue behind it. The ids come back
+     under the lock again, each row found by its homework id — never by a row number read earlier. */
+  var posted = [], notPosted = [];
+  if (d.post && made.length) {
+    var cids = _classroomIds_(), res = [];
+    jobs.forEach(function (job, j) {
+      var p = _hwPost_(made[j], title, what, tasks, job, cids);
+      res.push(p);
+      if (p.ok) posted.push(job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's')));
+      else notPosted.push((job.cls || 'the students') + ': ' + p.why);
+    });
+    if (res.some(function (p) { return p.ok; })) {
+      var lk = null;
+      try {
+        lk = LockService.getScriptLock(); lk.waitLock(20000);
+        var hs = _ensureHomeworkTab_(), hc = _hwHeadCols_(hs), rowOf = {};
+        _homeworkRows_().forEach(function (r) { rowOf[r.id] = r.row; });
+        res.forEach(function (p, j) {
+          if (!p.ok || !rowOf[made[j]]) return;
+          hs.getRange(rowOf[made[j]], hc.Course).setValue(p.courseId);
+          hs.getRange(rowOf[made[j]], hc.CourseWork).setValue(p.courseWorkId);
+        });
+      } catch (e) {
+      } finally { if (lk) { try { lk.releaseLock(); } catch (e) {} } }
+    }
+  }
+  return { ok:true, made: made, group: group, posted: posted, notPosted: notPosted, data:_homeworkData_() };
 }
 
 function homeworkDelete(id) {
@@ -3514,6 +3567,7 @@ function uiData(which) {
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
     if (which === 'homework')  return { ok:true, data:_homeworkData_() };
+    if (which === 'english')   return { ok:true, data:_englishProgressData_() };
   } catch (err) { return { ok:false, why:String(err) }; }
   return { ok:false, why:'Unknown view.' };
 }
@@ -3914,3 +3968,404 @@ function _json_(o) {
 }
 
 function _text_(m) { return ContentService.createTextOutput(m).setMimeType(ContentService.MimeType.TEXT); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BIO ENGLISH LAB — the writing site, recorded in THIS spreadsheet
+   ═══════════════════════════════════════════════════════════════════════════
+   nlcsbiology.com/bio-english-lab trains pupils to write short, exact exam answers — describe,
+   explain, plan an investigation — and tests their keywords. It is not a lab: nothing is handed
+   in and there is no completion code. The site saves quietly as a pupil works, set by set.
+
+   It is recorded here rather than in a spreadsheet of its own so that a teacher has ONE roster,
+   ONE teacher page and ONE homework list: a single piece of homework can hold lab stations and
+   English sets together, with one due date and one Classroom post. (Daniel's decision, 19 Sep 2026.)
+
+   What it adds — and nothing the labs already do changes:
+     • the tab "✍️ Bio English": one row per pupil, like a lab's tab, made at their first save;
+     • two POST actions, english.save and english.mine — the signed-in pupil's own row, no one else's;
+     • homework: Bio English Lab is scored as one lab more, id 'bio-english-lab', whose "stations"
+       are its sets, named and counted by the site's public data/sets.json;
+     • the teacher page's "Bio English" view (?page=english);
+   and, for every homework, labs included: posting to Google Classroom, and the due-date email.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+var T_ENGLISH   = '✍️ Bio English';
+var ENGLISH_ID  = 'bio-english-lab';
+var ENGLISH_URL = 'https://nlcsbiology.com/bio-english-lab';   /* read for set names and counts only */
+var EN_TAB      = '#1E7A3E';
+var ENGLISH_COLS = [
+  { h:'Name', w:200, note:'From the Students tab. A student appears here the first time the site saves their work.' },
+  { h:'Class', w:80, align:'center', note:'From the Students tab, as it was at their last save.' },
+  { h:'Vocabulary', w:100, align:'center', fmt:'0', group:true, note:'Keyword questions answered, in every keyword set they have opened.' },
+  { h:'Vocabulary right first time', w:184, align:'center', fmt:'0%', note:'Of those keyword questions, the share they got right at the first attempt.' },
+  { h:'Answer writing', w:120, align:'center', fmt:'0', group:true, note:'Describe, explain, plan and "how to answer" questions answered.' },
+  { h:'Writing right first time', w:166, align:'center', fmt:'0%', note:'Of those writing questions, the share they got right at the first attempt.' },
+  { h:'Sets finished', w:106, align:'center', fmt:'0', group:true, note:'Sets with every question answered.' },
+  { h:'Last saved', w:132, fmt:'dd MMM, HH:mm', note:'When the site last saved their work.' },
+  { h:'Per set', w:460, note:'Every set they have opened: questions answered / questions in the set, and in brackets how many were right first time.' },
+  { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
+  { h:'Carried between devices', w:200, hide:true, note:'Which questions they have answered, set by set, so signing in on another computer brings their work back. Written by the site. Do not edit.' }
+];
+var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11;
+/* One letter per question, as the site writes it. Two computers disagreeing keep the better. */
+var EN_RANK = { '0':0, 't':1, 's':2, '1':3, 'f':4 };   /* untouched < tried < answer shown < right < right first time */
+var EN_SID  = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
+
+function _englishSheet_() {
+  var ss = _ss_(), sh = ss.getSheetByName(T_ENGLISH);
+  if (!sh) {
+    sh = ss.insertSheet(T_ENGLISH);
+    sh.getRange(1, 1, 1, ENGLISH_COLS.length).setValues([ENGLISH_COLS.map(function (c) { return c.h; })]);
+    _dress2_(sh, ENGLISH_COLS, { tab: EN_TAB, freezeCols: 2 });
+  }
+  return sh;
+}
+
+/* The site's own list of sets: ids, titles, question counts, topic and year. Public, nothing
+   personal. Cached on the site's publish stamp, exactly as the labs' station list is. */
+function _englishManifest_() {
+  var base = ENGLISH_URL.replace(/\/+$/, ''), cache = null;
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  var stamp = cache ? (cache.get('EN_STAMP') || '') : '';
+  if (!stamp) {
+    try {
+      var vr = UrlFetchApp.fetch(base + '/version.txt', { muteHttpExceptions:true, followRedirects:true });
+      if (vr.getResponseCode() === 200) stamp = String(vr.getContentText()).trim().slice(0, 20);
+    } catch (e) {}
+    if (cache && stamp) { try { cache.put('EN_STAMP', stamp, 600); } catch (e) {} }
+  }
+  var KEY = 'EN_SETS_' + (stamp || 'none');
+  if (cache) { var hit = cache.get(KEY); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(base + '/data/sets.json', { muteHttpExceptions:true, followRedirects:true });
+    if (res.getResponseCode() !== 200) return null;
+    txt = res.getContentText();
+  } catch (e) { return null; }
+  var m = null; try { m = JSON.parse(txt); } catch (e) { return null; }
+  if (!m || !m.sets || !m.units) return null;
+  if (cache && txt.length < 95000) { try { cache.put(KEY, txt, 21600); } catch (e) {} }
+  return m;
+}
+
+/* What homework is scored against: the labs' stations, and Bio English Lab's sets as one lab
+   more. Either half can be missing without the other failing, and each says so for itself. */
+function _hwManifest_() {
+  var labs = _manifest_(), en = _englishManifest_(), out = { labs: {}, labsOk: !!labs, en: en };
+  if (labs && labs.labs) Object.keys(labs.labs).forEach(function (k) { out.labs[k] = labs.labs[k]; });
+  if (en) out.labs[ENGLISH_ID] = _englishAsLab_(en);
+  return out;
+}
+function _englishAsLab_(en) {
+  var q = 0;
+  var st = (en.sets || []).map(function (s) {
+    var u = s.unit && en.units[s.unit] ? en.units[s.unit] : null;
+    q += Number(s.total) || 0;
+    return { id: s.id, name: (u ? 'T' + u.n + ' ' : '') + s.title, questions: Number(s.total) || 0 };
+  });
+  return { name: 'Bio English Lab', questions: q, stations: st };
+}
+
+/* "{…}" in, an object out, and never a throw: a cell somebody typed in is not the site's JSON. */
+function _enParse_(v) {
+  var o = null, out = {};
+  try { o = JSON.parse(String(v || '') || '{}'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  Object.keys(o).forEach(function (k) {
+    var x = o[k];
+    if (!EN_SID.test(k) || !x || typeof x !== 'object') return;
+    out[k] = { d: Math.max(0, Number(x.d) || 0), f: Math.max(0, Number(x.f) || 0), t: Math.max(0, Number(x.t) || 0),
+               s: String(x.s || '').replace(/[^01tfs]/g, ''), v: String(x.v || ''), k: String(x.k || '') };
+  });
+  return out;
+}
+/* A cell holds 50,000 characters. If a pupil ever reached that, the detail of FINISHED sets goes
+   first: their counts stay, and a finished set has nothing left to carry on with. */
+function _enPack_(kept) {
+  var txt = JSON.stringify(kept);
+  if (txt.length > 45000) {
+    Object.keys(kept).forEach(function (k) { if (kept[k].t && kept[k].d >= kept[k].t) kept[k].s = ''; });
+    txt = JSON.stringify(kept);
+  }
+  if (txt.length > 45000) { Object.keys(kept).forEach(function (k) { kept[k].s = ''; }); txt = JSON.stringify(kept); }
+  return txt;
+}
+/* Two computers, one pupil: keep the better answer to each question and never go backwards. A
+   set rebuilt since (a new version) starts again, because its questions are not the same ones. */
+function _enMerge_(old, inc) {
+  if (!old || old.v !== inc.v) return inc;
+  if (!old.s || !inc.s || old.s.length !== inc.s.length) {     /* no detail to compare: counts, never down */
+    inc.d = Math.max(inc.d, old.d); inc.f = Math.max(inc.f, old.f);
+    if (!inc.s) inc.s = old.s;
+    return inc;
+  }
+  var s = '', d = 0, f = 0;
+  for (var i = 0; i < inc.s.length; i++) {
+    var a = old.s.charAt(i), b = inc.s.charAt(i), c = (EN_RANK[a] || 0) >= (EN_RANK[b] || 0) ? a : b;
+    s += c;
+    if (c === 'f' || c === '1' || c === 's') d++;
+    if (c === 'f') f++;
+  }
+  if (inc.t) d = Math.min(d, inc.t);
+  return { d: d, f: Math.min(f, d), t: inc.t, s: s, v: inc.v, k: inc.k || old.k };
+}
+/* The columns a teacher reads, worked out from the stored sets. */
+function _enSummary_(kept, en) {
+  var bySet = {}, order = {}, vd = 0, vf = 0, wd = 0, wf = 0, fin = 0;
+  if (en) (en.sets || []).forEach(function (s, i) { bySet[s.id] = s; order[s.id] = i; });
+  function at(k) { return order[k] == null ? 1e6 : order[k]; }
+  var bits = Object.keys(kept).sort(function (a, b) { return at(a) - at(b) || (a < b ? -1 : 1); }).map(function (sid) {
+    var x = kept[sid], m = bySet[sid], kind = (m && m.kind) || x.k;
+    if (kind === 'kw') { vd += x.d; vf += x.f; } else { wd += x.d; wf += x.f; }
+    if (x.t && x.d >= x.t) fin++;
+    var u = m && m.unit && en.units[m.unit] ? en.units[m.unit] : null;
+    return (u ? 'T' + u.n + ' ' : '') + (m ? m.title : sid) + ' ' + x.d + '/' + x.t + ' (' + x.f + ')';
+  });
+  return { vocab: vd, vocabFirst: vd ? vf / vd : '', writing: wd, writingFirst: wd ? wf / wd : '',
+           finished: fin, perSet: bits.join(' · ').slice(0, 45000) };
+}
+function _enRowFor_(sh, email, student) {
+  var last = sh.getLastRow();
+  if (last > 1) {
+    var col = sh.getRange(2, EN_EMAIL, last - 1, 1).getValues();
+    for (var i = 0; i < col.length; i++) if (_cleanEmail_(col[i][0]) === email) return i + 2;
+  }
+  var row = new Array(ENGLISH_COLS.length).fill('');
+  row[0] = student.name; row[1] = student.cls; row[EN_EMAIL - 1] = email; row[EN_SNAP - 1] = '{}';
+  _room_(sh, last + 1);
+  sh.getRange(last + 1, 1, 1, ENGLISH_COLS.length).setValues([row]);
+  return last + 1;
+}
+
+/* english.save — { token, sets: { <setId>: { done, first, total, snap, v } } }, sent a few
+   seconds after a pupil answers, and again as they leave the page. */
+function _englishSave_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoIs_(d.token);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var student = _studentOf_(who.email);
+  /* the rule every hand-in follows: somebody not on the roster leaves no trace here at all */
+  if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
+  var sets = d.sets && typeof d.sets === 'object' && !Array.isArray(d.sets) ? d.sets : {};
+  var ids = Object.keys(sets).filter(function (k) { return EN_SID.test(k); });
+  if (!ids.length) return _json_({ ok:true, saved:0 });
+  if (ids.length > 300) return _json_({ ok:false, why:'too much at once' });
+  var en = _englishManifest_(), bySet = {};
+  if (en) (en.sets || []).forEach(function (s) { bySet[s.id] = s; });
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
+  try {
+    var sh = _englishSheet_(), r = _enRowFor_(sh, who.email, student);
+    var kept = _enParse_(sh.getRange(r, EN_SNAP).getValue()), saved = 0;
+    ids.forEach(function (sid) {
+      var s = sets[sid] || {}, m = bySet[sid] || null;
+      if (en && !m) return;                                /* a set the site does not have */
+      var total = m ? (Number(m.total) || 0) : Math.max(0, Math.min(500, Number(s.total) || 0));
+      var inc = { d: Math.max(0, Math.min(total, Number(s.done) || 0)), f: 0, t: total,
+                  s: String(s.snap || '').replace(/[^01tfs]/g, '').slice(0, total || 500),
+                  v: String(s.v || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20), k: m ? String(m.kind || '') : '' };
+      inc.f = Math.max(0, Math.min(inc.d, Number(s.first) || 0));
+      /* a page left open from before the set was rebuilt must not overwrite work on the new one */
+      if (m && kept[sid] && kept[sid].v === String(m.v) && inc.v !== String(m.v)) return;
+      kept[sid] = _enMerge_(kept[sid], inc);
+      saved++;
+    });
+    var sum = _enSummary_(kept, en);
+    sh.getRange(r, 1, 1, EN_SNAP).setValues([[
+      student.name, student.cls, sum.vocab, sum.vocabFirst, sum.writing, sum.writingFirst, sum.finished,
+      new Date(), _plain_(sum.perSet), who.email, _enPack_(kept)
+    ]]);
+    _dressRows_(sh, ENGLISH_COLS, r, 1);      /* so a row written between tidy-ups still reads properly */
+    SpreadsheetApp.flush();
+    return _json_({ ok:true, saved:saved });
+  } finally { lock.releaseLock(); }
+}
+
+/* english.mine — their own work back (another computer, a cleared browser), the homework set for
+   them that has English in it, and, for a teacher, the way to the teacher page. Read only. */
+function _englishMine_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoIs_(d.token);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var out = { ok:true, name: who.name || '', onList:false, cls:'', sets:{}, homework:[] };
+  if (_isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _englishTeacherUrl_(); }
+  var student = _studentOf_(who.email);
+  if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
+  out.onList = true; out.cls = student.cls;
+  var sh = _ss_().getSheetByName(T_ENGLISH);
+  if (sh && sh.getLastRow() >= 2) {
+    var n = sh.getLastRow() - 1, v = sh.getRange(2, EN_EMAIL, n, 2).getValues();
+    for (var i = 0; i < n; i++) {
+      if (_cleanEmail_(v[i][0]) !== who.email) continue;
+      var kept = _enParse_(v[i][1]);
+      Object.keys(kept).forEach(function (sid) {
+        var x = kept[sid];
+        out.sets[sid] = { done: x.d, first: x.f, total: x.t, snap: x.s, v: x.v };
+      });
+      break;
+    }
+  }
+  var now = Date.now(), MONTH = 28 * 24 * 3600 * 1000;
+  _homeworkRows_().forEach(function (hw) {
+    var sets = [];
+    hw.tasks.forEach(function (t) { if (t.labId === ENGLISH_ID) sets = sets.concat(t.stationIds || []); });
+    if (!sets.length || !_hwIsFor_(hw, who.email, student.cls)) return;
+    var dms = hw.due ? new Date(hw.due).getTime() : 0;
+    if (dms && now - dms > MONTH) return;              /* a month past its date: off their list */
+    out.homework.push({ id: hw.id, title: hw.title, due: hw.dueText, overdue: hw.overdue, dueAt: hw.due || '', sets: sets });
+  });
+  out.homework.sort(function (a, b) { return String(a.dueAt).localeCompare(String(b.dueAt)); });
+  return _json_(out);
+}
+/* The same answer _hwPupils_ gives, asked the other way round: is this homework theirs? */
+function _hwIsFor_(hw, email, cls) {
+  if (hw.setFor) return hw.setFor.indexOf(email) >= 0;          /* who was in the room that day */
+  if ((hw.targets.emails || []).map(_cleanEmail_).indexOf(email) >= 0) return true;
+  return !!hw.targets.cls && String(hw.targets.cls).toUpperCase() === cls;
+}
+function _englishTeacherUrl_() {
+  var u = _teacherPageUrl_();
+  return u ? u.replace(/\?page=teachers$/, '?page=english') : '';
+}
+
+/* The English tab read once, in the shape _hwScoreOne_ reads a lab's tab. No tab yet is NOT a
+   vanished lab — nobody has saved anything — so it is {} (nothing done), never null (unmarkable). */
+function _englishIndex_(need) {
+  var sh = _ss_().getSheetByName(T_ENGLISH), out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  var n = sh.getLastRow() - 1, v = sh.getRange(2, 1, n, EN_SNAP).getValues();
+  for (var i = 0; i < n; i++) {
+    var em = _cleanEmail_(v[i][EN_EMAIL - 1]);
+    if (!em || (need && !need[em])) continue;
+    var kept = _enParse_(v[i][EN_SNAP - 1]), byId = {};
+    Object.keys(kept).forEach(function (sid) { byId[sid] = { done: kept[sid].d }; });
+    out[em] = { byId: byId, at: v[i][EN_LAST - 1] ? new Date(v[i][EN_LAST - 1]).getTime() : 0 };
+  }
+  return out;
+}
+
+/* The teacher page's "Bio English" view: every pupil on the roster and, per set they have opened,
+   two numbers — answered, right first time. The page does the arithmetic. */
+function _englishProgressData_(now) {
+  var en = _englishManifest_(), dir = _studentDirectory_(now), prog = {};
+  var sh = _ss_().getSheetByName(T_ENGLISH);
+  if (sh && sh.getLastRow() >= 2) {
+    var n = sh.getLastRow() - 1, v = sh.getRange(2, 1, n, EN_SNAP).getValues();
+    for (var i = 0; i < n; i++) {
+      var em = _cleanEmail_(v[i][EN_EMAIL - 1]);
+      if (!em) continue;
+      var kept = _enParse_(v[i][EN_SNAP - 1]), slim = {};
+      Object.keys(kept).forEach(function (sid) { slim[sid] = [kept[sid].d, kept[sid].f]; });
+      prog[em] = { sets: slim, at: v[i][EN_LAST - 1] ? new Date(v[i][EN_LAST - 1]).toISOString() : null };
+    }
+  }
+  return {
+    generatedAt: new Date().toISOString(), manifestOk: !!en,
+    english: en ? { years: en.years || [], units: en.units || {}, sets: en.sets || [] } : null,
+    students: dir.students.map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
+    classes: dir.classes, progress: prog
+  };
+}
+
+/* ── Posting homework to Google Classroom ───────────────────────────────────
+   One post per class, to the course the class was imported from (the course most of its pupils
+   came from). Homework for chosen pupils goes to them alone, when they share one course. The due
+   date is the same instant the page shows — the end of that day in the school's zone — written in
+   UTC, as Classroom wants it. */
+function _classroomIds_() {
+  var sh = _ss_().getSheetByName(T_STUDENTS), out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  var ec = _emailCol_(sh);
+  var uc = _headerCol_(sh, 'Classroom user id', ec + 3), cc = _headerCol_(sh, 'Course id', ec + 4);
+  var v = sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(ec, uc, cc)).getValues();
+  v.forEach(function (r) {
+    var e = _cleanEmail_(r[ec - 1]);
+    if (e) out[e] = { userId: String(r[uc - 1] || '').trim(), courseId: String(r[cc - 1] || '').trim() };
+  });
+  return out;
+}
+function _hwPost_(id, title, what, tasks, job, ids) {
+  try { _needClassroom_(); } catch (e) { return { ok:false, why:'Google Classroom is not switched on in the script' }; }
+  var courses = {};
+  (job.setFor || []).forEach(function (e) { var c = ids[e] && ids[e].courseId; if (c) courses[c] = (courses[c] || 0) + 1; });
+  var cids = Object.keys(courses);
+  if (!cids.length) return { ok:false, why:'nobody in it was imported from Classroom, so there is no course to post to' };
+  if (cids.length > 1 && !job.cls) return { ok:false, why:'those students are in different Classroom courses — set it for each class instead' };
+  var courseId = cids.sort(function (a, b) { return courses[b] - courses[a]; })[0];
+  var links = [];
+  tasks.forEach(function (t) {
+    if (t.labId === ENGLISH_ID) links.push({ link: { url: ENGLISH_URL + '/#/hw/' + encodeURIComponent(id) } });
+    else if (/^[a-z0-9-]+$/.test(t.labId)) links.push({ link: { url: 'https://nlcsbiology.com/' + t.labId + '/' } });
+  });
+  var due = job.due, body = {
+    title: title,
+    description: what + '\n\nSign in with your school Google account, so that your work is recorded.',
+    materials: links.slice(0, 20), workType: 'ASSIGNMENT', state: 'PUBLISHED',
+    dueDate: { year: due.getUTCFullYear(), month: due.getUTCMonth() + 1, day: due.getUTCDate() },
+    dueTime: { hours: due.getUTCHours(), minutes: due.getUTCMinutes() }
+  };
+  if (!job.cls) {
+    var uids = (job.setFor || []).map(function (e) { return ids[e] && ids[e].userId; }).filter(function (x) { return !!x; });
+    if (!uids.length) return { ok:false, why:'those students have no Classroom id — import them from Classroom first' };
+    body.assigneeMode = 'INDIVIDUAL_STUDENTS';
+    body.individualStudentsOptions = { studentIds: uids };
+  }
+  try {
+    var w = Classroom.Courses.CourseWork.create(body, courseId);
+    return { ok:true, courseId: courseId, courseWorkId: String(w.id) };
+  } catch (e) {
+    return { ok:false, why: String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) };
+  }
+}
+/* The homework tab's columns by heading, as _homeworkRows_ finds them. */
+function _hwHeadCols_(sh) {
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+               .map(function (x) { return String(x == null ? '' : x).replace(/^✎\s*/, '').trim(); });
+  var c = {};
+  _HW_HEADERS_.forEach(function (h, i) { var k = head.indexOf(h); c[h] = k >= 0 ? k + 1 : i + 1; });
+  return c;
+}
+
+/* ── The due-date email ─────────────────────────────────────────────────────
+   Every morning (📬 in the menu switches it on), each teacher is emailed a summary of their
+   homework that has just fallen due: who finished, who started, who did not. Once per homework —
+   the row is marked "reported" — and never for homework more than a week past its date, so
+   switching it on late does not fill anybody's inbox with the whole year.
+   It stays callable, as a trigger must be: it can only ever write to the teacher who set each
+   homework, once, and it hands back a count. */
+function sendDueSummaries() {
+  var data = _homeworkData_(), sh = _ensureHomeworkTab_(), hc = _hwHeadCols_(sh), rows = {}, sent = 0;
+  _homeworkRows_().forEach(function (r) { rows[r.id] = r; });
+  var WEEK = 7 * 24 * 3600 * 1000, now = Date.now(), page = _teacherPageUrl_();
+  data.homework.forEach(function (h) {
+    var r = rows[h.id];
+    if (!r || !r.overdue || r.status === 'reported' || !r.teacher) return;
+    if (r.due && now - new Date(r.due).getTime() > WEEK) return;
+    var lines = h.pupils.map(function (p) {
+      return (p.state === 'done' ? '✓ ' : p.state === 'partly' ? '~ ' : '✗ ') +
+             (p.name || '') + ' (' + (p.cls || '') + ')   ' + p.done + '/' + p.total;
+    });
+    var body = h.title + ' — ' + h.who + ', due ' + r.dueText + '\n' + h.what + '\n\n' +
+      'Finished: ' + h.tally.done + '    Part way: ' + h.tally.partly + '    Not started: ' + h.tally.none + '\n\n' +
+      (lines.join('\n') || 'Nobody on the roster matches this any more.') +
+      (page ? '\n\nThe teacher page has the detail: ' + page.replace(/\?page=teachers$/, '?page=homework') : '');
+    try {
+      MailApp.sendEmail(r.teacher, 'Homework due: ' + h.title + ' (' + h.who + ')', body);
+      sh.getRange(r.row, hc.Status).setValue('reported');
+      sh.getRange(r.row, hc.Reported).setValue(new Date());
+      sent++;
+    } catch (e) {}
+  });
+  return sent;
+}
+function installDailySummary() {
+  if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: it changes the project's triggers */
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'sendDueSummaries') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendDueSummaries').timeBased().everyDays(1).atHour(7).create();
+  try {
+    SpreadsheetApp.getUi().alert('Every morning at about 7:00, each teacher is emailed a summary of their homework that has just fallen due.');
+  } catch (e) {}
+}

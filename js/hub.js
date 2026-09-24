@@ -373,6 +373,8 @@
         entryEl.appendChild(topEl); topEl.appendChild(a); return;
       }
       if (d.personal) { if (d.teacher) sysEl = a; else mineEl = a; a.hidden = true; return; }
+      /* a door marked `top` stands on the front row beside the hero, not in the row beneath */
+      if (d.top && topEl) { a.classList.add('door--top'); topEl.appendChild(a); return; }
       if (!rowEl) {
         /* one line over the row says what the four have in common, so no door has to */
         if (ENTRY.rowLabel) {
@@ -458,7 +460,7 @@
       var a = doorEls[d.id];
       /* never the hero or a student's own door: those two open only when pointed at, so the
          front row does not shift every few seconds on its own */
-      return a && !isWide(d) && !d.hero && !d.personal && a.offsetParent !== null;   /* on the screen right now */
+      return a && !isWide(d) && !d.hero && !d.personal && !d.top && a.offsetParent !== null;   /* on the screen right now */
     });
   }
   var TOUR_MS = 5200;
