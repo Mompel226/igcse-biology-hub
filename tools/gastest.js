@@ -202,7 +202,20 @@ global.ContentService = { createTextOutput: t => ({ setMimeType: () => t }), Mim
 global.HtmlService = { createHtmlOutputFromFile: (name) => ({
   getContent: () => fs.readFileSync('apps-script/' + name + '.html', 'utf8'),
   setWidth: () => ({ setHeight: () => ({}) }) }) };
-global.ScriptApp = { getProjectTriggers: () => [], newTrigger: () => ({ forSpreadsheet: () => ({ onEdit: () => ({ create: () => {} }) }) }) };
+/* Time-driven triggers are remembered, so a test can count them; the Setup tab's onEdit one is
+   not, exactly as before. */
+global.TRIGGERS = [];
+global.ScriptApp = {
+  getProjectTriggers: () => TRIGGERS.slice(),
+  deleteTrigger: t => { const i = TRIGGERS.indexOf(t); if (i >= 0) TRIGGERS.splice(i, 1); },
+  newTrigger: (fn) => ({
+    forSpreadsheet: () => ({ onEdit: () => ({ create: () => {} }) }),
+    timeBased: () => { const b = { everyDays: () => b, atHour: () => b,
+      create: () => { const t = { getHandlerFunction: () => fn }; TRIGGERS.push(t); return t; } }; return b; }
+  })
+};
+global.MAILS = [];
+global.MailApp = { sendEmail: (to, subj, body) => { MAILS.push({ to, subj, body }); } };
 global.LockService = { getScriptLock: () => ({ waitLock: () => true, releaseLock: () => {} }) };
 global.Logger = { log: m => log('log: ' + m) };
 global.Classroom = undefined;                    /* as it is before the service is added */
@@ -212,9 +225,17 @@ global.FETCHES = 0;
 global.TOKEN_ISS = 'https://accounts.google.com';
 /* the published station manifest, when a test asks for one */
 global.MANIFEST_JSON = '';
+/* Bio English Lab's public set list, when a test asks for one. Its addresses never reach the
+   token check, so they cannot disturb a test that counts those calls. */
+global.ENGLISH_JSON = '';
 global.UrlFetchApp = { fetch: (url) => {
   if (MANIFEST_JSON && /stations\.json$/.test(String(url || ''))) {
     return { getResponseCode: () => 200, getContentText: () => MANIFEST_JSON };
+  }
+  if (/\/bio-english-lab\//.test(String(url || ''))) {
+    return ENGLISH_JSON && /sets\.json$/.test(String(url))
+      ? { getResponseCode: () => 200, getContentText: () => ENGLISH_JSON }
+      : { getResponseCode: () => 404, getContentText: () => '' };
   }
   return _tokenFetch(); } };
 const _tokenFetch = () => { FETCHES++; return { getResponseCode: () => 200,
@@ -409,7 +430,10 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'teacherAddLink', 'teacherRemoveLink',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
-    'uiData'                                                                 /* gated: _hwCaller_ */
+    'uiData',                                                                /* gated: _hwCaller_ */
+    'installDailySummary',                                                   /* gated: _isAdminCaller_ */
+    'sendDueSummaries'       /* a trigger must be callable: it only ever emails the teacher who set each
+                                overdue homework, once, and hands back a count */
   ];
   const callable = [...new Set([...SRC.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]))]
     .filter(n => !n.endsWith('_'));
@@ -420,7 +444,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the three that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',
-   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh', 'uiData'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh', 'uiData', 'installDailySummary'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -768,7 +792,7 @@ ok &= run('the tabs end up in syllabus order, however they started', () => {
   /* the tabs a teacher opens sit at the front, ahead of the twenty lab tabs */
   const want = ['Setup', 'Labs', 'Students', T_HOMEWORK, T_TEACHERS, T_LINKS]
                  .concat(LABS.map(l => l.name))
-                 .concat(['Rejected'])
+                 .concat([T_ENGLISH, 'Rejected'])
                  .filter(n => ss.getSheetByName(n));
   if (JSON.stringify(got.slice(0, want.length)) !== JSON.stringify(want)) {
     throw new Error('order is wrong.\n   was:  ' + before + '\n   want: ' + want.join(', ') +
@@ -1674,6 +1698,206 @@ ok &= run('with no hub address there is no station list, and it says so rather t
   if (d.labs.length) throw new Error('labs were offered with no station list');
   HUB_URL = 'https://hub.test';
 });
+
+console.log('— Bio English Lab —');
+global.ENGLISH_JSON = JSON.stringify({ site:'bio-english-lab', built:'t',
+  years:[ { y:9, title:'Year 9', units:['t3'] }, { y:10, title:'Year 10', units:['t7'] } ],
+  units:{ t3:{ n:'3', title:'Movement into and out of cells', year:9, sets:['t3.kw.meanings', 't3.describe.1'] },
+          t7:{ n:'7', title:'Human nutrition', year:10, sets:['t7.kw.meanings.1'] } },
+  sets:[ { id:'m.describe', unit:null, kind:'method', title:'How to describe', total:3, v:'m1' },
+         { id:'t3.kw.meanings', unit:'t3', kind:'kw', title:'Keywords: meanings', total:4, v:'k1' },
+         { id:'t3.describe.1', unit:'t3', kind:'describe', title:'Describe: diffusion', total:2, v:'d1' },
+         { id:'t7.kw.meanings.1', unit:'t7', kind:'kw', title:'Keywords: meanings 1', total:5, v:'k7' } ] });
+const enCid = CLIENT_ID, enTok = TOKEN_EMAIL;
+CLIENT_ID = 'CID'; SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+const enDir = _studentDirectory_().students;
+const enA = enDir[0], enB = enDir.filter(s => s.cls && s.cls !== enA.cls)[0] || enDir[1];
+const enPost = (body, email) => { TOKEN_EMAIL = email;
+  return JSON.parse(doPost({ postData:{ contents: JSON.stringify(Object.assign({ token: TOK }, body)) } })); };
+const enKept = email => {
+  const sh = ss.getSheetByName(T_ENGLISH); if (!sh || sh.getLastRow() < 2) return null;
+  const v = sh.getRange(2, 1, sh.getLastRow() - 1, EN_SNAP).getValues();
+  const r = v.filter(x => String(x[EN_EMAIL - 1]).toLowerCase() === email)[0];
+  return r ? { row: r, kept: _enParse_(r[EN_SNAP - 1]) } : null;
+};
+const enDay = days => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+let enHw = null;
+
+ok &= run('a save from somebody not signed in, or not on the roster, leaves no trace', () => {
+  const rows = () => { const sh = ss.getSheetByName(T_ENGLISH); return sh ? sh.getLastRow() : 0; };
+  const before = rows();
+  const junk = JSON.parse(doPost({ postData:{ contents: JSON.stringify({ action:'english.save', token:'junk',
+    sets:{ 't3.kw.meanings':{ done:1 } } }) } }));
+  if (junk.ok !== false) throw new Error('a junk token was accepted');
+  const r = enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:1, first:1, total:4, snap:'f000', v:'k1' } } },
+                   'stranger@elsewhere.com');
+  if (r.ok !== false || !/class list/.test(r.why)) throw new Error('a stranger was recorded: ' + JSON.stringify(r));
+  if (rows() !== before) throw new Error('a row was written');
+});
+ok &= run('a pupil’s saves make ONE row, with vocabulary and writing counted apart', () => {
+  let r = enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:2, first:1, total:4, snap:'f1t0', v:'k1' } } }, enA.email);
+  if (!r.ok || r.saved !== 1) throw new Error(JSON.stringify(r));
+  r = enPost({ action:'english.save', sets:{ 't3.describe.1':{ done:2, first:2, total:2, snap:'ff', v:'d1' } } }, enA.email);
+  if (!r.ok) throw new Error(JSON.stringify(r));
+  const sh = ss.getSheetByName(T_ENGLISH);
+  if (sh.getLastRow() - 1 !== 1) throw new Error((sh.getLastRow() - 1) + ' rows for one pupil');
+  const v = enKept(enA.email).row;
+  if (v[0] !== enA.name || v[1] !== enA.cls) throw new Error('name/class: ' + v[0] + ' ' + v[1]);
+  if (v[2] !== 2 || v[4] !== 2) throw new Error('vocabulary ' + v[2] + ', writing ' + v[4] + ' — want 2 and 2');
+  if (Math.abs(v[3] - 0.5) > 1e-9 || v[5] !== 1) throw new Error('right-first-time shares ' + v[3] + ', ' + v[5]);
+  if (v[6] !== 1) throw new Error('sets finished: ' + v[6]);
+  if (!/T3 Keywords: meanings 2\/4 \(1\)/.test(v[8]) || !/T3 Describe: diffusion 2\/2 \(2\)/.test(v[8]))
+    throw new Error('Per set reads "' + v[8] + '"');
+});
+ok &= run('two computers: the better answer to each question wins, nothing goes backwards', () => {
+  /* the second computer has not caught up: it only knows question 3 was right */
+  enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:1, first:0, total:4, snap:'001t', v:'k1' } } }, enA.email);
+  const x = enKept(enA.email).kept['t3.kw.meanings'];
+  if (x.s !== 'f11t' || x.d !== 3 || x.f !== 1) throw new Error(JSON.stringify(x));
+});
+ok &= run('a set the site does not have is ignored; an old page cannot overwrite a rebuilt set', () => {
+  enPost({ action:'english.save', sets:{ 'ghost.set':{ done:3, total:3, snap:'111', v:'x' },
+    't3.kw.meanings':{ done:4, first:4, total:4, snap:'ffff', v:'OLD' } } }, enA.email);
+  const k = enKept(enA.email).kept;
+  if (k['ghost.set']) throw new Error('an unknown set was stored');
+  if (k['t3.kw.meanings'].s !== 'f11t') throw new Error('an old version overwrote the current one: ' + k['t3.kw.meanings'].s);
+});
+ok &= run('english.mine gives a pupil their own work back, and nobody else’s', () => {
+  const me = enPost({ action:'english.mine' }, enA.email);
+  if (!me.ok || !me.onList || me.cls !== enA.cls) throw new Error(JSON.stringify(me).slice(0, 200));
+  if (!me.sets['t3.kw.meanings'] || me.sets['t3.kw.meanings'].snap !== 'f11t') throw new Error('their work did not come back');
+  const other = enPost({ action:'english.mine' }, enB.email);
+  if (Object.keys(other.sets).length) throw new Error('a pupil was sent somebody else’s work');
+  const stranger = enPost({ action:'english.mine' }, 'stranger@elsewhere.com');
+  if (stranger.onList || Object.keys(stranger.sets).length || stranger.homework.length) throw new Error('a stranger was told something');
+  const t = enPost({ action:'english.mine' }, OWNER);
+  if (!t.teacher) throw new Error('the owner was not recognised as a teacher');
+});
+ok &= run('English sets can be set as homework beside lab stations, named in words', () => {
+  const r = homeworkCreate({ title:'Osmosis words and the gut', classes:[{ cls: enA.cls, due: enDay(30) }],
+    tasks:[ { labId:'digestion-lab', stationIds:['mouth'] },
+            { labId:'bio-english-lab', stationIds:['t3.kw.meanings', 't3.describe.1'] } ] });
+  if (!r.ok) throw new Error('refused: ' + r.why);
+  enHw = _homeworkRows_().filter(h => h.id === r.made[0])[0];
+  if (!/Bio English Lab: T3 Keywords: meanings, T3 Describe: diffusion/.test(enHw.what)) throw new Error('What reads "' + enHw.what + '"');
+  if (!/Mouth and teeth/.test(enHw.what)) throw new Error('the lab half was lost: ' + enHw.what);
+  const d = _homeworkData_();
+  if (!d.english || d.english.sets.length !== 4) throw new Error('the page was not given the English sets');
+  if (d.labs.some(l => l.id === 'bio-english-lab')) throw new Error('Bio English Lab was offered as a lab');
+});
+ok &= run('English sets count in the homework score, answered or not', () => {
+  const man = _hwManifest_(), idx = _hwLabIndex_(['digestion-lab', 'bio-english-lab']);
+  const lab = idx['digestion-lab'] && idx['digestion-lab'][enA.email];
+  const mouth = lab && lab.byId.mouth ? Math.min(lab.byId.mouth.done, 8) : 0;
+  const s = _hwScoreOne_(enHw, enA.email, idx, man);
+  if (s.total !== 8 + 4 + 2) throw new Error('total ' + s.total + ', want 14');
+  if (s.done !== mouth + 3 + 2) throw new Error('done ' + s.done + ', want ' + (mouth + 5));
+  if (s.missing.length) throw new Error('named as missing: ' + s.missing);
+  const b = _hwScoreOne_(enHw, enB.email, idx, man);
+  if (b.total !== 14) throw new Error('a pupil with no English row lost the English questions from the total');
+});
+ok &= run('the homework reaches the pupils it was set for on the English site, and nobody else', () => {
+  const me = enPost({ action:'english.mine' }, enA.email);
+  const hw = me.homework.filter(h => h.id === enHw.id)[0];
+  if (!hw) throw new Error('the pupil was not given their homework');
+  if (hw.sets.join(',') !== 't3.kw.meanings,t3.describe.1') throw new Error('sets: ' + hw.sets);
+  if (enB.cls !== enA.cls && enPost({ action:'english.mine' }, enB.email).homework.some(h => h.id === enHw.id))
+    throw new Error('another class was given it');
+  const r = homeworkCreate({ title:'Just the lab', classes:[{ cls: enA.cls, due: enDay(31) }],
+    tasks:[{ labId:'digestion-lab', stationIds:['stomach'] }] });
+  if (enPost({ action:'english.mine' }, enA.email).homework.some(h => h.id === r.made[0]))
+    throw new Error('a lab-only homework was listed on the English site');
+  homeworkDelete(r.made[0]);
+});
+ok &= run('the Bio English view is teacher-only, and has what the page needs', () => {
+  VISITOR = 'pupil@pupils.x.kr';
+  if (uiData('english').ok !== false) throw new Error('a pupil read the English view');
+  VISITOR = OWNER;
+  const r = uiData('english');
+  if (!r.ok) throw new Error(r.why);
+  if (!r.data.english || r.data.english.sets.length !== 4) throw new Error('no set list');
+  const p = r.data.progress[enA.email];
+  if (!p || p.sets['t3.kw.meanings'][0] !== 3 || p.sets['t3.kw.meanings'][1] !== 1) throw new Error('progress: ' + JSON.stringify(p));
+  const page = doGet({ parameter:{ page:'english' } }).html;
+  if (!/"tab":"english"/.test(page)) throw new Error('?page=english did not open on the English view');
+});
+ok &= run('homework is posted to Classroom: one post per class, to that class’s course', () => {
+  const POSTS = [];
+  global.Classroom = { Courses: { CourseWork: { create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; } } } };
+  try {
+    const ids = _classroomIds_(), course = ids[enA.email] && ids[enA.email].courseId;
+    if (!course) throw new Error('the test roster has no course id for ' + enA.email);
+    const r = homeworkCreate({ title:'Posted', post:true, classes:[{ cls: enA.cls, due:'2027-02-01' }],
+      tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+    if (!r.ok) throw new Error(r.why);
+    if (POSTS.length !== 1 || POSTS[0].courseId !== course) throw new Error(JSON.stringify(POSTS));
+    const b = POSTS[0].body;
+    if (b.title !== 'Posted' || b.state !== 'PUBLISHED' || b.workType !== 'ASSIGNMENT') throw new Error('body: ' + JSON.stringify(b));
+    if (!/\/bio-english-lab\/#\/hw\/HW-/.test(b.materials[0].link.url)) throw new Error('link: ' + b.materials[0].link.url);
+    /* the end of 1 February in the school's zone (UTC+9 here) is 14:59 UTC that day */
+    if (b.dueDate.day !== 1 || b.dueDate.month !== 2 || b.dueTime.hours !== 14 || b.dueTime.minutes !== 59)
+      throw new Error('due ' + JSON.stringify([b.dueDate, b.dueTime]));
+    if (b.assigneeMode) throw new Error('a whole class was posted to individuals');
+    const row = _homeworkRows_().filter(h => h.id === r.made[0])[0];
+    if (row.course !== course || row.courseWork !== 'cw1') throw new Error('ids not written back: ' + row.course + ' ' + row.courseWork);
+    if (!r.posted.length || r.notPosted.length) throw new Error(JSON.stringify([r.posted, r.notPosted]));
+    homeworkDelete(r.made[0]);
+    /* chosen pupils: assigned to them alone */
+    const r2 = homeworkCreate({ title:'One only', post:true, classes:[{ cls:'', due:'2027-02-02', emails:[enA.email] }],
+      tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+    const b2 = POSTS[1] && POSTS[1].body;
+    if (!b2 || b2.assigneeMode !== 'INDIVIDUAL_STUDENTS' || b2.individualStudentsOptions.studentIds.length !== 1)
+      throw new Error('not posted to the pupil alone: ' + JSON.stringify(b2));
+    homeworkDelete(r2.made[0]);
+  } finally { global.Classroom = undefined; }
+});
+ok &= run('with Classroom off, the homework is still set and it says why it was not posted', () => {
+  const r = homeworkCreate({ title:'Not posted', post:true, classes:[{ cls: enA.cls, due:'2027-02-03' }],
+    tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+  if (!r.ok) throw new Error(r.why);
+  if (r.posted.length || !/not switched on/.test(r.notPosted.join(' '))) throw new Error(JSON.stringify(r.notPosted));
+  homeworkDelete(r.made[0]);
+});
+ok &= run('the due-date email goes to the teacher once, and never for last month’s homework', () => {
+  MAILS.length = 0;
+  const r = homeworkCreate({ title:'Due yesterday', classes:[{ cls: enA.cls, due: enDay(-1.5) }],
+    tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+  const old = homeworkCreate({ title:'Long ago', classes:[{ cls: enA.cls, due: enDay(-40) }],
+    tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+  if (!r.ok || !old.ok) throw new Error('could not set the test homework');
+  sendDueSummaries();
+  const mine = MAILS.filter(m => /Due yesterday/.test(m.subj));
+  if (mine.length !== 1 || mine[0].to !== OWNER) throw new Error(JSON.stringify(MAILS.map(m => [m.to, m.subj])));
+  if (!/T3 Keywords: meanings/.test(mine[0].body) || mine[0].body.indexOf(enA.name) < 0) throw new Error(mine[0].body);
+  if (MAILS.some(m => /Long ago/.test(m.subj))) throw new Error('a homework a month past its date was emailed');
+  const row = _homeworkRows_().filter(h => h.id === r.made[0])[0];
+  if (row.status !== 'reported' || !row.reported) throw new Error('not marked reported');
+  sendDueSummaries();
+  if (MAILS.filter(m => /Due yesterday/.test(m.subj)).length !== 1) throw new Error('emailed twice');
+  homeworkDelete(r.made[0]); homeworkDelete(old.made[0]);
+});
+ok &= run('the morning email is switched on once, however often the menu is used', () => {
+  installDailySummary(); installDailySummary();
+  const t = ScriptApp.getProjectTriggers().filter(x => x.getHandlerFunction() === 'sendDueSummaries');
+  if (t.length !== 1) throw new Error(t.length + ' triggers');
+  VISITOR = 'pupil@pupils.x.kr'; installDailySummary(); VISITOR = OWNER;
+  if (ScriptApp.getProjectTriggers().length !== 1) throw new Error('a pupil changed the triggers');
+});
+ok &= run('with the English site unreachable, lab homework carries on and English is named, not zeroed', () => {
+  const keep = ENGLISH_JSON; ENGLISH_JSON = '';
+  try { CacheService.getScriptCache().put('EN_STAMP', 'gone', 600); } catch (e) {}
+  try {
+    const d = _homeworkData_();
+    if (d.english !== null) throw new Error('an English list appeared from nowhere');
+    if (!d.manifestOk) throw new Error('the labs stopped working with it');
+    const s = _hwScoreOne_(enHw, enA.email, _hwLabIndex_(['digestion-lab', 'bio-english-lab']), _hwManifest_());
+    if (s.missing.indexOf('t3.kw.meanings') < 0) throw new Error('the English sets were not named as unmarkable');
+    if (s.total !== 8) throw new Error('total ' + s.total + ', want the lab alone (8)');
+  } finally { ENGLISH_JSON = keep; try { CacheService.getScriptCache().put('EN_STAMP', 'back', 600); } catch (e) {} }
+});
+homeworkDelete(enHw.id);
+{ const t = ss.getSheetByName(T_ENGLISH); if (t) ss.deleteSheet(t); }
+ENGLISH_JSON = ''; TRIGGERS.length = 0; MAILS.length = 0; CLIENT_ID = enCid; TOKEN_EMAIL = enTok;
 { const t = ss.getSheetByName(T_HOMEWORK); if (t) ss.deleteSheet(t); }
 VISITOR = ''; SCHOOL_DOMAIN = ''; HUB_URL = ''; MANIFEST_JSON = '';
 props.delete('HUB_URL'); props.delete('SCHOOL_DOMAIN');

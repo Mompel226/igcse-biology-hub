@@ -678,26 +678,16 @@ body[data-view="entry"] .lede{max-width:70ch}
 .door__sub{font-family:var(--serif);font-style:italic;font-size:clamp(15px,1.3vw,21px);line-height:1.25;color:var(--accent);margin-top:3px}
 .door--hero .door__sub{font-size:clamp(17px,1.5vw,24px)}
 .band--entry{padding-top:2px;margin-top:-2px}
-/* the front row: the hero, and beside it the one door only a signed-in student sees — their
-   own assessments. The row sizes to the hero as the hero alone did (no share of the height
-   the four below take). The student's door is one resting door-width of the row beneath —
-   (row − gaps) ÷ doors, with --row-n set by js/hub.js and 8px being `.doors`' own gap — so
-   at rest its edges line up with the last door below. It never grows when lit, or the hero
-   would shrink under it. Hidden, it takes no room and the hero spans the row. */
+/* the front row: the hero at half the width, and beside it the doors to the other ways to learn
+   — Bio English Lab, Write-Up Lab, and (signed in) the student's own assessments. The hero keeps
+   its share when one of the small doors is lit: the row beneath moves, the front row breathes. */
 .doors--top{flex:none;min-height:0}
-.doors--top>.door--hero{flex:1 1 0;min-width:0}
-.door--mine{flex:0 0 calc((100% - (var(--row-n,4) - 1) * 8px) / var(--row-n,4));min-width:0}
-.door--mine.is-on{flex-grow:0}
-/* Pointed at, the two front doors open towards each other like the row beneath: the student's
-   door widens to the LEFT, the hero to the RIGHT. Each takes exactly the width a lit door has
-   in the row below — (row − gaps) × 2.4 ÷ (doors + 1.4), the share .door.is-on's flex-grow:2.4
-   gives it — so the columns still line up while it is open. The tour never lights these two
-   (js/hub.js, tourable), so the hero only moves when someone points at one of them. Wide
-   screens only: stacked on a phone, flex-basis would set their HEIGHT. */
+.doors--top>.door--hero{flex:3 1 0;min-width:0}
+.doors--top>.door--top,.doors--top>.door--mine{flex:1 1 0;min-width:0}
 @media (min-width:901px){
-  .doors--top>.door--mine{transition:flex-basis .75s var(--ease)}
-  .doors--top>.door--mine.is-on{flex-basis:calc((100% - (var(--row-n,4) - 1) * 8px) * 2.4 / (var(--row-n,4) + 1.4))}
-  .doors--top:has(>.door--hero.is-on)>.door--mine{flex-basis:calc((100% - (var(--row-n,4) - 1) * 8px) / (var(--row-n,4) + 1.4))}
+  .doors--top>.door--hero.is-on{flex-grow:3.6}
+  .doors--top>.door--top.is-on,.doors--top>.door--mine.is-on{flex-grow:1.8}
+  .doors--top>.door--top,.doors--top>.door--mine{min-height:clamp(280px,36vh,460px)}
 }
 
 .door--entry .door__detail{color:var(--chalk-dim)}
@@ -711,7 +701,9 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
   /* stacked, the hero must take its own height: the wide screen's `flex:1 1 0` above shares a
      ROW, and in a column it squeezed the hero to nothing (on phones from 16 to 17 Sep 2026) */
   .doors--top>.door--hero{flex:none}
-  .door--mine{flex:none;min-height:220px}
+  /* stacked, a front-row door is as tall as its own words: the desktop flex-basis of 0 that
+     shares the WIDTH would set its HEIGHT to nothing here (two doors vanished this way, 24 Sep) */
+  .doors--top>.door--hero,.doors--top>.door--top,.door--mine{flex:none;min-height:220px}
   .doors--row{flex-direction:column;flex:none;min-height:0;gap:10px}
   .door--hero{height:auto;min-height:0}
   .door--hero .door__body{padding-top:clamp(150px,40vw,220px)}
