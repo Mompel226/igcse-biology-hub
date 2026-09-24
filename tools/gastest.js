@@ -790,9 +790,9 @@ ok &= run('the tabs end up in syllabus order, however they started', () => {
 
   const got = ss.getSheets().map(x => x.name);
   /* the tabs a teacher opens sit at the front, ahead of the twenty lab tabs */
-  const want = ['Setup', 'Labs', 'Students', T_HOMEWORK, T_TEACHERS, T_LINKS]
+  const want = ['Setup', 'Labs', 'Students', T_ENGLISH, T_HOMEWORK, T_TEACHERS, T_LINKS]
                  .concat(LABS.map(l => l.name))
-                 .concat([T_ENGLISH, 'Rejected'])
+                 .concat(['Rejected'])
                  .filter(n => ss.getSheetByName(n));
   if (JSON.stringify(got.slice(0, want.length)) !== JSON.stringify(want)) {
     throw new Error('order is wrong.\n   was:  ' + before + '\n   want: ' + want.join(', ') +

@@ -1671,9 +1671,10 @@ function _repairStudentColumns_() {
 function _orderTabs_() {
   var ss = _ss_();
   /* the tabs a teacher actually opens sit at the front; the twenty lab tabs are data behind them */
-  var want = [T_SETUP, T_LABS, T_STUDENTS, T_HOMEWORK, T_TEACHERS, T_LINKS]
+  /* Bio English sits with the people, after Students and before the homework, not among the labs */
+  var want = [T_SETUP, T_LABS, T_STUDENTS, T_ENGLISH, T_HOMEWORK, T_TEACHERS, T_LINKS]
              .concat(LABS.map(function (l) { return l.name; }))
-             .concat([T_ENGLISH, T_REJECTED]);
+             .concat([T_REJECTED]);
   var looking = null;
   try { looking = ss.getActiveSheet(); } catch (e) {}     /* put the teacher back where they were */
   var pos = 0, moved = 0;
