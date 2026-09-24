@@ -1076,7 +1076,7 @@
     }
     function mineSay(t) {
       var el = mineEl && mineEl.querySelector('.door__detail');
-      if (el) el.textContent = doorLine(t);
+      if (el) el.textContent = cardLine(t);
     }
     function mineOpen(who, t, instant) {
       mineSay(t);
