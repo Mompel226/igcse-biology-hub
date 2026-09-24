@@ -339,7 +339,7 @@
       if (n) { n.focus(); e.preventDefault(); }
     });
   }
-  function on(id)  { Object.keys(doorEls).forEach(function (k) { doorEls[k].classList.toggle('is-on', k === id); }); }
+  function on(id)  { restWidths(); Object.keys(doorEls).forEach(function (k) { doorEls[k].classList.toggle('is-on', k === id); }); }   /* rest widths first: a door lit before its width was known would re-wrap */
   function off(id) { if (doorEls[id]) doorEls[id].classList.remove('is-on'); }
 
   DOORS.filter(isShelf).forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
@@ -408,8 +408,24 @@
      (a returning student): it is simply there, since growing it in would make the hero shrink
      just after the page appeared. With reduced motion, or on a phone, it always just appears.
      Shutting is immediate — a door that lingers after sign-out would be worse. */
+  /* The words on a small front-row door are laid out at the width the door has AT REST, however
+     wide the door grows when it is lit. Otherwise the title re-wraps from two lines to one half
+     way through the widening and the whole block drops a line under the pointer. The resting
+     width is arithmetic — (row − gaps) ÷ (hero's 2.4 shares + one per small door) — so it is the
+     same whether or not a door happens to be lit when it is worked out. */
+  function restWidths() {
+    if (!topEl) return;
+    var small = Array.prototype.filter.call(topEl.children, function (el) { return !el.hidden && !el.classList.contains('door--hero'); });
+    if (narrow.matches) { small.forEach(function (el) { el.style.removeProperty('--rest-w'); }); return; }
+    var row = topEl.getBoundingClientRect().width || (entryEl && entryEl.getBoundingClientRect().width) || 0;
+    if (!row) { requestAnimationFrame(restWidths); return; }   /* not laid out yet: ask again next frame */
+    var w = (row - 8 * small.length) / (2.4 + small.length);
+    small.forEach(function (el) { el.style.setProperty('--rest-w', Math.floor(w) + 'px'); });
+  }
   function showDoor(el, open, instant) {
     if (!el || open === !el.hidden) return;
+    if (open) el.hidden = false;           /* count it before its width is worked out */
+    restWidths();
     if (!open) { el.hidden = true; return; }
     el.hidden = false;
     if (instant || still || narrow.matches) return;
@@ -449,6 +465,9 @@
     mine.forEach(function (d) { var a = build(d, false); a.dataset.section = b.section || ''; wideEl.appendChild(a); });
   });
   fitOverlays();
+  requestAnimationFrame(restWidths);
+  window.addEventListener('load', restWidths);
+  window.addEventListener('resize', function () { clearTimeout(restWidths.t); restWidths.t = setTimeout(restWidths, 120); });
 
   /* ---------- 2. the idle tour ----------
      Left alone, the doors take turns opening, so anyone glancing at

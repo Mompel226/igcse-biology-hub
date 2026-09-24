@@ -268,6 +268,7 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .yrs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
 .hmcard{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;margin-top:14px}
 .hm thead th.en{width:84px;min-width:84px}
+.enkinds{display:flex;gap:6px;flex-wrap:wrap;padding:8px 13px 2px}
 .hm thead th.en .lt{font:500 9px/1.2 var(--mono);color:var(--mute);display:block;margin-top:3px;text-transform:uppercase}
 .hm thead th.sum{color:var(--chalk);background:color-mix(in srgb,var(--accent) 12%,var(--cardhi))}
 @media (max-width:700px){.who{margin-left:0}.bars{width:100%}.size__h{margin-left:0;text-align:left}.hw__h{flex-wrap:wrap}}
@@ -1075,7 +1076,11 @@ var BOOT = __BOOT__;
           '<span class="lab__n">'+esc(U?'Topic '+U.n:'How to answer')+'</span><span class="lab__t">'+esc(U?U.title:'every topic')+'</span>'+
           '<span class="lab__c'+(n?' on':'')+'">'+(n?n+' of '+ids.length+' · '+q+'q':ids.length+' set'+(ids.length===1?'':'s'))+'</span>'+
           '<button class="act" data-enall="'+esc(k)+'">'+(all?'None':'All')+'</button></div>'+
-          (op?'<div class="stn">'+ids.map(function(id){ var x=ENS[id], on=!!mine[id];
+          (op?'<div class="enkinds">'+[['kw','Keywords'],['describe','Describe'],['explain','Explain'],['plan','Plan']].map(function(kk){
+              var kid=ids.filter(function(id){ return ENS[id].kind===kk[0]; }); if(!kid.length) return '';
+              var allk=kid.every(function(id){ return mine[id]; });
+              return '<button class="act'+(allk?' ok':'')+'" data-enkind="'+esc(k)+'|'+kk[0]+'" aria-pressed="'+(allk?'true':'false')+'">'+kk[1]+' ('+kid.length+')</button>'; }).join('')+'</div>'+
+          '<div class="stn">'+ids.map(function(id){ var x=ENS[id], on=!!mine[id];
             return '<label class="st'+(on?' on':'')+'"><input type="checkbox" data-enpick="'+esc(id)+'"'+(on?' checked':'')+'>'+
               '<span>'+esc(x.title)+'</span><span class="st__q">'+x.total+'</span></label>'; }).join('')+'</div>':'')+'</div>'; }).join('');
       var other=Object.keys(mine).filter(function(id){ var x=ENS[id]; return x&&x.unit&&(yr.units||[]).indexOf(x.unit)<0; }).length;
@@ -1226,6 +1231,10 @@ var BOOT = __BOOT__;
       document.querySelectorAll('[data-enall]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         var ids=enIds(b.getAttribute('data-enall')), mine=hState.picked[ENID]=hState.picked[ENID]||{};
         var all=ids.length>0&&ids.every(function(id){ return mine[id]; });
+        ids.forEach(function(id){ if(all) delete mine[id]; else mine[id]=1; }); paint(); }); });
+      document.querySelectorAll('[data-enkind]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        var q=b.getAttribute('data-enkind').split('|'), ids=enIds(q[0]).filter(function(id){ return ENS[id].kind===q[1]; });
+        var mine=hState.picked[ENID]=hState.picked[ENID]||{}; var all=ids.length>0&&ids.every(function(id){ return mine[id]; });
         ids.forEach(function(id){ if(all) delete mine[id]; else mine[id]=1; }); paint(); }); });
       document.querySelectorAll('[data-enpick]').forEach(function(b){ b.addEventListener('change', function(){
         var mine=hState.picked[ENID]=hState.picked[ENID]||{}, id=b.getAttribute('data-enpick');

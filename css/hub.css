@@ -689,6 +689,12 @@ body[data-view="entry"] .lede{max-width:70ch}
    bottom of it, so the eyebrows start on one line across the row as the four beneath do. */
 .nb{white-space:nowrap}
 @media (min-width:901px){
+  /* the eyebrow, title and subtitle keep the door's resting width (set by js/hub.js) while the door
+     widens, so they never re-wrap under the pointer; the blurb may use the full lit width, and is
+     capped at three lines so the block never outgrows the door and clips the title */
+  .doors--top>.door--top .door__no,.doors--top>.door--top .door__title,.doors--top>.door--top .door__sub,
+  .doors--top>.door--mine .door__no,.doors--top>.door--mine .door__title,.doors--top>.door--mine .door__sub{max-width:calc(var(--rest-w,200vw) - 2 * clamp(14px,1.8vw,26px))}
+  .doors--top>.door--top.is-on .door__lede,.doors--top>.door--mine.is-on .door__lede{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;max-height:4.6em}
   .doors--top>.door--top .door__no,.doors--top>.door--mine .door__no{white-space:nowrap}
   .doors--top>.door--top .door__title,.doors--top>.door--mine .door__title{font-size:clamp(20px,1.55vw,30px);min-height:2.35em;display:grid;align-content:end}
   .doors--top>.door--top .door__sub,.doors--top>.door--mine .door__sub{font-size:clamp(14px,1.15vw,19px);min-height:2.6em;display:grid;align-content:end}
