@@ -692,7 +692,11 @@ body[data-view="entry"] .lede{max-width:70ch}
   .doors--top>.door--top .door__no,.doors--top>.door--mine .door__no{white-space:nowrap}
   .doors--top>.door--top .door__title,.doors--top>.door--mine .door__title{font-size:clamp(20px,1.55vw,30px);min-height:2.35em;display:grid;align-content:end}
   .doors--top>.door--top .door__sub,.doors--top>.door--mine .door__sub{min-height:2.6em;display:grid;align-content:end}
-  .doors--top>.door--top .door__detail,.doors--top>.door--mine .door__detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  /* the foot is ONE line whatever the width: the detail gives way (…) before the link is pushed to a
+     second line, which is what lifted the student's door a line above its neighbours on a laptop */
+  .doors--top>.door--top .door__foot,.doors--top>.door--mine .door__foot{flex-wrap:nowrap;align-items:baseline;gap:10px}
+  .doors--top>.door--top .door__detail,.doors--top>.door--mine .door__detail{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doors--top>.door--top .door__go,.doors--top>.door--mine .door__go{flex:none;white-space:nowrap}
   .doors--top>.door--hero.is-on{flex-grow:3.6}
   .doors--top>.door--top.is-on,.doors--top>.door--mine.is-on{flex-grow:1.8}
   .doors--top>.door--top,.doors--top>.door--mine{min-height:clamp(280px,36vh,460px)}
