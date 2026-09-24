@@ -684,7 +684,15 @@ body[data-view="entry"] .lede{max-width:70ch}
 .doors--top{flex:none;min-height:0}
 .doors--top>.door--hero{flex:3 1 0;min-width:0}
 .doors--top>.door--top,.doors--top>.door--mine{flex:1 1 0;min-width:0}
+/* The three small front-row doors line up whatever wraps: each block of words reserves the same
+   space (a two-line title, a two-line subtitle, a one-line eyebrow and foot) and sits at the
+   bottom of it, so the eyebrows start on one line across the row as the four beneath do. */
+.nb{white-space:nowrap}
 @media (min-width:901px){
+  .doors--top>.door--top .door__no,.doors--top>.door--mine .door__no{white-space:nowrap}
+  .doors--top>.door--top .door__title,.doors--top>.door--mine .door__title{font-size:clamp(20px,1.55vw,30px);min-height:2.35em;display:grid;align-content:end}
+  .doors--top>.door--top .door__sub,.doors--top>.door--mine .door__sub{min-height:2.6em;display:grid;align-content:end}
+  .doors--top>.door--top .door__detail,.doors--top>.door--mine .door__detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .doors--top>.door--hero.is-on{flex-grow:3.6}
   .doors--top>.door--top.is-on,.doors--top>.door--mine.is-on{flex-grow:1.8}
   .doors--top>.door--top,.doors--top>.door--mine{min-height:clamp(280px,36vh,460px)}
