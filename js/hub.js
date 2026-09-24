@@ -317,7 +317,9 @@
     a.addEventListener('pointerenter', function (e) { if (e.pointerType === 'touch' && narrow.matches) return; stopTour(); on(d.id); });
     a.addEventListener('pointerleave', function (e) { if (e.pointerType === 'touch' && narrow.matches) return; off(d.id); restTour(); });
     a.addEventListener('focus',        function () { stopTour(); on(d.id); });
-    a.addEventListener('blur',         function () { off(d.id); restTour(); });
+    /* a click on a door that opens a new tab takes the focus with it; the blur that follows must
+       not unlight a door the pointer is still on, or it grows and snaps back under the hand */
+    a.addEventListener('blur',         function () { if (!a.matches(':hover')) off(d.id); restTour(); });
     a.addEventListener('pointermove', function (e) {
       var r = a.getBoundingClientRect();
       a.style.setProperty('--mx', ((e.clientX - r.left) / r.width  * 100).toFixed(1) + '%');
