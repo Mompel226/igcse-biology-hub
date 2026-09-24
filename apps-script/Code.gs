@@ -7,10 +7,11 @@
  * Commercial use needs my permission: dmompelriera@nlcsjeju.kr
  *
  * What this does
- *   • Collects hand-ins from every Biology Lab into one Sheet, a tab per lab.
+ *   • Collects every student's work from every Biology Lab into one Sheet, a tab per lab.
+ *     Each lab sends it on its own while they work — there is nothing to hand in.
  *   • Imports your Google Classroom rosters, so the marks sit next to real names
  *     and classes. Re-run it whenever someone joins: it adds, never duplicates.
- *   • Keeps only your own students: a hand-in is recorded when the Google account that
+ *   • Keeps only your own students: work is recorded when the Google account that
  *     signed in is on your roster, and ignored when it is not. The labs are public, so
  *     anyone may use them — their work simply does not land here.
  *   • Formats every tab so it is readable: nothing truncated, nothing too narrow,
@@ -54,10 +55,10 @@
    different Sheet. */
 var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 
-/* Sign-in — needed for ANY hand-in to be recorded. The OAuth Client ID from Google Cloud: the SAME
+/* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
    create one, see "Signing in" further down, or the README. Empty = nothing is recorded (the labs
-   still work; everyone still gets a completion code). */
+   still work; a student's work simply stays in their own browser). */
 var CLIENT_ID = '';
 
 /* The record card on the hub — optional. TRACKER_ID is the id of the "Student Progress Tracker"
@@ -153,11 +154,10 @@ var HUB_URL           = '';
    public GitHub copy.
    -------------------------------------------------------------------------- */
 
-/* Every lab that can hand in. `id` is what the site sends as `app`; `tab` is the
+/* Every lab that saves here. `id` is what the site sends as `app`; `tab` is the
    tab it is written to. Add a row here (or in the Labs tab) as each lab is built.
-   `questions` MUST match what the lab actually asks — it flags a hand-in as NOT ALL
-   QUESTIONS and it is the range a completion code is checked against, so a number that
-   is too low flags every hand-in and fails to verify any code above it. The counts are
+   `questions` MUST match what the lab actually asks — it flags a save as NOT ALL
+   QUESTIONS, so a number that is too low flags every save. The counts are
    kept in labs-shared/labs.json, written by each lab's own build. */
 var LABS = [
   { id:'classification-lab',  name:'Classification',   topic:'1 · Characteristics and classification', questions:64 },
@@ -185,25 +185,25 @@ var LABS = [
 var T_SETUP = 'Setup', T_LABS = 'Labs', T_STUDENTS = 'Students', T_REJECTED = 'Rejected';
 
 /* A lab's tab, described once. Every student gets a row when they are imported; the
-   columns after Class stay empty until they hand in. */
+   columns after Class stay empty until their first save arrives. */
 var LAB_COLS = [
-  { h:'Name', w:200, note:'From the Students tab. Everyone gets a row here when they are imported, whether they have handed in or not. To correct a name, correct it there.' },
+  { h:'Name', w:200, note:'From the Students tab. Everyone gets a row here when they are imported, whether anything has been saved or not. To correct a name, correct it there.' },
   { h:'Class', w:80, align:'center', note:'From the Students tab. Move somebody between classes there and it follows them into every lab.' },
-  { h:'Score', w:76, align:'center', fmt:'0', group:true, note:'Their best score in this lab. Blank means they have not handed in yet.' },
+  { h:'Score', w:76, align:'center', fmt:'0', group:true, note:'Their best score in this lab. Blank means nothing has been saved yet.' },
   { h:'Out of', w:76, align:'center', fmt:'0', note:'How many questions the lab asked.' },
   { h:'%', w:78, align:'center', fmt:'0.0%', note:'Their best score as a percentage.' },
   { h:'Finished?', w:104, align:'center', list:['complete', 'progress'],
-    note:'complete — every question right.\nprogress — handed in part way, to show the work so far.' },
+    note:'complete — every question right.\nprogress — saved part way through; the work so far.' },
   { h:'Checks', w:86, align:'center', fmt:'0', group:true, note:'How many times they pressed Check answer, in all. This is the evidence of the work.' },
   { h:'Right first time', w:124, align:'center', fmt:'0', note:'How many questions they got right at the first attempt. Separates knowing it from working it out.' },
-  { h:'Working since', w:116, align:'center', note:'How long before their best hand-in they first checked anything.' },
-  { h:'Hand-ins', w:90, align:'center', fmt:'0', group:true, note:'How many times they have handed this lab in. A second hand-in updates the row rather than adding one.' },
-  { h:'Last hand-in', w:132, fmt:'dd MMM, HH:mm', note:'When they last handed in — even if an earlier one scored higher.' },
-  { h:'Code', w:126, align:'center', group:true, note:'The completion code from their best hand-in.' },
+  { h:'Working since', w:116, align:'center', note:'How long before their best save they first checked anything.' },
+  { h:'Saves', w:90, align:'center', fmt:'0', group:true, note:'How many saves have landed here. The lab sends one on its own every couple of minutes while they work, and when they finish or leave — nothing is handed in. Every save updates this row rather than adding one.' },
+  { h:'Last saved', w:132, fmt:'dd MMM, HH:mm', note:'When their work last arrived — even if an earlier save scored higher.' },
+  { h:'Code', w:126, align:'center', group:true, hide:true, note:'No longer used. Completion codes were retired in September 2026: the lab saves on its own, so there is nothing to hand in and nothing to check. Old codes stay here for the record.' },
   { h:'Flags', w:230, note:'Anything worth a second look.' },
   { h:'Per station', w:460, note:'Their score at each station, and how many checks it took there.' },
   { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
-  { h:'Signed in as', w:200, hide:true, note:'The name on the Google account they signed in with. Their completion code is made from THIS name, not the one on the Students tab — which is why it is kept.' },
+  { h:'Signed in as', w:200, hide:true, note:'The name on the Google account they signed in with. Kept so a row can be told apart from a namesake on the Students tab.' },
   { h:'Carried between devices', w:200, hide:true,
     note:'Which questions they had right, so signing in on another computer brings their work back. About 370 characters, written by the lab. Not marks — the marks are in the columns you can see. Do not edit.' }
 ];
@@ -213,9 +213,9 @@ var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
 
 /* ---- Signing in ----------------------------------------------------------
    The labs are public web pages: anyone in the world can open one, work through it and
-   press Hand in. That is the point — but their work must not land in your spreadsheet.
-   So a hand-in is kept only when the Google account that signed in is on your Students
-   tab. Everyone else gets their completion code on screen and nothing is written down.
+   work through it. That is the point — but their work must not land in your spreadsheet.
+   So work is kept only when the Google account that signed in is on your Students tab.
+   Everyone else's stays in their own browser and nothing is written down.
 
    A Client ID is a name-tag for your app, issued by Google. It is not a secret — it sits
    in plain sight in the page source. The lab page uses it to ask Google for a sign-in; this
@@ -234,12 +234,12 @@ var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
      places: SETTINGS at the top, and googleClientId in every lab's js/config.js.
      The full version of this is in the README, under "Sign-in: what the Client ID is".
 
-   Leave it empty and nothing is recorded at all — the labs still work, and everyone gets
-   a completion code to hand in by other means.
+   Leave it empty and nothing is recorded at all — the labs still work, and every
+   student's work stays in their own browser.
    -------------------------------------------------------------------------- */
 
 /* Pasting a fresh copy of this file used to wipe the Client ID you had typed, and every
-   hand-in then came back "not recorded: sign-in is not set up" — silently, until a mark went
+   save then came back "not recorded: sign-in is not set up" — silently, until a mark went
    missing. So it is remembered the same way SHEET_ID is: fill it in SETTINGS at the top once, and from
    then on an empty line means "use the one you remembered", not "forget it". */
 function _clientId_() {
@@ -273,7 +273,7 @@ function onOpen() {
 }
 
 /* ============================================================
-   1. Receiving a hand-in
+   1. Receiving a student's work — the lab sends it on its own
    ============================================================ */
 function doPost(e) {
   try {
@@ -291,7 +291,7 @@ function doPost(e) {
     if (String(d.action || '') === 'test') return _ownTest_(d);
 
     /* Bio English Lab saves a pupil's work as they go, and asks for it back on another computer.
-       Neither is a hand-in, so both are answered here, before anything treats this as a lab. */
+       Neither is lab work, so both are answered here, before anything treats this as a lab. */
     if (String(d.action || '') === 'english.save') return _englishSave_(d);
     if (String(d.action || '') === 'english.mine') return _englishMine_(d);
 
@@ -299,8 +299,7 @@ function doPost(e) {
     if (!lab) return _text_('unknown lab');
 
     /* Only this teacher's students are recorded. Anyone else in the world who works through
-       a lab and presses Hand in gets their completion code and leaves no trace here at all —
-       no row, no name, no email, nowhere. */
+       a lab leaves no trace here at all — no row, no name, no email, nowhere. */
     if (!_clientId_()) return _text_('not recorded: sign-in is not set up');
     var who = _whoIs_(d.token);
     if (!who) return _text_('not recorded: not signed in');
@@ -315,11 +314,9 @@ function doPost(e) {
 
     var score = Number(d.score) || 0, total = Number(d.total) || 0;
 
-    /* the code was made in the page from what it showed, so it is checked against that */
-    var genuine = (_code_(lab.id, String(d.name || '').trim(), String(d.form || '').trim(),
-                         score + '/' + total) === _codeBody_(d.code));
+    /* Completion codes were retired in September 2026 (a keyless checksum the page itself
+       computed proved nothing). What is checked is that the numbers add up. */
     var wrong = [];
-    if (!genuine) wrong.push('code does not match');
     if (score > total) wrong.push('score above the total');
     if (total < 0 || total > 1000) wrong.push('impossible total');
     if (wrong.length) {
@@ -332,44 +329,75 @@ function doPost(e) {
     if (lab.questions && total !== lab.questions) flags.push('NOT ALL QUESTIONS');
     if (d.complete === false) flags.push('PROGRESS — not finished');
 
-    /* Their row is already waiting, put there when the class was imported. A hand-in fills
-       it in; a second hand-in updates it rather than adding another. The count and the date
-       always move, and everything else is replaced only when this attempt beat the last one,
-       so a worse re-run can never wipe out a better score.
-       A whole class can press Hand in within the same few seconds, so the read-then-write is
-       done one at a time. _rowFor_ only has to make a row for somebody who joined since. */
+    /* Their row is already waiting, put there when the class was imported. The first save
+       fills it in; every later one updates it rather than adding another. The count and the
+       date always move, and the marks are replaced only when this save beat the last one, so
+       a worse run can never wipe out a better score. The carried snapshot is MERGED, never
+       replaced: a save from a second device that knows less cannot take a right answer away.
+       Forty students save within the same minute, so the read-then-write takes turns — and it
+       is one read and one write of the row, so a turn is short. */
     var lock = LockService.getScriptLock();
-    try { lock.waitLock(20000); } catch (e) { return _text_('busy — please press Hand in again'); }
+    try { lock.waitLock(8000); } catch (e) { return _text_('busy — it will try again'); }
     try {
       var sh = _labSheet_(lab);
+      var lastBefore = sh.getLastRow();
       var r = _rowFor_(sh, who.email, student);
-      var best = Number(sh.getRange(r, 3).getValue());
+      var row = sh.getRange(r, 1, 1, LAB_COLS.length).getValues()[0];
+      var best = Number(row[2]);
       var beaten = !(best > 0) || score > best;
-      var seen = Number(sh.getRange(r, 10).getValue()) || 0;
+      var seen = Number(row[9]) || 0;
 
-      sh.getRange(r, 1, 1, 2).setValues([[student.name, student.cls]]);
-      sh.getRange(r, LAB_GNAME).setValue(_plain_(who.name));
-      /* Kept on every hand-in, not only a better one: this is what lets them carry on
-         somewhere else, and the newest is always the fullest — it can only have grown. */
-      if (d.snap) sh.getRange(r, LAB_SNAP).setValue(_plain_(String(d.snap).slice(0, 45000)));
-      sh.getRange(r, 10, 1, 2).setValues([[seen + 1, new Date()]]);
+      row[0] = student.name; row[1] = student.cls;
+      row[LAB_GNAME - 1] = _plain_(who.name);
+      if (d.snap) row[LAB_SNAP - 1] = _plain_(_mergeSnap_(String(row[LAB_SNAP - 1] || ''), String(d.snap).slice(0, 45000)));
+      row[9] = seen + 1; row[10] = new Date();
       if (beaten) {
-        sh.getRange(r, 3, 1, 7).setValues([[
-          score, total, total ? score / total : 0,
-          d.complete === false ? 'progress' : 'complete',
-          Number(d.checks) || '', Number(d.firstTime) || '', _since_(d.from)
-        ]]);
-        sh.getRange(r, 12, 1, 3).setValues([[_plain_(d.code), flags.join('; '), _plain_(_stations_(d.stations))]]);
+        row[2] = score; row[3] = total; row[4] = total ? score / total : 0;
+        row[5] = d.complete === false ? 'progress' : 'complete';
+        row[6] = Number(d.checks) || ''; row[7] = Number(d.firstTime) || ''; row[8] = _since_(d.from);
+        row[12] = flags.join('; '); row[13] = _plain_(_stations_(d.stations));
       }
-      _dressRows_(sh, LAB_COLS, r, 1);       /* so a row written between tidy-ups still reads properly */
-      SpreadsheetApp.flush();
-      return _text_(beaten ? 'recorded' : 'recorded (an earlier hand-in still scores higher)');
+      sh.getRange(r, 1, 1, LAB_COLS.length).setValues([row]);
+      if (r > lastBefore) _dressRows_(sh, LAB_COLS, r, 1);   /* a row made just now is dressed once, as Tidy up would */
+      SpreadsheetApp.flush();                                 /* committed before the next save reads this row */
+      return _text_(beaten ? 'recorded' : 'recorded (an earlier save still scores higher)');
     } finally { lock.releaseLock(); }
   } catch (err) {
     /* The message is kept, because it is what a student can show their teacher — but not any
        file id inside it ("…while accessing document with id 1AbC…"): those stay private. */
     return _text_('error: ' + String(err).replace(/[A-Za-z0-9_-]{25,}/g, '…'));
   }
+}
+
+/* Two snapshots of the same lab, folded into one: station~sig:cccc|… (see labs-shared/engine/
+   sync.js). Per question the higher state wins — 0 untouched < t tried < 1 right < f right first
+   time — so a save from a device that knows less can never take a right answer away. A station
+   whose fingerprint changed is taken from the newer snapshot, which is the one the live lab made. */
+function _mergeSnap_(oldSnap, newSnap) {
+  if (!oldSnap) return newSnap;
+  if (!newSnap) return oldSnap;
+  var RANK = { '0': 0, 't': 1, '1': 2, 'f': 3 };
+  var parts = {}, order = [];
+  function add(snap, fresh) {
+    String(snap).split('|').forEach(function (part) {
+      var m = part.match(/^([^~:]+)~([^:]*):([01tf]*)$/); if (!m) return;
+      var id = m[1], sig = m[2], q = m[3], have = parts[id];
+      if (!have) { parts[id] = { sig: sig, q: q }; order.push(id); return; }
+      if (have.sig !== sig) { if (fresh) parts[id] = { sig: sig, q: q }; return; }
+      var out = '', len = Math.max(have.q.length, q.length);
+      for (var i = 0; i < len; i++) {
+        var a = have.q.charAt(i) || '0', b = q.charAt(i) || '0';
+        out += (RANK[b] || 0) > (RANK[a] || 0) ? b : a;
+      }
+      have.q = out;
+    });
+  }
+  add(oldSnap, false);
+  if (!order.length) return newSnap;                    /* nothing readable to merge into: the new one stands */
+  var known = order.length;
+  add(newSnap, true);
+  if (order.length === known && !/~/.test(newSnap)) return oldSnap;   /* the new one carries no stations: keep what is there */
+  return order.map(function (id) { return id + '~' + parts[id].sig + ':' + parts[id].q; }).join('|');
 }
 
 /* A cell given text that starts with = + - or @ reads it as a formula, and a formula can reach
@@ -382,7 +410,7 @@ function _plain_(v) {
 
 /* Junk, and anything that does not verify, lands here instead of in a lab's tab. */
 /* Who is this? Google signed the token; we ask Google to check its own signature. The
-   answer is cached briefly so two hand-ins in a row do not ask twice. Anything we cannot
+   answer is cached briefly so two saves in a row do not ask twice. Anything we cannot
    stand behind comes back null. */
 function _whoIs_(idToken) {
   if (!_clientId_() || !idToken) return null;
@@ -392,7 +420,7 @@ function _whoIs_(idToken) {
   var hit = cache.get(key);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
-  /* Junk never costs a call to Google, whose daily allowance every hand-in shares: something not
+  /* Junk never costs a call to Google, whose daily allowance every save shares: something not
      even shaped like a sign-in for THIS app, still in date, is turned away here, and a token Google
      has already refused is remembered as refused for five minutes. */
   var claims = null;
@@ -429,7 +457,7 @@ function _whoIs_(idToken) {
 /* An address typed or pasted into the Sheet carries what came with it: a trailing space from
    a copy, a non-breaking space from a web page, a zero-width character from a document, or a
    "mailto:" from a pasted link. Every comparison below lowercased but did not trim, so an
-   address that LOOKS right sat on the roster and matched nothing, and the hand-in was refused
+   address that LOOKS right sat on the roster and matched nothing, and the save was refused
    as "not on this class list". Both sides go through here now. */
 function _cleanEmail_(v) {
   return String(v == null ? '' : v)
@@ -475,7 +503,7 @@ function _reject_(lab, row) {
 }
 
 /* ============================================================
-   2. The endpoint — a lab checks it is alive; hand-ins arrive by POST
+   2. The endpoint — a lab checks it is alive; a student's work arrives by POST
    ============================================================ */
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
@@ -628,7 +656,7 @@ function _upsertStudents_(students, classCode, courseName, courseId) {
     sh.getRange(at, EMAIL_COL, add.length, 5).setValues(add.map(function (a) { return a.slice(2); }));
   }
   /* Their names go into every lab straight away, so each tab reads as a class list with the
-     marks still to come, rather than filling up only as people hand in. */
+     marks still to come, rather than filling up only as work arrives. */
   if (add.length || moved) LABS.forEach(function (l) { _seedLab_(l); });
   return { status: 'success', added: add.length, skipped: skipped, moved: moved };
 }
@@ -654,7 +682,7 @@ function createAssignmentFor_(labId, courseId) {
   if (!lab) throw new Error('Unknown lab: ' + labId);
   var work = Classroom.Courses.CourseWork.create({
     title: lab.name + ' Lab — Topic ' + lab.topic.split(' ')[0],
-    description: 'Work through every station in the lab, then hand in.',
+    description: 'Work through every station in the lab. Signed in, your work is saved as you go.',
     materials: [{ link: { url: 'https://nlcsbiology.com/' + lab.id + '/' } }],
     workType: 'ASSIGNMENT', state: 'PUBLISHED',
     maxPoints: lab.questions || 100
@@ -670,7 +698,7 @@ function pushGradesFor_(labId, courseId, courseWorkId) {
   var sh = _ss_().getSheetByName(lab.name);
   if (!sh || sh.getLastRow() < 2) throw new Error('Nothing in the ' + lab.name + ' tab yet.');
 
-  /* Match on school email — the same thing the hand-in was recorded against — and fall
+  /* Match on school email — the same thing the work was recorded against — and fall
      back to the name only for anyone Classroom gives no email for. */
   var byEmail = {}, byName = {}, page = null;
   do {
@@ -687,7 +715,7 @@ function pushGradesFor_(labId, courseId, courseWorkId) {
   var done = 0, missing = [], waiting = 0;
   rows.forEach(function (row) {
     var score = row[2];
-    if (score === '' || score === null) { waiting++; return; }   /* has not handed in yet */
+    if (score === '' || score === null) { waiting++; return; }   /* nothing saved yet */
     var name = String(row[0] || ''), email = _cleanEmail_(row[LAB_EMAIL - 1]);
     var uid = byEmail[email] || byName[_tidy_(name)];
     if (!uid) { missing.push(name); return; }
@@ -699,7 +727,7 @@ function pushGradesFor_(labId, courseId, courseWorkId) {
       courseId, courseWorkId, sub.id, { updateMask: 'assignedGrade,draftGrade' });
     done++;
   });
-  var said = 'Graded ' + done + '. Still to hand in: ' + waiting +
+  var said = 'Graded ' + done + '. Nothing saved yet: ' + waiting +
              '. Not matched: ' + (missing.join(', ') || 'none');
   Logger.log(said);
   return said;
@@ -738,7 +766,7 @@ function checkSetup() {
   if (!cid) {
     lines.push('❌  sign-in is NOT set up — CLIENT_ID at the top of this script is empty and ' +
                'none has been remembered, so NOTHING is being recorded, however green ' +
-               'everything above is. Every hand-in comes back “not recorded: sign-in is not ' +
+               'everything above is. Every save comes back “not recorded: sign-in is not ' +
                'set up”. Type it into the CLIENT_ID line once and run this again; from then ' +
                'on pasting a fresh copy of the script cannot lose it. See “Sign-in: what the ' +
                'Client ID is” in the README.');
@@ -949,7 +977,7 @@ function restyleAll_() {
            edit:true (yours to change), list:[dropdown options], hide:true }
    ------------------------------------------------------------ */
 /* The palette. Ordinary numbers stay quiet; strong colour is kept for the few things that
-   actually need looking at — a low score, a refused hand-in.
+   actually need looking at — a low score, a refused save.
    (Dashboard convention: a muted base, high contrast reserved for the exception.) */
 var HDR_AUTO = '#14572B';     /* filled in for you */
 var HDR_EDIT = '#8A6A12';     /* yours to change  */
@@ -1107,8 +1135,7 @@ function _classList_() {
    runs, then unticks itself. These two constants are the rows those things are written
    on, and must match the `lines` array inside _styleSetup_. */
 var URL_ROW = 12;
-var BTN_ROW = { refresh: 18, restyle: 19, code: 21 };
-var CODE_ROW = 21;      /* paste a code in B21; the answer lands in B22 */
+var BTN_ROW = { refresh: 18, restyle: 19 };
 
 function _styleSetup_() {
   var sh = _sheet_(T_SETUP);
@@ -1123,11 +1150,11 @@ function _styleSetup_() {
     ['Biology Labs', 'one spreadsheet for every lab'],
     ['', ''],
     ['Students', 'every student, every lab, best score so far. Filter the Class column to see one class.'],
-    ['Labs', 'one row per lab: how many questions it has, and how many hand-ins it has had.'],
-    ['Digestion, Circulation, …', 'your class list again, one tab per lab. Every student has a row from the moment you import them; handing in fills it in. Handing in twice updates the same row and keeps the better score.'],
-    ['Rejected', 'a hand-in from one of your students whose numbers did not add up.'],
+    ['Labs', 'one row per lab: how many questions it has, and how many saves it has had.'],
+    ['Digestion, Circulation, …', 'your class list again, one tab per lab. Every student has a row from the moment you import them; their first save fills it in. Every later save updates the same row and keeps the better score.'],
+    ['Rejected', 'a save from one of your students whose numbers did not add up.'],
     ['', ''],
-    ['Only your students land here', 'a hand-in is kept when the Google account that signed in is on the Students tab. The labs are public, so anyone in the world may use them — their work is not recorded anywhere.'],
+    ['Only your students land here', 'work is kept when the Google account that signed in is on the Students tab. The lab sends it on its own while they work — nothing is handed in. The labs are public, so anyone in the world may use them — their work is not recorded anywhere.'],
     ['', ''],
     ['Reading a heading', 'dark green = filled in for you.   ✎ amber = yours to change.   Hover any heading to see what it is for.'],
     ['', ''],
@@ -1139,9 +1166,6 @@ function _styleSetup_() {
     ['', ''],
     ["Refresh everyone's progress", ''],
     ['Tidy up — rebuild anything missing, re-apply the formatting', ''],
-    ['', ''],
-    ['Check a completion code', 'paste a code here, then tick →   (it can only match one of your own students)'],
-    ['', ''],
     ['', ''],
     ['If something looks wrong', '🧪 Biology Labs ▸ Check the set-up'],
     ['After editing the script', 'Deploy ▸ Manage deployments ▸ pencil ▸ Version: New version ▸ Deploy']
@@ -1163,11 +1187,6 @@ function _styleSetup_() {
     sh.getRange(r, 1, 1, 3).setBackground('#EFF5F0');
   });
   sh.getRange(BTN_ROW.refresh, 1, 2, 1).setFontColor(INK);
-  sh.getRange(CODE_ROW, 1).setFontColor(INK);
-  sh.getRange(CODE_ROW, 2).setBackground('#FFFFFF').setFontColor('#8A8F8A').setFontStyle('italic')
-    .setBorder(true, true, true, true, false, false, '#C9A227', SpreadsheetApp.BorderStyle.SOLID);
-  sh.getRange(CODE_ROW + 1, 2).setFontColor('#3D7A54').setFontWeight('bold');
-  sh.getRange(CODE_ROW + 1, 2).setValue('');       /* no answer until a code is checked */
   sh.setHiddenGridlines(true);
 }
 
@@ -1185,16 +1204,6 @@ function onButtonTicked(e) {
   if (!e || !e.range) return;
   var sh = e.range.getSheet();
   if (sh.getName() !== T_SETUP) return;
-
-  /* An answer belongs to the code that produced it. Clear or change the code and the answer
-     below it has to go, or the next person to look reads an answer to a question nobody
-     asked — and you cannot tell whether it is stale until you have already believed it. */
-  if (e.range.getRow() === CODE_ROW && e.range.getColumn() === 2) {
-    var typed = String(e.range.getValue() || '').trim();
-    _codeAnswer_(typed ? '↑  Tick the box to check this code.' : '');
-    if (!typed) _btnSays_(BTN_ROW.code, '');
-    return;
-  }
 
   if (e.range.getColumn() !== 3) return;
   if (e.range.getValue() !== true) return;
@@ -1214,7 +1223,6 @@ function onButtonTicked(e) {
     _PROGRESS_ROW = row;
     if (row === BTN_ROW.refresh) { refreshDashboard(); did = 'Progress refreshed'; }
     else if (row === BTN_ROW.restyle) { did = 'Tidied up. ' + setup(); }
-    else if (row === BTN_ROW.code) { checkCode_(); did = 'Code checked — the answer is in the cell below'; }
     else { _btnSays_(row, ''); return; }
     _PROGRESS_ROW = null;
     var secs = Math.round((new Date() - started) / 1000);
@@ -1228,17 +1236,6 @@ function onButtonTicked(e) {
 
 function _hhmm_(d) {
   return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-}
-
-/* The answer under the code box. Grey while it is only a prompt, green when it is a real
-   answer, so the two never look alike. */
-function _codeAnswer_(text) {
-  var sh = _sheet_(T_SETUP);
-  var hint = /^↑/.test(text);
-  sh.getRange(CODE_ROW + 1, 2).setValue(text)
-    .setFontColor(hint ? '#8A8F8A' : '#3D7A54')
-    .setFontWeight(hint ? 'normal' : 'bold')
-    .setFontStyle(hint ? 'italic' : 'normal');
 }
 
 /* A long job talks while it works. "Working…" for two minutes is indistinguishable from a
@@ -1275,9 +1272,9 @@ function _styleStudents_() {
 
   var cols = [
     { h:'Name', w:210, edit:true,
-      note:'The student, as Google Classroom spells it. Correct a spelling here and it follows them into every lab tab the next time you import or Tidy up. Hand-ins are matched by school email, not by this, so a correction cannot lose anybody\'s work.' },
+      note:'The student, as Google Classroom spells it. Correct a spelling here and it follows them into every lab tab the next time you import or Tidy up. Work is matched by school email, not by this, so a correction cannot lose anybody\'s work.' },
     { h:'Class', w:88, align:'center', bold:true, edit:true, list:_classList_(),
-      note:'Which class they are in. Used by the filter, and shown on every hand-in.\n\n' +
+      note:'Which class they are in. Used by the filter, and shown on every lab tab.\n\n' +
            'TEST is always here, for a row of your own used to check a lab end to end.\n\n' +
            'A class not on this list still works — the box only warns. Press Tidy up and it ' +
            'joins the list.' }
@@ -1292,7 +1289,7 @@ function _styleStudents_() {
                      (built[l.id] ? '' : '\n\nThis lab is not built yet, so the column stays empty.') });
   });
   cols.push({ h:'Labs started', w:112, align:'center', fmt:'0', group:true,
-              note:'How many labs they have handed in at least once.' });
+              note:'How many labs they have saved something in.' });
   cols.push({ h:'Average', w:94, align:'center', fmt:'0%', bold:true,
               note:'The average of the labs they have started. Labs they have not touched are not counted against them.' });
   cols.push({ h:'School email', w:240, hide:true, note:'From Classroom. This is what stops a student being imported twice.' });
@@ -1373,8 +1370,8 @@ function _styleLabs_() {
     { h:'Lab', w:130, note:'The name of this lab\'s tab in this spreadsheet.' },
     { h:'Topic', w:200, note:'Which IGCSE topic it covers.' },
     { h:'Questions', w:100, align:'center', fmt:'0', edit:true,
-      note:'How many questions that lab has. Used to flag a hand-in that does not cover them all. Fill it in when a lab is built.' },
-    { h:'Hand-ins', w:100, align:'center', fmt:'0', note:'How many hand-ins that lab has had. Counted for you.' }
+      note:'How many questions that lab has. Used to flag a save that does not cover them all. Fill it in when a lab is built.' },
+    { h:'Saves', w:100, align:'center', fmt:'0', note:'How many saves that lab has had. Counted for you.' }
   ], { freezeCols: 2, tab:'#6E8F7C' });
 }
 
@@ -1393,7 +1390,7 @@ function _styleLab_(sh) {
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('complete')
       .setBackground(HIGH).setFontColor('#265C33')
       .setRanges([sh.getRange(2, 6, rows, 1)]).build(),
-    /* nobody has handed in yet: the row is a name waiting, not a bad mark */
+    /* nothing saved yet: the row is a name waiting, not a bad mark */
     SpreadsheetApp.newConditionalFormatRule().whenCellEmpty()
       .setBackground('#FAFAF7')
       .setRanges([sh.getRange(2, 3, rows, 1)]).build(),
@@ -1439,7 +1436,7 @@ function _sheet_(name) {
   if (sh) return sh;
   sh = ss.insertSheet(name);
   if (name === T_LABS) {
-    sh.getRange(1, 1, 1, 5).setValues([['Lab id', 'Lab', 'Topic', 'Questions', 'Hand-ins']]);
+    sh.getRange(1, 1, 1, 5).setValues([['Lab id', 'Lab', 'Topic', 'Questions', 'Saves']]);
     var rows = LABS.map(function (l, i) {
       return [l.id, l.name, l.topic, l.questions || '',
               '=IFERROR(COUNTA(INDIRECT("\'"&B' + (i + 2) + '&"\'!B2:B")),0)'];
@@ -1525,7 +1522,7 @@ function _repairStudentSheet_() {
   head.forEach(function (h, i) { if (h && known.indexOf(h) < 0) strays.push(i + 1); });
   if (strays.length) dropEmpty(strays, 'unrecognised');
 
-  /* 3. an address carries whatever was pasted with it, and a hand-in is matched on the address.
+  /* 3. an address carries whatever was pasted with it, and a save is matched on the address.
         A trailing space is invisible and loses every mark that student ever hands in. */
   head = heads();
   var ec = head.indexOf('School email') + 1, rows = rowCount(), fixed = 0;
@@ -1541,11 +1538,11 @@ function _repairStudentSheet_() {
       sh.getRange(2, ec, rows, 1).setValues(out);
       notes.push(fixed + ' school address' + (fixed === 1 ? '' : 'es') +
                  ' had spaces or hidden characters around ' + (fixed === 1 ? 'it' : 'them') +
-                 ', which stops a hand-in being matched. Cleaned.');
+                 ', which stops their work being matched. Cleaned.');
     }
   }
   /* 4. two rows sharing one address. Nothing is deleted, because either row might be the right
-        one, but it has to be said: a hand-in is matched on the address and the first row wins,
+        one, but it has to be said: a save is matched on the address and the first row wins,
         so the other student's name is written over theirs on every lab tab the next time this
         runs. On the sheet it looks like marks moving between people. */
   head = heads();
@@ -1599,7 +1596,7 @@ function _repairLabEmails_() {
    Labs started and Average. That is right for a sheet built by THIS version of the script,
    and wrong for one built before a lab was added: the sheet still has the old number of lab
    columns, so the count points a column too far and nobody is found on the roster. Every
-   hand-in then comes back "not on this class list", with nothing to say why.
+   save then comes back "not on this class list", with nothing to say why.
    So: read the heading row and find it. Falls back to the old arithmetic only if the sheet
    has no heading yet. */
 /* The labs in the order this sheet already lists them, then any it has not seen. */
@@ -1696,7 +1693,7 @@ function _labById_(id) {
   return null;
 }
 /* A lab's tab is the class list for that lab: every student has a row from the moment
-   they are imported, empty until they hand in. So you can see at a glance who has done it
+   they are imported, empty until their first save. So you can see at a glance who has done it
    and who has not, rather than waiting for rows to appear. */
 function _labSheet_(lab) {
   var ss = _ss_(), sh = ss.getSheetByName(lab.name);
@@ -1722,7 +1719,7 @@ function _seedLab_(lab, notes) {
       .forEach(function (r, i) { var e = _cleanEmail_(r[0]); if (e) have[e] = i + 2; });
   }
   /* Somebody taken off the Students tab should not linger on a lab tab. Their row goes only
-     if they never handed anything in. A row with marks on it is kept and named instead:
+     if nothing was ever saved in it. A row with marks on it is kept and named instead:
      deleting it would destroy the only record that the work was ever done, and a name can be
      removed from a roster by accident far more easily than a term of marks can be got back. */
   var onRoster = {};
@@ -1736,8 +1733,8 @@ function _seedLab_(lab, notes) {
     for (var k = all.length - 1; k >= 0; k--) {          /* bottom up, so a delete cannot shift the rest */
       var em = _cleanEmail_(all[k][LAB_EMAIL - 1]);
       if (!em || onRoster[em]) continue;
-      var handedIn = String(all[k][2]).trim() !== '' || Number(all[k][9]) > 0;
-      if (handedIn) { held.push(String(all[k][0] || em)); continue; }
+      var saved = String(all[k][2]).trim() !== '' || Number(all[k][9]) > 0;
+      if (saved) { held.push(String(all[k][0] || em)); continue; }
       sh.deleteRows(k + 2, 1);
       gone++;
       delete have[em];
@@ -1832,162 +1829,20 @@ function _since_(iso) {
 /** Must stay identical to completionCode() in each lab's js/app.js. The lab's own id
     is part of the recipe, so a code from one lab cannot be pasted into another. */
 /* ============================================================
-   5b. Reading a completion code
-   ============================================================
-   Nothing about a code is written down anywhere. It is a checksum of the name, the class,
-   the score and the lab — so the only way to read one back is to try the possibilities and
-   see which one matches, and the only bounded list of names you have is your own Students
-   tab. That is the whole shape of this feature, and its limit:
-
-     · a code from one of YOUR students resolves to their name and their score;
-     · a code from anyone else in the world cannot be resolved at all — their name could be
-       anything — and it says so rather than guessing.
-
-   So it is not a lookup. It is for the hand-in that never arrived — the student was offline,
-   or closed the tab, or could not sign in — and for telling a real code from an invented one.
-   Their result is in the lab's tab already when the hand-in did arrive. */
-function checkCode_() {
-  var sh = _sheet_(T_SETUP);
-  var code = String(sh.getRange(CODE_ROW, 2).getValue() || '').trim().toUpperCase();
-  var say = function (t) { _codeAnswer_(t); SpreadsheetApp.getActive().toast(t, 'Completion code', 30); };
-
-  /* The letters in front are the lab's own — DL for Digestion, CL for Classification — and a
-     code is just as readable without them, since only the body is ever compared. */
-  if (!/^([A-Z]{1,5}-)?[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) {
-    return say('Paste a completion code into the cell above, then tick the box. They look like DL-3CL9-Q3MP.');
-  }
-  /* First, simply look for it. Every hand-in that arrived wrote its code into the lab's tab,
-     so there is no need to guess at one that is already sitting there. */
-  for (var i = 0; i < LABS.length; i++) {
-    var tab = _ss_().getSheetByName(LABS[i].name);
-    if (!tab || tab.getLastRow() < 2) continue;
-    var have = tab.getRange(2, 1, tab.getLastRow() - 1, LAB_COLS.length).getValues();
-    for (var j = 0; j < have.length; j++) {
-      if (String(have[j][11] || '').trim().toUpperCase() !== code) continue;
-      var p = have[j][4] === '' ? '' : ' (' + Math.round(1000 * have[j][4]) / 10 + '%)';
-      return say(have[j][0] + ' · ' + have[j][1] + ' · ' + LABS[i].name + ' · ' +
-                 have[j][2] + '/' + have[j][3] + p + ' · ' + have[j][5] +
-                 '.  Already in the ' + LABS[i].name + ' tab, row ' + (j + 2) + '.');
-    }
-  }
-
-  var roster = _sheet_(T_STUDENTS);
-  if (roster.getLastRow() < 2) {
-    return say('Import your classes first — a code can only be matched against your own students.');
-  }
-  var people = roster.getRange(2, 1, roster.getLastRow() - 1, 2).getValues();
-
-  /* Not in any tab, so it is a hand-in that never arrived. Now it has to be guessed at, and
-     the guess is over names. A code is made from the name on the GOOGLE account, which for an
-     imported student is the same as the one on the Students tab — but not for a name typed in
-     by hand. So any Google name already seen on a hand-in is tried as well. */
-  var seen = {};
-  LABS.forEach(function (l) {
-    var t = _ss_().getSheetByName(l.name);
-    if (!t || t.getLastRow() < 2) return;
-    t.getRange(2, LAB_GNAME, t.getLastRow() - 1, 1).getValues().forEach(function (row) {
-      var g = String(row[0] || '').trim();
-      if (g) seen[g.toLowerCase()] = g;
-    });
-  });
-  Object.keys(seen).forEach(function (k) { people.push([seen[k], '']); });
-
-  /* Signed in, the page sends no class at all; signed out, it sends the one they picked.
-     Both are tried, so a code made either way is found. */
-  for (var li = 0; li < LABS.length; li++) {
-    var lab = LABS[li];
-    if (!lab.questions) continue;                 /* a lab with no questions yet issues no codes */
-    /* A code carries the total the lab had ON THE DAY it was issued. Add a question to a lab
-       and every code handed out before that stops being readable, because only the new total
-       is tried. The totals students actually handed in against are sitting in the lab's own
-       "Out of" column, so those are tried too. */
-    var totals = [lab.questions];
-    var tab = _ss_().getSheetByName(lab.name);
-    if (tab && tab.getLastRow() > 1) {
-      tab.getRange(2, 4, tab.getLastRow() - 1, 1).getValues().forEach(function (r) {
-        var t = Number(r[0]);
-        if (t > 0 && t <= 1000 && totals.indexOf(t) < 0) totals.push(t);
-      });
-    }
-    for (var pi = 0; pi < people.length; pi++) {
-      var name = String(people[pi][0] || '').trim();
-      if (!name) continue;
-      var forms = ['', String(people[pi][1] || '').trim()];
-      for (var fi = 0; fi < forms.length; fi++) {
-        if (fi === 1 && forms[1] === forms[0]) continue;
-        for (var ti = 0; ti < totals.length; ti++) {
-          var out = totals[ti];
-          for (var sc = 0; sc <= out; sc++) {
-            if (_code_(lab.id, name, forms[fi], sc + '/' + out) !== _codeBody_(code)) continue;
-            var pct = Math.round(1000 * sc / out) / 10;
-            var where = _rowSaysWhat_(lab, name);
-            return say(name + ' · ' + lab.name + ' · ' + sc + '/' + out +
-                       ' (' + pct + '%) · ' + (sc === out ? 'finished' : 'part way') +
-                       (out === lab.questions ? '' : ' · from when this lab had ' + out + ' questions') +
-                       '.  ' + where);
-          }
-        }
-      }
-    }
-  }
-  say('Could not read that code. Either it was invented, or it belongs to somebody who is not ' +
-      'one of your students — anyone in the world may use the labs and nothing about them is ' +
-      'recorded, so their code cannot be read here. One more possibility: a code is made from ' +
-      'the name on the GOOGLE account that signed in. If a name was typed into the Students tab ' +
-      'by hand and it is shorter or spelt differently from the Google one — “Daniel” against ' +
-      '“Daniel Mompel Riera” — the code will not match until that student has handed in once, ' +
-      'after which the Google name is remembered. Importing from Classroom avoids this: the ' +
-      'names come from the same Google accounts.');
-}
-
-/* Whether that student's hand-in actually arrived, so a recovered code is not entered twice. */
-function _rowSaysWhat_(lab, name) {
-  var sh = _ss_().getSheetByName(lab.name);
-  if (!sh || sh.getLastRow() < 2) return 'Nothing has been handed in for this lab yet.';
-  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues();
-  for (var i = 0; i < rows.length; i++) {
-    if (String(rows[i][0] || '').trim().toLowerCase() !== name.toLowerCase()) continue;
-    return (rows[i][2] === '' || rows[i][2] === null)
-      ? 'Their hand-in never arrived — this code is the only record of it.'
-      : 'Already in the ' + lab.name + ' tab: ' + rows[i][2] + '/' + rows[i][3] + '.';
-  }
-  return 'They have no row in the ' + lab.name + ' tab.';
-}
-
-/* Every lab stamps its own letters on the front of a code — DL- for Digestion, CL- for
-   Classification, and a new lab will bring its own. Only the body is ever compared: the lab's
-   id is already inside the hash, so the letters prove nothing the body does not. Comparing the
-   whole string meant this script expected DL- on every lab, and quietly refused every
-   Classification hand-in as "code does not match". */
-function _codeBody_(code) {
-  /* Anchored on the shape, not on the prefix: a code ends in two four-character groups, and
-     those are the body. Stripping "letters up to the first dash" would have eaten the first
-     group of a code typed without its prefix, since a group can be all letters. */
-  var s = String(code || '').trim().toUpperCase();
-  var m = s.match(/([A-Z0-9]{4})-([A-Z0-9]{4})$/);
-  return m ? m[1] + '-' + m[2] : s;
-}
-function _code_(labId, name, form, score) {
-  var raw = String(name).trim().toLowerCase() + '|' + form + '|' + score + '|' + labId;
-  var s1 = 0, s2 = 0;
-  for (var i = 0; i < raw.length; i++) {
-    s1 = (s1 * 31 + raw.charCodeAt(i)) >>> 0;
-    s2 = (s2 ^ (s1 + i)) >>> 0;
-  }
-  var A = 'ACDEFGHJKLMNPQRTUVWXY3479';
-  function chunk(n) {
-    var o = '';
-    for (var i = 0; i < 4; i++) { o += A.charAt(n % A.length); n = Math.floor(n / A.length); }
-    return o;
-  }
-  return chunk(s1) + '-' + chunk(s2);          /* body only — see _codeBody_ */
-}
+   5b. Completion codes — retired, September 2026
+   ------------------------------------------------------------
+   Every hand-in used to show the student a code (DL-3CL9-Q3MP), a checksum of name, class,
+   score and lab that the Setup tab could read back. The page computed it with the same
+   function as the server, so it proved nothing a student could not simply say — and now
+   that a lab saves on its own, the "hand-in that never arrived" it existed for no longer
+   happens. The Code column stays, hidden, for the rows that carry old ones.
+   ============================================================ */
 function _tidy_(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim(); }
 /* ============================================================
    Giving a student their own scores back
    ------------------------------------------------------------
    A student's progress lives in their browser. Clear the history, or open a lab on another
-   device, and it is gone. What was HANDED IN is here, so the hubs ask for it back.
+   device, and it is gone. What was SAVED is here, so the hubs ask for it back.
 
    Read only, and only ever the row belonging to the person holding the token. The email comes
    from the verified token, never from the request, so nobody can ask for anybody else's — and
@@ -2016,7 +1871,7 @@ function _ownProgress_(d) {
     for (var r = 0; r < vals.length; r++) {
       if (_cleanEmail_(vals[r][LAB_EMAIL - 1]) !== who.email) continue;
       var score = Number(vals[r][2]);              /* Score */
-      if (!(score > 0)) break;                     /* a row exists but nothing handed in yet */
+      if (!(score > 0)) break;                     /* a row exists but nothing saved yet */
       out[lab.id] = {
         done:      score,
         total:     Number(vals[r][3]) || lab.questions || 0,
@@ -2594,7 +2449,7 @@ function _ensureTeacherTabs_() {
                         'https://docs.google.com/spreadsheets/d/' + tid + '/edit', 'Every cohort, every reflection', '']);
     try { selfUrl = ss.getUrl(); } catch (e) {}
     if (selfUrl) seed.push(['Records', 'Student data (the labs)', '', 'Student data',
-               selfUrl, 'Lab hand-ins and the class lists', '']);
+               selfUrl, 'Lab work and the class lists', '']);
     if (seed.length) lk.getRange(2, 1, seed.length, _LINK_HEADERS_.length).setValues(seed);
     _dress2_(lk, _linkColDefs_(), { tab:'#0ea5e9' });
   } else {
@@ -2966,7 +2821,7 @@ function _typeRank_(t) {
 
    What each lab tab holds per student (LAB_COLS): a best Score / Out of, complete-or-progress,
    Checks (how many times they pressed Check — the effort), Right first time (knew it vs worked it
-   out), Hand-ins (how many times they submitted), and Per station ("mouth 8/8 in 11 · …" — the
+   out), Saves (how many times their work arrived), and Per station ("mouth 8/8 in 11 · …" — the
    score and checks at each part of the lab). That last one is what tells you WHICH topics a class
    finds hard, so it is parsed out here. */
 function _parseStations_(str) {
@@ -3019,7 +2874,7 @@ function _labProgressData_(now) {
     for (var i = 0; i < n; i++) {
       var r = v[i], email = _cleanEmail_(r[LAB_EMAIL - 1]);
       if (!email || !byEmail[email]) continue;
-      if (r[2] === '' || r[2] == null) continue;                 /* Score blank = not handed in */
+      if (r[2] === '' || r[2] == null) continue;                 /* Score blank = nothing saved */
       var done = Number(r[2]) || 0, total = Number(r[3]) || l.questions || 0;
       byEmail[email].byLab[l.id] = {
         done: done, total: total, pct: total ? Math.round(1000 * done / total) / 10 : 0,
@@ -3274,7 +3129,7 @@ function _hwLabIndex_(labIds, need) {
     var lab = null;
     LABS.forEach(function (l) { if (l.id === id) lab = l; });
     var sh = lab ? ss.getSheetByName(lab.name) : null;
-    /* null = the lab or its tab has gone; {} = it is there and nobody has handed in. The two must
+    /* null = the lab or its tab has gone; {} = it is there and nobody has saved anything. The two must
        not look the same, or a vanished lab would score every pupil nought as though they idled. */
     if (!sh) { out[id] = null; return; }
     if (sh.getLastRow() < 2) { out[id] = {}; return; }
@@ -3974,8 +3829,8 @@ function _text_(m) { return ContentService.createTextOutput(m).setMimeType(Conte
    BIO ENGLISH LAB — the writing site, recorded in THIS spreadsheet
    ═══════════════════════════════════════════════════════════════════════════
    nlcsbiology.com/bio-english-lab trains pupils to write short, exact exam answers — describe,
-   explain, plan an investigation — and tests their keywords. It is not a lab: nothing is handed
-   in and there is no completion code. The site saves quietly as a pupil works, set by set.
+   explain, plan an investigation — and tests their keywords. Like the labs it saves quietly as a
+   pupil works, set by set — nothing is handed in.
 
    It is recorded here rather than in a spreadsheet of its own so that a teacher has ONE roster,
    ONE teacher page and ONE homework list: a single piece of homework can hold lab stations and
@@ -4145,7 +4000,7 @@ function _englishSave_(d) {
   var who = _whoIs_(d.token);
   if (!who) return _json_({ ok:false, why:'not signed in' });
   var student = _studentOf_(who.email);
-  /* the rule every hand-in follows: somebody not on the roster leaves no trace here at all */
+  /* the rule every save follows: somebody not on the roster leaves no trace here at all */
   if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
   var sets = d.sets && typeof d.sets === 'object' && !Array.isArray(d.sets) ? d.sets : {};
   var ids = Object.keys(sets).filter(function (k) { return EN_SID.test(k); });
@@ -4155,7 +4010,7 @@ function _englishSave_(d) {
   if (en) (en.sets || []).forEach(function (s) { bySet[s.id] = s; });
 
   var lock = LockService.getScriptLock();
-  try { lock.waitLock(20000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
+  try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
   try {
     var sh = _englishSheet_(), r = _enRowFor_(sh, who.email, student);
     var kept = _enParse_(sh.getRange(r, EN_SNAP).getValue()), saved = 0;

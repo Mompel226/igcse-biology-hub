@@ -730,7 +730,7 @@
             '<a href="' + l.url + '"><span class="plab__name">' + esc(l.short) + '</span>' +
             '<span class="plab__n">' + (on ? P.pct(p) + '%<small> · ' + p.done + ' of ' + p.total + '</small>'
                                           : 'not started') + '</span></a>' +
-            (p.handedIn ? '<span class="plab__in">handed in</span>' : '') + '</li>';
+            (p.handedIn ? '<span class="plab__in">in the records</span>' : '') + '</li>';
         }).join('') + '</ul></div>';
     }).join('');
 
@@ -744,10 +744,10 @@
     var note = 'Counted in <b>this browser</b>. Clearing your history or site data erases it, and another device starts from nothing.';
     if (w.handedIn) {
       note += signedIn
-        ? ' What you handed in <b>while signed in</b> is also in your teacher\u2019s records, so it can be brought back \u2014 if your teacher is collecting them.'
-        : ' You have handed work in, but <b>not signed in</b>, so there is nothing to bring it back from. Sign in before you hand in next time.';
+        ? ' What you did <b>while signed in</b> is also in your teacher\u2019s records \u2014 the labs save on their own \u2014 so it can be brought back.'
+        : ' Sign in and the labs send your work to your teacher\u2019s records as you go, so it follows you to another computer.';
     } else {
-      note += ' Nothing handed in yet, so there is no copy anywhere else.';
+      note += ' Nothing is in your teacher\u2019s records yet: sign in, and the labs save there on their own as you work.';
     }
     document.getElementById('progNote').innerHTML = note;
 
@@ -766,9 +766,9 @@
   }
   showProgress();
 
-  /* ---------- bringing back what was handed in ----------
-     A student's working lives in their browser and dies with it. What they HANDED IN, while
-     signed in, is in the teacher's spreadsheet — so ask for it back. The token is one the
+  /* ---------- bringing back what was saved ----------
+     A student's working lives in their browser and dies with it. What the labs SAVED, while
+     the student was signed in, is in the teacher's spreadsheet — so ask for it back. The token is one the
      labs already hold; it is sent in a POST body as text/plain, which is a "simple" request,
      so there is no preflight. Only the holder's own row comes back: the endpoint takes the
      email from the token, never from what we send.
@@ -792,7 +792,7 @@
         return;
       }
       /* nobody signed in, here or in a lab */
-      if (loud) toast('Sign in at the top of the page, or inside a lab when you hand in, and your work will follow you here.');
+      if (loud) toast('Sign in at the top of the page, or inside a lab, and your work will follow you here.');
       return;
     }
     var tok = who.token;
@@ -812,9 +812,9 @@
         window.__SERVER_PROGRESS = j.labs;
         showProgress();                     /* redraw with whichever is further on */
         var n = Object.keys(j.labs).length;
-        done(n ? 'Brought back what you have handed in — ' + n + ' lab' + (n === 1 ? '' : 's') +
-                 '. Open a lab and press Sync there to get the answers themselves back.'
-               : 'Nothing has been handed in yet, so there is nothing to bring back.');
+        done(n ? 'Brought back what your teacher\u2019s records hold — ' + n + ' lab' + (n === 1 ? '' : 's') +
+                 '. Open a lab, signed in, and the answers themselves come back there.'
+               : 'Nothing is in your teacher\u2019s records yet, so there is nothing to bring back.');
       })
       .catch(function () { done('Could not reach your teacher\u2019s records just now.'); });
   }

