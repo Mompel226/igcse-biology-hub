@@ -171,7 +171,7 @@ var LABS = [
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
-  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:0 },
+  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:97 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
   { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
