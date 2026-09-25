@@ -53,6 +53,18 @@ window.LABS_REGISTER = {
       "stations": 12,
       "questions": 116,
       "status": "live"
+    },
+    { "id": "circulation-lab",
+      "name": "Circulation Lab",
+      "short": "Circulation",
+      "topicNo": 9,
+      "topic": "Transport in animals",
+      "shelf": "human-body",
+      "url": "https://nlcsbiology.com/circulation-lab/",
+      "store": "circulation-lab.v1",
+      "stations": 12,
+      "questions": 97,
+      "status": "live"
     }
   ],
   "shelves": [

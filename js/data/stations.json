@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-17T07:55:51.343Z",
+  "generated": "2026-09-25T04:28:35.521Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -196,6 +196,72 @@
           "id": "adapted",
           "name": "Built for its place",
           "questions": 8
+        }
+      ]
+    },
+    "circulation-lab": {
+      "name": "Circulation Lab",
+      "questions": 97,
+      "stations": [
+        {
+          "id": "system",
+          "name": "A pump, pipes and valves",
+          "questions": 7
+        },
+        {
+          "id": "double",
+          "name": "Single and double circulation",
+          "questions": 9
+        },
+        {
+          "id": "heart",
+          "name": "Inside the heart",
+          "questions": 10
+        },
+        {
+          "id": "beat",
+          "name": "How the heart beats",
+          "questions": 7
+        },
+        {
+          "id": "monitor",
+          "name": "Monitoring the heart",
+          "questions": 7
+        },
+        {
+          "id": "exercise",
+          "name": "Exercise and heart rate",
+          "questions": 8
+        },
+        {
+          "id": "plan",
+          "name": "Your gym investigation",
+          "questions": 12
+        },
+        {
+          "id": "chd",
+          "name": "Coronary heart disease",
+          "questions": 8
+        },
+        {
+          "id": "vessels",
+          "name": "Arteries, veins and capillaries",
+          "questions": 8
+        },
+        {
+          "id": "routes",
+          "name": "The main blood vessels",
+          "questions": 7
+        },
+        {
+          "id": "blood",
+          "name": "What blood is made of",
+          "questions": 8
+        },
+        {
+          "id": "clotting",
+          "name": "Clotting",
+          "questions": 6
         }
       ]
     }
