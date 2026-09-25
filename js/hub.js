@@ -389,6 +389,22 @@
       }
       rowEl.appendChild(a);
     });
+    /* Below the row, doors that lead out of the school altogether (entry.below in js/local.js):
+       full width, words always out, like the hero. The open edition declares none. */
+    if (ENTRY.below && ENTRY.below.doors && ENTRY.below.doors.length) {
+      if (ENTRY.below.label) {
+        var bl = document.createElement('div');
+        bl.className = 'band band--entry band--below';
+        bl.innerHTML = '<h2 class="eyebrow">' + esc(ENTRY.below.label) + '</h2>';
+        entryEl.appendChild(bl);
+      }
+      var belowEl = document.createElement('div'); belowEl.className = 'doors doors--below';
+      entryEl.appendChild(belowEl);
+      ENTRY.below.doors.forEach(function (d) {
+        d.kind = 'entry'; d.hero = true;
+        var b = build(d, false); b.classList.add('door--below'); belowEl.appendChild(b);
+      });
+    }
     /* The student's door is one door-width of the row beneath: the width each of those doors
        has at rest. The stylesheet works it out from how many doors that row holds, so the
        count is handed over here rather than written into the CSS. It deliberately follows
