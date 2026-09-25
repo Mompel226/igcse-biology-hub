@@ -487,6 +487,13 @@ var BOOT = __BOOT__;
         ? ', and the address inside could not be read'+(g.chipTrouble?' ('+esc(g.chipTrouble)+')':'')+'. In the labs spreadsheet’s script, Run ▸ checkChips shows what Google returns; or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.'
         : '. This page reads chips once the Google Sheets API is switched on in the labs spreadsheet’s script — in the Apps Script editor: Services ▸ + ▸ Google Sheets API ▸ Add. Or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.')+
       '</div>' : '';
+    /* Rows whose Link was typed without https:// (http://…, docs.google.com/… on its own, a javascript:)
+       are named so the typo can be found. Their address never reaches this page. */
+    var ty = (g && g.typed) || [];
+    if (ty.length) warn += '<div class="warn">'+(ty.length===1?'1 row is':ty.length+' rows are')+' not shown: '+
+      ty.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', ')+'. '+
+      (ty.length===1?'Its Link does not start with https://. Replace it':'Their Links do not start with https://. Replace each')+
+      ' with the spreadsheet’s full address, copied from the browser’s address bar, in the labs spreadsheet’s 🔗 Teacher links tab.</div>';
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
       return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
     var present={}, body='';

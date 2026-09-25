@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '25 Sep 2026 — the labs save on their own';
+var SCRIPT_EDITION = '25 Sep 2026 — test feedback on the hub';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -2080,7 +2080,18 @@ function _ownRecord_(d) {
    pupil sees, by the same path.
 
    Returned: ONLY this person's own — the state, the test's name, their own open and close
-   instants, the way in. Never the class map, anyone else's time, anyone's status, a question.
+   instants, the way in; and, once their teacher has released it, the way to their own feedback
+   (below). Never the class map, anyone else's time, anyone's status, a question.
+
+   FEEDBACK (§feedback-release, 25 Sep 2026) — the test system's Marker Review can release a
+   pupil's approved, marked test to them. It writes the time into TestResponses' "Feedback
+   Released" column, and empties it again whenever the work is re-opened, re-marked or re-sat.
+   A released row names the test (from the ⏰ Hub schedule tab's `names`, for every registered
+   test: feedback outlives its test being the active one) and the test system's own read-only
+   page for it, the form's address + ?page=feedback. That page shows each visitor only their own
+   feedback, and re-checks the release itself; this banner is only the way to it. The link is the
+   form's own address: it tells this pupil nothing new, because feedback exists only for someone
+   who has already sat a test at that address.
    The email comes from the verified token, never from the request. Read only.
    ============================================================ */
 var T_HUB_SCHEDULE   = '⏰ Hub schedule';
@@ -2108,9 +2119,14 @@ function _ownTest_(d) {
                                  : ', which the hub reads only once the Google Sheets API is switched on in its script (Services \u25b8 + \u25b8 Google Sheets API) \u2014 or use the spreadsheet\u2019s plain address'));
     else why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
   }
+  var fb = [];
   ids.forEach(function (id) {
     var snap = _testSnapshot_(id, teacher);          /* a teacher testing sees it as it is NOW */
     if (!snap || snap.fail) { why.push((snap && snap.fail) || 'a Test spreadsheet could not be read'); return; }
+    /* §feedback-release — released feedback needs no seat: last term's test is still theirs */
+    var f = snap.fb && snap.fb[email];                /* [newest test id, its time, how many released] */
+    if (snap.url && f) fb.push({ name: String((snap.names && snap.names[f[0]]) || ''), at: Number(f[1]) || 0,
+                                 count: Number(f[2]) || 1, url: snap.url + '?page=feedback' });
     var mine = _testFor_(snap, email, now);
     if (!mine) { why.push('\u201c' + snap.title + '\u201d does not list ' + email + ' on any of its Marks tabs'); return; }
     if (!best || _testBefore_(mine, best)) best = mine;
@@ -2125,6 +2141,13 @@ function _ownTest_(d) {
        not enough: a link sitting in this answer is one look at the browser's network tab away from
        opening the test early. */
     if (best.url && best.state === 'open') out.url = best.url;
+  }
+  if (fb.length) {                                   /* the newest; "and N more" on the same page */
+    fb.sort(function (a, b) { return b.at - a.at; });
+    var f0 = fb[0];
+    /* The link is the form's own address. It is no secret from this person: feedback exists only for someone
+       who sat a test there, so they have opened that address already. */
+    out.feedback = { name: f0.name, at: f0.at, url: f0.url, more: f0.count - 1 };
   }
   return _json_(out);
 }
@@ -2160,7 +2183,7 @@ function _testSheetIds_(fresh) {
    shared, limited pool. So a submission or an override reaches the banner within a minute, not at
    once — the test's own page is always exact. null = not a test system (or unreadable). */
 function _testSnapshot_(id, fresh) {
-  var key = 'tsnap3:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes */
+  var key = 'tsnap4:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes (4: fb, names) */
   /* `fresh`: a teacher checking their own change reads the sheet now — one person, not a class of
      thirty — and that reading still refreshes the shared copy the students are served */
   try { cache = CacheService.getScriptCache(); if (!fresh) hit = cache.get(key); } catch (e) {}
@@ -2222,10 +2245,29 @@ function _readTestSnapshot_(id) {
     var rel = _ms_(v[2]), lock = _ms_(v[3]);
     if (rel || lock) live[String(v[0]).toLowerCase() + '|' + String(v[1])] = [rel, lock];
   });
-  _eachRow_(wb.getSheetByName('TestResponses'), ['Email', 'Test ID', 'Status'], function (v) {
-    if (!ids[String(v[1])]) return;
-    if (/^(submitted|marking|marked|failed)$/.test(String(v[2]).trim().toLowerCase()))
+  /* §feedback-release — and released feedback, for ANY test: a marked row with a time in "Feedback Released" */
+  var fb = {}, fbIds = {};
+  _eachRow_(wb.getSheetByName('TestResponses'), ['Email', 'Test ID', 'Status', 'Feedback Released'], function (v) {
+    var st = String(v[2]).trim().toLowerCase();
+    if (ids[String(v[1])] && /^(submitted|marking|marked|failed)$/.test(st))
       done[String(v[0]).toLowerCase() + '|' + String(v[1])] = 1;
+    var at = st === 'marked' ? _releasedAt_(v[3]) : 0;
+    /* a test since taken off the test system's list cannot be drawn by its feedback page any more: no card for it
+       (`names` lists every registered test; an older tab without it hides nothing) */
+    if (at && mirror.names && !mirror.names[String(v[1])]) at = 0;
+    if (at) {                                         /* per pupil only the newest and a count: _ownTest_ needs no more,
+                                                         and the cached snapshot must stay under the cache's size limit */
+      var em = String(v[0]).trim().toLowerCase(), p = fb[em];
+      if (!p) fb[em] = [String(v[1]), at, 1];
+      else { p[2]++; if (at > p[1]) { p[0] = String(v[1]); p[1] = at; } }
+    }
+  });
+  Object.keys(fb).forEach(function (em) { fbIds[fb[em][0]] = 1; });
+  var names = {};
+  Object.keys(fbIds).forEach(function (tid) {
+    var n = mirror.names && mirror.names[tid];
+    if (!n) Object.keys(mirror.versions).forEach(function (k) { var e = mirror.versions[k] || {}; if (String(e.id) === tid) n = e.name; });
+    names[tid] = String(n || '').slice(0, 120);
   });
 
   var versions = {};
@@ -2237,7 +2279,16 @@ function _readTestSnapshot_(id) {
   });
   return { title: title, url: url, activeId: String(mirror.activeId || ''), timerMode: String(mirror.timerMode || ''),
            timeLimitMinutes: Number(mirror.timeLimitMinutes) || 90,
-           versions: versions, seats: seats, live: live, done: done };
+           versions: versions, seats: seats, live: live, done: done, fb: fb, names: names };
+}
+
+/* copies _releasedMs_: only a real date counts, so a note typed into the column shows nobody anything */
+function _releasedAt_(v) {
+  if (v && typeof v.getTime === 'function') { var t = v.getTime(); return (isFinite(t) && t > 0) ? t : 0; }
+  var s = String(v == null ? '' : v).trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return 0;
+  var ms = Date.parse(s);
+  return (isFinite(ms) && ms > 0) ? ms : 0;
 }
 
 /* Read only the named columns of a tab — found by their headings, one column at a time — and hand
@@ -2576,8 +2627,11 @@ function _chipAny_(g) { return !!g && g.some(function (r) { return r.some(functi
 
 /* Run this from the Apps Script editor (Run ▸ checkChips) if a chip in 🔗 Teacher links will not read.
    The log shows what Google returns for that tab, both ways the hub asks, so the cause is seen, not
-   guessed. Read only. */
+   guessed. Read only. It cannot take a trailing underscore (the editor's Run menu hides those), so it
+   checks its caller instead: run from the editor you are yourself; called from a page the web app
+   serves, it would read the tab with the owner's rights, so a pupil or a stranger is turned away. */
 function checkChips() {
+  if (!_isAdminCaller_()) { Logger.log('checkChips runs from the Apps Script editor: Run ▸ checkChips.'); return; }
   var sh = _ss_().getSheetByName(T_LINKS);
   if (!sh || sh.getLastRow() < 2) { Logger.log('No rows in ' + T_LINKS + '.'); return; }
   var n = sh.getLastRow() - 1, w = sh.getLastColumn();
@@ -2732,24 +2786,48 @@ function _teacherLinksRaw_() { return _teacherLinksScan_().rows; }
 
 /* The rows it can read, and the rows it cannot — a row with something in it but no address this
    script can see, which in practice is a smart chip in the Link column. Those are named back to
-   the teacher (the page, the dialog, test mode) instead of disappearing or being misread. */
+   the teacher (the page, the dialog, test mode) instead of disappearing or being misread.
+   A Link TYPED as an address that is not https (http://…, docs.google.com/… with no https://, a
+   javascript:) is not a chip. That row never becomes a card and its address never reaches a page;
+   it is only NAMED, in `typed`, so the typo can be found (Daniel, 25 Sep 2026). From 18 to 25 Sep
+   2026 such a row was reported as a "smart chip", javascript: text and all, which is what gastest's
+   teacher-page test caught. */
 function _teacherLinksScan_() {
   var sh = _ss_().getSheetByName(T_LINKS);
-  if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [], chipsOn: _chipsOn_() };
+  if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [], typed: [], chipsOn: _chipsOn_() };
   var last = sh.getLastRow(), wide = sh.getLastColumn();
   var kHead = _headerCol_(sh, 'Link', 0) - 1;            /* 0-based, or -1 */
   var dHead = _headerCol_(sh, 'Dashboard', 0) - 1;      /* 0-based, or -1 when the tab predates it */
   var grid = _linkGrid_(sh, 2, last - 1, wide, [kHead, dHead]);
-  var rows = [], unreadable = [];
+  var rows = [], unreadable = [], typed = [];
+  /* a typed row's name and type, unless the address was pasted into them as well */
+  var label = function (x) { x = String(x || '').trim(); return _typedAddress_(x) ? '' : x; };
   grid.values.forEach(function (r, i) {
     var o = _readLinkRow_(r, kHead, i + 2, dHead, grid.urls[i]);
     if (o) { rows.push(o); return; }
     if (!r.some(function (c) { return String(c == null ? '' : c).trim() !== ''; })) return;   /* a blank row */
+    var shown = kHead >= 0 ? String(r[kHead] == null ? '' : r[kHead]).trim() : '';
+    if (_typedAddress_(shown)) {                        /* not https, and not a chip: named, never shown */
+      typed.push({ row: i + 2, type: label(r[0]), name: label(r[3]) || label(r[1]) || 'row ' + (i + 2) });
+      return;
+    }
     unreadable.push({ row: i + 2, type: String(r[0] || '').trim(),
-                      name: String(r[3] || r[1] || '').trim() || 'a row',
-                      shown: kHead >= 0 ? String(r[kHead] == null ? '' : r[kHead]).trim() : '' });
+                      name: String(r[3] || r[1] || '').trim() || 'a row', shown: shown });
   });
-  return { rows: rows, unreadable: unreadable, chipsOn: _chipsOn_(), chipTrouble: unreadable.length ? _CHIP_TROUBLE_ : '' };
+  return { rows: rows, unreadable: unreadable, typed: typed, chipsOn: _chipsOn_(), chipTrouble: unreadable.length ? _CHIP_TROUBLE_ : '' };
+}
+
+/* Is this cell's text an address somebody typed, rather than a smart chip? A chip shows its file's
+   own name ("T3T4: Test A", "Data: class results"), never anything shaped like an address. Tabs and
+   line breaks inside it, and anything blank in front, are dropped first, because a browser drops
+   them too: "java<tab>script:" is still javascript:. */
+function _typedAddress_(v) {
+  var s = String(v == null ? '' : v).replace(/[\t\n\r]+/g, '').replace(/^[\s\u0000-\u001f]+/, '').toLowerCase();
+  return /^(javascript|vbscript|https?|ftp|file|mailto):/.test(s)
+      || /^data:([a-z]+\/[\w.+-]+)?(;[^,]*)?,/.test(s)              /* data:text/html,… (it needs the comma) */
+      || /^[a-z][a-z0-9+.-]*:\/\//.test(s)                          /* any other scheme:// */
+      || /^(\/\/|www\.)/.test(s)                                    /* //host/… or www.… */
+      || /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(:\d+)?\//.test(s);  /* docs.google.com/… with no https:// */
 }
 
 /* The cohort a spreadsheet belongs to, named by the year it graduates — the stable handle, because
@@ -2800,7 +2878,7 @@ function _teacherPageGroups_(now) {
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
   var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
-  var out = { unreadable: scan.unreadable, chipsOn: scan.chipsOn, chipTrouble: scan.chipTrouble, records: records, cohorts: order.map(function (g) {
+  var out = { unreadable: scan.unreadable, typed: scan.typed, chipsOn: scan.chipsOn, chipTrouble: scan.chipTrouble, records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
     c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
@@ -3469,7 +3547,7 @@ function teacherPanelData() {
     hubUrl: String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim(),
     hubLive: !!_hubUrl_(),
     teachers: teachers,
-    unreadable: (_scan0_ = _teacherLinksScan_()).unreadable, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
+    unreadable: (_scan0_ = _teacherLinksScan_()).unreadable, typed: _scan0_.typed, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
     links: _scan0_.rows.map(function (l) {         /* the same reading: one call to Google, not two */
       var co = _cohortLabel_(l.grad);
       l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;

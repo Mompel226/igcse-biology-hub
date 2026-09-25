@@ -919,6 +919,29 @@
       clearTimeout(sitTimer);
       if (sitEl) { sitEl.hidden = true; sitEl.classList.remove('is-open'); }
       if (sitNote) sitNote.hidden = true;
+      if (fbkEl) fbkEl.hidden = true;
+    }
+    /* ---------- "Your feedback" (25 Sep 2026) ----------
+       A second card under the test's, once the teacher has released this person's marked test in the
+       test system: the test's name, when it was shared, and the way to the test system's own read-only
+       feedback page. It comes in the same answer as the test banner, so it costs nothing more. A teacher
+       sees it only in test mode, as a pupil would — they sit the test on "Marks · Test", and release
+       their own work to try it. It opens in this tab, like the test link. */
+    var fbkEl   = document.getElementById('fbk'),
+        fbkEye  = document.getElementById('fbkEye'),
+        fbkName = document.getElementById('fbkName'),
+        fbkWhen = document.getElementById('fbkWhen'),
+        fbkGo   = document.getElementById('fbkGo');
+    function fbkDraw(j) {
+      if (!fbkEl || !j || !acting) return;
+      var f = j.feedback;
+      if (!f || !f.url) return;
+      if (j.teacher && mode() !== 'test') return;
+      fbkEye.textContent  = (j.teacher ? 'Test mode \u00b7 ' : '') + 'Your feedback';
+      fbkName.textContent = f.name || 'Your test';
+      fbkWhen.textContent = 'Shared ' + sitAt(f.at) + (f.more > 0 ? ' \u00b7 and ' + f.more + ' more' : '') + '. Read your marks and comments.';
+      fbkGo.href = f.url;
+      fbkEl.hidden = false;
     }
     /* "today at 09:00", "tomorrow at 09:00", "Tue 22 Sep at 09:00" — in the reader's own time */
     function sitAt(ms) {
@@ -965,6 +988,7 @@
     }
     function sitDraw() {
       sitHide();
+      fbkDraw(sitLast);
       var j = sitLast;
       if (!j || !acting || !sitEl) return;
       var t = !!j.teacher;

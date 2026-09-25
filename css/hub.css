@@ -213,6 +213,11 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
   .sit__name{font-size:18px}
   .sit__go{flex:1 1 100%;margin:0;border-radius:0;padding:14px}
 }
+/* "Your feedback" (§feedback-release): the same card, sea-green so it never reads as a test, no picture */
+.sit--fb{--sit:#7FD1C1;border-color:rgba(127,209,193,.34);background:linear-gradient(90deg,rgba(127,209,193,.10),rgba(7,15,21,.62) 55%)}
+.sit--fb .sit__dot{display:inline-block}
+.sit--fb .sit__go{color:#06201B}
+@media (max-width:560px){.sit--fb .sit__txt{flex-basis:100%}}
 @media (prefers-reduced-motion:reduce){.sit,.sit.is-open .sit__dot{animation:none}}
 
 /* your year — three tabs, then that year's topics */

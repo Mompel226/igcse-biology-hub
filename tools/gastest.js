@@ -432,6 +432,8 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
+    'checkChips',            /* gated: _isAdminCaller_ — Run ▸ checkChips in the editor, which cannot
+                                list a name ending in an underscore; it only writes to the owner's log */
     'sendDueSummaries'       /* a trigger must be callable: it only ever emails the teacher who set each
                                 overdue homework, once, and hands back a count */
   ];
@@ -444,7 +446,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the three that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',
-   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh', 'uiData', 'installDailySummary'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh', 'uiData', 'installDailySummary', 'checkChips'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -1171,7 +1173,7 @@ ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted 
   const page = (who) => { VISITOR = who; return doGet({ parameter: { page: 'teachers' } }).html; };
   [['', 'nobody'], ['pupil@pupils.x.kr', 'a pupil'], ['other@x.kr', 'unlisted staff']].forEach(([who, label]) => {
     const h = page(who);
-    if (/SECRET-ID|docs\.google\.com|Test &lt;b&gt;7/.test(h)) throw new Error(label + ' was shown a link');
+    if (/SECRET-ID|docs\.google\.com|Test &lt;b&gt;7|Bad link|Not a link/.test(h)) throw new Error(label + ' was shown a link or a row');
   });
   /* The links now reach the page through uiData rather than being baked into the served HTML,
      so prove it there — and prove the same door is shut to a pupil. */
@@ -1180,13 +1182,96 @@ ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted 
   if (!d0.ok) throw new Error('the owner was refused the links: ' + d0.why);
   const flat = JSON.stringify(d0.data);
   if (!/SECRET-ID/.test(flat)) throw new Error('the owner was not given the link');
-  if (/javascript:/.test(flat) || /Not a link/.test(flat) || /Bad link/.test(flat)) throw new Error('a non-https row was handed over');
+  /* A Link typed without https:// is NAMED to a teacher, so the typo can be found (Daniel, 25 Sep
+     2026). Its address never reaches the page, and the row never becomes a card. */
+  if (/javascript:|docs\.google\.com\/x(?!\w)/.test(flat)) throw new Error('a non-https address was handed over');
+  const typed0 = (d0.data.typed || []).map(u => u.name).join(', ');
+  if (typed0 !== 'Bad link, Not a link') throw new Error('the rows typed without https:// are not named: ' + (typed0 || 'none'));
+  const cards0 = [].concat(d0.data.records, d0.data.loose, ...d0.data.cohorts.map(c => [].concat(...c.types.map(t => t.links))));
+  if (cards0.some(l => /Bad link|Not a link/.test(l.name) || !/^https:\/\//.test(l.url))) throw new Error('a non-https row became a card');
   VISITOR = 'pupil@pupils.x.kr';
   if (uiData('teachers').ok !== false) throw new Error('a pupil was handed the links through uiData');
   VISITOR = OWNER;
-  if (String(doGet({ parameter: {} })) !== 'Biology Labs endpoint is running.') throw new Error('the health check changed');
+  /* since 24 Sep it names the script's edition, so a paste can be confirmed from outside */
+  if (String(doGet({ parameter: {} })) !== 'Biology Labs endpoint is running · ' + SCRIPT_EDITION) throw new Error('the health check changed');
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
   ss.deleteSheet(tab);
+});
+ok &= run('smart chips and Links typed without https:// are named to a teacher; a typed address never is', () => {
+  /* The two kinds of row the page cannot open. A chip shows its file's own name, which may carry a
+     colon; it is named back to the teacher with that name (18 Sep), and its Dashboard is never taken
+     for its spreadsheet. A Link TYPED as an address that is not https is named too, so the typo can
+     be found (Daniel, 25 Sep 2026), but by its row's name only: never its address, never a card. */
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  const tab = ss.insertSheet(T_LINKS);
+  const rows = [_LINK_HEADERS_,
+    ['Test',       'Topic 9 test',  '2028', '', 'T3T4: Test A',        '', 'https://script.google.com/a/macros/x.kr/s/AKdash/exec?page=dashboard'],
+    ['Reflection', 'Data chip',     '2028', '', 'Data: class results', '', ''],
+    ['Reflection', 'Good one',      '2028', '', 'https://docs.google.com/spreadsheets/d/GOOD/edit', '', ''],
+    ['Records',    'Typed http',    '',     '', 'http://docs.google.com/spreadsheets/d/HTTPID/edit', '', ''],
+    ['Records',    'Tabbed js',     '',     '', ' java\tscript:alert(2)', '', ''],
+    ['Survey',     'Bare www',      '2028', '', 'www.example.com/form', '', ''],
+    ['Survey',     'Data address',  '2028', '', 'data:text/html,<b>x</b>', '', ''],
+    /* the address pasted into the Assessment as well: the row is named by its number instead */
+    ['Survey',     'http://forms.example/abc', '2028', '', 'http://forms.example/abc', '', '']];
+  tab.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  const addresses = /HTTPID|script:alert|example\.com|text\/html|forms\.example/;
+  const TYPED = 'Typed http, Tabbed js, Bare www, Data address, row 9';
+  const g = uiData('teachers');
+  if (!g.ok) throw new Error('the owner was refused the page: ' + g.why);
+  const flat = JSON.stringify(g.data);
+  if (!/GOOD/.test(flat)) throw new Error('the https row is missing');
+  const named = (g.data.unreadable || []).map(u => u.name + ' / ' + u.shown).join(' · ');
+  if (named !== 'Topic 9 test / T3T4: Test A · Data chip / Data: class results')
+    throw new Error('the chips are not named as they should be: ' + (named || 'none named'));
+  const typed = (g.data.typed || []).map(u => u.name).join(', ');
+  if (typed !== TYPED) throw new Error('the Links typed without https:// are not named as they should be: ' + (typed || 'none named'));
+  if ((g.data.typed || []).some(u => Object.keys(u).join() !== 'row,type,name')) throw new Error('a typed row carries more than its row, type and name');
+  if (addresses.test(flat)) throw new Error('a Link typed without https:// reached the page: ' + flat.match(addresses)[0]);
+  const cards = [].concat(g.data.records, g.data.loose, ...g.data.cohorts.map(c => [].concat(...c.types.map(t => t.links))));
+  if (cards.some(l => !/^https:\/\//.test(l.url))) throw new Error('a card opens something that is not https');
+  if (cards.some(l => /AKdash/.test(l.url))) throw new Error('a chip row was opened at its dashboard');
+  if (cards.some(l => /Typed http|Tabbed js|Bare www|Data address/.test(l.name))) throw new Error('a typed row became a card');
+  const p = teacherPanelData();                              /* the dialog reads the same scan */
+  if (addresses.test(JSON.stringify(p))) throw new Error('a Link typed without https:// reached the dialog');
+  if ((p.unreadable || []).length !== 2) throw new Error('the dialog names ' + (p.unreadable || []).length + ' chips, not 2');
+  if ((p.typed || []).map(u => u.name).join(', ') !== TYPED) throw new Error('the dialog does not name the typed rows');
+  /* and both pages read the list by that name, or the rows would vanish from them without a word */
+  if (!/\(g && g\.typed\)/.test(fs.readFileSync('apps-script/Teacher.html', 'utf8'))) throw new Error('the teacher page does not read typed');
+  if (!/d\.typed/.test(fs.readFileSync('apps-script/TeacherPage.html', 'utf8'))) throw new Error('the dialog does not read typed');
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });   /* the dialog made the first */
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+});
+ok &= run('checkChips reads nothing for a pupil or a stranger who calls it from a page', () => {
+  /* It must stay runnable from the editor, so it cannot hide behind an underscore; the gate is what
+     keeps a google.script.run call from reading the links tab with the owner's rights. */
+  SCHOOL_DOMAIN = 'x.kr';
+  { const old = ss.getSheetByName(T_LINKS); if (old) ss.deleteSheet(old); }
+  const tab = ss.insertSheet(T_LINKS);
+  tab.getRange(1, 1, 2, 7).setValues([_LINK_HEADERS_, ['Test', 'Topic 9 test', '2028', '', 'T3T4: Test A', '', '']]);
+  /* "reads nothing" = never even opens the links tab: every lookup of it is counted */
+  const attempt = () => {
+    let opened = 0; const l0 = calls.length;
+    ss.getSheetByName = (n) => { if (n === T_LINKS) opened++; return SS.prototype.getSheetByName.call(ss, n); };
+    try { checkChips(); } finally { delete ss.getSheetByName; }
+    return { opened, said: calls.slice(l0).join(' | ') };
+  };
+  VISITOR = 'stu@pupils.x.kr';
+  let r = attempt();
+  if (r.opened || /Chip addresses|switched on/.test(r.said)) throw new Error('a pupil ran checkChips: ' + r.said);
+  /* a stranger has no identity at all, and in a web app getUi() throws: that is how the gate tells it
+     from the spreadsheet itself */
+  const ui = SpreadsheetApp.getUi;
+  SpreadsheetApp.getUi = () => { throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); };
+  VISITOR = '';
+  try { r = attempt(); } finally { SpreadsheetApp.getUi = ui; }
+  if (r.opened || /Chip addresses|switched on/.test(r.said)) throw new Error('a stranger ran checkChips: ' + r.said);
+  VISITOR = OWNER;                                           /* Run ▸ checkChips: you, as yourself */
+  r = attempt();
+  if (!r.opened || !/switched on in this code: false/.test(r.said)) throw new Error('the owner could not run checkChips: ' + r.said);
+  ss.deleteSheet(tab);
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
 
 console.log('— the teacher-page control panel —');
