@@ -185,6 +185,15 @@
                         : 'Chips are read once the Google Sheets API is switched on in this script (Apps Script editor: Services ▸ + ▸ Google Sheets API ▸ Add). Or remove this row and add it again below, which saves a plain address.')+'</div></div>'+
              '<button class="x" data-rml="'+u.row+'">Remove</button></div>';
     }).join('') : '';
+    // typed without https:// — named so the typo can be found; the address itself is never sent here
+    var ty = d.typed || [];
+    var tyHtml = ty.length ? '<div class="cat">Not shown — the Link does not start with https://</div>' + ty.map(function(u){
+      return '<div class="item"><span class="tag tag--other">'+esc(u.type||'?')+'</span>'+
+             '<div class="g"><div class="t">'+esc(u.name)+'</div>'+
+             '<div class="s">Row '+Number(u.row)+' of 🔗 Teacher links. Put the spreadsheet’s full address in its Link, copied from the browser’s address bar; or remove this row and add it again below.</div></div>'+
+             '<button class="x" data-rml="'+Number(u.row)+'">Remove</button></div>';
+    }).join('') : '';
+    unHtml += tyHtml;
     if(!d.links.length){ ll.innerHTML = unHtml || '<div class="empty">No spreadsheets yet.</div>'; }
     else {
       var order=[], by={}, keyOf=function(l){

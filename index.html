@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1790315189">
+<link rel="stylesheet" href="css/hub.css?v=1790347969">
 </head>
 <body>
 
@@ -41,6 +41,18 @@
         <a class="sit__go" id="sitGo" hidden>Sit the test <span aria-hidden="true">&rarr;</span></a>
       </section>
       <p class="sit-note" id="sitNote" hidden></p>
+
+      <!-- "Your feedback": shown once the teacher has released this person's marked test in the test
+           system — a teacher only in test mode. Filled in by js/hub.js from the same answer as the test
+           banner. The link goes to the test system's own read-only feedback page. -->
+      <section class="sit sit--fb" id="fbk" hidden aria-labelledby="fbkName">
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="fbkEye">Your feedback</span></span>
+          <span class="sit__name" id="fbkName"></span>
+          <span class="sit__when" id="fbkWhen"></span>
+        </div>
+        <a class="sit__go" id="fbkGo">See your feedback <span aria-hidden="true">&rarr;</span></a>
+      </section>
     </div>
     <div class="masthead__r">
 
@@ -148,11 +160,11 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<script src="js/data/labs.js?v=1790315189"></script>
-<script src="js/progress.js?v=1790315189"></script>
-<script src="js/signin.js?v=1790315189"></script>
-<script src="js/shelves.js?v=1790315189"></script>
-<script src="js/local.js?v=1790315189"></script>
-<script src="js/hub.js?v=1790315189"></script>
+<script src="js/data/labs.js?v=1790347969"></script>
+<script src="js/progress.js?v=1790347969"></script>
+<script src="js/signin.js?v=1790347969"></script>
+<script src="js/shelves.js?v=1790347969"></script>
+<script src="js/local.js?v=1790347969"></script>
+<script src="js/hub.js?v=1790347969"></script>
 </body>
 </html>
