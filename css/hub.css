@@ -711,6 +711,10 @@ body[data-view="entry"] .lede{max-width:70ch}
   .doors--top>.door--top,.doors--top>.door--mine{min-height:clamp(280px,36vh,460px)}
 }
 
+/* below the row: a door out of the school (Learn R), full width with its words always out */
+.doors--below{display:flex;flex:none;min-height:0}
+.doors--below>.door--below{flex:1 1 auto;min-width:0;min-height:clamp(230px,28vh,340px)}
+.band--below{margin-top:6px}
 .door--entry .door__detail{color:var(--chalk-dim)}
 .door--light.door--entry .door__detail{color:#2A343C}
 
