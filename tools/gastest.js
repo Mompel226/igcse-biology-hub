@@ -427,7 +427,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'showClassroomImport', 'showTeacherPanel',                  /* menu: need a UI, throw in a web context */
     'getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',  /* gated: _isAdminCaller_ */
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
-    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain',
+    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
@@ -1390,7 +1390,7 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
   const now = new Date(), sy = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1, G = String(sy + 2);   // this year's Y10
   const FILES = [];
   const person = e => (e ? { getEmail: () => e } : null);
-  const file = o => ({ getId: () => o.id, getDescription: () => o.desc, getDateCreated: () => new Date(o.made || 0),
+  const file = o => ({ getId: () => o.id, getDescription: () => o.desc, getDateCreated: () => new Date(o.made || 0), getOwner: () => person(o.owner),
     getParents: () => { let done = false; return { hasNext: () => !done, next: () => { done = true; return { getOwner: () => person(o.folderOwner) }; } }; } });
   let SEARCHES = 0, LASTQ = '';
   const drive = { searchFiles: q => {
@@ -1399,9 +1399,15 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     const phrases = [...q.matchAll(/fullText contains '"([^"]+)"'/g)].map(m => m[1].toLowerCase());
     if (!/mimeType = 'application\/vnd\.google-apps\.spreadsheet'/.test(q) || !/trashed = false/.test(q) || !own || !phrases.length)
       throw new Error('a query the fake does not model: ' + q);
-    const hits = FILES.filter(o => o.owner === own && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
+    const hits = FILES.filter(o => !o.unindexed && o.owner === own && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
     let i = 0; return { hasNext: () => i < hits.length, next: () => file(hits[i++]) };
+  }, getFileById: id => {
+    if (DRIVE_DENY) throw new Error('You do not have permission to call DriveApp.getFileById. Required permissions: https://www.googleapis.com/auth/drive');
+    const o = FILES.find(x => x.id === id);
+    if (!o) throw new Error('No item with the given ID could be found. Possibly because you have not edited this item or you do not have permission to access it.');
+    return file(o);
   } };
+  let DRIVE_DENY = false;
   const ID = n => ('found-' + n + '-xxxxxxxxxxxxxxxxxxxxxxxx').slice(0, 30);
   const DASH = n => 'https://script.google.com/a/macros/x.kr/s/AKfy' + n + '/exec?page=dashboard';
   const R7 = { id: ID('r7'), owner: OWNER, folderOwner: OWNER, made: 1000,
@@ -1493,6 +1499,47 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     const before = tabRows();
     findSpreadsheetsMENU_();
     if (tabRows() !== before + 1 || !rowsFor(ID('r8')).length) throw new Error('the menu did not add the new reflection');
+  });
+  ok &= run('"Missing one?" says why in plain words, for every case, and "Add it" adds only what is safe', () => {
+    const chk = u => teacherCheckSpreadsheet(u).check;
+    const url = o => 'https://docs.google.com/spreadsheets/d/' + o.id + '/edit#gid=253688524';
+    let c = chk('not a link');
+    if (c.verdict !== 'bad') throw new Error('bad address: ' + JSON.stringify(c));
+    c = chk(url({ id: ID('r8') }));
+    if (c.verdict !== 'listed') throw new Error('listed: ' + JSON.stringify(c));
+    c = chk(url({ id: ID('nothere') }));
+    if (c.verdict !== 'unreadable' || !/share it with/.test(c.say.join(' '))) throw new Error('unreadable: ' + JSON.stringify(c));
+    DRIVE_DENY = true; c = chk(url(CELLS)); DRIVE_DENY = false;   // (a listed one is answered before the file is opened)
+    if (c.verdict !== 'nodrive' || !/allow it to see your Drive/.test(c.say.join(' '))) throw new Error('no Drive permission: ' + JSON.stringify(c));
+    c = chk(url(CELLS));
+    if (c.verdict !== 'nolabel' || !/Rebuild Links/.test(c.say.join(' ')) || c.canAdd) throw new Error('no label: ' + JSON.stringify(c));
+    c = chk(url(THEIRS));
+    if (c.verdict !== 'notmine' || !c.canAdd || !/kim@x\.kr/.test(c.say.join(' '))) throw new Error('a colleague\'s: ' + JSON.stringify(c));
+    let d = teacherAddChecked(THEIRS.id);
+    const th = d.links.filter(l => _sheetIdOf_(l.url) === THEIRS.id)[0];
+    if (!th || th.assessment !== 'Topic 8 · Human Nutrition' || th.grad !== G || !/Added from 🔎 Check/.test(th.note)) throw new Error('Add it (colleague) did not add it from its label: ' + JSON.stringify(th));
+    c = chk(url(PLANT));
+    if (c.verdict !== 'folder' || !c.canAdd || !/kid@pupils/.test(c.say.join(' '))) throw new Error('someone else\'s folder: ' + JSON.stringify(c));
+    c = chk(url(COPY));
+    if (c.verdict !== 'copy' || c.canAdd) throw new Error('a copy naming a listed dashboard: ' + JSON.stringify(c));
+    d = teacherAddChecked(COPY.id);
+    if (d.links.some(l => _sheetIdOf_(l.url) === COPY.id)) throw new Error('Add it added a copy that opens the wrong dashboard');
+    const NEWT = { id: ID('t17new'), owner: OWNER, folderOwner: OWNER, made: 9000, unindexed: true,
+      desc: '🧪 Biology Test System spreadsheet | name: Test T17 | class of: ' + G + ' | dashboard: ' + DASH('T17') };
+    FILES.push(NEWT);
+    c = chk(url(NEWT));
+    if (c.verdict !== 'unindexed' || !c.canAdd) throw new Error('not yet searchable: ' + JSON.stringify(c));
+    d = teacherAddChecked(NEWT.id);
+    if (!d.links.some(l => _sheetIdOf_(l.url) === NEWT.id && l.type === 'Test' && l.dash === DASH('T17'))) throw new Error('Add it did not add the new test');
+    teacherRemoveLink(rowsFor(NEWT.id)[0].row);
+    c = chk(url(NEWT));
+    if (c.verdict !== 'removed' || !c.canAdd) throw new Error('removed before: ' + JSON.stringify(c));
+    d = teacherAddChecked(NEWT.id);
+    if (!d.links.some(l => _sheetIdOf_(l.url) === NEWT.id) || _findSkip_().some(x => x.id === NEWT.id)) throw new Error('Add it did not put a removed one back');
+    VISITOR = 'kid@pupils.x.kr';
+    const s1 = teacherCheckSpreadsheet(url(R7)), s2 = teacherAddChecked(PLANT.id);
+    VISITOR = OWNER;
+    if (s1.ok !== false || s2.ok !== false || rowsFor(PLANT.id).length) throw new Error('a student checked or added');
   });
   delete global.DriveApp;
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });

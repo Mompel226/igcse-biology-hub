@@ -52,6 +52,8 @@
   .sum{font-size:12px;color:var(--dim);margin:2px 0 8px}
   .findbox{border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:10px 12px 6px;margin:8px 0 10px}
   .findbox .fhint{display:block;font-size:12px;color:var(--dim);margin:6px 0 2px}
+  .chk p{margin:4px 0;font-size:12.5px}
+  .chk .ok{color:var(--ink)} .chk .no{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -69,6 +71,12 @@
         dashboard. It runs only when you press it, and a link, once added, stays as it is.</span>
       <div class="msg" id="findMsg"></div>
       <div class="sum" id="leftOut"></div>
+      <div class="row" style="margin-top:4px">
+        <label style="flex:1 1 320px">Missing one? Paste its address to see why
+          <input id="chkUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
+        <button type="button" class="ghost" id="chkBtn">Check</button>
+      </div>
+      <div class="chk" id="chkOut"></div>
     </div>
     <div class="addbox">
       <div class="addh">➕ Add a link</div>
@@ -281,6 +289,10 @@
     var t=e.target.getAttribute('data-rmt'), l=e.target.getAttribute('data-rml');
     var ab=e.target.getAttribute('data-addback');
     if(ab){ find(ab); }
+    var ac=e.target.getAttribute('data-addchk');
+    if(ac){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } })
+              .withFailureHandler(function(){ busy(false); }).teacherAddChecked(ac); }
+    if(e.target.getAttribute('data-fillform')!=null){ $('lUrl').value=$('chkUrl').value.trim(); $('lAss').focus(); }
     if(t){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveTeacher(t); }
     if(l){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveLink(Number(l)); }
   });
@@ -297,7 +309,7 @@
     if(!r) return;
     if(r.trouble){ msg('findMsg','Could not look in Drive: '+r.trouble+'. Open Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then press Find again.',true); $('leftOut').innerHTML=''; return; }
     msg('findMsg', r.added.length ? 'Added '+r.added.length+': '+r.added.map(function(a){ return a.name; }).join(', ')+'.'
-                                  : 'Nothing new: every labelled reflection and test spreadsheet is already in the list.');
+                                  : 'Nothing new: every labelled reflection and test spreadsheet is already in the list. One missing? Paste its address under “Missing one?”.');
     $('leftOut').innerHTML = (r.leftOut||[]).length ? 'Left out, because you removed '+(r.leftOut.length===1?'it':'them')+' before: '+
       r.leftOut.map(function(x){ return esc(x.name)+' <button class="x" data-addback="'+esc(x.id)+'">Add back</button>'; }).join(' · ') : '';
   }
@@ -308,6 +320,21 @@
     if(addBackId) run.teacherFindAgain(addBackId); else run.teacherFindSpreadsheets();
   }
   $('findBtn').onclick = function(){ find(''); };
+
+  // "Missing one?": one address, every reason in plain words, and "Add it" when that is safe
+  function showCheck(c){
+    if(!c){ $('chkOut').innerHTML=''; return; }
+    var good = { listed:1, find:1, added:1, unindexed:1 }[c.verdict];
+    $('chkOut').innerHTML = (c.say||[]).map(function(t,i){ return '<p class="'+(!good && i===c.say.length-1 ? 'no' : 'ok')+'">'+esc(t)+'</p>'; }).join('') +
+      (c.canAdd && c.card && c.verdict!=='added' ? '<button type="button" data-addchk="'+esc(c.id)+'">Add it</button>' : '') +
+      (c.verdict==='nolabel' ? '<button type="button" class="ghost" data-fillform="1">Fill in its address below</button>' : '');
+  }
+  $('chkBtn').onclick = function(){
+    var u = $('chkUrl').value.trim(); if(!u) return;
+    busy(true); $('chkOut').innerHTML='<p>Checking…</p>';
+    google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } else $('chkOut').innerHTML='<p class="no">'+esc((d&&d.why)||'Could not check.')+'</p>'; })
+      .withFailureHandler(function(){ busy(false); $('chkOut').innerHTML='<p class="no">Could not check.</p>'; }).teacherCheckSpreadsheet(u);
+  };
 
   $('pageSave').onclick = function(){
     busy(true); msg('pageMsg','Saving…');
