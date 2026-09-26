@@ -921,7 +921,7 @@
       if (sitNote) sitNote.hidden = true;
       if (fbkEl) fbkEl.hidden = true;
     }
-    /* ---------- "Your feedback" (25 Sep 2026) ----------
+    /* ---------- "New feedback" (25 Sep 2026; a 5-day nudge since 26 Sep — the lasting way in is My assessments) ----------
        A second card under the test's, once the teacher has released this person's marked test in the
        test system: the test's name, when it was shared, and the way to the test system's own read-only
        feedback page. It comes in the same answer as the test banner, so it costs nothing more. A teacher
@@ -937,7 +937,7 @@
       var f = j.feedback;
       if (!f || !f.url) return;
       if (j.teacher && mode() !== 'test') return;
-      fbkEye.textContent  = (j.teacher ? 'Test mode \u00b7 ' : '') + 'Your feedback';
+      fbkEye.textContent  = (j.teacher ? 'Test mode \u00b7 ' : '') + 'New feedback';
       fbkName.textContent = f.name || 'Your test';
       fbkWhen.textContent = 'Shared ' + sitAt(f.at) + (f.more > 0 ? ' \u00b7 and ' + f.more + ' more' : '') + '. Read your marks and comments.';
       fbkGo.href = f.url;

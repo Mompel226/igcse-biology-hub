@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '25 Sep 2026 — test feedback on the hub';
+var SCRIPT_EDITION = '26 Sep 2026 — New feedback card (5 days), Circulation 114';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -171,7 +171,7 @@ var LABS = [
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
-  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:97 },
+  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:114 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
   { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
@@ -2097,6 +2097,8 @@ function _ownRecord_(d) {
 var T_HUB_SCHEDULE   = '⏰ Hub schedule';
 var HUB_SCHEDULE_KEY = 'HUB_SCHEDULE_JSON';
 var TEST_SNAP_SECONDS = 60;   /* one read of a test spreadsheet serves every student for this long */
+var FEEDBACK_CARD_DAYS = 5;   /* the "New feedback" card: this many days after a release, then it goes (26 Sep 2026,
+                                 Daniel) — the feedback itself stays reachable from My assessments */
 
 function _ownTest_(d) {
   if (!_clientId_()) return _json_({ ok: false, why: 'sign-in is not set up' });
@@ -2126,7 +2128,8 @@ function _ownTest_(d) {
     /* §feedback-release — released feedback needs no seat: last term's test is still theirs */
     var f = snap.fb && snap.fb[email];                /* [newest test id, its time, how many released] */
     if (snap.url && f) fb.push({ name: String((snap.names && snap.names[f[0]]) || ''), at: Number(f[1]) || 0,
-                                 count: Number(f[2]) || 1, url: snap.url + '?page=feedback' });
+                                 count: Number(f[2]) || 1,
+                                 url: snap.url + '?page=feedback&test=' + encodeURIComponent(String(f[0])) });   /* opens on that test */
     var mine = _testFor_(snap, email, now);
     if (!mine) { why.push('\u201c' + snap.title + '\u201d does not list ' + email + ' on any of its Marks tabs'); return; }
     if (!best || _testBefore_(mine, best)) best = mine;
@@ -2255,6 +2258,7 @@ function _readTestSnapshot_(id) {
     /* a test since taken off the test system's list cannot be drawn by its feedback page any more: no card for it
        (`names` lists every registered test; an older tab without it hides nothing) */
     if (at && mirror.names && !mirror.names[String(v[1])]) at = 0;
+    if (at && Date.now() - at > FEEDBACK_CARD_DAYS * 864e5) at = 0;   /* only NEW feedback gets the card */
     if (at) {                                         /* per pupil only the newest and a count: _ownTest_ needs no more,
                                                          and the cached snapshot must stay under the cache's size limit */
       var em = String(v[0]).trim().toLowerCase(), p = fb[em];
