@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find new spreadsheets + Missing one?; Teacher links menu; Circulation 114';
+var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find (shared folders too) + Missing one?; Teacher links menu; Circulation 114';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -2850,23 +2850,38 @@ var FOUND_KINDS = [{ phrase: 'Biology reflection spreadsheet', type: 'Reflection
                    { phrase: 'Biology Test System spreadsheet', type: 'Test' }];
 var FIND_SKIP = 'FIND_SKIP_SHEETS';   /* Script Property: [{id, name}] removed in the window; Find leaves them out */
 
-/* One search of Drive → { cards: [{ id, url, type, name, grad, dash }], trouble: '' or why it could not look }. */
+/* Whose folders Find trusts (26 Sep 2026: Daniel's tests live in a department folder shared with him, which he does
+   not own): yours; a teacher on the 👩‍🏫 Teachers list; anyone at the school's own domain (SCHOOL_DOMAIN) — a shared
+   department folder belongs to a member of staff. Never a pupil: pupils' addresses sit UNDER the domain
+   (…@pupils.<domain>), which is not the domain itself. */
+function _findTrusts_(email) {
+  email = _cleanEmail_(email);
+  if (!email) return false;
+  if (email === _owner_() || _isTeacher_(email)) return true;
+  var dom = _schoolDomain_();
+  return !!dom && email.split('@').pop() === dom;
+}
+
+/* One search of Drive → { cards: [{ id, url, type, name, grad, dash }], trouble: '' or why it could not look }.
+   Spreadsheets that belong to you or to a teacher on the list, in a folder Find trusts (_findTrusts_). */
 function _findLabelledSheets_() {
   var out = [], cards = {}, order = [];
   try {
     if (typeof DriveApp === 'undefined' || !DriveApp || typeof DriveApp.searchFiles !== 'function') return { cards: [], trouble: 'this script cannot use Drive' };
     var me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
     if (!me || me.indexOf("'") >= 0) return { cards: [], trouble: 'the account this script runs as is unknown' };
-    var q = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and '" + me + "' in owners and (" +
+    var owners = [me].concat(_teacherEmails_().filter(function (e) { return e !== me && _isTeacher_(e) && e.indexOf("'") < 0; })).slice(0, 30);
+    var q = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and (" +
+            owners.map(function (e) { return "'" + e + "' in owners"; }).join(' or ') + ") and (" +
             FOUND_KINDS.map(function (k) { return "fullText contains '\"" + k.phrase + "\"'"; }).join(' or ') + ')';
     var it = DriveApp.searchFiles(q);
     for (var seen = 0; it.hasNext() && seen < 300 && order.length < 150; seen++) {
       var f = it.next();
       var card = _readHubLabel_(f.getDescription());
       if (!card) continue;                                   /* the words were in a cell, not in its label */
-      var mine = false, ps = f.getParents();
-      while (!mine && ps.hasNext()) { var o = ps.next().getOwner(); mine = !!o && String(o.getEmail() || '').toLowerCase() === me; }
-      if (!mine) continue;
+      var trusted = false, ps = f.getParents();
+      while (!trusted && ps.hasNext()) { var o = ps.next().getOwner(); trusted = !!o && _findTrusts_(o.getEmail()); }
+      if (!trusted) continue;
       card.id = f.getId();
       card.url = 'https://docs.google.com/spreadsheets/d/' + card.id + '/edit';
       var made = f.getDateCreated();
@@ -3003,8 +3018,16 @@ function _checkSpreadsheet_(url) {
     return out;
   }
   if (skipped) { out.verdict = 'removed'; out.say.push('You removed it from the list before, so Find leaves it out. “Add it” puts it back.'); return out; }
-  if (owner !== me) { out.verdict = 'notmine'; out.say.push('It belongs to ' + (owner || 'a shared drive') + ': Find adds only spreadsheets that belong to ' + me + '. You can add it here, since you chose it.'); return out; }
-  if (fo !== me) { out.verdict = 'folder'; out.say.push('It sits in a folder that belongs to ' + (fo || 'a shared drive') + ': Find leaves those out, so nobody can slip a spreadsheet in. If you trust it, add it here.'); return out; }
+  if (!(owner === me || _isTeacher_(owner))) {
+    out.verdict = 'notmine';
+    out.say.push('It belongs to ' + (owner || 'a shared drive') + ': Find looks only at spreadsheets that belong to you or to a teacher on your \ud83d\udc69\u200d\ud83c\udfeb Teachers list (below). Add them there to have Find pick up their spreadsheets \u2014 or add this one here.');
+    return out;
+  }
+  if (!_findTrusts_(fo)) {
+    out.verdict = 'folder';
+    out.say.push('It sits in a folder that belongs to ' + (fo || 'a shared drive') + ', which is not yours, a listed teacher\u2019s or the school\u2019s own (' + (_schoolDomain_() ? '@' + _schoolDomain_() : 'set SCHOOL_DOMAIN') + '): Find leaves those out, so nobody can slip a spreadsheet in. If you trust it, add it here.');
+    return out;
+  }
   var res = _findLabelledSheets_();
   if (res.cards.some(function (x) { return x.id === id; })) { out.verdict = 'find'; out.say.push('Find sees it and will add it: press 🔎 Find, or “Add it” here.'); return out; }
   var twin = res.cards.filter(function (x) { return card.dash ? x.dash === card.dash : (x.type === card.type && x.name === card.name && x.grad === card.grad); })[0];

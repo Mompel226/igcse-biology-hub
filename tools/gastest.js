@@ -1395,11 +1395,11 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
   let SEARCHES = 0, LASTQ = '';
   const drive = { searchFiles: q => {
     SEARCHES++; LASTQ = q;
-    const own = (q.match(/'([^']+)' in owners/) || [])[1];
+    const owns = [...q.matchAll(/'([^']+)' in owners/g)].map(m => m[1]);
     const phrases = [...q.matchAll(/fullText contains '"([^"]+)"'/g)].map(m => m[1].toLowerCase());
-    if (!/mimeType = 'application\/vnd\.google-apps\.spreadsheet'/.test(q) || !/trashed = false/.test(q) || !own || !phrases.length)
+    if (!/mimeType = 'application\/vnd\.google-apps\.spreadsheet'/.test(q) || !/trashed = false/.test(q) || !owns.length || !phrases.length)
       throw new Error('a query the fake does not model: ' + q);
-    const hits = FILES.filter(o => !o.unindexed && o.owner === own && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
+    const hits = FILES.filter(o => !o.unindexed && owns.includes(o.owner) && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
     let i = 0; return { hasNext: () => i < hits.length, next: () => file(hits[i++]) };
   }, getFileById: id => {
     if (DRIVE_DENY) throw new Error('You do not have permission to call DriveApp.getFileById. Required permissions: https://www.googleapis.com/auth/drive');
@@ -1460,6 +1460,30 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     if (rowsFor(COPY.id).length || rowsFor(R7.id).length !== 1) throw new Error('the copy made a row of its own');
     const b = rowsFor(BADDASH.id)[0];
     if (!b || b.dash !== '') throw new Error('a foreign dashboard address got through: ' + JSON.stringify(b));
+  });
+  ok &= run('a department folder shared with you works (Daniel\'s case): yours in a staff folder is added; a listed teacher\'s own too; an unlisted colleague\'s own, or no school domain, not', () => {
+    const DEPT = { id: ID('dept-t8'), owner: OWNER, folderOwner: 'hod@x.kr', made: 7000,
+      desc: '🧪 Biology Test System spreadsheet | name: Topic 8 evaluation | class of: ' + G + ' | dashboard: ' + DASH('T8') };
+    const HODS = { id: ID('hods-r8'), owner: 'hod@x.kr', folderOwner: 'hod@x.kr', made: 7100,
+      desc: '🪞 Biology reflection spreadsheet | name: Topic 8 reflection | class of: ' + G + ' | dashboard: ' + DASH('R8X') };
+    const ELSE = { id: ID('else-t9'), owner: OWNER, folderOwner: 'other@x.kr', made: 7200,
+      desc: '🧪 Biology Test System spreadsheet | name: Topic 9 test | class of: ' + G + ' | dashboard: ' + DASH('T9') };
+    FILES.push(DEPT, HODS);
+    teacherFindSpreadsheets();
+    if (!rowsFor(DEPT.id).length) throw new Error('a spreadsheet of yours in the department\'s folder was not added');
+    if (rowsFor(HODS.id).length) throw new Error('an unlisted colleague\'s own spreadsheet was added without asking');
+    teacherAddTeacher('Head of Department', 'hod@x.kr');
+    teacherFindSpreadsheets();
+    if (!LASTQ.includes("'hod@x.kr' in owners")) throw new Error('a listed teacher\'s spreadsheets are not searched: ' + LASTQ);
+    if (!rowsFor(HODS.id).length) throw new Error('a listed teacher\'s own spreadsheet was not added');
+    teacherRemoveTeacher('hod@x.kr');
+    const keepDom = SCHOOL_DOMAIN, keptProp = props.get('SCHOOL_DOMAIN');   // a typed setting is kept in Script Properties
+    SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN'); FILES.push(ELSE);
+    teacherFindSpreadsheets();
+    SCHOOL_DOMAIN = keepDom; if (keptProp) props.set('SCHOOL_DOMAIN', keptProp);
+    if (rowsFor(ELSE.id).length) throw new Error('with no school domain set, a folder of someone unlisted counted');
+    teacherFindSpreadsheets();
+    if (!rowsFor(ELSE.id).length) throw new Error('(mutation) with the school domain set, the staff folder did not count');
   });
   ok &= run('pressed again: nothing added twice — a row, once there, is left as it is, and a stale copy is not added when the original\'s label changes', () => {
     R7.desc = R7.desc.replace('Topic 7 · Human Nutrition', 'Topic 7 · renamed');
