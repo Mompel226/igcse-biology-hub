@@ -50,6 +50,7 @@
   .lbl{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim)}
   h3{font-size:13px;color:var(--ink);margin:16px 0 4px;display:flex;align-items:baseline;gap:8px}
   .sum{font-size:12px;color:var(--dim);margin:2px 0 8px}
+  .auto{font-size:10.5px;font-weight:600;color:var(--ink);background:var(--soft);border-radius:999px;padding:1px 7px;margin-right:4px}
 </style>
 </head>
 <body>
@@ -91,10 +92,16 @@
       </div>
       <div class="msg" id="lMsg"></div>
     </div>
+    <p class="intro"><b>Reflection and test spreadsheets appear here by themselves</b> (marked <span class="auto">found by itself</span>):
+       each one labels itself in Drive once it runs the current code. Add a link for anything else — records,
+       surveys, or a colleague's spreadsheet.</p>
+    <div class="hint" id="findTrouble" style="display:none"></div>
     <p class="intro">Your links, grouped by the cohort's <b>graduation year</b>: this year's Y10 is <b>2028</b>,
        next year's Y10 is <b>2029</b> — so the same test for another cohort is another row, and the page always
-       shows the right year group on its own. <b>Remove</b> takes a link off the page.</p>
+       shows the right year group on its own. <b>Remove</b> takes a link you added off the page; <b>Hide</b> does
+       the same for one found by itself.</p>
     <div class="list" id="linkList"></div>
+    <div class="sum" id="hiddenList"></div>
 
     <h2 id="sec-teachers">Teachers <small>who may open the page</small></h2>
     <p class="intro">You (<span id="owner"></span>) can always open it. Add the other Biology
@@ -199,6 +206,14 @@
     $('hubState').className = 'pill' + (hLive?'':' off');
     $('hubUrl').value = d.hubUrl || '';
 
+    // what was hidden, to put back; and why nothing could be found, if the search failed
+    var hid = d.hiddenFound || [];
+    $('hiddenList').innerHTML = hid.length ? 'Hidden from the page: ' + hid.map(function(h){
+      return esc(h.name) + ' <button class="x" data-unhide="'+esc(h.id)+'">Show</button>'; }).join(' · ') : '';
+    $('findTrouble').textContent = d.findTrouble ? 'Could not look in Drive for reflection and test spreadsheets: ' + d.findTrouble +
+      ' — open the script editor, run any function once and allow it to see your Drive.' : '';
+    $('findTrouble').style.display = d.findTrouble ? '' : 'none';
+
     // "Set up once": a one-line state, opened by itself when something there is off
     var off = [!live && 'the page address', !tLive && 'the Students tab', !hLive && 'Set homework'].filter(Boolean);
     $('setupSum').textContent = off.length ? 'Not set yet: ' + off.join(', ') + '.' : 'All three are set: the page address, the Students tab and Set homework.';
@@ -256,8 +271,10 @@
           return '<div class="item"><span class="tag tag--'+(l.typeClass||'other')+'">'+esc(l.type)+'</span>'+
                  '<div class="g"><div class="t">'+esc(l.name)+'</div>'+
                  '<div class="s">'+(sub.length?esc(sub.join(' · '))+' — ':'')+'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">open ↗</a>'+
-                 (l.dash?' · <a href="'+esc(l.dash)+'" target="_blank" rel="noopener">dashboard ↗</a>':'')+'</div></div>'+
-                 '<button class="x" data-rml="'+l.row+'">Remove</button></div>';
+                 (l.dash?' · <a href="'+esc(l.dash)+'" target="_blank" rel="noopener">dashboard ↗</a>':'')+
+                 (l.found?' · <span class="auto">found by itself</span>':'')+'</div></div>'+
+                 (l.found ? '<button class="x" data-hide="'+esc(l.id)+'">Hide</button>'
+                          : '<button class="x" data-rml="'+l.row+'">Remove</button>')+'</div>';
         }).join('');
       }).join('') + unHtml;
     }
@@ -269,6 +286,8 @@
   // one delegated handler for both Remove buttons
   document.addEventListener('click', function(e){
     var t=e.target.getAttribute('data-rmt'), l=e.target.getAttribute('data-rml');
+    var hi=e.target.getAttribute('data-hide'), un=e.target.getAttribute('data-unhide');
+    if(hi||un){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);})[hi?'teacherHideFound':'teacherShowFound'](hi||un); }
     if(t){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveTeacher(t); }
     if(l){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveLink(Number(l)); }
   });

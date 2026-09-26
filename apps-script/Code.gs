@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — New feedback card (5 days), Circulation 114, Teacher links menu';
+var SCRIPT_EDITION = '26 Sep 2026 — reflections and tests found by themselves; Teacher links menu; Circulation 114';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -2175,8 +2175,8 @@ function _testSheetIds_(fresh) {
     if (co && !co.yearGroup) return;                              /* a cohort no longer in school */
     /* every shape Google writes a Sheet's address in: signed in to two accounts it is
        …/spreadsheets/u/1/d/<id>/…, and a Workspace link can read …/a/<school>/spreadsheets/d/<id>/… */
-    var m = String(l.url).match(/^https:\/\/docs\.google\.com\/(?:a\/[^\/]+\/)?spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/);
-    if (m && !seen[m[1]]) { seen[m[1]] = 1; ids.push(m[1]); }
+    var id = _sheetIdOf_(l.url);
+    if (id && !seen[id]) { seen[id] = 1; ids.push(id); }
   });
   try { if (cache) cache.put(key, JSON.stringify(ids), 60); } catch (e) {}
   return ids;
@@ -2796,8 +2796,23 @@ function _teacherLinksRaw_() { return _teacherLinksScan_().rows; }
    javascript:) is not a chip. That row never becomes a card and its address never reaches a page;
    it is only NAMED, in `typed`, so the typo can be found (Daniel, 25 Sep 2026). From 18 to 25 Sep
    2026 such a row was reported as a "smart chip", javascript: text and all, which is what gastest's
-   teacher-page test caught. */
-function _teacherLinksScan_() {
+   teacher-page test caught.
+   Since 26 Sep 2026 the reflection and test spreadsheets that labelled themselves in Drive join the rows
+   (`found: true`, `row: 0`; see _foundSheets_), unless the tab already has a row for the same spreadsheet — yours
+   wins — or a teacher hid it. `freshFound` searches Drive again now (the Teacher page window does). */
+function _teacherLinksScan_(freshFound) {
+  var out = _teacherLinksTab_(), have = {}, hidden = _hiddenFound_();
+  out.rows.forEach(function (r) { var id = _sheetIdOf_(r.url); if (id) have[id] = true; });
+  _foundSheets_(freshFound).forEach(function (c) {
+    if (have[c.id] || hidden[c.id]) return;
+    have[c.id] = true;
+    out.rows.push({ row: 0, found: true, id: c.id, type: c.type, assessment: c.name, grad: c.grad, name: c.name,
+                    url: c.url, note: '', dash: c.dash });
+  });
+  return out;
+}
+/* The 🔗 Teacher links tab alone. */
+function _teacherLinksTab_() {
   var sh = _ss_().getSheetByName(T_LINKS);
   if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [], typed: [], chipsOn: _chipsOn_() };
   var last = sh.getLastRow(), wide = sh.getLastColumn();
@@ -2820,6 +2835,121 @@ function _teacherLinksScan_() {
                       name: String(r[3] || r[1] || '').trim() || 'a row', shown: shown });
   });
   return { rows: rows, unreadable: unreadable, typed: typed, chipsOn: _chipsOn_(), chipTrouble: unreadable.length ? _CHIP_TROUBLE_ : '' };
+}
+
+/* A Google Sheet's id from its address, in every shape Google writes one (see _testSheetIds_), or ''. */
+function _sheetIdOf_(url) {
+  var m = String(url || '').match(/^https:\/\/docs\.google\.com\/(?:a\/[^\/]+\/)?spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/);
+  return m ? m[1] : '';
+}
+
+/* ============================================================
+   Spreadsheets that announce themselves (26 Sep 2026)
+   ============================================================
+   Daniel: "is it possible to do it also for reflections so it automatically updates". A reflection spreadsheet
+   (the reflection system's _labelForHub_) and a test spreadsheet (the Test System's §hub-label) each write ONE line
+   into their own Drive description:
+     🪞 Biology reflection spreadsheet | name: Topic 7 · Human Nutrition | class of: 2028 | dashboard: https://…/exec?page=dashboard | …
+     🧪 Biology Test System spreadsheet | name: … | class of: … | dashboard: … | …
+   and this finds them, so they are on the teacher page — and a test gets its "Sit a test" banner — with no row in
+   🔗 Teacher links. Records and surveys (Google Forms, which run none of this code) are still added by hand.
+   Only a spreadsheet OWNED by the account this script runs as, sitting in a folder of that account's, counts: a
+   look-alike somebody else made and handed over stays in THEIR folder, so a pupil cannot plant a card whose
+   dashboard is their own page (and a dashboard must be an Apps Script address anyway). A copy carries its
+   original's label until it writes its own, so the same card twice is one spreadsheet — the older file. The search
+   is kept half an hour (a failed one a minute); the Teacher page window searches again when it opens. */
+var FOUND_KINDS = [{ phrase: 'Biology reflection spreadsheet', type: 'Reflection' },
+                   { phrase: 'Biology Test System spreadsheet', type: 'Test' }];
+var FOUND_SECONDS = 1800;
+var HIDDEN_FOUND = 'HIDDEN_FOUND_SHEETS';   /* Script Property: ids a teacher took off the page */
+
+function _foundSheets_(fresh) {
+  var cache = null, key = 'found1';
+  try { cache = CacheService.getScriptCache(); if (!fresh) { var hit = cache.get(key); if (hit) return JSON.parse(hit); } } catch (e) {}
+  var out = [], failed = false;
+  try {
+    if (typeof DriveApp === 'undefined' || !DriveApp || typeof DriveApp.searchFiles !== 'function') return out;   /* not allowed Drive yet */
+    var me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+    if (!me || me.indexOf("'") >= 0) return out;
+    var q = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and '" + me + "' in owners and (" +
+            FOUND_KINDS.map(function (k) { return "fullText contains '\"" + k.phrase + "\"'"; }).join(' or ') + ')';
+    var it = DriveApp.searchFiles(q), cards = {}, order = [];
+    for (var seen = 0; it.hasNext() && seen < 150 && order.length < 80; seen++) {
+      var f = it.next();
+      var card = _readHubLabel_(f.getDescription());
+      if (!card) continue;                                   /* the words were in a cell, not in its label */
+      var mine = false, ps = f.getParents();
+      while (!mine && ps.hasNext()) { var o = ps.next().getOwner(); mine = !!o && String(o.getEmail() || '').toLowerCase() === me; }
+      if (!mine) continue;
+      card.id = f.getId();
+      card.url = 'https://docs.google.com/spreadsheets/d/' + card.id + '/edit';
+      var made = f.getDateCreated();
+      card.made = made && made.getTime ? made.getTime() : 0;
+      var k = [card.type, card.name, card.grad, card.dash].join('|');
+      if (cards[k] && cards[k].made <= card.made) continue;   /* a copy of one already found: keep the older */
+      if (!cards[k]) order.push(k);
+      cards[k] = card;
+    }
+    out = order.map(function (k) { var c = cards[k]; return { id: c.id, url: c.url, type: c.type, name: c.name, grad: c.grad, dash: c.dash }; });
+  } catch (e) { failed = String(e && e.message || e).slice(0, 200) || 'failed'; Logger.log('_foundSheets_: ' + e); }
+  try {
+    if (cache) {
+      cache.put(key, JSON.stringify(out), failed ? 60 : FOUND_SECONDS);
+      cache.put('found1err', failed || '', failed ? 600 : 1);   /* the window says why nothing was found */
+    }
+  } catch (e) {}
+  return out;
+}
+
+/* The labelled line of a Drive description → { type, name, grad, dash }, or null when there is none. */
+function _readHubLabel_(desc) {
+  var lines = String(desc == null ? '' : desc).split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    for (var j = 0; j < FOUND_KINDS.length; j++) {
+      if (lines[i].indexOf(FOUND_KINDS[j].phrase) < 0) continue;
+      var card = { type: FOUND_KINDS[j].type, name: '', grad: '', dash: '' };
+      lines[i].split(' | ').slice(1).forEach(function (part) {
+        var m = part.match(/^\s*(name|class of|dashboard):\s*(.*?)\s*$/i);
+        if (!m) return;
+        var key = m[1].toLowerCase(), v = m[2];
+        if (key === 'name') card.name = v.slice(0, 120);
+        else if (key === 'class of' && /^\d{4}$/.test(v)) card.grad = v;
+        else if (key === 'dashboard' && /^https:\/\/script\.google\.com\/[^\s"'<>|]+\/exec\?page=dashboard$/i.test(v)) card.dash = v;
+      });
+      if (!card.name) card.name = card.type === 'Test' ? 'A test spreadsheet' : 'A reflection spreadsheet';
+      return card;
+    }
+  }
+  return null;
+}
+
+/* The found spreadsheets a teacher took off the page (Hide in the Teacher page window). */
+function _hiddenFound_() {
+  var o = {};
+  try {
+    var v = JSON.parse(PropertiesService.getScriptProperties().getProperty(HIDDEN_FOUND) || '[]');
+    (Array.isArray(v) ? v : []).forEach(function (id) { if (/^[A-Za-z0-9_-]{20,}$/.test(String(id))) o[String(id)] = true; });
+  } catch (e) {}
+  return o;
+}
+function _setHiddenFound_(id, hide) {
+  id = String(id || '');
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return false;
+  var o = _hiddenFound_();
+  if (hide) o[id] = true; else delete o[id];
+  PropertiesService.getScriptProperties().setProperty(HIDDEN_FOUND, JSON.stringify(Object.keys(o).slice(0, 300)));
+  try { var c = CacheService.getScriptCache(); c.put('testids1', '', 1); } catch (e) {}   /* the banner's list follows at once */
+  return true;
+}
+function teacherHideFound(id) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  _setHiddenFound_(id, true);
+  return teacherPanelData();
+}
+function teacherShowFound(id) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  _setHiddenFound_(id, false);
+  return teacherPanelData();
 }
 
 /* Is this cell's text an address somebody typed, rather than a smart chip? A chip shows its file's
@@ -3562,14 +3692,18 @@ function teacherPanelData() {
     hubUrl: String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim(),
     hubLive: !!_hubUrl_(),
     teachers: teachers,
-    unreadable: (_scan0_ = _teacherLinksScan_()).unreadable, typed: _scan0_.typed, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
+    unreadable: (_scan0_ = _teacherLinksScan_(true)).unreadable, typed: _scan0_.typed, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
     links: _scan0_.rows.map(function (l) {         /* the same reading: one call to Google, not two */
       var co = _cohortLabel_(l.grad);
       l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;
       l.typeClass = _typeClass_(l.type);
       return l;
     }),
-    types: ['Reflection', 'Test', 'Survey', 'Records']
+    types: ['Reflection', 'Test', 'Survey', 'Records'],
+    /* §found — the ones taken off the page, to put back; and whether this script may look in Drive at all */
+    hiddenFound: (function () { var h = _hiddenFound_(); return _foundSheets_().filter(function (c) { return h[c.id]; })
+                   .map(function (c) { return { id: c.id, type: c.type, name: c.name }; }); })(),
+    findTrouble: (function () { try { return String(CacheService.getScriptCache().get('found1err') || ''); } catch (e) { return ''; } })()
   };
 }
 
