@@ -50,7 +50,8 @@
   .lbl{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim)}
   h3{font-size:13px;color:var(--ink);margin:16px 0 4px;display:flex;align-items:baseline;gap:8px}
   .sum{font-size:12px;color:var(--dim);margin:2px 0 8px}
-  .auto{font-size:10.5px;font-weight:600;color:var(--ink);background:var(--soft);border-radius:999px;padding:1px 7px;margin-right:4px}
+  .findbox{border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:10px 12px 6px;margin:8px 0 10px}
+  .findbox .fhint{display:block;font-size:12px;color:var(--dim);margin:6px 0 2px}
 </style>
 </head>
 <body>
@@ -62,6 +63,13 @@
        and it takes effect at once — you never edit the code or redeploy again.</p>
 
     <h2 id="sec-links">Links on the teacher page <small>tests, reflections, surveys</small></h2>
+    <div class="findbox">
+      <button type="button" id="findBtn">🔎 Find new reflection and test spreadsheets</button>
+      <span class="fhint">Looks in your Drive once and adds each new one to the list below — its name, class, link and
+        dashboard. It runs only when you press it, and a link, once added, stays as it is.</span>
+      <div class="msg" id="findMsg"></div>
+      <div class="sum" id="leftOut"></div>
+    </div>
     <div class="addbox">
       <div class="addh">➕ Add a link</div>
       <div class="row">
@@ -92,16 +100,11 @@
       </div>
       <div class="msg" id="lMsg"></div>
     </div>
-    <p class="intro"><b>Reflection and test spreadsheets appear here by themselves</b> (marked <span class="auto">found by itself</span>):
-       each one labels itself in Drive once it runs the current code. Add a link for anything else — records,
-       surveys, or a colleague's spreadsheet.</p>
-    <div class="hint" id="findTrouble" style="display:none"></div>
     <p class="intro">Your links, grouped by the cohort's <b>graduation year</b>: this year's Y10 is <b>2028</b>,
        next year's Y10 is <b>2029</b> — so the same test for another cohort is another row, and the page always
-       shows the right year group on its own. <b>Remove</b> takes a link you added off the page; <b>Hide</b> does
-       the same for one found by itself.</p>
+       shows the right year group on its own. <b>Remove</b> takes a link off the page (and 🔎 Find will not add it
+       back). Add a link by hand for anything Find cannot see: records, surveys, a colleague's spreadsheet.</p>
     <div class="list" id="linkList"></div>
-    <div class="sum" id="hiddenList"></div>
 
     <h2 id="sec-teachers">Teachers <small>who may open the page</small></h2>
     <p class="intro">You (<span id="owner"></span>) can always open it. Add the other Biology
@@ -206,14 +209,6 @@
     $('hubState').className = 'pill' + (hLive?'':' off');
     $('hubUrl').value = d.hubUrl || '';
 
-    // what was hidden, to put back; and why nothing could be found, if the search failed
-    var hid = d.hiddenFound || [];
-    $('hiddenList').innerHTML = hid.length ? 'Hidden from the page: ' + hid.map(function(h){
-      return esc(h.name) + ' <button class="x" data-unhide="'+esc(h.id)+'">Show</button>'; }).join(' · ') : '';
-    $('findTrouble').textContent = d.findTrouble ? 'Could not look in Drive for reflection and test spreadsheets: ' + d.findTrouble +
-      ' — open the script editor, run any function once and allow it to see your Drive.' : '';
-    $('findTrouble').style.display = d.findTrouble ? '' : 'none';
-
     // "Set up once": a one-line state, opened by itself when something there is off
     var off = [!live && 'the page address', !tLive && 'the Students tab', !hLive && 'Set homework'].filter(Boolean);
     $('setupSum').textContent = off.length ? 'Not set yet: ' + off.join(', ') + '.' : 'All three are set: the page address, the Students tab and Set homework.';
@@ -271,10 +266,8 @@
           return '<div class="item"><span class="tag tag--'+(l.typeClass||'other')+'">'+esc(l.type)+'</span>'+
                  '<div class="g"><div class="t">'+esc(l.name)+'</div>'+
                  '<div class="s">'+(sub.length?esc(sub.join(' · '))+' — ':'')+'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">open ↗</a>'+
-                 (l.dash?' · <a href="'+esc(l.dash)+'" target="_blank" rel="noopener">dashboard ↗</a>':'')+
-                 (l.found?' · <span class="auto">found by itself</span>':'')+'</div></div>'+
-                 (l.found ? '<button class="x" data-hide="'+esc(l.id)+'">Hide</button>'
-                          : '<button class="x" data-rml="'+l.row+'">Remove</button>')+'</div>';
+                 (l.dash?' · <a href="'+esc(l.dash)+'" target="_blank" rel="noopener">dashboard ↗</a>':'')+'</div></div>'+
+                 '<button class="x" data-rml="'+l.row+'">Remove</button></div>';
         }).join('');
       }).join('') + unHtml;
     }
@@ -286,8 +279,8 @@
   // one delegated handler for both Remove buttons
   document.addEventListener('click', function(e){
     var t=e.target.getAttribute('data-rmt'), l=e.target.getAttribute('data-rml');
-    var hi=e.target.getAttribute('data-hide'), un=e.target.getAttribute('data-unhide');
-    if(hi||un){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);})[hi?'teacherHideFound':'teacherShowFound'](hi||un); }
+    var ab=e.target.getAttribute('data-addback');
+    if(ab){ find(ab); }
     if(t){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveTeacher(t); }
     if(l){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveLink(Number(l)); }
   });
@@ -298,6 +291,23 @@
   });
   $('lType').addEventListener('input', showType);
   $('setupToggle').onclick = function(){ openSetup($('setupBody').hidden); };
+
+  // 🔎 Find: one look in Drive, when pressed; what it added, and what it left out because you removed it before
+  function showFind(r){
+    if(!r) return;
+    if(r.trouble){ msg('findMsg','Could not look in Drive: '+r.trouble+'. Open Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then press Find again.',true); $('leftOut').innerHTML=''; return; }
+    msg('findMsg', r.added.length ? 'Added '+r.added.length+': '+r.added.map(function(a){ return a.name; }).join(', ')+'.'
+                                  : 'Nothing new: every labelled reflection and test spreadsheet is already in the list.');
+    $('leftOut').innerHTML = (r.leftOut||[]).length ? 'Left out, because you removed '+(r.leftOut.length===1?'it':'them')+' before: '+
+      r.leftOut.map(function(x){ return esc(x.name)+' <button class="x" data-addback="'+esc(x.id)+'">Add back</button>'; }).join(' · ') : '';
+  }
+  function find(addBackId){
+    busy(true); msg('findMsg','Looking in your Drive…'); $('leftOut').innerHTML='';
+    var run = google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showFind(d.find); } else msg('findMsg',(d&&d.why)||'Could not look.',true); })
+      .withFailureHandler(function(){ busy(false); msg('findMsg','Could not look.',true); });
+    if(addBackId) run.teacherFindAgain(addBackId); else run.teacherFindSpreadsheets();
+  }
+  $('findBtn').onclick = function(){ find(''); };
 
   $('pageSave').onclick = function(){
     busy(true); msg('pageMsg','Saving…');

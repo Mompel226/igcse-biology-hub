@@ -427,7 +427,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'showClassroomImport', 'showTeacherPanel',                  /* menu: need a UI, throw in a web context */
     'getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',  /* gated: _isAdminCaller_ */
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
-    'teacherAddLink', 'teacherRemoveLink', 'teacherHideFound', 'teacherShowFound',
+    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
@@ -1381,11 +1381,12 @@ ok &= run('the panel refuses a student / web-app caller', () => {
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
 });
 
-console.log('— spreadsheets that announce themselves —');
+console.log('— 🔎 find new reflection and test spreadsheets —');
 {
   /* A Drive that holds labelled files (26 Sep 2026): a reflection and a test that labelled themselves, a later copy
      of the reflection, a look-alike a pupil made and handed over, one with the words only in a cell, a colleague's,
-     and one whose "dashboard" is not an Apps Script page. The fake answers exactly the query the script sends. */
+     and one whose "dashboard" is not an Apps Script page. The fake answers exactly the query the script sends.
+     Daniel: a button — "runs the check, it's added, and that's it, but not constantly". */
   const now = new Date(), sy = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1, G = String(sy + 2);   // this year's Y10
   const FILES = [];
   const person = e => (e ? { getEmail: () => e } : null);
@@ -1401,7 +1402,6 @@ console.log('— spreadsheets that announce themselves —');
     const hits = FILES.filter(o => o.owner === own && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
     let i = 0; return { hasNext: () => i < hits.length, next: () => file(hits[i++]) };
   } };
-  const forget = () => { ['found1', 'found1err', 'testids1'].forEach(k => cacheStore.delete(k)); };
   const ID = n => ('found-' + n + '-xxxxxxxxxxxxxxxxxxxxxxxx').slice(0, 30);
   const DASH = n => 'https://script.google.com/a/macros/x.kr/s/AKfy' + n + '/exec?page=dashboard';
   const R7 = { id: ID('r7'), owner: OWNER, folderOwner: OWNER, made: 1000,
@@ -1417,81 +1417,86 @@ console.log('— spreadsheets that announce themselves —');
   const BADDASH = { id: ID('baddash'), owner: OWNER, folderOwner: OWNER, made: 3000,
     desc: '🪞 Biology reflection spreadsheet | name: Topic 9 · Gas exchange | class of: ' + G + ' | dashboard: https://evil.example/exec?page=dashboard' };
   FILES.push(COPY, R7, T16, PLANT, CELLS, THEIRS, BADDASH);   // the copy comes first: the older file must still win
-  const foundIds = d => d.links.filter(l => l.found).map(l => l.id);
+  const rowsFor = id => ss.getSheetByName(T_LINKS) ? teacherPanelData().links.filter(l => _sheetIdOf_(l.url) === id) : [];
+  const tabRows = () => { const t = ss.getSheetByName(T_LINKS); return t ? t.getLastRow() - 1 : 0; };
 
-  ok &= run('with no Drive (the script not allowed to look yet) nothing is found and nothing breaks', () => {
-    SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER; forget();
+  ok &= run('with no Drive (not allowed to look yet) Find adds nothing, and says why', () => {
+    SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
     [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
-    delete global.DriveApp;
-    const d = teacherPanelData();
-    if (!d.ok || foundIds(d).length) throw new Error('found something with no Drive: ' + JSON.stringify(d.links).slice(0, 200));
+    props.delete(FIND_SKIP); delete global.DriveApp;
+    const d = teacherFindSpreadsheets();
+    if (!d.ok || d.find.added.length || !d.find.trouble) throw new Error('with no Drive: ' + JSON.stringify(d.find));
   });
   global.DriveApp = drive;
-  ok &= run('reflections and tests that labelled themselves are on the teacher page with no row in 🔗 Teacher links', () => {
-    forget();
-    const d = teacherPanelData(), f = d.links.filter(l => l.found);
-    const r7 = f.find(l => l.id === R7.id), t16 = f.find(l => l.id === T16.id);
-    if (!r7 || r7.type !== 'Reflection' || r7.name !== 'Topic 7 · Human Nutrition' || r7.grad !== G || r7.dash !== DASH('R7') ||
-        r7.url !== 'https://docs.google.com/spreadsheets/d/' + R7.id + '/edit') throw new Error('the reflection card is wrong: ' + JSON.stringify(r7));
-    if (!t16 || t16.type !== 'Test' || t16.typeClass !== 'test' || !t16.cohort || t16.cohort.title !== 'Class of ' + G)
-      throw new Error('the test card is wrong: ' + JSON.stringify(t16));
-    if (r7.row !== 0) throw new Error('a found card names a sheet row: Remove would delete a row of yours');
+  ok &= run('nothing looks in Drive on its own: the page, the window and the Sit-a-test banner read the tab only', () => {
+    const n = SEARCHES;
+    teacherPanelData(); uiData('teachers'); _testSheetIds_(true); _teacherLinksScan_();
+    if (SEARCHES !== n) throw new Error('Drive was searched without the button being pressed');
+    if (rowsFor(R7.id).length || rowsFor(T16.id).length) throw new Error('a spreadsheet appeared before Find was pressed');
+  });
+  ok &= run('Find adds each labelled reflection and test as an ordinary row: type, name, class, link, dashboard, a dated note', () => {
+    const before = tabRows(), d = teacherFindSpreadsheets();
+    if (d.find.added.length !== 3 || tabRows() !== before + 3) throw new Error('added ' + JSON.stringify(d.find.added) + ', rows ' + before + '→' + tabRows());
+    const r7 = rowsFor(R7.id)[0], t16 = rowsFor(T16.id)[0];
+    if (!r7 || r7.type !== 'Reflection' || r7.assessment !== 'Topic 7 · Human Nutrition' || r7.grad !== G || r7.dash !== DASH('R7') ||
+        r7.url !== 'https://docs.google.com/spreadsheets/d/' + R7.id + '/edit' || !/^Added by 🔎 Find new spreadsheets/.test(r7.note) || !(r7.row >= 2))
+      throw new Error('the reflection row is wrong: ' + JSON.stringify(r7));
+    if (!t16 || t16.type !== 'Test' || !t16.cohort || t16.cohort.title !== 'Class of ' + G) throw new Error('the test row is wrong: ' + JSON.stringify(t16));
     const page = JSON.stringify(uiData('teachers').data);
-    if (!page.includes('Topic 7 · Human Nutrition') || !page.includes(DASH('R7'))) throw new Error('the found reflection did not reach the teacher page');
+    if (!page.includes('Topic 7 · Human Nutrition') || !page.includes(DASH('R7'))) throw new Error('the added reflection is not on the teacher page');
+    if (!_testSheetIds_(true).includes(T16.id)) throw new Error('the added test does not feed the banner');
   });
-  ok &= run('only yours, in your folders, labelled in the description: a planted look-alike, words in a cell and a colleague\'s are refused', () => {
-    forget();
-    const ids = foundIds(teacherPanelData());
-    [PLANT, CELLS, THEIRS].forEach(o => { if (ids.includes(o.id)) throw new Error('refused one was found: ' + o.id); });
+  ok &= run('only yours, in your folders, labelled in the description: a planted look-alike, words in a cell and a colleague\'s are not added', () => {
+    [PLANT, CELLS, THEIRS].forEach(o => { if (rowsFor(o.id).length) throw new Error('added: ' + o.id); });
     if (!LASTQ.includes("'" + OWNER + "' in owners")) throw new Error('the search is not limited to the owner: ' + LASTQ);
-    PLANT.folderOwner = OWNER; forget();
-    const again = foundIds(teacherPanelData());
-    PLANT.folderOwner = 'kid@pupils.x.kr'; forget();
-    if (!again.includes(PLANT.id)) throw new Error('(mutation) the folder rule is not what refused the planted card');
   });
-  ok &= run('a copy carrying its original\'s label is one card, the older file; a dashboard that is not an Apps Script page is dropped', () => {
-    forget();
-    const f = teacherPanelData().links.filter(l => l.found);
-    const r7s = f.filter(l => l.name === 'Topic 7 · Human Nutrition');
-    if (r7s.length !== 1 || r7s[0].id !== R7.id) throw new Error('the copy made a card of its own: ' + JSON.stringify(r7s.map(l => l.id)));
-    const b = f.find(l => l.id === BADDASH.id);
+  ok &= run('a copy carrying its original\'s label is one row, the older file; a dashboard that is not an Apps Script page is left empty', () => {
+    if (rowsFor(COPY.id).length || rowsFor(R7.id).length !== 1) throw new Error('the copy made a row of its own');
+    const b = rowsFor(BADDASH.id)[0];
     if (!b || b.dash !== '') throw new Error('a foreign dashboard address got through: ' + JSON.stringify(b));
   });
-  ok &= run('a row you typed for the same spreadsheet wins; Hide takes a found one off the page and the banner, Show puts it back', () => {
-    forget();
-    let d = teacherAddLink({ type: 'Reflection', assessment: 'My own name for it', grad: G, url: 'https://docs.google.com/spreadsheets/u/1/d/' + R7.id + '/edit#gid=0' });
-    const same = d.links.filter(l => _sheetIdOf_(l.url) === R7.id);
-    if (same.length !== 1 || same[0].found || same[0].assessment !== 'My own name for it') throw new Error('the typed row did not win: ' + JSON.stringify(same));
-    teacherRemoveLink(same[0].row);
-    d = teacherHideFound(T16.id);
-    if (d.links.some(l => l.id === T16.id)) throw new Error('a hidden card is still listed');
-    if (!d.hiddenFound.some(h => h.id === T16.id)) throw new Error('the hidden card is not offered back: ' + JSON.stringify(d.hiddenFound));
-    if (JSON.stringify(uiData('teachers').data).includes(DASH('T16'))) throw new Error('a hidden card reached the page');
-    if (_testSheetIds_(true).includes(T16.id)) throw new Error('a hidden test still feeds the banner');
-    d = teacherShowFound(T16.id);
-    if (!d.links.some(l => l.id === T16.id) || d.hiddenFound.length) throw new Error('Show did not bring it back');
+  ok &= run('pressed again: nothing added twice — a row, once there, is left as it is, and a stale copy is not added when the original\'s label changes', () => {
+    R7.desc = R7.desc.replace('Topic 7 · Human Nutrition', 'Topic 7 · renamed');
+    const before = tabRows(), d = teacherFindSpreadsheets();
+    R7.desc = R7.desc.replace('Topic 7 · renamed', 'Topic 7 · Human Nutrition');
+    if (d.find.added.length || tabRows() !== before) throw new Error('added again: ' + JSON.stringify(d.find.added));
+    if (rowsFor(R7.id)[0].assessment !== 'Topic 7 · Human Nutrition') throw new Error('an existing row was rewritten');
   });
-  ok &= run('a found test feeds the Sit-a-test banner; the search is kept half an hour; a failed search is said in the window', () => {
-    forget();
-    if (!_testSheetIds_(true).includes(T16.id)) throw new Error('the found test is not in the banner\'s list');
-    const n = SEARCHES; _foundSheets_(); _foundSheets_();
-    if (SEARCHES !== n) throw new Error('the search was not kept');
-    global.DriveApp = { searchFiles: () => { throw new Error('You do not have permission to call DriveApp.searchFiles. Required permissions: drive'); } };
-    forget();
-    const d = teacherPanelData();
-    global.DriveApp = drive;
-    if (!/permission/.test(d.findTrouble || '')) throw new Error('the window was not told why: ' + d.findTrouble);
+  ok &= run('a row you remove stays off: Find leaves it out, until Add back', () => {
+    let d = teacherRemoveLink(rowsFor(T16.id)[0].row);
+    if (rowsFor(T16.id).length) throw new Error('not removed');
+    d = teacherFindSpreadsheets();
+    if (rowsFor(T16.id).length || !d.find.leftOut.some(x => x.id === T16.id)) throw new Error('Find brought a removed row back: ' + JSON.stringify(d.find));
+    if (_testSheetIds_(true).includes(T16.id)) throw new Error('a removed test still feeds the banner');
+    d = teacherFindAgain(T16.id);
+    if (rowsFor(T16.id).length !== 1 || d.find.leftOut.length) throw new Error('Add back did not add it: ' + JSON.stringify(d.find));
   });
-  ok &= run('a student can neither hide nor show a found spreadsheet', () => {
+  ok &= run('a row you typed yourself for the same spreadsheet is never doubled', () => {
+    const t = ss.getSheetByName(T_LINKS);
+    t.deleteRow(rowsFor(R7.id)[0].row);
+    props.delete(FIND_SKIP);
+    teacherAddLink({ type: 'Reflection', assessment: 'My own name for it', grad: G, url: 'https://docs.google.com/spreadsheets/u/1/d/' + R7.id + '/edit#gid=0' });
+    teacherFindSpreadsheets();
+    const same = rowsFor(R7.id);
+    if (same.length !== 1 || same[0].assessment !== 'My own name for it') throw new Error('doubled or replaced: ' + JSON.stringify(same));
+  });
+  ok &= run('a student can neither find nor add back', () => {
     VISITOR = 'kid@pupils.x.kr';
-    const a = teacherHideFound(R7.id), b = teacherShowFound(R7.id);
+    const a = teacherFindSpreadsheets(), b = teacherFindAgain(T16.id);
     VISITOR = OWNER;
-    if (a.ok !== false || b.ok !== false) throw new Error('a student changed the hidden list');
-    if (props.get(HIDDEN_FOUND) && JSON.parse(props.get(HIDDEN_FOUND)).includes(R7.id)) throw new Error('R7 was hidden by a student');
+    if (a.ok !== false || b.ok !== false) throw new Error('a student ran Find');
   });
-  delete global.DriveApp; forget();
+  ok &= run('the menu item runs the same press and answers in a box', () => {
+    const logs = [], keep = global.log;
+    FILES.push({ id: ID('r8'), owner: OWNER, folderOwner: OWNER, made: 6000,
+                 desc: '🪞 Biology reflection spreadsheet | name: Topic 8 · Plants | class of: ' + G });
+    const before = tabRows();
+    findSpreadsheetsMENU_();
+    if (tabRows() !== before + 1 || !rowsFor(ID('r8')).length) throw new Error('the menu did not add the new reflection');
+  });
+  delete global.DriveApp;
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
-  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN'); props.delete(HIDDEN_FOUND);
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN'); props.delete(FIND_SKIP);
 }
 
 console.log('— lab progress & the student finder —');
