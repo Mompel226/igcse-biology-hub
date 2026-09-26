@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — reflections and tests found by themselves; Teacher links menu; Circulation 114';
+var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find new spreadsheets; Teacher links menu; Circulation 114';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -273,6 +273,7 @@ function onOpen() {
     .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'setup')
     .addSeparator()
     .addItem('🔗  Add or remove links on the teacher page (tests, reflections, surveys)…', 'showTeacherPanel')
+    .addItem('🔎  Find new reflection and test spreadsheets', 'findSpreadsheetsMENU_')
     .addItem('👥  Teacher page: teachers and addresses…', 'showTeacherSetup_')
     .addItem('📬  Email me when homework falls due (every morning)', 'installDailySummary')
     .addToUi();
@@ -2796,23 +2797,8 @@ function _teacherLinksRaw_() { return _teacherLinksScan_().rows; }
    javascript:) is not a chip. That row never becomes a card and its address never reaches a page;
    it is only NAMED, in `typed`, so the typo can be found (Daniel, 25 Sep 2026). From 18 to 25 Sep
    2026 such a row was reported as a "smart chip", javascript: text and all, which is what gastest's
-   teacher-page test caught.
-   Since 26 Sep 2026 the reflection and test spreadsheets that labelled themselves in Drive join the rows
-   (`found: true`, `row: 0`; see _foundSheets_), unless the tab already has a row for the same spreadsheet — yours
-   wins — or a teacher hid it. `freshFound` searches Drive again now (the Teacher page window does). */
-function _teacherLinksScan_(freshFound) {
-  var out = _teacherLinksTab_(), have = {}, hidden = _hiddenFound_();
-  out.rows.forEach(function (r) { var id = _sheetIdOf_(r.url); if (id) have[id] = true; });
-  _foundSheets_(freshFound).forEach(function (c) {
-    if (have[c.id] || hidden[c.id]) return;
-    have[c.id] = true;
-    out.rows.push({ row: 0, found: true, id: c.id, type: c.type, assessment: c.name, grad: c.grad, name: c.name,
-                    url: c.url, note: '', dash: c.dash });
-  });
-  return out;
-}
-/* The 🔗 Teacher links tab alone. */
-function _teacherLinksTab_() {
+   teacher-page test caught. */
+function _teacherLinksScan_() {
   var sh = _ss_().getSheetByName(T_LINKS);
   if (!sh || sh.getLastRow() < 2) return { rows: [], unreadable: [], typed: [], chipsOn: _chipsOn_() };
   var last = sh.getLastRow(), wide = sh.getLastColumn();
@@ -2844,37 +2830,37 @@ function _sheetIdOf_(url) {
 }
 
 /* ============================================================
-   Spreadsheets that announce themselves (26 Sep 2026)
+   🔎 Find new reflection and test spreadsheets (26 Sep 2026)
    ============================================================
-   Daniel: "is it possible to do it also for reflections so it automatically updates". A reflection spreadsheet
-   (the reflection system's _labelForHub_) and a test spreadsheet (the Test System's §hub-label) each write ONE line
-   into their own Drive description:
+   A reflection spreadsheet (the reflection system's _labelForHub_) and a test spreadsheet (the Test System's
+   §hub-label) each write ONE line into their own Drive description:
      🪞 Biology reflection spreadsheet | name: Topic 7 · Human Nutrition | class of: 2028 | dashboard: https://…/exec?page=dashboard | …
      🧪 Biology Test System spreadsheet | name: … | class of: … | dashboard: … | …
-   and this finds them, so they are on the teacher page — and a test gets its "Sit a test" banner — with no row in
-   🔗 Teacher links. Records and surveys (Google Forms, which run none of this code) are still added by hand.
-   Only a spreadsheet OWNED by the account this script runs as, sitting in a folder of that account's, counts: a
-   look-alike somebody else made and handed over stays in THEIR folder, so a pupil cannot plant a card whose
-   dashboard is their own page (and a dashboard must be an Apps Script address anyway). A copy carries its
-   original's label until it writes its own, so the same card twice is one spreadsheet — the older file. The search
-   is kept half an hour (a failed one a minute); the Teacher page window searches again when it opens. */
+   A teacher presses 🔎 Find new… (in the Teacher page window, or the menu), and every labelled spreadsheet not yet in
+   🔗 Teacher links becomes an ordinary row there — type, name, class, link, dashboard — so teachers reach it from the
+   teacher page like any other, and a test gets its "Sit a test" banner. Daniel (26 Sep 2026): "click a button, runs
+   the check, it's added, and that's it, but not constantly" — nothing searches Drive on its own, and a row, once added,
+   is never checked again: it is yours to edit or remove. A spreadsheet removed in the window is left out of the next
+   Finds (Script Property FIND_SKIP_SHEETS) until "Add back". Records and surveys (Forms run none of this code) are
+   still added by hand. Only a spreadsheet OWNED by the account this script runs as, sitting in a folder of that
+   account's, counts: a look-alike somebody else made and handed over stays in THEIR folder, so a pupil cannot plant a
+   card whose dashboard is their own page (and a dashboard must be an Apps Script address). A copy carries its
+   original's label until it writes its own, so the same card twice is one spreadsheet — the older file. */
 var FOUND_KINDS = [{ phrase: 'Biology reflection spreadsheet', type: 'Reflection' },
                    { phrase: 'Biology Test System spreadsheet', type: 'Test' }];
-var FOUND_SECONDS = 1800;
-var HIDDEN_FOUND = 'HIDDEN_FOUND_SHEETS';   /* Script Property: ids a teacher took off the page */
+var FIND_SKIP = 'FIND_SKIP_SHEETS';   /* Script Property: [{id, name}] removed in the window; Find leaves them out */
 
-function _foundSheets_(fresh) {
-  var cache = null, key = 'found1';
-  try { cache = CacheService.getScriptCache(); if (!fresh) { var hit = cache.get(key); if (hit) return JSON.parse(hit); } } catch (e) {}
-  var out = [], failed = false;
+/* One search of Drive → { cards: [{ id, url, type, name, grad, dash }], trouble: '' or why it could not look }. */
+function _findLabelledSheets_() {
+  var out = [], cards = {}, order = [];
   try {
-    if (typeof DriveApp === 'undefined' || !DriveApp || typeof DriveApp.searchFiles !== 'function') return out;   /* not allowed Drive yet */
+    if (typeof DriveApp === 'undefined' || !DriveApp || typeof DriveApp.searchFiles !== 'function') return { cards: [], trouble: 'this script cannot use Drive' };
     var me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
-    if (!me || me.indexOf("'") >= 0) return out;
+    if (!me || me.indexOf("'") >= 0) return { cards: [], trouble: 'the account this script runs as is unknown' };
     var q = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and '" + me + "' in owners and (" +
             FOUND_KINDS.map(function (k) { return "fullText contains '\"" + k.phrase + "\"'"; }).join(' or ') + ')';
-    var it = DriveApp.searchFiles(q), cards = {}, order = [];
-    for (var seen = 0; it.hasNext() && seen < 150 && order.length < 80; seen++) {
+    var it = DriveApp.searchFiles(q);
+    for (var seen = 0; it.hasNext() && seen < 300 && order.length < 150; seen++) {
       var f = it.next();
       var card = _readHubLabel_(f.getDescription());
       if (!card) continue;                                   /* the words were in a cell, not in its label */
@@ -2885,20 +2871,17 @@ function _foundSheets_(fresh) {
       card.url = 'https://docs.google.com/spreadsheets/d/' + card.id + '/edit';
       var made = f.getDateCreated();
       card.made = made && made.getTime ? made.getTime() : 0;
-      var k = [card.type, card.name, card.grad, card.dash].join('|');
-      if (cards[k] && cards[k].made <= card.made) continue;   /* a copy of one already found: keep the older */
+      /* A copy carries its original's line (dashboard included) until it has a web app of its own and writes its
+         own — and it may still carry an OLD line after the original's changed. One dashboard is one web app, so
+         one spreadsheet: the same dashboard twice keeps the older file; with no dashboard, the same whole card. */
+      var k = card.dash ? 'd|' + card.dash : ['n', card.type, card.name, card.grad].join('|');
+      if (cards[k] && cards[k].made <= card.made) continue;
       if (!cards[k]) order.push(k);
       cards[k] = card;
     }
-    out = order.map(function (k) { var c = cards[k]; return { id: c.id, url: c.url, type: c.type, name: c.name, grad: c.grad, dash: c.dash }; });
-  } catch (e) { failed = String(e && e.message || e).slice(0, 200) || 'failed'; Logger.log('_foundSheets_: ' + e); }
-  try {
-    if (cache) {
-      cache.put(key, JSON.stringify(out), failed ? 60 : FOUND_SECONDS);
-      cache.put('found1err', failed || '', failed ? 600 : 1);   /* the window says why nothing was found */
-    }
-  } catch (e) {}
-  return out;
+  } catch (e) { Logger.log('_findLabelledSheets_: ' + e); return { cards: [], trouble: String(e && e.message || e).slice(0, 200) }; }
+  out = order.map(function (k) { var c = cards[k]; return { id: c.id, url: c.url, type: c.type, name: c.name, grad: c.grad, dash: c.dash }; });
+  return { cards: out, trouble: '' };
 }
 
 /* The labelled line of a Drive description → { type, name, grad, dash }, or null when there is none. */
@@ -2923,33 +2906,66 @@ function _readHubLabel_(desc) {
   return null;
 }
 
-/* The found spreadsheets a teacher took off the page (Hide in the Teacher page window). */
-function _hiddenFound_() {
-  var o = {};
+/* The spreadsheets removed in the window, which Find leaves out: [{ id, name }]. */
+function _findSkip_() {
   try {
-    var v = JSON.parse(PropertiesService.getScriptProperties().getProperty(HIDDEN_FOUND) || '[]');
-    (Array.isArray(v) ? v : []).forEach(function (id) { if (/^[A-Za-z0-9_-]{20,}$/.test(String(id))) o[String(id)] = true; });
-  } catch (e) {}
-  return o;
+    var v = JSON.parse(PropertiesService.getScriptProperties().getProperty(FIND_SKIP) || '[]');
+    return (Array.isArray(v) ? v : []).filter(function (x) { return x && /^[A-Za-z0-9_-]{20,}$/.test(String(x.id)); })
+      .map(function (x) { return { id: String(x.id), name: String(x.name || '').slice(0, 120) }; });
+  } catch (e) { return []; }
 }
-function _setHiddenFound_(id, hide) {
-  id = String(id || '');
-  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return false;
-  var o = _hiddenFound_();
-  if (hide) o[id] = true; else delete o[id];
-  PropertiesService.getScriptProperties().setProperty(HIDDEN_FOUND, JSON.stringify(Object.keys(o).slice(0, 300)));
-  try { var c = CacheService.getScriptCache(); c.put('testids1', '', 1); } catch (e) {}   /* the banner's list follows at once */
-  return true;
+function _setFindSkip_(list) {
+  PropertiesService.getScriptProperties().setProperty(FIND_SKIP, JSON.stringify(list.slice(-300)));
 }
-function teacherHideFound(id) {
+
+/* One press: every labelled spreadsheet that is neither in the tab nor removed before is added as a row. */
+function _findAndAdd_() {
+  var res = _findLabelledSheets_(), added = [], leftOut = [];
+  if (res.trouble) return { added: added, leftOut: leftOut, trouble: res.trouble, looked: 0 };
+  var sh = _ensureTeacherTabs_() && _ss_().getSheetByName(T_LINKS);
+  var have = {}, haveDash = {}, skip = {};
+  _teacherLinksScan_().rows.forEach(function (r) {
+    var id = _sheetIdOf_(r.url); if (id) have[id] = true;
+    if (r.dash) haveDash[r.dash] = true;                 /* a card with the same dashboard is a copy of that row */
+  });
+  _findSkip_().forEach(function (x) { skip[x.id] = true; });
+  var when = '';
+  try { when = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Seoul', 'd MMM yyyy'); } catch (e) {}
+  res.cards.forEach(function (c) {
+    if (have[c.id] || (c.dash && haveDash[c.dash])) return;
+    if (skip[c.id]) { leftOut.push({ id: c.id, type: c.type, name: c.name }); return; }
+    sh.appendRow([c.type, c.name, c.grad, c.name, c.url, 'Added by 🔎 Find new spreadsheets' + (when ? ', ' + when : ''), c.dash]);
+    have[c.id] = true;
+    added.push({ type: c.type, name: c.name });
+  });
+  if (added.length) { try { CacheService.getScriptCache().put('testids1', '', 1); } catch (e) {} }   /* the banner follows at once */
+  return { added: added, leftOut: leftOut, trouble: '', looked: res.cards.length };
+}
+function _findSummary_(r) {
+  if (r.trouble) return 'Could not look in Drive: ' + r.trouble + '.\n\nOpen Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then press Find again.';
+  var s = r.added.length ? 'Added to 🔗 Teacher links:\n' + r.added.map(function (a) { return '•  ' + a.type + ': ' + a.name; }).join('\n')
+                         : 'Nothing new: every labelled reflection and test spreadsheet is already in 🔗 Teacher links.';
+  if (r.leftOut.length) s += '\n\nLeft out, because you removed ' + (r.leftOut.length === 1 ? 'it' : 'them') + ' before: ' +
+                             r.leftOut.map(function (a) { return a.name; }).join(', ') + ' (Add back in the Teacher page window).';
+  return s;
+}
+function teacherFindSpreadsheets() {
   if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
-  _setHiddenFound_(id, true);
-  return teacherPanelData();
+  var r = _findAndAdd_(), d = teacherPanelData();
+  d.find = r;
+  return d;
 }
-function teacherShowFound(id) {
+/* "Add back": forget that it was removed, and find again. */
+function teacherFindAgain(id) {
   if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
-  _setHiddenFound_(id, false);
-  return teacherPanelData();
+  _setFindSkip_(_findSkip_().filter(function (x) { return x.id !== String(id); }));
+  return teacherFindSpreadsheets();
+}
+/* Menu: 🔎 Find new reflection and test spreadsheets — the same press, answered in a box. */
+function findSpreadsheetsMENU_() {
+  if (!_isAdminCaller_()) return;
+  var ui = SpreadsheetApp.getUi();
+  ui.alert('🔎 Find new reflection and test spreadsheets', _findSummary_(_findAndAdd_()), ui.ButtonSet.OK);
 }
 
 /* Is this cell's text an address somebody typed, rather than a smart chip? A chip shows its file's
@@ -3692,18 +3708,14 @@ function teacherPanelData() {
     hubUrl: String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim(),
     hubLive: !!_hubUrl_(),
     teachers: teachers,
-    unreadable: (_scan0_ = _teacherLinksScan_(true)).unreadable, typed: _scan0_.typed, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
+    unreadable: (_scan0_ = _teacherLinksScan_()).unreadable, typed: _scan0_.typed, chipsOn: _scan0_.chipsOn, chipTrouble: _scan0_.chipTrouble,
     links: _scan0_.rows.map(function (l) {         /* the same reading: one call to Google, not two */
       var co = _cohortLabel_(l.grad);
       l.cohort = co ? { title: co.title, yearGroup: co.yearGroup } : null;
       l.typeClass = _typeClass_(l.type);
       return l;
     }),
-    types: ['Reflection', 'Test', 'Survey', 'Records'],
-    /* §found — the ones taken off the page, to put back; and whether this script may look in Drive at all */
-    hiddenFound: (function () { var h = _hiddenFound_(); return _foundSheets_().filter(function (c) { return h[c.id]; })
-                   .map(function (c) { return { id: c.id, type: c.type, name: c.name }; }); })(),
-    findTrouble: (function () { try { return String(CacheService.getScriptCache().get('found1err') || ''); } catch (e) { return ''; } })()
+    types: ['Reflection', 'Test', 'Survey', 'Records']
   };
 }
 
@@ -3761,7 +3773,14 @@ function teacherRemoveLink(row) {
   if (!_isAdminCaller_()) return { ok: false };
   row = Number(row) || 0;
   var sh = _ss_().getSheetByName(T_LINKS);
-  if (sh && row >= 2 && row <= sh.getLastRow()) sh.deleteRow(row);
+  if (sh && row >= 2 && row <= sh.getLastRow()) {
+    /* a spreadsheet you took off stays off: 🔎 Find leaves it out until "Add back" */
+    try {
+      var gone = _teacherLinksScan_().rows.filter(function (r) { return r.row === row; })[0], id = gone ? _sheetIdOf_(gone.url) : '';
+      if (id) _setFindSkip_(_findSkip_().filter(function (x) { return x.id !== id; }).concat([{ id: id, name: gone.name }]));
+    } catch (e) {}
+    sh.deleteRow(row);
+  }
   return teacherPanelData();
 }
 
