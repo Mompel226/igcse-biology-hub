@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find new spreadsheets; Teacher links menu; Circulation 114';
+var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find new spreadsheets + Missing one?; Teacher links menu; Circulation 114';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -2944,7 +2944,7 @@ function _findAndAdd_() {
 function _findSummary_(r) {
   if (r.trouble) return 'Could not look in Drive: ' + r.trouble + '.\n\nOpen Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then press Find again.';
   var s = r.added.length ? 'Added to 🔗 Teacher links:\n' + r.added.map(function (a) { return '•  ' + a.type + ': ' + a.name; }).join('\n')
-                         : 'Nothing new: every labelled reflection and test spreadsheet is already in 🔗 Teacher links.';
+                         : 'Nothing new: every labelled reflection and test spreadsheet is already in 🔗 Teacher links.\n\nOne missing? In the Teacher page window, paste its address under \u201cMissing one?\u201d to see why.';
   if (r.leftOut.length) s += '\n\nLeft out, because you removed ' + (r.leftOut.length === 1 ? 'it' : 'them') + ' before: ' +
                              r.leftOut.map(function (a) { return a.name; }).join(', ') + ' (Add back in the Teacher page window).';
   return s;
@@ -2961,6 +2961,85 @@ function teacherFindAgain(id) {
   _setFindSkip_(_findSkip_().filter(function (x) { return x.id !== String(id); }));
   return teacherFindSpreadsheets();
 }
+/* "Missing one? Check its address" (26 Sep 2026: Daniel's new test was not found and nothing said why). ONE address,
+   opened directly — so it does not wait for Google's search to catch up with a new label — and every reason Find
+   would or would not add it, in plain words. "Add it" then adds it from its label even when Find would not (it is a
+   colleague's, or sits in someone else's folder): the teacher's explicit choice. Never a copy that still names
+   another spreadsheet's dashboard (the page would open the wrong test), and never twice. */
+function _checkSpreadsheet_(url) {
+  var raw = String(url || '').trim();
+  var id = _sheetIdOf_(raw) || (/^[A-Za-z0-9_-]{25,}$/.test(raw) ? raw : '');
+  if (!id) return { verdict: 'bad', say: ['That is not a Google Sheets address. Open the spreadsheet and copy the address from the browser’s address bar.'] };
+  var me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+  var rows = _teacherLinksScan_().rows;
+  var listed = rows.filter(function (r) { return _sheetIdOf_(r.url) === id; })[0];
+  if (listed) return { id: id, verdict: 'listed', say: ['It is already in the list: “' + listed.name + '” (row ' + listed.row + ' of 🔗 Teacher links).'] };
+  var f;
+  try { f = DriveApp.getFileById(id); }
+  catch (e) {
+    var em = String(e && e.message || e);
+    if (/permission|authori[sz]/i.test(em) && /DriveApp/.test(em))
+      return { id: id, verdict: 'nodrive', say: ['This script is not allowed to look in Drive yet. Open Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then check again.'] };
+    return { id: id, verdict: 'unreadable', say: ['This script cannot open it (' + em.slice(0, 120) + ').',
+             'If it is a colleague’s, ask them to share it with ' + (me || 'this account') + ' (Viewer is enough); then check again or add it with ➕ Add a link.'] };
+  }
+  var card = _readHubLabel_(f.getDescription());
+  if (!card) return { id: id, verdict: 'nolabel', url: 'https://docs.google.com/spreadsheets/d/' + id + '/edit', say: [
+    'It has no label yet, so Find cannot recognise it (its Drive description has no “Biology Test System spreadsheet” or “Biology reflection spreadsheet” line).',
+    'A test spreadsheet writes its label when you run 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab in it — with the current Test System code pasted. A reflection spreadsheet writes it when its page or dashboard is opened after its current code is deployed (✏️ New version).',
+    'Or add it now with ➕ Add a link below (its address is filled in for you).'] };
+  var o = f.getOwner(), owner = o ? String(o.getEmail() || '').toLowerCase() : '';
+  var fo = '', ps = f.getParents();
+  if (ps.hasNext()) { var po = ps.next().getOwner(); fo = po ? String(po.getEmail() || '').toLowerCase() : ''; }
+  var out = { id: id, card: { type: card.type, name: card.name, grad: card.grad, dash: card.dash }, say: [], canAdd: true };
+  out.say.push('Its label: ' + card.type + ' · “' + card.name + '”' + (card.grad ? ' · Class of ' + card.grad : ' · no class') +
+               (card.dash ? ' · with its dashboard' : ' · no dashboard address') + '.');
+  var rowTwin = card.dash ? rows.filter(function (r) { return r.dash === card.dash; })[0] : null;
+  var skipped = _findSkip_().some(function (x) { return x.id === id; });
+  if (rowTwin) {
+    out.verdict = 'copy'; out.canAdd = false;
+    out.say.push('Its label names the same dashboard as “' + rowTwin.name + '”, which is already in the list — so it looks like a copy of that spreadsheet, and the page would open the wrong dashboard.',
+                 'Give it a web app of its own (Deploy ▸ New deployment, both deployments), paste the new addresses in 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab, then check again.');
+    return out;
+  }
+  if (skipped) { out.verdict = 'removed'; out.say.push('You removed it from the list before, so Find leaves it out. “Add it” puts it back.'); return out; }
+  if (owner !== me) { out.verdict = 'notmine'; out.say.push('It belongs to ' + (owner || 'a shared drive') + ': Find adds only spreadsheets that belong to ' + me + '. You can add it here, since you chose it.'); return out; }
+  if (fo !== me) { out.verdict = 'folder'; out.say.push('It sits in a folder that belongs to ' + (fo || 'a shared drive') + ': Find leaves those out, so nobody can slip a spreadsheet in. If you trust it, add it here.'); return out; }
+  var res = _findLabelledSheets_();
+  if (res.cards.some(function (x) { return x.id === id; })) { out.verdict = 'find'; out.say.push('Find sees it and will add it: press 🔎 Find, or “Add it” here.'); return out; }
+  var twin = res.cards.filter(function (x) { return card.dash ? x.dash === card.dash : (x.type === card.type && x.name === card.name && x.grad === card.grad); })[0];
+  if (twin) {
+    out.verdict = 'copy'; out.canAdd = false;
+    out.say.push('An older spreadsheet carries the same label' + (card.dash ? ' (the same dashboard)' : '') + ' — so Find takes this one for a copy of it: ' + twin.url,
+                 'Give it a web app of its own (Deploy ▸ New deployment), paste the new addresses in 🔗 Rebuild Links / readiness tab, then check again.');
+    return out;
+  }
+  out.verdict = 'unindexed';
+  out.say.push('Everything is right, but Google’s search has not caught up with its label yet (that can take a few minutes after the label is written). “Add it” adds it now.');
+  return out;
+}
+function teacherCheckSpreadsheet(url) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  var d = teacherPanelData();
+  try { d.check = _checkSpreadsheet_(url); } catch (e) { d.check = { verdict: 'bad', say: ['Could not check it: ' + String(e && e.message || e).slice(0, 160)] }; }
+  return d;
+}
+function teacherAddChecked(id) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  var c = _checkSpreadsheet_('https://docs.google.com/spreadsheets/d/' + String(id || '') + '/edit');
+  if (!c.card || !c.canAdd) { var d0 = teacherPanelData(); d0.check = c; return d0; }
+  _setFindSkip_(_findSkip_().filter(function (x) { return x.id !== c.id; }));
+  var when = '';
+  try { when = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Seoul', 'd MMM yyyy'); } catch (e) {}
+  var sh = _ensureTeacherTabs_() && _ss_().getSheetByName(T_LINKS);
+  sh.appendRow([c.card.type, c.card.name, c.card.grad, c.card.name, 'https://docs.google.com/spreadsheets/d/' + c.id + '/edit',
+                'Added from 🔎 Check' + (when ? ', ' + when : ''), c.card.dash]);
+  try { CacheService.getScriptCache().put('testids1', '', 1); } catch (e) {}
+  var d = teacherPanelData();
+  d.check = { id: c.id, verdict: 'added', say: ['Added: “' + c.card.name + '”.'] };
+  return d;
+}
+
 /* Menu: 🔎 Find new reflection and test spreadsheets — the same press, answered in a box. */
 function findSpreadsheetsMENU_() {
   if (!_isAdminCaller_()) return;
