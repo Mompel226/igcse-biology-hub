@@ -299,6 +299,8 @@
     if(ac){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } })
               .withFailureHandler(function(){ busy(false); }).teacherAddChecked(ac); }
     if(e.target.getAttribute('data-fillform')!=null){ $('lUrl').value=$('chkUrl').value.trim(); $('lAss').focus(); }
+    var wa=e.target.getAttribute('data-watch');
+    if(wa){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } }).withFailureHandler(function(){ busy(false); }).teacherWatchFolder(wa); }
     var uw=e.target.getAttribute('data-unwatch');
     if(uw){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok) render(d); }).withFailureHandler(function(){ busy(false); }).teacherUnwatchFolder(uw); }
     if(t){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveTeacher(t); }
@@ -334,10 +336,11 @@
   // "Missing one?": one address, every reason in plain words, and "Add it" when that is safe
   function showCheck(c){
     if(!c){ $('chkOut').innerHTML=''; return; }
-    var good = { listed:1, find:1, added:1, unindexed:1 }[c.verdict];
+    var good = { listed:1, find:1, added:1, unindexed:1, watching:1 }[c.verdict] && !c.watchable;
     $('chkOut').innerHTML = (c.say||[]).map(function(t,i){ return '<p class="'+(!good && i===c.say.length-1 ? 'no' : 'ok')+'">'+esc(t)+'</p>'; }).join('') +
       (c.canAdd && c.card && c.verdict!=='added' ? '<button type="button" data-addchk="'+esc(c.id)+'">Add it</button>' : '') +
-      (c.verdict==='nolabel' ? '<button type="button" class="ghost" data-fillform="1">Fill in its address below</button>' : '');
+      (c.verdict==='nolabel' ? '<button type="button" class="ghost" data-fillform="1">Fill in its address below</button>' : '') +
+      (c.watchable ? '<button type="button" data-watch="'+esc(c.id)+'">Let Find look in this folder</button>' : '');
   }
   $('chkBtn').onclick = function(){
     var u = $('chkUrl').value.trim(); if(!u) return;

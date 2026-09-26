@@ -427,7 +427,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'showClassroomImport', 'showTeacherPanel',                  /* menu: need a UI, throw in a web context */
     'getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',  /* gated: _isAdminCaller_ */
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
-    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder',
+    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder', 'teacherWatchFolder',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
@@ -1605,6 +1605,18 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     if (st.ok !== false || !_findFolders_().length) throw new Error('a student stopped the watch');
     d = teacherUnwatchFolder(FLD);
     if (d.findFolders.length) throw new Error('✕ did not stop the watch');
+    /* added with an older "Add it" (or unwatched since): the check of the LISTED spreadsheet offers to watch its folder */
+    const lc = teacherCheckSpreadsheet('https://docs.google.com/spreadsheets/d/' + SD1.id + '/edit').check;
+    if (lc.verdict !== 'listed' || !lc.watchable || lc.watchable.id !== FLD) throw new Error('a listed shared-drive one did not offer its folder: ' + JSON.stringify(lc));
+    VISITOR = 'kid@pupils.x.kr';
+    const sw = teacherWatchFolder(SD1.id);
+    VISITOR = OWNER;
+    if (sw.ok !== false || _findFolders_().length) throw new Error('a student set a watch');
+    d = teacherWatchFolder(SD1.id);
+    if (!d.findFolders.some(f => f.id === FLD) || d.check.verdict !== 'watching') throw new Error('Let Find look in this folder did not: ' + JSON.stringify(d.check));
+    const lc2 = teacherCheckSpreadsheet('https://docs.google.com/spreadsheets/d/' + SD1.id + '/edit').check;
+    if (lc2.watchable) throw new Error('offered to watch a folder already watched');
+    d = teacherUnwatchFolder(FLD);
     const SD5 = { id: ID('sd-late'), owner: null, folderOwner: null, folderId: FLD, folderName: FNAME, made: 9100,
       desc: '🧪 Biology Test System spreadsheet | name: Topic 9 test | class of: ' + G + ' | dashboard: ' + DASH('T9SD') };
     FILES.push(SD5);

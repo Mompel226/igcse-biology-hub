@@ -3022,7 +3022,24 @@ function _checkSpreadsheet_(url) {
   var me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
   var rows = _teacherLinksScan_().rows;
   var listed = rows.filter(function (r) { return _sheetIdOf_(r.url) === id; })[0];
-  if (listed) return { id: id, verdict: 'listed', say: ['It is already in the list: “' + listed.name + '” (row ' + listed.row + ' of 🔗 Teacher links).'] };
+  if (listed) {
+    var lo = { id: id, verdict: 'listed', say: ['It is already in the list: “' + listed.name + '” (row ' + listed.row + ' of 🔗 Teacher links).'] };
+    /* added before its folder was watched (or with an older "Add it"): offer to let Find look in its shared-drive folder */
+    try {
+      var lf = DriveApp.getFileById(id);
+      if (!lf.getOwner()) {
+        var lps = lf.getParents();
+        if (lps.hasNext()) {
+          var lp = lps.next(), lpid = lp.getId();
+          if (!_findFolders_().some(function (x) { return x.id === lpid; })) {
+            lo.watchable = { id: lpid, name: lp.getName() };
+            lo.say.push('It is in a shared drive (folder “' + lp.getName() + '”), where 🔎 Find does not look yet. Press “Let Find look in this folder”, and the next test or reflection there is added by Find.');
+          }
+        }
+      }
+    } catch (e) {}
+    return lo;
+  }
   var f;
   try { f = DriveApp.getFileById(id); }
   catch (e) {
@@ -3106,6 +3123,19 @@ function teacherAddChecked(id) {
   }
   var d = teacherPanelData();
   d.check = { id: c.id, verdict: 'added', say: ['Added: “' + c.card.name + '”.' + watch] };
+  return d;
+}
+
+/* "Let Find look in this folder": for a listed spreadsheet in a shared drive whose folder is not watched yet. */
+function teacherWatchFolder(id) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  var c = _checkSpreadsheet_('https://docs.google.com/spreadsheets/d/' + String(id || '') + '/edit');
+  if (c.watchable && c.watchable.id) {
+    _setFindFolders_(_findFolders_().filter(function (x) { return x.id !== c.watchable.id; }).concat([c.watchable]));
+    c = { id: c.id, verdict: 'watching', say: ['From now on 🔎 Find also looks in “' + (c.watchable.name || 'its folder') + '”.'] };
+  }
+  var d = teacherPanelData();
+  d.check = c;
   return d;
 }
 
