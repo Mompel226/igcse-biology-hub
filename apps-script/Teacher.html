@@ -320,7 +320,7 @@ var BOOT = __BOOT__;
   var VIEWS = {
     teachers:{ label:'Spreadsheets', accent:'#E879F9', h1:'Assessment <em>system</em>',
       lede:'Every spreadsheet in the Assessment Reflection System, grouped by the cohort it belongs to.',
-      note:'Each link opens only for the people its spreadsheet is shared with — this page lists them, it does not share them. To change anything: 🧪 Biology Labs ▸ 🔗 Teacher page.' },
+      note:'Each link opens only for the people its spreadsheet is shared with — this page lists them, it does not share them. To change anything: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.' },
     progress:{ label:'Lab progress', accent:'#4FC3F7', h1:'Lab <em>progress</em>',
       lede:'How each class is getting on — who has done what, and where they are getting stuck.',
       note:'Scores are averaged over the labs a student has actually saved work in. A lab not started is a blank in the grid, never a zero. “Reviewed” ticks are kept in this browser only.' },
@@ -495,7 +495,7 @@ var BOOT = __BOOT__;
       (ty.length===1?'Its Link does not start with https://. Replace it':'Their Links do not start with https://. Replace each')+
       ' with the spreadsheet’s full address, copied from the browser’s address bar, in the labs spreadsheet’s 🔗 Teacher links tab.</div>';
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
-      return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
+      return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</div>';
     var present={}, body='';
     if (g.records.length) body += '<section class="grp" data-cur="1"><div class="coh"><span class="coh__t">Records</span><span class="n">'+g.records.length+'</span></div>'+
       '<div class="cards">'+g.records.map(function(l){ present.records=1; return linkCard(l,'records','records'); }).join('')+'</div></section>';
@@ -615,7 +615,7 @@ var BOOT = __BOOT__;
     if (pool.indexOf(stState.cls)<0) stState.cls='all';
     $('view').innerHTML =
       (base?'':'<div class="warn"><b>The tracker address is not set yet, so the buttons below have nowhere to go.</b><br>'+
-        'In the labs spreadsheet: 🧪 Biology Labs ▸ 🔗 Teacher page ▸ “Open a student’s tracker”. It wants the '+
+        'In the labs spreadsheet: 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses ▸ “Open a student’s tracker”. It wants the '+
         '<b>/exec</b> address of one of your reflection deployments — not a spreadsheet link. Everything else on this tab works without it.</div>')+
       '<div class="bar2"><div class="fld"><label for="tg">Cohort</label><select id="tg"><option value="all">All cohorts</option>'+
       COH.map(function(c){ return '<option value="'+c.grad+'"'+(String(c.grad)===String(stState.grad)?' selected':'')+'>'+esc(c.title+(c.yg?' · '+c.yg:''))+'</option>'; }).join('')+
@@ -1107,7 +1107,7 @@ var BOOT = __BOOT__;
 
     function paint(){
       var warn='';
-      if (!D.hubSet) warn='<div class="warn">The hub address is not set, so the parts of each lab cannot be listed. Set it in 🧪 Biology Labs ▸ 🔗 Teacher page.</div>';
+      if (!D.hubSet) warn='<div class="warn">The hub address is not set, so the parts of each lab cannot be listed. Set it in 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses.</div>';
       else if (!D.manifestOk) warn='<div class="warn">The station list could not be read from the hub. Run tools/stations-manifest.mjs, publish the site, then Refresh.</div>';
       var classes={}; STUD.forEach(function(s){ if(s.cls)classes[s.cls]=1; });
       var names=Object.keys(classes).sort(cmpClass);

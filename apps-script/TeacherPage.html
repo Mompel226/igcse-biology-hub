@@ -40,6 +40,16 @@
   .hint{font-size:12px;color:var(--dim);background:#fff;border:1px dashed var(--line);border-radius:8px;padding:9px 11px;margin:6px 0}
   code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:12px}
   .loading{color:var(--dim);padding:30px;text-align:center}
+  /* 26 Sep 2026 (Daniel: adding a link was hard to find): the links come first, the form to add one at their top */
+  .addbox{border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:10px 12px 4px;margin:8px 0 14px}
+  .addh{font-weight:700;color:var(--ink);font-size:14px;margin:2px 0 4px}
+  .types{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:3px}
+  .types input{flex:1 1 170px}
+  button.typ{background:#fff;color:var(--ink);border-color:var(--line);padding:6px 13px}
+  button.typ.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .lbl{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim)}
+  h3{font-size:13px;color:var(--ink);margin:16px 0 4px;display:flex;align-items:baseline;gap:8px}
+  .sum{font-size:12px;color:var(--dim);margin:2px 0 8px}
 </style>
 </head>
 <body>
@@ -50,7 +60,59 @@
     <p class="intro">Everything here is read live by the hub and the teacher page. Add or change it
        and it takes effect at once — you never edit the code or redeploy again.</p>
 
-    <h2>The page address <span id="pageState" class="pill off">off</span></h2>
+    <h2 id="sec-links">Links on the teacher page <small>tests, reflections, surveys</small></h2>
+    <div class="addbox">
+      <div class="addh">➕ Add a link</div>
+      <div class="row">
+        <div class="lbl" style="flex:1 1 100%">Type
+          <div class="types" id="typeChips">
+            <button type="button" class="typ" data-type="Test">Test</button>
+            <button type="button" class="typ" data-type="Reflection">Reflection</button>
+            <button type="button" class="typ" data-type="Survey">Survey</button>
+            <input id="lType" type="text" list="typeList" placeholder="or type another, e.g. Records" aria-label="Type">
+            <datalist id="typeList"></datalist>
+          </div>
+        </div>
+      </div>
+      <p class="hint" id="typeHint" style="display:none"></p>
+      <div class="row">
+        <label>Assessment<input id="lAss" type="text" placeholder="Topic 16 · HPV report"></label>
+        <label style="flex:0 0 130px">Graduation year<input id="lYear" type="text" placeholder="2028"></label>
+      </div>
+      <div class="row">
+        <label style="flex:1 1 320px">Link: the spreadsheet's address (https://…)
+          <input id="lUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
+        <label style="flex:1 1 150px">Note (optional)<input id="lNote" type="text"></label>
+      </div>
+      <div class="row">
+        <label style="flex:1 1 320px"><span>Teacher dashboard (optional): the address ending <code>/exec?page=dashboard</code></span>
+          <input id="lDash" type="url" placeholder="https://script.google.com/…/exec?page=dashboard"></label>
+        <button id="lAdd">Add link</button>
+      </div>
+      <div class="msg" id="lMsg"></div>
+    </div>
+    <p class="intro">Your links, grouped by the cohort's <b>graduation year</b>: this year's Y10 is <b>2028</b>,
+       next year's Y10 is <b>2029</b> — so the same test for another cohort is another row, and the page always
+       shows the right year group on its own. <b>Remove</b> takes a link off the page.</p>
+    <div class="list" id="linkList"></div>
+
+    <h2 id="sec-teachers">Teachers <small>who may open the page</small></h2>
+    <p class="intro">You (<span id="owner"></span>) can always open it. Add the other Biology
+       teachers by their school address.</p>
+    <div class="list" id="teacherList"></div>
+    <div class="row">
+      <label>Name<input id="tName" type="text" placeholder="Dr Someone"></label>
+      <label style="flex:1 1 200px">School email<input id="tEmail" type="email" placeholder="name@school"></label>
+      <button id="tAdd">Add teacher</button>
+    </div>
+    <div class="msg" id="tMsg"></div>
+
+    <h2 id="sec-setup">Set up once <small>the page's addresses</small></h2>
+    <p class="sum" id="setupSum"></p>
+    <button type="button" class="ghost" id="setupToggle">Show the addresses</button>
+    <div id="setupBody" hidden>
+
+    <h3>The page address <span id="pageState" class="pill off">off</span></h3>
     <p class="intro" id="pageOwn"></p>
     <div class="hint" id="pageHint" style="display:none">
       To create it once: <b>Deploy ▸ New deployment ▸ ⚙ ▸ Web app</b>, Execute as <b>Me</b>,
@@ -58,25 +120,25 @@
       <b>Web app URL</b> below.
     </div>
     <div class="row">
-      <label style="flex:1 1 320px">Web app URL (ends <code>/exec</code>)
+      <label style="flex:1 1 320px"><span>Web app URL (ends <code>/exec</code>)</span>
         <input id="pageUrl" type="url" placeholder="https://script.google.com/a/macros/…/exec"></label>
       <button id="pageSave">Save address</button>
     </div>
     <div class="msg" id="pageMsg"></div>
 
-    <h2>Open a student's tracker <span id="trackerState" class="pill off">off</span></h2>
+    <h3>Open a student's tracker <span id="trackerState" class="pill off">off</span></h3>
     <p class="intro">Paste the <b>web app URL</b> of any one of your reflection deployments (they all
        show the same tracker). The page then grows a <b>Students</b> tab where you pick a pupil and
        open their own reflection tracker — scores, weak topics, what to revise. Leave it empty and
        there is no Students tab.</p>
     <div class="row">
-      <label style="flex:1 1 320px">Reflection web app URL (ends <code>/exec</code>)
+      <label style="flex:1 1 320px"><span>Reflection web app URL (ends <code>/exec</code>)</span>
         <input id="trackerUrl" type="url" placeholder="https://script.google.com/…/exec"></label>
       <button id="trackerSave">Save address</button>
     </div>
     <div class="msg" id="trackerMsg"></div>
 
-    <h2>Set homework <span id="hubState" class="pill off">off</span></h2>
+    <h3>Set homework <span id="hubState" class="pill off">off</span></h3>
     <p class="intro">Paste your hub's address — the one that serves its front page. It is usually a
        sub-folder, e.g. <code>https://nlcsbiology.com/biology-hub</code>, <b>not</b> the bare domain.
        Check it by opening <code>&lt;address&gt;/js/data/labs.json</code>: if that does not load, the
@@ -90,50 +152,26 @@
       <button id="hubSave">Save address</button>
     </div>
     <div class="msg" id="hubMsg"></div>
-
-    <h2>Teachers <small>who may open the page</small></h2>
-    <p class="intro">You (<span id="owner"></span>) can always open it. Add the other Biology
-       teachers by their school address.</p>
-    <div class="list" id="teacherList"></div>
-    <div class="row">
-      <label>Name<input id="tName" type="text" placeholder="Dr Someone"></label>
-      <label style="flex:1 1 200px">School email<input id="tEmail" type="email" placeholder="name@school"></label>
-      <button id="tAdd">Add teacher</button>
     </div>
-    <div class="msg" id="tMsg"></div>
-
-    <h2>Spreadsheets <small>grouped by the cohort's graduation year</small></h2>
-    <p class="intro">One row per spreadsheet. The <b>graduation year</b> is the cohort: this year's
-       Y10 is <b>2028</b>, next year's Y10 is <b>2029</b> — so the same test for another cohort is
-       another row, and the page always shows the right year group on its own.</p>
-    <div class="list" id="linkList"></div>
-    <div class="row">
-      <label style="flex:0 0 140px">Type
-        <input id="lType" type="text" list="typeList" placeholder="Reflection">
-        <datalist id="typeList"></datalist></label>
-      <label>Assessment<input id="lAss" type="text" placeholder="Topic 7 · Human Nutrition"></label>
-      <label style="flex:0 0 130px">Graduation year<input id="lYear" type="text" placeholder="2028"></label>
-    </div>
-    <div class="row">
-      <label style="flex:1 1 320px">Link (https://…)
-        <input id="lUrl" type="url" placeholder="https://docs.google.com/…"></label>
-      <label style="flex:1 1 150px">Note (optional)<input id="lNote" type="text"></label>
-    </div>
-    <div class="row">
-      <label style="flex:1 1 320px">Teacher dashboard (optional)
-        <input id="lDash" type="url" placeholder="https://script.google.com/…/exec?page=dashboard"></label>
-      <button id="lAdd">Add spreadsheet</button>
-    </div>
-    <p class="hint">A test or a reflection also serves a live teacher dashboard at its own web-app
-       address, ending <b>/exec?page=dashboard</b>. Put it here and the page offers it beside the
-       spreadsheet, so nobody has to open the spreadsheet first to get to it.</p>
-    <div class="msg" id="lMsg"></div>
   </div>
 </div>
 
 <script>
-  var D = null;
+  var D = null, setupSeen = false;
   function $(id){ return document.getElementById(id); }
+  function openSetup(on){ $('setupBody').hidden = !on; $('setupToggle').textContent = on ? 'Hide the addresses' : 'Show the addresses'; }
+  // what each kind of link is for, said where it is chosen
+  var TYPE_HINT = {
+    test: 'A test spreadsheet: the hub shows its “Sit a test” banner to the students seated on it, and a “New feedback” card when you release their feedback. Its Teacher dashboard is the test’s dashboard address.',
+    reflection: 'A reflection spreadsheet: you open it, and its live dashboard, from the teacher page.',
+    survey: 'A survey or form: you open it from the teacher page.'
+  };
+  function typeClassOf(t){ t=String(t||'').toLowerCase(); return /reflect/.test(t)?'reflection':/test|exam|paper/.test(t)?'test':/survey|encuesta|form|quiz|poll/.test(t)?'survey':''; }
+  function showType(){
+    var v = $('lType').value, k = typeClassOf(v);
+    Array.prototype.forEach.call(document.querySelectorAll('button.typ'), function(b){ b.classList.toggle('on', b.getAttribute('data-type').toLowerCase() === v.trim().toLowerCase()); });
+    $('typeHint').textContent = TYPE_HINT[k] || ''; $('typeHint').style.display = TYPE_HINT[k] ? '' : 'none';
+  }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function msg(id, text, bad){ var m=$(id); m.textContent=text||''; m.className='msg'+(text?(bad?' bad':' ok'):''); }
   function busy(on){ Array.prototype.forEach.call(document.querySelectorAll('button'),function(b){b.disabled=on;}); }
@@ -160,6 +198,14 @@
     $('hubState').textContent = hLive ? 'on' : 'off';
     $('hubState').className = 'pill' + (hLive?'':' off');
     $('hubUrl').value = d.hubUrl || '';
+
+    // "Set up once": a one-line state, opened by itself when something there is off
+    var off = [!live && 'the page address', !tLive && 'the Students tab', !hLive && 'Set homework'].filter(Boolean);
+    $('setupSum').textContent = off.length ? 'Not set yet: ' + off.join(', ') + '.' : 'All three are set: the page address, the Students tab and Set homework.';
+    if (!setupSeen) {
+      setupSeen = true; openSetup(off.length > 0 || window.TP_START === 'setup');
+      if (window.TP_START === 'setup') setTimeout(function(){ $('sec-teachers').scrollIntoView(); }, 0);   // once the lists below are drawn
+    }
 
     // type suggestions
     var dl = $('typeList'); dl.innerHTML='';
@@ -226,6 +272,13 @@
     if(t){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveTeacher(t); }
     if(l){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveLink(Number(l)); }
   });
+
+  document.getElementById('typeChips').addEventListener('click', function(e){
+    var b = e.target.closest('button.typ'); if(!b) return;
+    $('lType').value = b.getAttribute('data-type'); showType(); $('lAss').focus();
+  });
+  $('lType').addEventListener('input', showType);
+  $('setupToggle').onclick = function(){ openSetup($('setupBody').hidden); };
 
   $('pageSave').onclick = function(){
     busy(true); msg('pageMsg','Saving…');
