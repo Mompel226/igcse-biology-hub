@@ -71,6 +71,7 @@
         dashboard. It runs only when you press it, and a link, once added, stays as it is.</span>
       <div class="msg" id="findMsg"></div>
       <div class="sum" id="leftOut"></div>
+      <div class="sum" id="watchList"></div>
       <div class="row" style="margin-top:4px">
         <label style="flex:1 1 320px">Missing one? Paste its address to see why
           <input id="chkUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
@@ -217,6 +218,11 @@
     $('hubState').className = 'pill' + (hLive?'':' off');
     $('hubUrl').value = d.hubUrl || '';
 
+    // the shared-drive folders Find also looks in (added by "Add it" on a spreadsheet there), each with ✕
+    var wf = d.findFolders || [];
+    $('watchList').innerHTML = wf.length ? '🔎 Find also looks in ' + (wf.length === 1 ? 'this shared-drive folder' : 'these shared-drive folders') + ': ' +
+      wf.map(function(f){ return esc(f.name || 'a folder') + ' <button class="x" data-unwatch="'+esc(f.id)+'" aria-label="Stop looking in '+esc(f.name || 'this folder')+'">✕</button>'; }).join(' · ') : '';
+
     // "Set up once": a one-line state, opened by itself when something there is off
     var off = [!live && 'the page address', !tLive && 'the Students tab', !hLive && 'Set homework'].filter(Boolean);
     $('setupSum').textContent = off.length ? 'Not set yet: ' + off.join(', ') + '.' : 'All three are set: the page address, the Students tab and Set homework.';
@@ -293,6 +299,8 @@
     if(ac){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } })
               .withFailureHandler(function(){ busy(false); }).teacherAddChecked(ac); }
     if(e.target.getAttribute('data-fillform')!=null){ $('lUrl').value=$('chkUrl').value.trim(); $('lAss').focus(); }
+    var uw=e.target.getAttribute('data-unwatch');
+    if(uw){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok) render(d); }).withFailureHandler(function(){ busy(false); }).teacherUnwatchFolder(uw); }
     if(t){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveTeacher(t); }
     if(l){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok)render(d); }).withFailureHandler(function(){busy(false);}).teacherRemoveLink(Number(l)); }
   });
@@ -308,8 +316,10 @@
   function showFind(r){
     if(!r) return;
     if(r.trouble){ msg('findMsg','Could not look in Drive: '+r.trouble+'. Open Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then press Find again.',true); $('leftOut').innerHTML=''; return; }
-    msg('findMsg', r.added.length ? 'Added '+r.added.length+': '+r.added.map(function(a){ return a.name; }).join(', ')+'.'
-                                  : 'Nothing new: every labelled reflection and test spreadsheet is already in the list. One missing? Paste its address under “Missing one?”.');
+    msg('findMsg', (r.added.length ? 'Added '+r.added.length+': '+r.added.map(function(a){ return a.name; }).join(', ')+'.'
+                                   : 'Nothing new: every labelled reflection and test spreadsheet is already in the list. One missing? Paste its address under “Missing one?”.') +
+                   ((r.folders||[]).length ? ' Also looked in: '+r.folders.join(', ')+'.' : '') +
+                   ((r.folderTrouble||[]).length ? ' Could not look in: '+r.folderTrouble.join('; ') : ''), !!(r.folderTrouble||[]).length);
     $('leftOut').innerHTML = (r.leftOut||[]).length ? 'Left out, because you removed '+(r.leftOut.length===1?'it':'them')+' before: '+
       r.leftOut.map(function(x){ return esc(x.name)+' <button class="x" data-addback="'+esc(x.id)+'">Add back</button>'; }).join(' · ') : '';
   }
