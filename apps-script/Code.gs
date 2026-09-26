@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — New feedback card (5 days), Circulation 114';
+var SCRIPT_EDITION = '26 Sep 2026 — New feedback card (5 days), Circulation 114, Teacher links menu';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -75,7 +75,7 @@ var SCHOOL_DOMAIN  = '';
 
 /* The teacher page — optional. TEACHERS is other teachers' school addresses, comma-separated (you
    are always in; type "none" to clear the rest). TEACHER_PAGE_URL is the /exec address of the
-   teacher-page deployment. You do not have to edit these by hand: 🧪 Biology Labs ▸ 🔗 Teacher page
+   teacher-page deployment. You do not have to edit these by hand: 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses
    manages both from a window. See "The teacher page" below. */
 var TEACHERS          = '';
 var TEACHER_PAGE_URL  = '';
@@ -84,7 +84,7 @@ var TEACHER_PAGE_URL  = '';
    reflection deployments (they all show the same collated tracker). With it set, the teacher page
    grows a "Students" tab: pick a pupil, click, and their own reflection tracker opens — the same
    page they see, which only their teachers may open for them. You do not have to edit this by hand:
-   🧪 Biology Labs ▸ 🔗 Teacher page manages it too. Empty = no Students tab. */
+   🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses manages it too. Empty = no Students tab. */
 var TRACKER_APP_URL   = '';
 
 /* Set homework — optional. HUB_URL is the address of your hub site — the address that serves its
@@ -154,7 +154,7 @@ var HUB_URL           = '';
      TEACHER_PAGE_URL  the /exec address of that second deployment. The hub is handed it only when
                        a signed-in teacher on the list asks; it is never written into the website.
 
-   🧪 Biology Labs ▸ 🔗 Teacher page makes the tab and walks through the rest. Like
+   🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page makes the tab and walks through the rest. Like
    TRACKER_ID, a value typed in SETTINGS at the top is kept in Script Properties, and neither belongs in the
    public GitHub copy.
    -------------------------------------------------------------------------- */
@@ -272,7 +272,8 @@ function onOpen() {
     .addItem('📊  Refresh everyone\'s progress', 'refreshDashboard')
     .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'setup')
     .addSeparator()
-    .addItem('🔗  Teacher page — teachers, links, address', 'showTeacherPanel')
+    .addItem('🔗  Add or remove links on the teacher page (tests, reflections, surveys)…', 'showTeacherPanel')
+    .addItem('👥  Teacher page: teachers and addresses…', 'showTeacherSetup_')
     .addItem('📬  Email me when homework falls due (every morning)', 'installDailySummary')
     .addToUi();
 }
@@ -871,15 +872,15 @@ function checkSetup() {
   /* The teacher page. Off until it is set up, and then its three parts are checked apart. */
   var tpUrl = _teacherPageUrl_(), tpTab = openOk ? _ss_().getSheetByName(T_LINKS) : null;
   if (!tpUrl && !tpTab && !String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '')) {
-    lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 🔗 Teacher page sets it up.');
+    lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses sets it up.');
   } else {
     lines.push(tpUrl ? '✅  teacher page address is set'
-                     : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 🔗 Teacher page');
+                     : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 👥 Teacher page: teachers and addresses');
     lines.push('•  teachers who can open it: you (' + (_owner_() || 'the owner') + ')' +
                (_teacherEmails_().length ? ' and ' + _teacherEmails_().length + ' more' : ' only'));
     var tpLinks = 0;
     try { tpLinks = _teacherLinksRaw_().length; } catch (e) {}
-    lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Teacher page makes it');
+    lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Add or remove links on the teacher page makes it');
   }
   /* Bio English Lab: its set list comes from the public site, so an unreachable site means
      English homework cannot be scored — worth saying, never a fault in the labs. */
@@ -3522,7 +3523,17 @@ function showTeacherPanel() {
   _ensureTeacherTabs_();
   var html = HtmlService.createHtmlOutputFromFile('TeacherPage')
     .setWidth(680).setHeight(640);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Teacher page');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Links on the teacher page');
+}
+/* The same window, opened at its teachers and the page's addresses (26 Sep 2026: the links used to sit last,
+   under three address boxes, behind a menu item that did not say it was where links are added). */
+function showTeacherSetup_() {
+  if (!_isAdminCaller_()) return;
+  _ensureTeacherTabs_();
+  var html = HtmlService.createHtmlOutputFromFile('TeacherPage')
+    .append('<script>window.TP_START = "setup";</script>')
+    .setWidth(680).setHeight(640);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Teacher page: teachers and addresses');
 }
 
 function teacherPanelData() {
@@ -3705,7 +3716,7 @@ function _teacherHtml_(o) {
     main = '<p class="say">The list could not be read just now. Reload the page in a minute.</p>';
   } else if (!o.g.records.length && !o.g.cohorts.length && !o.g.loose.length) {
     main = '<p class="say">No links yet.</p><p class="fine">Add them from the labs spreadsheet: ' +
-           '🧪 Biology Labs ▸ 🔗 Teacher page.</p>';
+           '🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</p>';
   } else {
     var total = 0, body = '', present = {};
     if (o.g.records.length) {
@@ -3888,7 +3899,7 @@ function _teacherHtml_(o) {
     '<div class="topbar">' + who + nav + '</div>' + main + '</div>' + js + '</body></html>';
 }
 
-/* 🧪 Biology Labs ▸ 🔗 Teacher page: makes the tab (with the two records it can fill
+/* 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page (and 👥 Teacher page: teachers and addresses): makes the tab (with the two records it can fill
    in itself) and says, in order, what is still to do. Safe to run again: it never touches a row
    that is already there. */
 function setUpTeacherPage_() { showTeacherPanel(); }  /* kept: the panel superseded the old setup */
