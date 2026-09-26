@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find (shared folders too) + Missing one?; Teacher links menu; Circulation 114';
+var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find (shared drives too) + Missing one?; Teacher links menu; Circulation 114';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -2849,6 +2849,22 @@ function _sheetIdOf_(url) {
 var FOUND_KINDS = [{ phrase: 'Biology reflection spreadsheet', type: 'Reflection' },
                    { phrase: 'Biology Test System spreadsheet', type: 'Test' }];
 var FIND_SKIP = 'FIND_SKIP_SHEETS';   /* Script Property: [{id, name}] removed in the window; Find leaves them out */
+/* Shared drives (26 Sep 2026: Daniel's department keeps its tests in a SHARED DRIVE). A file there belongs to the
+   drive, not to a person, so neither the owner rule nor Drive's owner search can vouch for it. A teacher vouches for a
+   FOLDER instead: "Add it" on a spreadsheet in a shared drive also adds that folder here, and from then on every Find
+   also lists the spreadsheets IN it (DriveApp, no search: a folder listing sees shared drives and needs no index) and
+   adds the labelled ones. ✕ in the window stops it. */
+var FIND_FOLDERS = 'FIND_FOLDERS';   /* Script Property: [{id, name}] folders Find also looks in */
+function _findFolders_() {
+  try {
+    var v = JSON.parse(PropertiesService.getScriptProperties().getProperty(FIND_FOLDERS) || '[]');
+    return (Array.isArray(v) ? v : []).filter(function (x) { return x && /^[A-Za-z0-9_-]{10,}$/.test(String(x.id)); })
+      .map(function (x) { return { id: String(x.id), name: String(x.name || '').slice(0, 120) }; });
+  } catch (e) { return []; }
+}
+function _setFindFolders_(list) {
+  PropertiesService.getScriptProperties().setProperty(FIND_FOLDERS, JSON.stringify(list.slice(-40)));
+}
 
 /* Whose folders Find trusts (26 Sep 2026: Daniel's tests live in a department folder shared with him, which he does
    not own): yours; a teacher on the 👩‍🏫 Teachers list; anyone at the school's own domain (SCHOOL_DOMAIN) — a shared
@@ -2865,7 +2881,20 @@ function _findTrusts_(email) {
 /* One search of Drive → { cards: [{ id, url, type, name, grad, dash }], trouble: '' or why it could not look }.
    Spreadsheets that belong to you or to a teacher on the list, in a folder Find trusts (_findTrusts_). */
 function _findLabelledSheets_() {
-  var out = [], cards = {}, order = [];
+  var cards = {}, order = [], looked = [], folderTrouble = [];
+  /* one card per spreadsheet; a copy carries its original's line (dashboard included) until it has a web app of its
+     own and writes its own — and it may still carry an OLD line after the original's changed. One dashboard is one
+     web app, so one spreadsheet: the same dashboard twice keeps the older file; with no dashboard, the same card. */
+  function take(f, card) {
+    card.id = f.getId();
+    card.url = 'https://docs.google.com/spreadsheets/d/' + card.id + '/edit';
+    var made = f.getDateCreated();
+    card.made = made && made.getTime ? made.getTime() : 0;
+    var k = card.dash ? 'd|' + card.dash : ['n', card.type, card.name, card.grad].join('|');
+    if (cards[k] && cards[k].made <= card.made) return;
+    if (!cards[k]) order.push(k);
+    cards[k] = card;
+  }
   try {
     if (typeof DriveApp === 'undefined' || !DriveApp || typeof DriveApp.searchFiles !== 'function') return { cards: [], trouble: 'this script cannot use Drive' };
     var me = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
@@ -2882,21 +2911,24 @@ function _findLabelledSheets_() {
       var trusted = false, ps = f.getParents();
       while (!trusted && ps.hasNext()) { var o = ps.next().getOwner(); trusted = !!o && _findTrusts_(o.getEmail()); }
       if (!trusted) continue;
-      card.id = f.getId();
-      card.url = 'https://docs.google.com/spreadsheets/d/' + card.id + '/edit';
-      var made = f.getDateCreated();
-      card.made = made && made.getTime ? made.getTime() : 0;
-      /* A copy carries its original's line (dashboard included) until it has a web app of its own and writes its
-         own — and it may still carry an OLD line after the original's changed. One dashboard is one web app, so
-         one spreadsheet: the same dashboard twice keeps the older file; with no dashboard, the same whole card. */
-      var k = card.dash ? 'd|' + card.dash : ['n', card.type, card.name, card.grad].join('|');
-      if (cards[k] && cards[k].made <= card.made) continue;
-      if (!cards[k]) order.push(k);
-      cards[k] = card;
+      take(f, card);
     }
   } catch (e) { Logger.log('_findLabelledSheets_: ' + e); return { cards: [], trouble: String(e && e.message || e).slice(0, 200) }; }
-  out = order.map(function (k) { var c = cards[k]; return { id: c.id, url: c.url, type: c.type, name: c.name, grad: c.grad, dash: c.dash }; });
-  return { cards: out, trouble: '' };
+  /* the folders a teacher vouched for (shared drives): list them, no search */
+  _findFolders_().forEach(function (fd) {
+    try {
+      var folder = DriveApp.getFolderById(fd.id), files = folder.getFiles();
+      looked.push(folder.getName() || fd.name);
+      for (var n = 0; files.hasNext() && n < 400; n++) {
+        var g = files.next();
+        if (g.getMimeType() !== 'application/vnd.google-apps.spreadsheet' || (g.isTrashed && g.isTrashed())) continue;
+        var c2 = _readHubLabel_(g.getDescription());
+        if (c2) take(g, c2);
+      }
+    } catch (e) { folderTrouble.push((fd.name || fd.id) + ': ' + String(e && e.message || e).slice(0, 120)); }
+  });
+  var out = order.map(function (k) { var c = cards[k]; return { id: c.id, url: c.url, type: c.type, name: c.name, grad: c.grad, dash: c.dash }; });
+  return { cards: out, trouble: '', looked: looked, folderTrouble: folderTrouble };
 }
 
 /* The labelled line of a Drive description → { type, name, grad, dash }, or null when there is none. */
@@ -2936,7 +2968,7 @@ function _setFindSkip_(list) {
 /* One press: every labelled spreadsheet that is neither in the tab nor removed before is added as a row. */
 function _findAndAdd_() {
   var res = _findLabelledSheets_(), added = [], leftOut = [];
-  if (res.trouble) return { added: added, leftOut: leftOut, trouble: res.trouble, looked: 0 };
+  if (res.trouble) return { added: added, leftOut: leftOut, trouble: res.trouble, looked: 0, folders: [], folderTrouble: [] };
   var sh = _ensureTeacherTabs_() && _ss_().getSheetByName(T_LINKS);
   var have = {}, haveDash = {}, skip = {};
   _teacherLinksScan_().rows.forEach(function (r) {
@@ -2954,7 +2986,7 @@ function _findAndAdd_() {
     added.push({ type: c.type, name: c.name });
   });
   if (added.length) { try { CacheService.getScriptCache().put('testids1', '', 1); } catch (e) {} }   /* the banner follows at once */
-  return { added: added, leftOut: leftOut, trouble: '', looked: res.cards.length };
+  return { added: added, leftOut: leftOut, trouble: '', looked: res.cards.length, folders: res.looked || [], folderTrouble: res.folderTrouble || [] };
 }
 function _findSummary_(r) {
   if (r.trouble) return 'Could not look in Drive: ' + r.trouble + '.\n\nOpen Extensions ▸ Apps Script, run any function once and allow it to see your Drive, then press Find again.';
@@ -2962,6 +2994,8 @@ function _findSummary_(r) {
                          : 'Nothing new: every labelled reflection and test spreadsheet is already in 🔗 Teacher links.\n\nOne missing? In the Teacher page window, paste its address under \u201cMissing one?\u201d to see why.';
   if (r.leftOut.length) s += '\n\nLeft out, because you removed ' + (r.leftOut.length === 1 ? 'it' : 'them') + ' before: ' +
                              r.leftOut.map(function (a) { return a.name; }).join(', ') + ' (Add back in the Teacher page window).';
+  if ((r.folders || []).length) s += '\n\nAlso looked in the shared-drive folder' + (r.folders.length === 1 ? '' : 's') + ': ' + r.folders.join(', ') + '.';
+  if ((r.folderTrouble || []).length) s += '\n\nCould not look in: ' + r.folderTrouble.join('; ');
   return s;
 }
 function teacherFindSpreadsheets() {
@@ -3004,8 +3038,9 @@ function _checkSpreadsheet_(url) {
     'A test spreadsheet writes its label when you run 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab in it — with the current Test System code pasted. A reflection spreadsheet writes it when its page or dashboard is opened after its current code is deployed (✏️ New version).',
     'Or add it now with ➕ Add a link below (its address is filled in for you).'] };
   var o = f.getOwner(), owner = o ? String(o.getEmail() || '').toLowerCase() : '';
-  var fo = '', ps = f.getParents();
-  if (ps.hasNext()) { var po = ps.next().getOwner(); fo = po ? String(po.getEmail() || '').toLowerCase() : ''; }
+  var fo = '', pid = '', pname = '', ps = f.getParents();
+  if (ps.hasNext()) { var pf = ps.next(), po = pf.getOwner(); fo = po ? String(po.getEmail() || '').toLowerCase() : ''; pid = pf.getId(); pname = pf.getName(); }
+  var watched = !!pid && _findFolders_().some(function (x) { return x.id === pid; });
   var out = { id: id, card: { type: card.type, name: card.name, grad: card.grad, dash: card.dash }, say: [], canAdd: true };
   out.say.push('Its label: ' + card.type + ' · “' + card.name + '”' + (card.grad ? ' · Class of ' + card.grad : ' · no class') +
                (card.dash ? ' · with its dashboard' : ' · no dashboard address') + '.');
@@ -3018,12 +3053,18 @@ function _checkSpreadsheet_(url) {
     return out;
   }
   if (skipped) { out.verdict = 'removed'; out.say.push('You removed it from the list before, so Find leaves it out. “Add it” puts it back.'); return out; }
-  if (!(owner === me || _isTeacher_(owner))) {
+  if (!owner && !watched) {
+    out.verdict = 'shareddrive'; out.folder = { id: pid, name: pname };
+    out.say.push('It is in a shared drive' + (pname ? ' (folder “' + pname + '”)' : '') + '. Files there belong to the drive, not to a person, so Find cannot vouch for them on its own.',
+                 'Press Add it: it adds this one, and from then on 🔎 Find also looks in that folder and adds new tests and reflections there by itself.');
+    return out;
+  }
+  if (owner && !(owner === me || _isTeacher_(owner))) {
     out.verdict = 'notmine';
     out.say.push('It belongs to ' + (owner || 'a shared drive') + ': Find looks only at spreadsheets that belong to you or to a teacher on your \ud83d\udc69\u200d\ud83c\udfeb Teachers list (below). Add them there to have Find pick up their spreadsheets \u2014 or add this one here.');
     return out;
   }
-  if (!_findTrusts_(fo)) {
+  if (owner && !_findTrusts_(fo)) {
     out.verdict = 'folder';
     out.say.push('It sits in a folder that belongs to ' + (fo || 'a shared drive') + ', which is not yours, a listed teacher\u2019s or the school\u2019s own (' + (_schoolDomain_() ? '@' + _schoolDomain_() : 'set SCHOOL_DOMAIN') + '): Find leaves those out, so nobody can slip a spreadsheet in. If you trust it, add it here.');
     return out;
@@ -3058,9 +3099,21 @@ function teacherAddChecked(id) {
   sh.appendRow([c.card.type, c.card.name, c.card.grad, c.card.name, 'https://docs.google.com/spreadsheets/d/' + c.id + '/edit',
                 'Added from 🔎 Check' + (when ? ', ' + when : ''), c.card.dash]);
   try { CacheService.getScriptCache().put('testids1', '', 1); } catch (e) {}
+  var watch = '';
+  if (c.verdict === 'shareddrive' && c.folder && c.folder.id) {        /* the teacher vouched for it: watch its folder */
+    _setFindFolders_(_findFolders_().filter(function (x) { return x.id !== c.folder.id; }).concat([{ id: c.folder.id, name: c.folder.name }]));
+    watch = ' From now on 🔎 Find also looks in “' + (c.folder.name || 'its folder') + '”.';
+  }
   var d = teacherPanelData();
-  d.check = { id: c.id, verdict: 'added', say: ['Added: “' + c.card.name + '”.'] };
+  d.check = { id: c.id, verdict: 'added', say: ['Added: “' + c.card.name + '”.' + watch] };
   return d;
+}
+
+/* ✕ beside a folder in the window: Find stops looking in it (links already added stay). */
+function teacherUnwatchFolder(id) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Not allowed.' };
+  _setFindFolders_(_findFolders_().filter(function (x) { return x.id !== String(id); }));
+  return teacherPanelData();
 }
 
 /* Menu: 🔎 Find new reflection and test spreadsheets — the same press, answered in a box. */
@@ -3817,7 +3870,8 @@ function teacherPanelData() {
       l.typeClass = _typeClass_(l.type);
       return l;
     }),
-    types: ['Reflection', 'Test', 'Survey', 'Records']
+    types: ['Reflection', 'Test', 'Survey', 'Records'],
+    findFolders: _findFolders_()
   };
 }
 

@@ -427,7 +427,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'showClassroomImport', 'showTeacherPanel',                  /* menu: need a UI, throw in a web context */
     'getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',  /* gated: _isAdminCaller_ */
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
-    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked',
+    'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
@@ -1391,7 +1391,9 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
   const FILES = [];
   const person = e => (e ? { getEmail: () => e } : null);
   const file = o => ({ getId: () => o.id, getDescription: () => o.desc, getDateCreated: () => new Date(o.made || 0), getOwner: () => person(o.owner),
-    getParents: () => { let done = false; return { hasNext: () => !done, next: () => { done = true; return { getOwner: () => person(o.folderOwner) }; } }; } });
+    getMimeType: () => o.mime || 'application/vnd.google-apps.spreadsheet', isTrashed: () => !!o.trashed,
+    getParents: () => { let done = false; return { hasNext: () => !done, next: () => { done = true;
+      return { getOwner: () => person(o.folderOwner), getId: () => o.folderId || ('folder-of-' + o.id), getName: () => o.folderName || 'Folder' }; } }; } });
   let SEARCHES = 0, LASTQ = '';
   const drive = { searchFiles: q => {
     SEARCHES++; LASTQ = q;
@@ -1401,6 +1403,11 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
       throw new Error('a query the fake does not model: ' + q);
     const hits = FILES.filter(o => !o.unindexed && owns.includes(o.owner) && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
     let i = 0; return { hasNext: () => i < hits.length, next: () => file(hits[i++]) };
+  }, getFolderById: fid => {
+    const inIt = FILES.filter(o => o.folderId === fid);
+    if (!inIt.length && !FOLDERS[fid]) throw new Error('No item with the given ID could be found.');
+    return { getName: () => FOLDERS[fid] || (inIt[0] && inIt[0].folderName) || 'Folder',
+             getFiles: () => { const l = inIt.filter(o => !o.trashed); let i = 0; return { hasNext: () => i < l.length, next: () => file(l[i++]) }; } };
   }, getFileById: id => {
     if (DRIVE_DENY) throw new Error('You do not have permission to call DriveApp.getFileById. Required permissions: https://www.googleapis.com/auth/drive');
     const o = FILES.find(x => x.id === id);
@@ -1408,6 +1415,7 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     return file(o);
   } };
   let DRIVE_DENY = false;
+  const FOLDERS = {};
   const ID = n => ('found-' + n + '-xxxxxxxxxxxxxxxxxxxxxxxx').slice(0, 30);
   const DASH = n => 'https://script.google.com/a/macros/x.kr/s/AKfy' + n + '/exec?page=dashboard';
   const R7 = { id: ID('r7'), owner: OWNER, folderOwner: OWNER, made: 1000,
@@ -1565,9 +1573,47 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     VISITOR = OWNER;
     if (s1.ok !== false || s2.ok !== false || rowsFor(PLANT.id).length) throw new Error('a student checked or added');
   });
+  ok &= run('a shared drive (Daniel\'s case): Find cannot vouch for it; Add it adds it AND watches its folder, so the next test there is found by Find', () => {
+    const FLD = 'fld-biology-tests-2026', FNAME = 'Biology tests 2026–27';
+    FOLDERS[FLD] = FNAME;
+    const SD1 = { id: ID('sd-eval'), owner: null, folderOwner: null, folderId: FLD, folderName: FNAME, made: 8000,
+      desc: '🧪 Biology Test System spreadsheet | name: Evaluating transpiration simulations | class of: ' + G + ' | dashboard: ' + DASH('EVAL') };
+    FILES.push(SD1);
+    let d = teacherFindSpreadsheets();
+    if (rowsFor(SD1.id).length) throw new Error('a shared-drive file was added with no one vouching for it');
+    const c = teacherCheckSpreadsheet('https://docs.google.com/spreadsheets/d/' + SD1.id + '/edit').check;
+    if (c.verdict !== 'shareddrive' || !c.canAdd || !/shared drive/.test(c.say.join(' ')) || /Teachers list/.test(c.say.join(' ')))
+      throw new Error('the check did not say "shared drive" plainly: ' + JSON.stringify(c));
+    d = teacherAddChecked(SD1.id);
+    if (!rowsFor(SD1.id).length || !d.findFolders.some(f => f.id === FLD) || !/Find also looks in “Biology tests 2026–27”/.test(d.check.say.join(' ')))
+      throw new Error('Add it did not add it and watch its folder: ' + JSON.stringify(d.check) + ' ' + JSON.stringify(d.findFolders));
+    const SD2 = { id: ID('sd-refl'), owner: null, folderOwner: null, folderId: FLD, folderName: FNAME, made: 8100, unindexed: true,
+      desc: '🪞 Biology reflection spreadsheet | name: Topic 8 reflection | class of: ' + G + ' | dashboard: ' + DASH('R8SD') };
+    const SD3 = { id: ID('sd-plain'), owner: null, folderOwner: null, folderId: FLD, folderName: FNAME, made: 8200, desc: 'just a spreadsheet' };
+    const SD4 = Object.assign({}, SD1, { id: ID('sd-evalcopy'), made: 9000 });
+    const DOC = { id: ID('sd-doc'), owner: null, folderOwner: null, folderId: FLD, made: 8300, mime: 'application/vnd.google-apps.document', desc: SD2.desc.replace('Topic 8', 'Doc') };
+    FILES.push(SD2, SD3, SD4, DOC);
+    d = teacherFindSpreadsheets();
+    if (!rowsFor(SD2.id).length) throw new Error('the new reflection in the watched folder was not added by Find');
+    if (rowsFor(SD3.id).length || rowsFor(SD4.id).length || rowsFor(DOC.id).length) throw new Error('an unlabelled one, a copy or a document was added');
+    if (!(d.find.folders || []).includes(FNAME)) throw new Error('Find did not say where it looked: ' + JSON.stringify(d.find));
+    const again = teacherCheckSpreadsheet('https://docs.google.com/spreadsheets/d/' + SD2.id + '/edit').check;
+    if (again.verdict !== 'listed') throw new Error('a found one is not "listed": ' + JSON.stringify(again));
+    VISITOR = 'kid@pupils.x.kr';
+    const st = teacherUnwatchFolder(FLD);
+    VISITOR = OWNER;
+    if (st.ok !== false || !_findFolders_().length) throw new Error('a student stopped the watch');
+    d = teacherUnwatchFolder(FLD);
+    if (d.findFolders.length) throw new Error('✕ did not stop the watch');
+    const SD5 = { id: ID('sd-late'), owner: null, folderOwner: null, folderId: FLD, folderName: FNAME, made: 9100,
+      desc: '🧪 Biology Test System spreadsheet | name: Topic 9 test | class of: ' + G + ' | dashboard: ' + DASH('T9SD') };
+    FILES.push(SD5);
+    teacherFindSpreadsheets();
+    if (rowsFor(SD5.id).length) throw new Error('Find still looked in a folder after ✕');
+  });
   delete global.DriveApp;
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
-  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN'); props.delete(FIND_SKIP);
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN'); props.delete(FIND_SKIP); props.delete(FIND_FOLDERS);
 }
 
 console.log('— lab progress & the student finder —');
