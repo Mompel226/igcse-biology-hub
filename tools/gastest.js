@@ -427,7 +427,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'showClassroomImport', 'showTeacherPanel',                  /* menu: need a UI, throw in a web context */
     'getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',  /* gated: _isAdminCaller_ */
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
-    'teacherAddLink', 'teacherRemoveLink',
+    'teacherAddLink', 'teacherRemoveLink', 'teacherHideFound', 'teacherShowFound',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
     'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
@@ -1380,6 +1380,119 @@ ok &= run('the panel refuses a student / web-app caller', () => {
   props.delete('TEACHER_PAGE_URL'); props.delete('SCHOOL_DOMAIN');
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
 });
+
+console.log('— spreadsheets that announce themselves —');
+{
+  /* A Drive that holds labelled files (26 Sep 2026): a reflection and a test that labelled themselves, a later copy
+     of the reflection, a look-alike a pupil made and handed over, one with the words only in a cell, a colleague's,
+     and one whose "dashboard" is not an Apps Script page. The fake answers exactly the query the script sends. */
+  const now = new Date(), sy = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1, G = String(sy + 2);   // this year's Y10
+  const FILES = [];
+  const person = e => (e ? { getEmail: () => e } : null);
+  const file = o => ({ getId: () => o.id, getDescription: () => o.desc, getDateCreated: () => new Date(o.made || 0),
+    getParents: () => { let done = false; return { hasNext: () => !done, next: () => { done = true; return { getOwner: () => person(o.folderOwner) }; } }; } });
+  let SEARCHES = 0, LASTQ = '';
+  const drive = { searchFiles: q => {
+    SEARCHES++; LASTQ = q;
+    const own = (q.match(/'([^']+)' in owners/) || [])[1];
+    const phrases = [...q.matchAll(/fullText contains '"([^"]+)"'/g)].map(m => m[1].toLowerCase());
+    if (!/mimeType = 'application\/vnd\.google-apps\.spreadsheet'/.test(q) || !/trashed = false/.test(q) || !own || !phrases.length)
+      throw new Error('a query the fake does not model: ' + q);
+    const hits = FILES.filter(o => o.owner === own && phrases.some(ph => (o.desc + ' ' + (o.cells || '')).toLowerCase().includes(ph)));
+    let i = 0; return { hasNext: () => i < hits.length, next: () => file(hits[i++]) };
+  } };
+  const forget = () => { ['found1', 'found1err', 'testids1'].forEach(k => cacheStore.delete(k)); };
+  const ID = n => ('found-' + n + '-xxxxxxxxxxxxxxxxxxxxxxxx').slice(0, 30);
+  const DASH = n => 'https://script.google.com/a/macros/x.kr/s/AKfy' + n + '/exec?page=dashboard';
+  const R7 = { id: ID('r7'), owner: OWNER, folderOwner: OWNER, made: 1000,
+    desc: 'My own note.\n\n🪞 Biology reflection spreadsheet | name: Topic 7 · Human Nutrition | class of: ' + G + ' | dashboard: ' + DASH('R7') +
+          ' | written by the reflection system for the Biology Hub; leave this line in' };
+  const T16 = { id: ID('t16'), owner: OWNER, folderOwner: OWNER, made: 2000,
+    desc: '🧪 Biology Test System spreadsheet | name: Reflecting on the impact of Science | class of: ' + G + ' | dashboard: ' + DASH('T16') + ' | written by the Test System' };
+  const COPY = Object.assign({}, R7, { id: ID('r7copy'), made: 5000 });
+  const PLANT = { id: ID('plant'), owner: OWNER, folderOwner: 'kid@pupils.x.kr', made: 3000,
+    desc: '🪞 Biology reflection spreadsheet | name: Free marks | class of: ' + G + ' | dashboard: ' + DASH('EVIL') };
+  const CELLS = { id: ID('cells'), owner: OWNER, folderOwner: OWNER, made: 3000, desc: '', cells: 'Biology reflection spreadsheet' };
+  const THEIRS = { id: ID('theirs'), owner: 'kim@x.kr', folderOwner: 'kim@x.kr', made: 3000, desc: R7.desc.replace('Topic 7', 'Topic 8') };
+  const BADDASH = { id: ID('baddash'), owner: OWNER, folderOwner: OWNER, made: 3000,
+    desc: '🪞 Biology reflection spreadsheet | name: Topic 9 · Gas exchange | class of: ' + G + ' | dashboard: https://evil.example/exec?page=dashboard' };
+  FILES.push(COPY, R7, T16, PLANT, CELLS, THEIRS, BADDASH);   // the copy comes first: the older file must still win
+  const foundIds = d => d.links.filter(l => l.found).map(l => l.id);
+
+  ok &= run('with no Drive (the script not allowed to look yet) nothing is found and nothing breaks', () => {
+    SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER; forget();
+    [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+    delete global.DriveApp;
+    const d = teacherPanelData();
+    if (!d.ok || foundIds(d).length) throw new Error('found something with no Drive: ' + JSON.stringify(d.links).slice(0, 200));
+  });
+  global.DriveApp = drive;
+  ok &= run('reflections and tests that labelled themselves are on the teacher page with no row in 🔗 Teacher links', () => {
+    forget();
+    const d = teacherPanelData(), f = d.links.filter(l => l.found);
+    const r7 = f.find(l => l.id === R7.id), t16 = f.find(l => l.id === T16.id);
+    if (!r7 || r7.type !== 'Reflection' || r7.name !== 'Topic 7 · Human Nutrition' || r7.grad !== G || r7.dash !== DASH('R7') ||
+        r7.url !== 'https://docs.google.com/spreadsheets/d/' + R7.id + '/edit') throw new Error('the reflection card is wrong: ' + JSON.stringify(r7));
+    if (!t16 || t16.type !== 'Test' || t16.typeClass !== 'test' || !t16.cohort || t16.cohort.title !== 'Class of ' + G)
+      throw new Error('the test card is wrong: ' + JSON.stringify(t16));
+    if (r7.row !== 0) throw new Error('a found card names a sheet row: Remove would delete a row of yours');
+    const page = JSON.stringify(uiData('teachers').data);
+    if (!page.includes('Topic 7 · Human Nutrition') || !page.includes(DASH('R7'))) throw new Error('the found reflection did not reach the teacher page');
+  });
+  ok &= run('only yours, in your folders, labelled in the description: a planted look-alike, words in a cell and a colleague\'s are refused', () => {
+    forget();
+    const ids = foundIds(teacherPanelData());
+    [PLANT, CELLS, THEIRS].forEach(o => { if (ids.includes(o.id)) throw new Error('refused one was found: ' + o.id); });
+    if (!LASTQ.includes("'" + OWNER + "' in owners")) throw new Error('the search is not limited to the owner: ' + LASTQ);
+    PLANT.folderOwner = OWNER; forget();
+    const again = foundIds(teacherPanelData());
+    PLANT.folderOwner = 'kid@pupils.x.kr'; forget();
+    if (!again.includes(PLANT.id)) throw new Error('(mutation) the folder rule is not what refused the planted card');
+  });
+  ok &= run('a copy carrying its original\'s label is one card, the older file; a dashboard that is not an Apps Script page is dropped', () => {
+    forget();
+    const f = teacherPanelData().links.filter(l => l.found);
+    const r7s = f.filter(l => l.name === 'Topic 7 · Human Nutrition');
+    if (r7s.length !== 1 || r7s[0].id !== R7.id) throw new Error('the copy made a card of its own: ' + JSON.stringify(r7s.map(l => l.id)));
+    const b = f.find(l => l.id === BADDASH.id);
+    if (!b || b.dash !== '') throw new Error('a foreign dashboard address got through: ' + JSON.stringify(b));
+  });
+  ok &= run('a row you typed for the same spreadsheet wins; Hide takes a found one off the page and the banner, Show puts it back', () => {
+    forget();
+    let d = teacherAddLink({ type: 'Reflection', assessment: 'My own name for it', grad: G, url: 'https://docs.google.com/spreadsheets/u/1/d/' + R7.id + '/edit#gid=0' });
+    const same = d.links.filter(l => _sheetIdOf_(l.url) === R7.id);
+    if (same.length !== 1 || same[0].found || same[0].assessment !== 'My own name for it') throw new Error('the typed row did not win: ' + JSON.stringify(same));
+    teacherRemoveLink(same[0].row);
+    d = teacherHideFound(T16.id);
+    if (d.links.some(l => l.id === T16.id)) throw new Error('a hidden card is still listed');
+    if (!d.hiddenFound.some(h => h.id === T16.id)) throw new Error('the hidden card is not offered back: ' + JSON.stringify(d.hiddenFound));
+    if (JSON.stringify(uiData('teachers').data).includes(DASH('T16'))) throw new Error('a hidden card reached the page');
+    if (_testSheetIds_(true).includes(T16.id)) throw new Error('a hidden test still feeds the banner');
+    d = teacherShowFound(T16.id);
+    if (!d.links.some(l => l.id === T16.id) || d.hiddenFound.length) throw new Error('Show did not bring it back');
+  });
+  ok &= run('a found test feeds the Sit-a-test banner; the search is kept half an hour; a failed search is said in the window', () => {
+    forget();
+    if (!_testSheetIds_(true).includes(T16.id)) throw new Error('the found test is not in the banner\'s list');
+    const n = SEARCHES; _foundSheets_(); _foundSheets_();
+    if (SEARCHES !== n) throw new Error('the search was not kept');
+    global.DriveApp = { searchFiles: () => { throw new Error('You do not have permission to call DriveApp.searchFiles. Required permissions: drive'); } };
+    forget();
+    const d = teacherPanelData();
+    global.DriveApp = drive;
+    if (!/permission/.test(d.findTrouble || '')) throw new Error('the window was not told why: ' + d.findTrouble);
+  });
+  ok &= run('a student can neither hide nor show a found spreadsheet', () => {
+    VISITOR = 'kid@pupils.x.kr';
+    const a = teacherHideFound(R7.id), b = teacherShowFound(R7.id);
+    VISITOR = OWNER;
+    if (a.ok !== false || b.ok !== false) throw new Error('a student changed the hidden list');
+    if (props.get(HIDDEN_FOUND) && JSON.parse(props.get(HIDDEN_FOUND)).includes(R7.id)) throw new Error('R7 was hidden by a student');
+  });
+  delete global.DriveApp; forget();
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN'); props.delete(HIDDEN_FOUND);
+}
 
 console.log('— lab progress & the student finder —');
 const SEP26 = new Date(2026, 8, 15);
