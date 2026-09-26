@@ -1587,7 +1587,9 @@ ok &= run('a due date means the end of that day in the SCHOOL’s clock', () => 
      browser rendered it in its OWN, so a deadline could show a day out and be called overdue on
      the wrong day. The date is now pinned once, here, and the page is sent words and a verdict. */
   const dir = _studentDirectory_();
-  const r = homeworkCreate({ title:'Clock', classes:[{ cls:dir.students[0].cls, due:'2026-09-25' }],
+  /* a date far ahead, so this stays a future deadline on every day the test is run (it was 2026-09-25,
+     which became overdue on 26 Sep 2026 and failed the check below) */
+  const r = homeworkCreate({ title:'Clock', classes:[{ cls:dir.students[0].cls, due:'2099-09-25' }],
     tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
   if (!r.ok) throw new Error('refused: ' + r.why);
   const hw = _homeworkRows_().pop();
@@ -1598,7 +1600,7 @@ ok &= run('a due date means the end of that day in the SCHOOL’s clock', () => 
   }
   if (hw.dueText !== '25 Sep') throw new Error('the page is not sent the worded date: ' + hw.dueText);
   if (typeof hw.overdue !== 'boolean' || typeof hw.soon !== 'boolean') throw new Error('no verdict was sent');
-  if (hw.overdue) throw new Error('a 2026 date was called overdue');
+  if (hw.overdue) throw new Error('a future date was called overdue');
   /* and a date the browser could never parse is refused rather than silently stored */
   if (homeworkCreate({ title:'Bad', classes:[{ cls:dir.students[0].cls, due:'25/09/2026' }],
       tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] }).ok !== false) {
