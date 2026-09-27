@@ -9,6 +9,11 @@ class Range {
   constructor(sheet, r, c, nr, nc) {
     Object.assign(this, { sheet, r, c, nr: nr || 1, nc: nc || 1 });
     if (r < 1 || c < 1) throw new Error(`getRange out of bounds: row ${r} col ${c} on "${sheet.name}"`);
+    /* The real thing refuses a range that runs past the sheet's last row or column, for a READ as much as
+       a write ("The coordinates of the range are outside the dimensions of the sheet"). Checking writes
+       only let a read past a narrow tab's last column pass here and throw in Google. */
+    if (r + this.nr - 1 > sheet.maxR || c + this.nc - 1 > sheet.maxC)
+      throw new Error(`getRange outside the sheet "${sheet.name}": rows ${r}..${r + this.nr - 1}, cols ${c}..${c + this.nc - 1} (max ${sheet.maxR}x${sheet.maxC})`);
   }
   setValues(v) {
     if (!Array.isArray(v) || v.length !== this.nr) throw new Error(`setValues: expected ${this.nr} rows, got ${v && v.length} on "${this.sheet.name}"`);
@@ -150,6 +155,7 @@ class Sheet {
   getFilter() { return this._filter ? { remove: () => { this._filter = false; } } : null; }
   setConditionalFormatRules(rs) { if (!Array.isArray(rs)) throw new Error('rules must be an array'); this._rules = rs; return this; }
   hideColumns(c, n) { if (c > this.maxC) throw new Error(`hideColumns past the end on "${this.name}"`); return this; }
+  showColumns(c, n) { if (c > this.maxC) throw new Error(`showColumns past the end on "${this.name}"`); return this; }
   clear() { this.cells.clear(); return this; }
 }
 for (const m of ['setColumnWidth','setRowHeight','setFrozenRows','setFrozenColumns','setHiddenGridlines','activate','setTabColor'])
@@ -504,7 +510,9 @@ ok &= run('a save fills the row that was waiting', () => {
   const r = anaRow();
   if (r[2] !== 90 || r[3] !== QN) throw new Error('score not written: ' + r.slice(2, 5));
   if (Math.abs(r[4] - 90 / QN) > 1e-9) throw new Error('percentage wrong: ' + r[4]);
-  if (r[5] !== 'complete') throw new Error('finished flag wrong: ' + r[5]);
+  /* "complete — every question right": the flag follows the score, not what the page claims (goes, Sept
+     2026 — a page on a second go says complete about its own go, the record knows better) */
+  if (r[5] !== 'progress') throw new Error('finished flag wrong: 90 of ' + QN + ' is part way, reads ' + r[5]);
   if (r[9] !== 1) throw new Error('saves should read 1, reads ' + r[9]);
   if (!(r[10] instanceof Date)) throw new Error('no date on the save');
 });
@@ -517,7 +525,10 @@ ok &= run('a worse second go keeps the better score but still counts', () => {
   const out = hand({ score: 40, total: QN, checks: 300, firstTime: 20 });
   const r = anaRow();
   if (r[2] !== 90) throw new Error('a worse run overwrote the best score: ' + r[2]);
-  if (r[6] !== 214) throw new Error('the rest of the worse run leaked in');
+  /* Checks is the evidence of the work: it keeps the MOST any save has counted (a lab sends its checks over
+     every go), and Right first time never falls */
+  if (r[6] !== 300) throw new Error('checks should keep the most counted, 300: ' + r[6]);
+  if (r[7] !== 71) throw new Error('right first time moved on a worse run: ' + r[7]);
   if (r[9] !== 2) throw new Error('saves should read 2, reads ' + r[9]);
   if (!(r[10] >= was)) throw new Error('the date did not move');
   if (!/higher/.test(out)) throw new Error('should say an earlier one still scores higher: ' + out);
@@ -525,7 +536,7 @@ ok &= run('a worse second go keeps the better score but still counts', () => {
 ok &= run('a better go replaces it', () => {
   hand({ score: QN, total: QN, checks: 118, firstTime: 99 });
   const r = anaRow();
-  if (r[2] !== QN || r[6] !== 118 || r[7] !== 99) throw new Error('the better run was not kept: ' + r.slice(2, 8));
+  if (r[2] !== QN || r[5] !== 'complete' || r[6] !== 300 || r[7] !== 99) throw new Error('the better run was not kept: ' + r.slice(2, 8));
   if (r[9] !== 3) throw new Error('saves should read 3, reads ' + r[9]);
 });
 ok &= run('a save part-way through says so', () => {
@@ -555,6 +566,166 @@ ok &= run('a save from a device that knows less cannot take a right answer away'
   if (bo[LAB_SNAP - 1] !== 'mouth~a1:ff11|villus~b2:1t00|liver~c3:f') throw new Error('snapshot not merged: ' + bo[LAB_SNAP - 1]);
   if (bo[2] !== 20) throw new Error('the best score did not stand: ' + bo[2]);
   if (_mergeSnap_('mouth~a1:ff11', 'mouth~ZZ:0000') !== 'mouth~ZZ:0000') throw new Error('a rewritten station should come from the newer snapshot');
+});
+/* ── Goes (Sept 2026): Practise again empties the page, never the record ──────────────────────────────
+   Real fingerprints are "<count>:<hash>" — they hold a colon. The merge that split on the first colon
+   passed every test above (whose fingerprints have none) and replaced the stored answers on every save. */
+const S8 = '8:pppew9', S9 = '9:y3uwhy', S9b = '9:1xijdq4';
+const digRow = email => { const sh = ss.getSheetByName('Digestion');
+  return sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues().filter(r => String(r[LAB_EMAIL - 1]).toLowerCase() === email)[0]; };
+const dee = o => { TOKEN_EMAIL = 'dee@x.kr'; const out = hand(Object.assign({ name: 'Dee Park', total: QN, complete: false }, o)); TOKEN_EMAIL = 'ana@x.kr'; return out; };
+const pullFor = email => { TOKEN_EMAIL = email;
+  const j = JSON.parse(doPost({ postData: { contents: JSON.stringify({ action: 'progress', token: TOK }) } })); TOKEN_EMAIL = 'ana@x.kr'; return j; };
+const deeSaves = body => { TOKEN_EMAIL = 'dee@x.kr';
+  const out = String(doPost({ postData: { contents: JSON.stringify(Object.assign({ token: TOK, name: 'Dee Park', complete: false }, body)) } })); TOKEN_EMAIL = 'ana@x.kr'; return out; };
+ok &= run('real fingerprints (they hold a colon) are merged, never replaced', () => {
+  _upsertStudents_([{ name: 'Dee Park', email: 'dee@x.kr', userId: 'u9' }], '9A', 'Y9 Biology', 'c1');
+  dee({ score: 17, snap: 'mouth~' + S8 + ':ffffffff|stomach~' + S9 + ':fffffffff', stations: { mouth: '8/8 in 8', stomach: '9/9 in 9', diet: '0/9' } });
+  dee({ score: 0, snap: 'diet~' + S9b + ':t00000000', stations: { mouth: '0/8', stomach: '0/9', diet: '0/9 in 1' } });
+  const r = digRow('dee@x.kr');
+  const want = 'mouth~' + S8 + ':ffffffff|stomach~' + S9 + ':fffffffff|diet~' + S9b + ':t00000000';
+  if (r[LAB_SNAP - 1] !== want) throw new Error('this go: ' + r[LAB_SNAP - 1]);
+  if (r[LAB_BEST - 1] !== want) throw new Error('best: ' + r[LAB_BEST - 1]);
+  if (r[2] !== 17) throw new Error('the score went down: ' + r[2]);
+  if (!/mouth 8\/8 in 8/.test(r[13]) || !/stomach 9\/9 in 9/.test(r[13]) || !/diet 0\/9 in 1/.test(r[13])) throw new Error('per station: ' + r[13]);
+});
+ok &= run('Practise again: the page gets the new go; the first go and the best keep what was done', () => {
+  const was = 'mouth~' + S8 + ':ffffffff|stomach~' + S9 + ':fffffffff';
+  dee({ score: 17, snap: 'mouth~' + S8 + ':00000000@2|stomach~' + S9 + ':fffffffff', first: was, best: was,
+        stations: { mouth: '8/8 in 12', stomach: '9/9 in 9', diet: '0/9 in 1' } });
+  const r = digRow('dee@x.kr');
+  if (!r[LAB_SNAP - 1].startsWith('mouth~' + S8 + ':00000000@2|')) throw new Error('this go: ' + r[LAB_SNAP - 1]);
+  if (!r[LAB_FIRST - 1].startsWith('mouth~' + S8 + ':ffffffff|stomach~' + S9 + ':fffffffff')) throw new Error('first go: ' + r[LAB_FIRST - 1]);
+  if (!r[LAB_BEST - 1].startsWith('mouth~' + S8 + ':ffffffff')) throw new Error('best: ' + r[LAB_BEST - 1]);
+  if (r[LAB_AGAIN - 1] !== 'mouth: round 2, 0/8') throw new Error('practised again: ' + r[LAB_AGAIN - 1]);
+  if (!/mouth 8\/8 in 12/.test(r[13])) throw new Error('per station went down: ' + r[13]);
+  if (r[2] !== 17) throw new Error('score: ' + r[2]);
+  if (r[7] !== 17) throw new Error('right first time should be the first go\'s 17 f: ' + r[7]);
+});
+ok &= run('an old page (no goes) never undoes a newer go, and its answers still count', () => {
+  dee({ score: 3, snap: 'mouth~' + S8 + ':tt1f0000', stations: { mouth: '2/8 in 3' } });
+  const r = digRow('dee@x.kr');
+  if (!r[LAB_SNAP - 1].startsWith('mouth~' + S8 + ':00000000@2|')) throw new Error('an older go reached the page: ' + r[LAB_SNAP - 1]);
+  if (!r[LAB_FIRST - 1].startsWith('mouth~' + S8 + ':ffffffff')) throw new Error('first go lost ground: ' + r[LAB_FIRST - 1]);
+  if (!/mouth 8\/8 in 12/.test(r[13]) || r[2] !== 17) throw new Error('the record went down: ' + r[13] + ' / ' + r[2]);
+});
+ok &= run('two computers on the same go: each question keeps its better state', () => {
+  dee({ score: 17, snap: 'mouth~' + S8 + ':f0000000@2', stations: { mouth: '8/8', stomach: '9/9', diet: '0/9' } });
+  dee({ score: 17, snap: 'mouth~' + S8 + ':0t100000@2', stations: { mouth: '8/8', stomach: '9/9', diet: '0/9' } });
+  const r = digRow('dee@x.kr');
+  if (!r[LAB_SNAP - 1].startsWith('mouth~' + S8 + ':ft100000@2|')) throw new Error('this go: ' + r[LAB_SNAP - 1]);
+  if (r[LAB_AGAIN - 1] !== 'mouth: round 2, 2/8') throw new Error('practised again: ' + r[LAB_AGAIN - 1]);
+});
+ok &= run('right first time comes from the first go: a better later go cannot raise it', () => {
+  dee({ score: 17, firstTime: 0, snap: 'mouth~' + S8 + ':ffffffff@3|stomach~' + S9 + ':fffffffff@2', stations: { mouth: '8/8', stomach: '9/9', diet: '0/9' } });
+  const r = digRow('dee@x.kr');
+  if (r[7] !== 17) throw new Error('right first time: ' + r[7]);
+  if (r[LAB_AGAIN - 1] !== 'mouth: round 3, 8/8 · stomach: round 2, 9/9') throw new Error('practised again: ' + r[LAB_AGAIN - 1]);
+});
+ok &= run('the pull gives this go, the first go and the best back — to that pupil only', () => {
+  const me = pullFor('dee@x.kr').labs['digestion-lab'];
+  if (!me || !/@3/.test(me.here) || !me.first.startsWith('mouth~' + S8 + ':ffffffff') || !me.best.startsWith('mouth~' + S8 + ':ffffffff'))
+    throw new Error(JSON.stringify(me).slice(0, 300));
+  /* `snap` is for a page from before goes: the first round of a station on a later round, never its letters */
+  if (/@/.test(me.snap) || me.snap.indexOf('mouth~' + S8 + ':ffffffff') < 0 || me.snap.indexOf('diet~' + S9b + ':t00000000') < 0)
+    throw new Error('snap: ' + me.snap);
+  const ana = pullFor('ana@x.kr').labs['digestion-lab'];
+  if (ana && /pppew9/.test(JSON.stringify(ana))) throw new Error('somebody else\'s record came back');
+});
+ok &= run('a tab made before the new columns: a save widens it, and nothing already there moves', () => {
+  const sh = ss.getSheetByName('Classification');
+  if (!/^recorded/.test(deeSaves({ app: 'classification-lab', score: 1, total: 64, snap: 'alive~9:abc:f00000000', stations: { alive: '1/9 in 1' } })))
+    throw new Error('first save');
+  for (const k of Array.from(sh.cells.keys())) if (+k.split(':')[1] > 17) sh.cells.delete(k);
+  sh.maxC = 17;                                   /* as the 25 Sep script left every lab tab */
+  const r = sh.getRange(2, 1, sh.getLastRow() - 1, 17).getValues().findIndex(x => String(x[LAB_EMAIL - 1]).toLowerCase() === 'dee@x.kr') + 2;
+  if (r < 2) throw new Error('no row for Dee');
+  sh.getRange(r, 14).setValue('alive 3/9 in 4');
+  const before = sh.getRange(1, 1, sh.getLastRow(), 17).getValues();
+  const pull = pullFor('dee@x.kr');                /* the pull reads it narrow, and writes nothing */
+  if (!pull.ok || sh.maxC !== 17 || pull.labs['classification-lab'].first !== '') throw new Error('the pull failed or widened the tab: ' + JSON.stringify(pull).slice(0, 160) + ' / ' + sh.maxC);
+  const out = deeSaves({ app: 'classification-lab', score: 5, total: 64, snap: 'alive~9:abc:fffff0000', stations: { alive: '5/9 in 6' } });
+  if (!/^recorded/.test(out)) throw new Error(out);
+  if (sh.maxC < 20) throw new Error('not widened: ' + sh.maxC);
+  const head = sh.getRange(1, 18, 1, 3).getValues()[0].join('|');
+  if (head !== 'Practised again|First round|Best ever') throw new Error('headings: ' + head);
+  const after = sh.getRange(1, 1, sh.getLastRow(), 17).getValues();
+  for (let i = 0; i < before.length; i++) for (let j = 0; j < 17; j++) {
+    if (i + 1 === r && [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16].indexOf(j) >= 0) continue;   /* the cells a save writes */
+    if (String(before[i][j]) !== String(after[i][j])) throw new Error('moved: r' + (i + 1) + 'c' + (j + 1) + ' ' + before[i][j] + ' → ' + after[i][j]);
+  }
+  if (sh.getRange(r, LAB_BEST).getValue() !== 'alive~9:abc:fffff0000') throw new Error('best not written');
+  if (sh.getRange(r, 14).getValue() !== 'alive 5/9 in 6') throw new Error('per station: ' + sh.getRange(r, 14).getValue());
+});
+ok &= run('a column of the teacher\'s own after the snapshot is kept, moved to the right', () => {
+  const sh = ss.getSheetByName('Circulation');
+  for (const k of Array.from(sh.cells.keys())) if (+k.split(':')[1] > 17) sh.cells.delete(k);
+  sh.maxC = 18;
+  sh.getRange(1, 18).setValue('My notes'); sh.getRange(2, 18).setValue('keep me');
+  const out = deeSaves({ app: 'circulation-lab', score: 1, total: 115, snap: 'system~7:abc:f000000', stations: { system: '1/7 in 1' } });
+  if (!/^recorded/.test(out)) throw new Error(out);
+  const head = sh.getRange(1, 18, 1, 4).getValues()[0].join('|');
+  if (head !== 'Practised again|First round|Best ever|My notes') throw new Error('headings: ' + head);
+  if (sh.getRange(2, 21).getValue() !== 'keep me') throw new Error('the teacher\'s own column lost its note');
+});
+/* ── Review fixes (27 Sep 2026) ── */
+const partOf = (snap, id) => String(snap).split('|').filter(x => x.startsWith(id + '~'))[0] || '';
+ok &= run('an old page never adds to the first round of a station past round 1, only to its best', () => {
+  dee({ score: 17, snap: 'diet~' + S9b + ':000000000@2', first: 'diet~' + S9b + ':t00000000', best: 'diet~' + S9b + ':t00000000',
+        stations: { mouth: '8/8', stomach: '9/9', diet: '0/9' } });
+  const rft = digRow('dee@x.kr')[7];
+  /* a page from before goes: no first, no best, no "@"; its own first-time count too */
+  dee({ score: 17, firstTime: 40, snap: 'diet~' + S9b + ':ff0000000', stations: { mouth: '8/8', stomach: '9/9', diet: '2/9 in 2' } });
+  const r = digRow('dee@x.kr');
+  if (partOf(r[LAB_FIRST - 1], 'diet') !== 'diet~' + S9b + ':t00000000') throw new Error('first round: ' + partOf(r[LAB_FIRST - 1], 'diet'));
+  if (partOf(r[LAB_BEST - 1], 'diet') !== 'diet~' + S9b + ':ff0000000') throw new Error('best: ' + partOf(r[LAB_BEST - 1], 'diet'));
+  if (partOf(r[LAB_SNAP - 1], 'diet') !== 'diet~' + S9b + ':000000000@2') throw new Error('this round: ' + partOf(r[LAB_SNAP - 1], 'diet'));
+  if (r[7] !== rft) throw new Error('right first time moved: ' + rft + ' -> ' + r[7]);
+});
+ok &= run('an old page still adds to the first round of a station on round 1', () => {
+  const m = _snapMerge_('a~1:x:t0', 'a~1:x:t0', 'a~1:x:t0', 'a~1:x:tf', '', '', true);
+  if (m.first !== 'a~1:x:tf' || m.best !== 'a~1:x:tf' || m.here !== 'a~1:x:tf') throw new Error(JSON.stringify(m));
+});
+ok &= run('a page from before goes is given the first round, never a later round', () => {
+  if (_snapForOldPages_('a~1:x:tt@2', '') !== '') throw new Error('a later round with no first round was given');
+  if (_snapForOldPages_('a~1:x:tt@2', 'a~1:y:ff') !== '') throw new Error('a first round of other questions was given');
+  const got = _snapForOldPages_('a~1:x:t0|b~2:z:f1@2', 'b~2:z:ft');
+  if (got !== 'a~1:x:t0|b~2:z:ft') throw new Error('mixed: ' + got);
+});
+ok &= run('a pupil whose answers are all still wrong gets them back too (Score 0)', () => {
+  _upsertStudents_([{ name: 'Eli Kim', email: 'eli@x.kr', userId: 'u10' }], '9A', 'Y9 Biology', 'c1');
+  if (_hasPractice_('eli@x.kr')) throw new Error('practice before any answer');
+  if (pullFor('eli@x.kr').labs['digestion-lab']) throw new Error('a row with nothing saved came back');
+  TOKEN_EMAIL = 'eli@x.kr';
+  const t = 'mouth~' + S8 + ':tt000000';
+  const out = hand({ name: 'Eli Kim', score: 0, total: QN, complete: false, snap: t, first: t, best: t, stations: { mouth: '0/8 in 2' } });
+  TOKEN_EMAIL = 'ana@x.kr';
+  if (!/^recorded/.test(out)) throw new Error(out);
+  const me = pullFor('eli@x.kr').labs['digestion-lab'];
+  if (!me || me.done !== 0 || me.here !== t || me.snap !== t || me.first !== t) throw new Error(JSON.stringify(me));
+  if (!_hasPractice_('eli@x.kr')) throw new Error('practice not seen');
+  if (_hasPractice_('nobody@x.kr')) throw new Error('practice for somebody with no row');
+});
+ok &= run('notes typed under no heading are moved right, never written over', () => {
+  const sh = ss.getSheetByName('Plants');
+  if (!sh) throw new Error('no Plants tab');
+  for (const k of Array.from(sh.cells.keys())) if (+k.split(':')[1] > 17) sh.cells.delete(k);
+  sh.maxC = 18;
+  sh.getRange(3, 18).setValue('my note');                 /* no heading above it */
+  const out = deeSaves({ app: 'plants-lab', score: 1, total: 116, snap: 'x~3:abc:f00', stations: { x: '1/3 in 1' } });
+  if (!/^recorded/.test(out)) throw new Error(out);
+  const head = sh.getRange(1, 18, 1, 3).getValues()[0].join('|');
+  if (head !== 'Practised again|First round|Best ever') throw new Error('headings: ' + head);
+  if (sh.getRange(3, 21).getValue() !== 'my note') throw new Error('the note was not kept: ' + sh.getRange(3, 21).getValue());
+});
+ok &= run('a heading of ours is known however it is dressed', () => {
+  const sh = ss.getSheetByName('Classification');
+  sh.getRange(1, 18).setValue('\u270e practised again ');
+  cacheStore.delete('LABCOLS' + LAB_COLS.length + '_Classification');
+  const w = sh.maxC;
+  const out = deeSaves({ app: 'classification-lab', score: 5, total: 64, snap: 'alive~9:abc:fffff0000', stations: { alive: '5/9 in 6' } });
+  if (!/^recorded/.test(out)) throw new Error(out);
+  if (sh.maxC !== w || sh.getRange(1, 19).getValue() !== 'First round') throw new Error('a column was added: ' + w + ' -> ' + sh.maxC);
 });
 ok &= run('nothing about completion codes is left', () => {
   if (typeof _code_ !== 'undefined' || typeof checkCode_ !== 'undefined') throw new Error('the code functions are still there');
@@ -2138,6 +2309,52 @@ ok &= run('with the English site unreachable, lab homework carries on and Englis
     if (s.missing.indexOf('t3.kw.meanings') < 0) throw new Error('the English sets were not named as unmarkable');
     if (s.total !== 8) throw new Error('total ' + s.total + ', want the lab alone (8)');
   } finally { ENGLISH_JSON = keep; try { CacheService.getScriptCache().put('EN_STAMP', 'back', 600); } catch (e) {} }
+});
+/* ── Goes (Sept 2026), Bio English: Start again empties the set, never the record ── */
+const enRowNo = email => { const sh = ss.getSheetByName(T_ENGLISH);
+  return sh.getRange(2, EN_EMAIL, sh.getLastRow() - 1, 1).getValues().findIndex(r => String(r[0]).toLowerCase() === email) + 2; };
+ok &= run('English: Start again — the set gets the new go; answered and right first time keep the first go', () => {
+  enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:3, first:2, total:4, snap:'ff1t', v:'k1' } } }, enB.email);
+  enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:3, first:2, total:4, snap:'0000', v:'k1', go:2, snap1:'ff1t', best:'ff1t' } } }, enB.email);
+  const x = enKept(enB.email).kept['t3.kw.meanings'];
+  if (x.s !== '0000' || x.g !== 2 || x.s1 !== 'ff1t' || x.b !== 'ff1t' || x.d !== 3 || x.f !== 2) throw new Error(JSON.stringify(x));
+  const again = ss.getSheetByName(T_ENGLISH).getRange(enRowNo(enB.email), EN_AGAIN).getValue();
+  if (!/Keywords: meanings \(round 2, 0\/4\)/.test(again)) throw new Error('practised again: ' + again);
+});
+ok &= run('English: an old page (no goes) never undoes a newer go, and its answers still count', () => {
+  enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:4, first:3, total:4, snap:'fff1', v:'k1' } } }, enB.email);
+  const x = enKept(enB.email).kept['t3.kw.meanings'];
+  if (x.s !== '0000' || x.g !== 2) throw new Error('an older go reached the page: ' + JSON.stringify(x));
+  if (x.b !== 'fff1' || x.d !== 4) throw new Error('its answers did not count: ' + JSON.stringify(x));
+  /* the set is past round 1: they may be a later round's answers, so the first round is left as it was */
+  if (x.s1 !== 'ff1t' || x.f !== 2) throw new Error('the first round moved: ' + JSON.stringify(x));
+});
+ok &= run('English: an old page still adds to the first round of a set on round 1', () => {
+  const m = _enMerge_({ s:'t000', g:1, s1:'', b:'t000', t:4, v:'k1', k:'kw', d:0, f:0 },
+                      { s:'ff00', g:1, s1:'', b:'', t:4, v:'k1', k:'kw', d:2, f:2, oldPage:true });
+  if (m.s1 !== 'ff00' || m.f !== 2 || m.d !== 2) throw new Error(JSON.stringify(m));
+});
+ok &= run('English: two computers on the same go add, question by question', () => {
+  enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:4, first:3, total:4, snap:'f000', v:'k1', go:2 } } }, enB.email);
+  enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:4, first:3, total:4, snap:'0t00', v:'k1', go:2 } } }, enB.email);
+  const x = enKept(enB.email).kept['t3.kw.meanings'];
+  if (x.s !== 'ft00' || x.g !== 2 || x.d !== 4) throw new Error(JSON.stringify(x));
+});
+ok &= run('English: english.mine gives the go, the first go and the best back', () => {
+  const me = enPost({ action:'english.mine' }, enB.email).sets['t3.kw.meanings'];
+  if (!me || me.go !== 2 || me.here !== 'ft00' || me.snap1 !== 'ff1t' || me.best !== 'fff1') throw new Error(JSON.stringify(me));
+  /* `snap` is for a page from before goes: the first round, never round 2's letters */
+  if (me.snap !== 'ff1t') throw new Error('snap: ' + me.snap);
+  if (!_hasPractice_(enB.email)) throw new Error('Bio English practice not seen');
+});
+ok &= run('English: a tab made before the new column is widened by the next save', () => {
+  const sh = ss.getSheetByName(T_ENGLISH);
+  for (const k of Array.from(sh.cells.keys())) if (+k.split(':')[1] > 11) sh.cells.delete(k);
+  sh.maxC = 11;
+  const r = enPost({ action:'english.save', sets:{ 't3.kw.meanings':{ done:4, first:3, total:4, snap:'ff00', v:'k1', go:2 } } }, enB.email);
+  if (!r.ok) throw new Error(JSON.stringify(r));
+  if (sh.maxC < 12 || sh.getRange(1, 12).getValue() !== 'Practised again') throw new Error('not widened: ' + sh.maxC);
+  if (!/round 2, 2\/4/.test(sh.getRange(enRowNo(enB.email), EN_AGAIN).getValue())) throw new Error('practised again not written');
 });
 homeworkDelete(enHw.id);
 { const t = ss.getSheetByName(T_ENGLISH); if (t) ss.deleteSheet(t); }

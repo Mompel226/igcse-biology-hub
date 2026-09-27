@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '27 Sep 2026 — 🔎 Find (shared drives too) + Missing one?; Teacher links menu; Circulation 115';
+var SCRIPT_EDITION = '27 Sep 2026 — practice rounds: starting again keeps the record (this round · first round · best ever), merge fixed';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -210,11 +210,23 @@ var LAB_COLS = [
   { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
   { h:'Signed in as', w:200, hide:true, note:'The name on the Google account they signed in with. Kept so a row can be told apart from a namesake on the Students tab.' },
   { h:'Carried between devices', w:200, hide:true,
-    note:'Which questions they had right, so signing in on another computer brings their work back. About 370 characters, written by the lab. Not marks — the marks are in the columns you can see. Do not edit.' }
+    note:'The questions on the page now (this round), so signing in on another computer brings their work back. About 370 characters, written by the lab. Not marks — the marks are in the columns you can see. Do not edit.' },
+  /* Goes (September 2026; "rounds" to the people who read them): a student can start a station again
+     (Start this station again, or Reset). The page empties; the record does not. Appended, so every column
+     above keeps its position. */
+  { h:'Practised again', w:300,
+    note:'Stations they started again (Start this station again, or Reset), so they could try the questions again. Nothing is lost: Score, %, Per station and homework keep their best, and Right first time stays from their FIRST round.\n\n"mouth: round 2, 5/8" — the mouth station is on its 2nd round, with 5 of its 8 questions right so far in this round.' },
+  { h:'First round', w:200, hide:true,
+    note:'Every question as they answered it in their FIRST round: 0 not touched, t tried, 1 right after more tries, f right first time. Right first time and My assessments read this. Written by the lab. Do not edit.' },
+  { h:'Best ever', w:200, hide:true,
+    note:'The best each question has ever been, in any round, in the same letters. Written by the lab. Do not edit.' }
 ];
 var LAB_EMAIL = 15;
 var LAB_GNAME = 16;        /* the column that ties a row to a person */
 var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
+var LAB_AGAIN = 18;        /* goes, Sept 2026 — appended again, for the same reason */
+var LAB_FIRST = 19;
+var LAB_BEST  = 20;
 
 /* ---- Signing in ----------------------------------------------------------
    The labs are public web pages: anyone in the world can open one, work through it and
@@ -332,38 +344,61 @@ function doPost(e) {
       return _text_('rejected: ' + wrong.join('; '));
     }
 
-    var flags = [];
-    if (lab.questions && total !== lab.questions) flags.push('NOT ALL QUESTIONS');
-    if (d.complete === false) flags.push('PROGRESS — not finished');
-
     /* Their row is already waiting, put there when the class was imported. The first save
        fills it in; every later one updates it rather than adding another. The count and the
-       date always move, and the marks are replaced only when this save beat the last one, so
-       a worse run can never wipe out a better score. The carried snapshot is MERGED, never
-       replaced: a save from a second device that knows less cannot take a right answer away.
+       date always move. Nothing a teacher reads ever goes DOWN:
+         · the three records — this go, first go, best ever — are MERGED, never replaced
+           (_snapMerge_), so a save from a device that knows less cannot take a right answer
+           away, and a student who practises a station again (a new go) loses nothing;
+         · Per station keeps each station at its best, and Score is their sum — replaced only
+           when it goes up, so a worse run can never wipe out a better score;
+         · Checks keeps the most any save has counted; Right first time comes from the FIRST
+           go, so practising again can never make it look better.
        Forty students save within the same minute, so the read-then-write takes turns — and it
        is one read and one write of the row, so a turn is short. */
     var lock = LockService.getScriptLock();
     try { lock.waitLock(8000); } catch (e) { return _text_('busy — it will try again'); }
     try {
-      var sh = _labSheet_(lab);
+      var sh = _labSheet_(lab);                              /* adds any column a newer script needs */
       var lastBefore = sh.getLastRow();
       var r = _rowFor_(sh, who.email, student);
       var row = sh.getRange(r, 1, 1, LAB_COLS.length).getValues()[0];
-      var best = Number(row[2]);
-      var beaten = !(best > 0) || score > best;
+      var was = Number(row[2]);
       var seen = Number(row[9]) || 0;
 
       row[0] = student.name; row[1] = student.cls;
       row[LAB_GNAME - 1] = _plain_(who.name);
-      if (d.snap) row[LAB_SNAP - 1] = _plain_(_mergeSnap_(String(row[LAB_SNAP - 1] || ''), String(d.snap).slice(0, 45000)));
       row[9] = seen + 1; row[10] = new Date();
+
+      /* a page from before goes: it sends no `first` or `best`, and never a later go ("@2") */
+      var oldPage = !('first' in d) && !('best' in d) && !/@\d/.test(String(d.snap || ''));
+      var hereBefore = String(row[LAB_SNAP - 1] || '');
+      var got = _snapMerge_(hereBefore, String(row[LAB_FIRST - 1] || ''), String(row[LAB_BEST - 1] || ''),
+                            String(d.snap || '').slice(0, 45000), String(d.first || '').slice(0, 45000), String(d.best || '').slice(0, 45000), oldPage);
+      row[LAB_SNAP - 1] = _plain_(got.here);
+      row[LAB_FIRST - 1] = _plain_(got.first);
+      row[LAB_BEST - 1] = _plain_(got.best);
+      row[LAB_AGAIN - 1] = _plain_(_practisedAgain_(got.here));
+
+      var per = _stationsBest_(row[13], d.stations, got.best);
+      var now = per.named ? Math.max(score, per.done) : score;
+      if (total) now = Math.min(now, total);
+      var beaten = !(was > 0) || now > was;
+      if (per.named) row[13] = _plain_(per.text);
       if (beaten) {
-        row[2] = score; row[3] = total; row[4] = total ? score / total : 0;
-        row[5] = d.complete === false ? 'progress' : 'complete';
-        row[6] = Number(d.checks) || ''; row[7] = Number(d.firstTime) || ''; row[8] = _since_(d.from);
-        row[12] = flags.join('; '); row[13] = _plain_(_stations_(d.stations));
+        var flags = [];
+        if (lab.questions && total !== lab.questions) flags.push('NOT ALL QUESTIONS');
+        if (!(total && now >= total)) flags.push('PROGRESS — not finished');
+        row[2] = now; row[3] = total; row[4] = total ? now / total : 0;
+        row[5] = total && now >= total ? 'complete' : 'progress';
+        row[8] = _since_(d.from);
+        row[12] = flags.join('; ');
+        if (!per.named) row[13] = _plain_(_stations_(d.stations));
       }
+      row[6] = Math.max(Number(row[6]) || 0, Number(d.checks) || 0) || '';
+      /* an old page's own count is its first go only while no station here has gone past go 1 */
+      var sentFirst = oldPage && /@\d/.test(hereBefore) ? 0 : Number(d.firstTime) || 0;
+      row[7] = Math.max(Number(row[7]) || 0, _snapCount_(got.first, 'f'), sentFirst) || '';
       sh.getRange(r, 1, 1, LAB_COLS.length).setValues([row]);
       if (r > lastBefore) _dressRows_(sh, LAB_COLS, r, 1);   /* a row made just now is dressed once, as Tidy up would */
       SpreadsheetApp.flush();                                 /* committed before the next save reads this row */
@@ -376,35 +411,148 @@ function doPost(e) {
   }
 }
 
-/* Two snapshots of the same lab, folded into one: station~sig:cccc|… (see labs-shared/engine/
-   sync.js). Per question the higher state wins — 0 untouched < t tried < 1 right < f right first
-   time — so a save from a device that knows less can never take a right answer away. A station
-   whose fingerprint changed is taken from the newer snapshot, which is the one the live lab made. */
-function _mergeSnap_(oldSnap, newSnap) {
-  if (!oldSnap) return newSnap;
-  if (!newSnap) return oldSnap;
-  var RANK = { '0': 0, 't': 1, '1': 2, 'f': 3 };
-  var parts = {}, order = [];
-  function add(snap, fresh) {
-    String(snap).split('|').forEach(function (part) {
-      var m = part.match(/^([^~:]+)~([^:]*):([01tf]*)$/); if (!m) return;
-      var id = m[1], sig = m[2], q = m[3], have = parts[id];
-      if (!have) { parts[id] = { sig: sig, q: q }; order.push(id); return; }
-      if (have.sig !== sig) { if (fresh) parts[id] = { sig: sig, q: q }; return; }
-      var out = '', len = Math.max(have.q.length, q.length);
-      for (var i = 0; i < len; i++) {
-        var a = have.q.charAt(i) || '0', b = q.charAt(i) || '0';
-        out += (RANK[b] || 0) > (RANK[a] || 0) ? b : a;
-      }
-      have.q = out;
-    });
+/* ── Goes (September 2026) ────────────────────────────────────────────────────────────────────────
+   Daniel: "they have to be able to reset … but the teacher needs to be able to see the students have done
+   the work", and "progress … adds; that should never happen" (a save erasing what was recorded).
+   A station's record, as the labs write it (labs-shared/engine/sync.js):
+       station~<count>:<hash>:<letters>[@<go>]      one letter per question: 0 untouched, t tried,
+                                                     1 right after more tries, f right first time
+   The fingerprint ("<count>:<hash>") holds a colon of its own, so a part is split on its LAST colon.
+   Until 27 Sep 2026 this script split on the first, matched nothing, and every save REPLACED the stored
+   answers — the tests missed it because their fingerprints had no colon.
+   Each lab row keeps three records, merged by the same rules as the lab itself:
+       this go   (LAB_SNAP)   the higher go wins; within a go, each question keeps its better state
+       first go  (LAB_FIRST)  every go-1 record ever seen, each question its better state
+       best ever (LAB_BEST)   everything, each question its better state
+   A station whose fingerprint changed takes the newer record (the one the live lab made). An old page
+   (no goes) sends go 1 only: it adds to the best, and never undoes a newer go. It adds to the first go only
+   while that station is still on go 1: past it, its letters may be a later go's, pulled and sent back. */
+var SNAP_RANK = { '0': 0, 't': 1, '1': 2, 'f': 3 };
+function _snapParse_(snap) {
+  var out = { order: [], by: {} };
+  String(snap || '').split('|').forEach(function (part) {
+    var colon = part.lastIndexOf(':'), tilde = part.indexOf('~');
+    if (colon < 0 || tilde < 1 || tilde > colon) return;
+    var id = part.slice(0, tilde), m = part.slice(colon + 1).match(/^([01tf]{0,500})(?:@(\d{1,4}))?$/);
+    if (!m || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(id) || out.by[id]) return;
+    out.by[id] = { sig: part.slice(tilde + 1, colon).slice(0, 60), q: m[1], go: m[2] ? Math.max(1, parseInt(m[2], 10)) : 1 };
+    out.order.push(id);
+  });
+  return out;
+}
+function _snapMax_(a, b) {
+  var out = '', len = Math.max(a.length, b.length);
+  for (var i = 0; i < len; i++) {
+    var x = a.charAt(i) || '0', y = b.charAt(i) || '0';
+    out += (SNAP_RANK[y] || 0) > (SNAP_RANK[x] || 0) ? y : x;
   }
-  add(oldSnap, false);
-  if (!order.length) return newSnap;                    /* nothing readable to merge into: the new one stands */
-  var known = order.length;
-  add(newSnap, true);
-  if (order.length === known && !/~/.test(newSnap)) return oldSnap;   /* the new one carries no stations: keep what is there */
-  return order.map(function (id) { return id + '~' + parts[id].sig + ':' + parts[id].q; }).join('|');
+  return out;
+}
+/* Fold parsed records into `into`. mode 'this': go-aware; 'max': each question its better state;
+   'go1': like 'max', for go-1 records only. `fresh`: on a changed fingerprint, these replace. */
+function _snapFold_(into, from, mode, fresh, skip) {
+  from.order.forEach(function (id) {
+    var x = from.by[id];
+    if (mode === 'go1' && x.go !== 1) return;
+    if (skip && skip[id]) return;
+    var go = mode === 'this' ? x.go : 1, have = into.by[id];
+    if (!have) { into.by[id] = { sig: x.sig, q: x.q, go: go }; into.order.push(id); return; }
+    if (have.sig !== x.sig) { if (fresh) into.by[id] = { sig: x.sig, q: x.q, go: go }; return; }
+    if (mode === 'this' && go !== have.go) { if (go > have.go) { have.go = go; have.q = x.q; } return; }
+    have.q = _snapMax_(have.q, x.q);
+  });
+  return into;
+}
+function _snapJoin_(p) {
+  return p.order.map(function (id) { var x = p.by[id]; return id + '~' + x.sig + ':' + x.q + (x.go > 1 ? '@' + x.go : ''); }).join('|');
+}
+/* The three stored records and the three a save sends, folded: { here, first, best }. `oldPage`: the save came
+   from a page from before goes (it sends no `first` or `best`). Its letters are all go 1 to it, but they may be
+   another computer's later go, pulled and sent back; so for a station already past go 1 they count for the
+   best only, never for the first go. */
+function _snapMerge_(hereOld, firstOld, bestOld, hereNew, firstNew, bestNew, oldPage) {
+  var H0 = _snapParse_(hereOld), F0 = _snapParse_(firstOld), B0 = _snapParse_(bestOld);
+  var H1 = _snapParse_(hereNew), F1 = _snapParse_(firstNew), B1 = _snapParse_(bestNew);
+  var E = function () { return { order: [], by: {} }; };
+  var past = {};
+  if (oldPage) H0.order.forEach(function (id) { if (H0.by[id].go > 1) past[id] = true; });
+  var here = _snapFold_(_snapFold_(E(), H0, 'this', false), H1, 'this', true);
+  var first = E();
+  [[F0, 'max', false], [H0, 'go1', true], [F1, 'max', true]].forEach(function (f) { _snapFold_(first, f[0], f[1], f[2]); });
+  _snapFold_(first, H1, 'go1', true, past);
+  var best = E();
+  [[B0, false], [F0, true], [H0, true], [F1, true], [H1, true], [B1, true]].forEach(function (f) { _snapFold_(best, f[0], 'max', f[1]); });
+  return { here: _snapJoin_(here), first: _snapJoin_(first), best: _snapJoin_(best) };
+}
+/* What a page from before goes is given as its record: each station's go-1 letters, and for a station on go 2
+   or later its FIRST go (left out when there is none to give). Never a later go's letters: such a page cannot
+   read "@2", takes them for its own go 1 and sends them back. */
+function _snapForOldPages_(here, first) {
+  var H = _snapParse_(here), F = _snapParse_(first), out = [];
+  H.order.forEach(function (id) {
+    var x = H.by[id];
+    if (x.go === 1) { out.push(id + '~' + x.sig + ':' + x.q); return; }
+    var f = F.by[id];
+    if (f && f.sig === x.sig) out.push(id + '~' + f.sig + ':' + f.q);
+  });
+  return out.join('|');
+}
+/* Kept for the tests of the one-record days: this go, merged. */
+function _mergeSnap_(oldSnap, newSnap) { return _snapMerge_(oldSnap, '', '', newSnap, '', '').here; }
+/* How many questions, over every station, carry this letter (or, for 'right', 1 or f). */
+function _snapCount_(snap, what) {
+  var p = _snapParse_(snap), n = 0;
+  p.order.forEach(function (id) {
+    var q = p.by[id].q;
+    for (var i = 0; i < q.length; i++) if (what === 'right' ? (q.charAt(i) === '1' || q.charAt(i) === 'f') : q.charAt(i) === what) n++;
+  });
+  return n;
+}
+/* "mouth: round 2, 5/8 · stomach: round 3, 9/9" — each station on a second round or later, and how it stands. */
+function _practisedAgain_(here) {
+  var p = _snapParse_(here), out = [];
+  p.order.forEach(function (id) {
+    var x = p.by[id]; if (x.go < 2) return;
+    var n = 0; for (var i = 0; i < x.q.length; i++) if (x.q.charAt(i) === '1' || x.q.charAt(i) === 'f') n++;
+    out.push(id + ': round ' + x.go + ', ' + n + '/' + x.q.length);
+  });
+  return out.join(' · ').slice(0, 900);
+}
+/* Each station at its best: the higher of what the row's Per station said, what this save says and what
+   the best-ever record holds, so a station practised again never shows less than was done before. The
+   stations this save names come first, in the lab's own order (every lab sends its whole list), and Score is
+   THEIR sum; a station only the row still names is kept after them, never dropped. `named` is false for a
+   save that names no station, and then nothing here is used. Returns { text (Per station), done, named }. */
+function _stationsBest_(stored, sent, bestSnap) {
+  var by = {}, named = [], rest = [];
+  var okId = function (id) { return /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(id); };
+  if (sent && typeof sent === 'object' && !Array.isArray(sent)) Object.keys(sent).forEach(function (id) {
+    var m = String(sent[id]).match(/^\s*(\d+)\/(\d+)(?:\s+in\s+(\d+))?\s*$/);
+    if (!m || !okId(id) || by[id] || named.length >= 40) return;
+    by[id] = { done: +m[1], total: +m[2], checks: m[3] ? +m[3] : 0 };
+    named.push(id);
+  });
+  if (!named.length) return { text: '', done: 0, named: false };
+  _parseStations_(stored).forEach(function (s) {
+    var x = by[s.name];
+    if (!x) { if (!okId(s.name)) return; by[s.name] = { done: s.done, total: s.total, checks: s.checks }; rest.push(s.name); return; }
+    x.done = Math.max(x.done, s.done); x.checks = Math.max(x.checks, s.checks);
+  });
+  var b = _snapParse_(bestSnap);
+  b.order.forEach(function (id) {
+    var x = by[id]; if (!x) return;
+    var q = b.by[id].q, n = 0;
+    for (var i = 0; i < q.length; i++) if (q.charAt(i) === '1' || q.charAt(i) === 'f') n++;
+    x.done = Math.max(x.done, n);
+  });
+  var o = {}, done = 0;
+  named.concat(rest).forEach(function (id, k) {
+    var x = by[id];
+    if (x.total) x.done = Math.min(x.done, x.total);
+    if (k < named.length) done += x.done;
+    o[id] = x.done + '/' + x.total + (x.checks ? ' in ' + x.checks : '');
+  });
+  return { text: _stations_(o), done: done, named: true };
 }
 
 /* A cell given text that starts with = + - or @ reads it as a formula, and a formula can reach
@@ -720,7 +868,7 @@ function pushGradesFor_(labId, courseId, courseWorkId) {
     page = r.nextPageToken;
   } while (page);
 
-  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues();
+  var rows = _labRows_(sh, 2, sh.getLastRow() - 1);
   var done = 0, missing = [], waiting = 0;
   rows.forEach(function (row) {
     var score = row[2];
@@ -1710,7 +1858,47 @@ function _labSheet_(lab) {
     sh = ss.insertSheet(lab.name);
     sh.getRange(1, 1, 1, LAB_COLS.length).setValues([LAB_COLS.map(function (c) { return c.h; })]);
   }
+  return _labColsReady_(sh);
+}
+/* A tab made before columns were added to LAB_COLS is narrower than LAB_COLS, and reading or writing past a
+   sheet's last column THROWS — every save to it would fail until somebody pressed Tidy up. So the columns
+   are added the moment a tab is used, with their headings. A heading cell that already holds something else
+   (a column of the teacher's own) is never written over: a fresh column goes in front of it. Checked once
+   per tab per six hours. */
+function _labColsReady_(sh) { return _colsReady_(sh, LAB_COLS, LAB_SNAP, 'LABCOLS'); }
+/* `cols` is a tab's column list, `from` how many of its columns every copy of the tab already has. */
+function _colsReady_(sh, cols, from, tag) {
+  var need = cols.length, cache = null, key = tag + need + '_' + sh.getName();
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  var have = sh.getMaxColumns();
+  if (have >= need && cache && cache.get(key)) return sh;
+  if (have < need) sh.insertColumnsAfter(have, need - have);
+  /* a heading read as its letters only, so "✎ Practised again" or "Practised again ✓" is still ours */
+  var norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/[^a-z]/g, ''); };
+  var last = sh.getLastRow();
+  for (var i = from; i < need; i++) {                    /* only the columns added later */
+    var v = sh.getRange(1, i + 1).getValue();
+    if (norm(v) === norm(cols[i].h)) continue;
+    /* free only when its heading AND everything under it are blank; anything else is somebody's own column
+       (notes typed under no heading too), moved one to the right and kept */
+    if (String(v == null ? '' : v).trim() !== '' || (last >= 2 && !sh.getRange(2, i + 1, last - 1, 1).isBlank()))
+      sh.insertColumnBefore(i + 1);
+    sh.getRange(1, i + 1).setValue(cols[i].h);
+    /* a column inserted beside a hidden one can come out hidden too: say which it is */
+    if (cols[i].hide) sh.hideColumns(i + 1); else sh.showColumns(i + 1);
+  }
+  try { if (cache) cache.put(key, '1', 21600); } catch (e) {}
   return sh;
+}
+/* The rows of a lab tab, LAB_COLS wide, whatever the tab's own width: a read past the last column throws,
+   and a column the tab does not have yet reads as blank. For the readers that must never write (the pull a
+   student's page makes, grade sync). */
+function _labRows_(sh, from, n) {
+  var w = Math.min(LAB_COLS.length, sh.getMaxColumns());
+  return sh.getRange(from, 1, n, w).getValues().map(function (r) {
+    while (r.length < LAB_COLS.length) r.push('');
+    return r;
+  });
 }
 
 /* Give every student on the roster a row here, and leave the ones already present alone.
@@ -1876,13 +2064,16 @@ function _ownProgress_(d) {
     var last = sh.getLastRow();
     if (last < 2) continue;
 
-    var vals = sh.getRange(2, 1, last - 1, LAB_COLS.length).getValues();
+    var vals = _labRows_(sh, 2, last - 1);
     for (var r = 0; r < vals.length; r++) {
       if (_cleanEmail_(vals[r][LAB_EMAIL - 1]) !== who.email) continue;
       var score = Number(vals[r][2]);              /* Score */
-      if (!(score > 0)) break;                     /* a row exists but nothing saved yet */
+      var here = String(vals[r][LAB_SNAP - 1] || ''), first = String(vals[r][LAB_FIRST - 1] || ''), best = String(vals[r][LAB_BEST - 1] || '');
+      /* nothing saved yet. A row whose answers are all still wrong (Score 0) does come back: its "tried" letters
+         stop another computer calling the next right answer "right first time". */
+      if (!(score > 0) && !here && !first && !best) break;
       out[lab.id] = {
-        done:      score,
+        done:      score > 0 ? score : 0,
         total:     Number(vals[r][3]) || lab.questions || 0,
         complete:  String(vals[r][5] || '') === 'complete',
         checks:    Number(vals[r][6]) || 0,
@@ -1890,7 +2081,13 @@ function _ownProgress_(d) {
         handIns:   Number(vals[r][9]) || 0,
         handedIn:  true,
         at:        vals[r][10] ? new Date(vals[r][10]).toISOString() : null,
-        snap:      String(vals[r][LAB_SNAP - 1] || '')
+        /* `snap` is all a page from before goes reads, and it sends it straight back as its go 1. So a station on
+           a later go gives its FIRST go there, never this go's letters: a redo must not become first-go answers.
+           A page that knows goes reads `here`. */
+        snap:      _snapForOldPages_(here, first),
+        here:      here,                                     /* this go (goes, Sept 2026) */
+        first:     first,                                    /* first go */
+        best:      best                                      /* best ever */
       };
       break;
     }
@@ -1913,6 +2110,42 @@ function _ownProgress_(d) {
 
    The email comes from the verified token, never from the request. Read only.
    ============================================================ */
+/* Whether a pupil has any practice recorded in this spreadsheet: an answer in a lab row, or in a Bio English
+   set. A yes is remembered for six hours (a record never empties); a no is asked again next time, so a first
+   answer opens the door at once. Read only. Never throws. */
+function _hasPractice_(email) {
+  var cache = null, key = 'PRAC_' + email, yes = false;
+  try { cache = CacheService.getScriptCache(); if (cache.get(key)) return true; } catch (e) {}
+  try {
+    var ss = _ss_();
+    for (var i = 0; i < LABS.length && !yes; i++) {
+      var sh = ss.getSheetByName(LABS[i].name);
+      if (!sh || sh.getLastRow() < 2) continue;
+      /* School email … Best ever, as far as the tab goes (a read past its last column throws) */
+      var v = sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, Math.min(LAB_BEST, sh.getMaxColumns()) - LAB_EMAIL + 1).getValues();
+      for (var r = 0; r < v.length; r++) {
+        if (_cleanEmail_(v[r][0]) !== email) continue;
+        for (var c = 0; c < 3 && !yes; c++) {
+          var snap = v[r][[LAB_SNAP, LAB_FIRST, LAB_BEST][c] - LAB_EMAIL];
+          yes = _snapCount_(snap, 'right') + _snapCount_(snap, 't') > 0;
+        }
+        break;
+      }
+    }
+    var en = yes ? null : ss.getSheetByName(T_ENGLISH);
+    if (en && en.getLastRow() >= 2) {
+      var e = en.getRange(2, EN_EMAIL, en.getLastRow() - 1, 2).getValues();         /* School email, the sets */
+      for (var k = 0; k < e.length; k++) {
+        if (_cleanEmail_(e[k][0]) !== email) continue;
+        var kept = _enParse_(e[k][1]);
+        yes = Object.keys(kept).some(function (sid) { var x = kept[sid]; return x.d > 0 || /[1tfs]/.test(x.s + x.s1 + x.b); });
+        break;
+      }
+    }
+  } catch (err) { return false; }
+  try { if (yes && cache) cache.put(key, '1', 21600); } catch (e) {}
+  return yes;
+}
 function _ownRecord_(d) {
   if (!_trackerId_()) return _json_({ ok: false, why: 'no record system' });
   if (!_clientId_())  return _json_({ ok: false, why: 'sign-in is not set up' });
@@ -2051,6 +2284,9 @@ function _ownRecord_(d) {
                  latest: latest, at: at ? new Date(at).toISOString() : null,
                  /* true when every row found is a teacher's TEST submission */
                  testOnly: fromTest > 0 && fromCohort === 0,
+                 /* true when they have practice recorded here, in a lab or Bio English: My assessments shows
+                    it before any reflection (§40.72 in the reflection spec). Absent otherwise. */
+                 practice: _hasPractice_(who.email) || undefined,
                  /* absent — not false — for everybody who is not a teacher on the list */
                  teacher: isTeacher || undefined,
                  teacherPage: isTeacher ? _teacherPageUrl_() : undefined });
@@ -4299,9 +4535,11 @@ var ENGLISH_COLS = [
   { h:'Last saved', w:132, fmt:'dd MMM, HH:mm', note:'When the site last saved their work.' },
   { h:'Per set', w:460, note:'Every set they have opened: questions answered / questions in the set, and in brackets how many were right first time.' },
   { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
-  { h:'Carried between devices', w:200, hide:true, note:'Which questions they have answered, set by set, so signing in on another computer brings their work back. Written by the site. Do not edit.' }
+  { h:'Carried between devices', w:200, hide:true, note:'Which questions they have answered, set by set — the round they are on, their first round and their best — so signing in on another computer brings their work back. Written by the site. Do not edit.' },
+  /* goes (September 2026): appended, so every column above keeps its position */
+  { h:'Practised again', w:300, note:'Sets they started again (Start again), so they could try the questions again. Nothing is lost: the counts, Sets finished, Per set and homework keep their best, and right first time stays from their FIRST round.\n\n"T3 Keywords: meanings (round 2, 5/18)" — that set is on its 2nd round, with 5 of its 18 questions done so far in this round.' }
 ];
-var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11;
+var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11, EN_AGAIN = 12;
 /* One letter per question, as the site writes it. Two computers disagreeing keep the better. */
 var EN_RANK = { '0':0, 't':1, 's':2, '1':3, 'f':4 };   /* untouched < tried < answer shown < right < right first time */
 var EN_SID  = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -4313,8 +4551,10 @@ function _englishSheet_() {
     sh.getRange(1, 1, 1, ENGLISH_COLS.length).setValues([ENGLISH_COLS.map(function (c) { return c.h; })]);
     _dress2_(sh, ENGLISH_COLS, { tab: EN_TAB, freezeCols: 2 });
   }
-  return sh;
+  return _enColsReady_(sh);
 }
+/* The same guard as _labColsReady_, for the Bio English tab: widened the moment it is used. */
+function _enColsReady_(sh) { return _colsReady_(sh, ENGLISH_COLS, EN_SNAP, 'ENCOLS'); }
 
 /* The site's own list of sets: ids, titles, question counts, topic and year. Public, nothing
    personal. Cached on the site's publish stamp, exactly as the labs' station list is. */
@@ -4370,7 +4610,9 @@ function _enParse_(v) {
     var x = o[k];
     if (!EN_SID.test(k) || !x || typeof x !== 'object') return;
     out[k] = { d: Math.max(0, Number(x.d) || 0), f: Math.max(0, Number(x.f) || 0), t: Math.max(0, Number(x.t) || 0),
-               s: String(x.s || '').replace(/[^01tfs]/g, ''), v: String(x.v || ''), k: String(x.k || '') };
+               s: String(x.s || '').replace(/[^01tfs]/g, ''), v: String(x.v || ''), k: String(x.k || ''),
+               g: Math.max(1, Math.floor(Number(x.g) || 1)),                   /* goes, Sept 2026 */
+               s1: String(x.s1 || '').replace(/[^01tfs]/g, ''), b: String(x.b || '').replace(/[^01tfs]/g, '') };
   });
   return out;
 }
@@ -4379,34 +4621,57 @@ function _enParse_(v) {
 function _enPack_(kept) {
   var txt = JSON.stringify(kept);
   if (txt.length > 45000) {
-    Object.keys(kept).forEach(function (k) { if (kept[k].t && kept[k].d >= kept[k].t) kept[k].s = ''; });
+    Object.keys(kept).forEach(function (k) { if (kept[k].t && kept[k].d >= kept[k].t) { kept[k].s = ''; kept[k].s1 = ''; kept[k].b = ''; } });
     txt = JSON.stringify(kept);
   }
-  if (txt.length > 45000) { Object.keys(kept).forEach(function (k) { kept[k].s = ''; }); txt = JSON.stringify(kept); }
+  if (txt.length > 45000) { Object.keys(kept).forEach(function (k) { kept[k].s = ''; kept[k].s1 = ''; kept[k].b = ''; }); txt = JSON.stringify(kept); }
   return txt;
 }
-/* Two computers, one pupil: keep the better answer to each question and never go backwards. A
-   set rebuilt since (a new version) starts again, because its questions are not the same ones. */
+/* Two computers, one pupil: keep the better answer to each question and never go backwards. A set
+   rebuilt since (a new version) starts again, because its questions are not the same ones.
+   Goes (September 2026) — Start again clears the page, never the record, by the labs' rules:
+     s  this go (g)  the higher go wins; within a go, each question keeps its better state
+     s1 first go     every go-1 record, each question its better state
+     b  best ever    everything, each question its better state
+   d (answered) comes from the best and f (right first time) from the FIRST go, never lower than before;
+   a page from before goes sends go 1 only, so it adds to the best and never undoes a newer go; it adds to
+   the first go only while the set is still on go 1. */
+function _enMax_(a, b) {
+  a = String(a || ''); b = String(b || '');
+  var out = '', len = Math.max(a.length, b.length);
+  for (var i = 0; i < len; i++) { var x = a.charAt(i) || '0', y = b.charAt(i) || '0'; out += (EN_RANK[y] || 0) > (EN_RANK[x] || 0) ? y : x; }
+  return out;
+}
 function _enMerge_(old, inc) {
-  if (!old || old.v !== inc.v) return inc;
-  if (!old.s || !inc.s || old.s.length !== inc.s.length) {     /* no detail to compare: counts, never down */
-    inc.d = Math.max(inc.d, old.d); inc.f = Math.max(inc.f, old.f);
-    if (!inc.s) inc.s = old.s;
-    return inc;
+  inc.g = inc.g > 1 ? inc.g : 1;
+  /* a page from before goes, on a set already past round 1: its letters (perhaps a later round's, pulled and
+     sent back) count for the best only, and its own first-time count is not the first round's */
+  var stale = !!(inc.oldPage && old && old.v === inc.v && old.g > 1);
+  if (stale) inc.f = 0;
+  var iFirst = stale ? '' : _enMax_(inc.s1, inc.g === 1 ? inc.s : ''), iBest = _enMax_(_enMax_(inc.b, inc.s), iFirst);
+  var out;
+  if (!old || old.v !== inc.v) {
+    out = { s: inc.s, g: inc.g, s1: iFirst, b: iBest, t: inc.t, v: inc.v, k: inc.k, d: inc.d, f: inc.f };
+  } else {
+    var og = old.g > 1 ? old.g : 1;
+    var oFirst = _enMax_(old.s1, og === 1 ? old.s : ''), oBest = _enMax_(_enMax_(old.b, old.s), oFirst);
+    var s = inc.g > og ? inc.s : inc.g < og ? old.s : _enMax_(old.s, inc.s), g = Math.max(inc.g, og);
+    out = { s: s, g: g, s1: _enMax_(oFirst, iFirst), b: _enMax_(oBest, iBest), t: inc.t, v: inc.v, k: inc.k || old.k,
+            d: Math.max(old.d, inc.d), f: Math.max(old.f, inc.f) };
   }
-  var s = '', d = 0, f = 0;
-  for (var i = 0; i < inc.s.length; i++) {
-    var a = old.s.charAt(i), b = inc.s.charAt(i), c = (EN_RANK[a] || 0) >= (EN_RANK[b] || 0) ? a : b;
-    s += c;
-    if (c === 'f' || c === '1' || c === 's') d++;
-    if (c === 'f') f++;
+  if (out.b) {                                     /* letters: the counts come from them, never lower than before */
+    var d = 0, f = 0;
+    for (var i = 0; i < out.b.length; i++) { var c = out.b.charAt(i); if (c === 'f' || c === '1' || c === 's') d++; }
+    for (var j = 0; j < out.s1.length; j++) if (out.s1.charAt(j) === 'f') f++;
+    out.d = Math.max(old && old.v === inc.v ? old.d : 0, d);
+    out.f = Math.max(old && old.v === inc.v ? old.f : 0, f);
   }
-  if (inc.t) d = Math.min(d, inc.t);
-  return { d: d, f: Math.min(f, d), t: inc.t, s: s, v: inc.v, k: inc.k || old.k };
+  if (out.t) { out.d = Math.min(out.d, out.t); out.f = Math.min(out.f, out.d); }
+  return out;
 }
 /* The columns a teacher reads, worked out from the stored sets. */
 function _enSummary_(kept, en) {
-  var bySet = {}, order = {}, vd = 0, vf = 0, wd = 0, wf = 0, fin = 0;
+  var bySet = {}, order = {}, vd = 0, vf = 0, wd = 0, wf = 0, fin = 0, again = [];
   if (en) (en.sets || []).forEach(function (s, i) { bySet[s.id] = s; order[s.id] = i; });
   function at(k) { return order[k] == null ? 1e6 : order[k]; }
   var bits = Object.keys(kept).sort(function (a, b) { return at(a) - at(b) || (a < b ? -1 : 1); }).map(function (sid) {
@@ -4414,10 +4679,15 @@ function _enSummary_(kept, en) {
     if (kind === 'kw') { vd += x.d; vf += x.f; } else { wd += x.d; wf += x.f; }
     if (x.t && x.d >= x.t) fin++;
     var u = m && m.unit && en.units[m.unit] ? en.units[m.unit] : null;
-    return (u ? 'T' + u.n + ' ' : '') + (m ? m.title : sid) + ' ' + x.d + '/' + x.t + ' (' + x.f + ')';
+    var name = (u ? 'T' + u.n + ' ' : '') + (m ? m.title : sid);
+    if (x.g > 1) {
+      var now = 0; for (var i = 0; i < x.s.length; i++) { var c = x.s.charAt(i); if (c === 'f' || c === '1' || c === 's') now++; }
+      again.push(name + ' (round ' + x.g + ', ' + now + '/' + x.t + ')');
+    }
+    return name + ' ' + x.d + '/' + x.t + ' (' + x.f + ')';
   });
   return { vocab: vd, vocabFirst: vd ? vf / vd : '', writing: wd, writingFirst: wd ? wf / wd : '',
-           finished: fin, perSet: bits.join(' · ').slice(0, 45000) };
+           finished: fin, perSet: bits.join(' · ').slice(0, 45000), again: again.join(' · ').slice(0, 45000) };
 }
 function _enRowFor_(sh, email, student) {
   var last = sh.getLastRow();
@@ -4459,7 +4729,11 @@ function _englishSave_(d) {
       var total = m ? (Number(m.total) || 0) : Math.max(0, Math.min(500, Number(s.total) || 0));
       var inc = { d: Math.max(0, Math.min(total, Number(s.done) || 0)), f: 0, t: total,
                   s: String(s.snap || '').replace(/[^01tfs]/g, '').slice(0, total || 500),
-                  v: String(s.v || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20), k: m ? String(m.kind || '') : '' };
+                  v: String(s.v || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20), k: m ? String(m.kind || '') : '',
+                  g: Math.max(1, Math.min(9999, Math.floor(Number(s.go) || 1))),
+                  s1: String(s.snap1 || '').replace(/[^01tfs]/g, '').slice(0, total || 500),
+                  b: String(s.best || '').replace(/[^01tfs]/g, '').slice(0, total || 500),
+                  oldPage: !('go' in s) && !('snap1' in s) && !('best' in s) };
       inc.f = Math.max(0, Math.min(inc.d, Number(s.first) || 0));
       /* a page left open from before the set was rebuilt must not overwrite work on the new one */
       if (m && kept[sid] && kept[sid].v === String(m.v) && inc.v !== String(m.v)) return;
@@ -4467,9 +4741,9 @@ function _englishSave_(d) {
       saved++;
     });
     var sum = _enSummary_(kept, en);
-    sh.getRange(r, 1, 1, EN_SNAP).setValues([[
+    sh.getRange(r, 1, 1, EN_AGAIN).setValues([[
       student.name, student.cls, sum.vocab, sum.vocabFirst, sum.writing, sum.writingFirst, sum.finished,
-      new Date(), _plain_(sum.perSet), who.email, _enPack_(kept)
+      new Date(), _plain_(sum.perSet), who.email, _enPack_(kept), _plain_(sum.again)
     ]]);
     _dressRows_(sh, ENGLISH_COLS, r, 1);      /* so a row written between tidy-ups still reads properly */
     SpreadsheetApp.flush();
@@ -4496,7 +4770,9 @@ function _englishMine_(d) {
       var kept = _enParse_(v[i][1]);
       Object.keys(kept).forEach(function (sid) {
         var x = kept[sid];
-        out.sets[sid] = { done: x.d, first: x.f, total: x.t, snap: x.s, v: x.v };
+        /* `snap` is all a page from before goes reads, and it sends it back as its round 1: on a later round it
+           is the FIRST round's letters, never this round's. A page that knows goes reads `here`. */
+        out.sets[sid] = { done: x.d, first: x.f, total: x.t, snap: x.g > 1 ? (x.s1 || '') : x.s, here: x.s, v: x.v, go: x.g, snap1: x.s1, best: x.b };
       });
       break;
     }
