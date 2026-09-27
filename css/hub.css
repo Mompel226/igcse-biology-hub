@@ -732,8 +732,11 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
      ROW, and in a column it squeezed the hero to nothing (on phones from 16 to 17 Sep 2026) */
   .doors--top>.door--hero{flex:none}
   /* stacked, a front-row door is as tall as its own words: the desktop flex-basis of 0 that
-     shares the WIDTH would set its HEIGHT to nothing here (two doors vanished this way, 24 Sep) */
-  .doors--top>.door--hero,.doors--top>.door--top,.door--mine{flex:none;min-height:220px}
+     shares the WIDTH would set its HEIGHT to nothing here (two doors vanished this way, 24 Sep).
+     Each selector must be as specific as the wide-screen rule it undoes (`.doors--top>…`): a bare
+     `.door--mine` lost to it, so on phones My assessments kept the basis of 0 and stood at 220px,
+     its blurb and "Open" cut off below the edge (24 to 27 Sep 2026) */
+  .doors--top>.door--hero,.doors--top>.door--top,.doors--top>.door--mine{flex:none;min-height:220px}
   .doors--row{flex-direction:column;flex:none;min-height:0;gap:10px}
   .door--hero{height:auto;min-height:0}
   .door--hero .door__body{padding-top:clamp(150px,40vw,220px)}
