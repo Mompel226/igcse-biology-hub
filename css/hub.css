@@ -447,10 +447,14 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
      screen and a 1440 laptop still keeps enough room for them. The height simply follows the
      banner's own shape: --ar is its width ÷ its height, set per door by js/hub.js from the
      register's `plate`, because a banner drawn short (Medical Review) must not be given the
-     tall box a banner drawn deep (BioGuardians) needs. */
+     tall box a banner drawn deep (BioGuardians) needs.
+     Below 1236px wide the banner no longer stops at 704px: it keeps the share of the door it has
+     there, 59.1% (the door is the screen less two gutters). A fixed 704px left the words all the
+     width the screen lost, 155px of it at 901, and a lit door on an iPad (1024) lost its eyebrow,
+     its title and the start of its paragraph off the top (27 Sep 2026). From 1236 up, nothing moved. */
   --ar:2.9316;
-  --minh:320px;                              /* what the open door's words need */
-  --bw:clamp(704px,min(calc(99.7vw - 528px),calc(42dvh * var(--ar))),1642px);
+  --minh:320px;                              /* the least an open door is; its words may ask for more */
+  --bw:clamp(min(calc((100vw - 2 * var(--gutter)) * .591),704px),min(calc(99.7vw - 528px),calc(42dvh * var(--ar))),1642px);
   --fit:calc(var(--bw) / var(--ar));         /* the height that shows the banner whole */
   --bh:var(--fit);
   /* the banner's own ground, as channels so a gradient can fade it to nothing without
@@ -459,8 +463,14 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
   flex:none;height:clamp(120px,9.5vw,190px);cursor:pointer;background:rgb(var(--ground-rgb));
   transition:height .75s var(--ease)
 }
-/* open, the door is as tall as the words need or the banner needs, whichever is more */
-.door--bleed{--bh:max(var(--fit),var(--minh))}
+/* open, the door is as tall as the words need or the banner needs, whichever is more
+   (the words' part is the min-content rule below) */
+/* a banner drawn to be cut at its ends fills the open door's height and loses its sides, but
+   never so much of them that the cut reaches its mark: the box stays at least 2.1 times as wide
+   as it is tall. The Medical Review wordmark keeps to x 760-1319 of its 1800x420 plate, and a
+   2.1 box shows 459-1341. It only bites below 1236px; wider, the box is 704px or more and 320
+   tall, exactly as before. */
+.door--bleed{--bh:max(var(--fit),min(var(--minh),calc(var(--bw) / 2.1)))}
 .door--wide.is-on{height:max(var(--bh),var(--minh))}
 .door--wide picture,.door--wide .door__motion{left:auto;right:0;top:50%;bottom:auto;transform:translateY(-50%);height:100%;width:100%;transition:width .75s var(--ease),height .75s var(--ease)}
 .door--wide.is-on picture,.door--wide.is-on .door__motion{width:var(--bw);height:var(--bh)}
@@ -471,6 +481,16 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .door--wide .door__veil{background:linear-gradient(to right,rgb(var(--ground-rgb)) 0,rgb(var(--ground-rgb)) 24%,rgb(var(--ground-rgb)/.55) 33%,rgb(var(--ground-rgb)/0) 42%)}
 .door--wide.is-on .door__veil{background:none}
 .door--wide .door__title{font-size:clamp(19px,1.7vw,27px)}
+/* A wide door's words used to be pinned to its bottom (position:absolute), so words taller than
+   the door climbed out of its TOP, and the door is overflow:hidden: the eyebrow and the title went
+   first. So the words stand in the flow at the door's foot instead, and the door is never shorter
+   than they are. While they fit, its height is exactly what it was; when they need more (a narrow
+   window, zoom, a longer blurb, a translated page), it grows. The hero does the same. Phones
+   already stack their words in the flow, so this is for the wide screen only. */
+@media (min-width:901px){
+  .door--wide{display:flex;flex-direction:column;justify-content:flex-end;min-height:min-content}
+  .door--wide .door__body{position:relative;left:auto;right:auto;bottom:auto}
+}
 
 .band{display:flex;align-items:center;gap:12px;padding:6px 4px 0}
 .band::after{content:"";flex:1;height:1px;background:var(--rule)}
