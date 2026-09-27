@@ -2363,6 +2363,71 @@ ENGLISH_JSON = ''; TRIGGERS.length = 0; MAILS.length = 0; CLIENT_ID = enCid; TOK
 VISITOR = ''; SCHOOL_DOMAIN = ''; HUB_URL = ''; MANIFEST_JSON = '';
 props.delete('HUB_URL'); props.delete('SCHOOL_DOMAIN');
 
+/* ── §front-door (28 Sep 2026): My assessments follows the newest reflection copy ─────────────────────
+   The reflection copy running the newest code writes its address into the tracker's "🚪 My assessments address"
+   tab; this script reads it for the record answer and the health line. The writer itself is tested beside its
+   Code.gs (IGCSE/AppScript/Test System harness/check_front_door.mjs, which also runs this reader on its tab). */
+console.log('— my assessments follows the newest reflection copy —');
+{
+  const fdCid = CLIENT_ID, fdTok = TOKEN_EMAIL, fdDom = SCHOOL_DOMAIN;
+  const EXEC = 'https://script.google.com/a/macros/x.kr/s/AKfycbFRONTDOORtestdeployment00001/exec?page=student';
+  const fdTab = () => ss.getSheetByName(FRONT_DOOR_TAB);
+  const fdWrite = rows => { const old = fdTab(); if (old) ss.deleteSheet(old); const sh = ss.insertSheet(FRONT_DOOR_TAB);
+    rows.forEach((r, i) => { sh.getRange(i + 1, 1).setValue(r[0]); sh.getRange(i + 1, 2).setValue(r[1]); }); return sh; };
+  const fdRows = (url, build) => [['What', 'Value'], ['Address', url], ['Code edition', '28 Sep 2026 — test'], ['Build', build],
+    ['Spreadsheet', 'Topic 9 test'], ['Spreadsheet id', 'ss9'], ['Registered', new Date()], ['Keep students here', false]];
+  const fdPost = (body, email) => { TOKEN_EMAIL = email;
+    return JSON.parse(doPost({ postData:{ contents: JSON.stringify(Object.assign({ token: TOK }, body)) } })); };
+  const fdWho = _studentDirectory_().students.filter(s => /@/.test(s.email))[0];
+  ok &= run('front door: the tab the newest reflection copy writes is read — its address, edition and build', () => {
+    fdWrite(fdRows(EXEC, 2026092807));
+    const d = _frontDoor_(ss);
+    if (!d || d.url !== EXEC || d.build !== 2026092807 || d.edition !== '28 Sep 2026 — test') throw new Error(JSON.stringify(d));
+  });
+  ok &= run('front door: a row moved or added by hand is still read by its label', () => {
+    fdWrite([['A note typed by hand', 'x']].concat(fdRows(EXEC, 5)));
+    if (_frontDoorUrl_(ss) !== EXEC) throw new Error('read ' + _frontDoorUrl_(ss));
+  });
+  ok &= run('front door: never an address that is not an Apps Script web app, or not the student page', () => {
+    for (const bad of ['https://evil.example/macros/s/AKfycbFRONTDOORtestdeployment00001/exec?page=student', EXEC.replace('?page=student', ''),
+                       'javascript:alert(1)//script.google.com/macros/s/AKfycbFRONTDOORtestdeployment00001/exec?page=student',
+                       EXEC + '&email=pupil@x.kr', EXEC.replace('page=student', 'page=dashboard'), ' ']) {
+      fdWrite(fdRows(bad, 9));
+      if (_frontDoor_(ss) !== null || _frontDoorUrl_(ss) !== '') throw new Error('accepted ' + bad);
+    }
+  });
+  ok &= run('front door: no tab, or no tracker — nothing, and never an error', () => {
+    const old = fdTab(); if (old) ss.deleteSheet(old);
+    if (_frontDoor_(ss) !== null || _frontDoorUrl_(ss) !== '' || _frontDoorUrl_(null) !== '') throw new Error('something from nothing');
+  });
+  ok &= run('front door: the record answer carries the address, and leaves it out until a copy has registered', () => {
+    props.set('TRACKER_ID', 'tracker'); CLIENT_ID = 'CID'; SCHOOL_DOMAIN = 'x.kr';
+    if (!fdWho || !/@x\.kr$/.test(fdWho.email)) throw new Error('no pupil at x.kr to sign in as: ' + JSON.stringify(fdWho));
+    let j = fdPost({ action:'record' }, fdWho.email);
+    if (!j.ok || 'myAssessments' in j) throw new Error('before any copy registered: ' + JSON.stringify(j).slice(0, 200));
+    fdWrite(fdRows(EXEC, 2026092807));
+    j = fdPost({ action:'record' }, fdWho.email);
+    if (!j.ok || j.myAssessments !== EXEC) throw new Error('after: ' + JSON.stringify(j).slice(0, 200));
+    fdWrite(fdRows('https://evil.example/exec?page=student', 9));
+    j = fdPost({ action:'record' }, fdWho.email);
+    if (!j.ok || 'myAssessments' in j) throw new Error('a bad address was handed over: ' + JSON.stringify(j).slice(0, 200));
+  });
+  ok &= run('front door: the health line names the code students\' My assessments runs, so it can be checked without signing in', () => {
+    fdWrite(fdRows(EXEC, 2026092807)); cacheStore.delete('frontdoor-health');
+    const a = doGet({ parameter:{} });
+    if (a !== 'Biology Labs endpoint is running · ' + SCRIPT_EDITION + ' · My assessments: 28 Sep 2026 — test (build 2026092807)') throw new Error(a);
+    fdWrite(fdRows(EXEC, 2026092899));
+    if (doGet({ parameter:{} }) !== a) throw new Error('not kept for ten minutes');
+    const old = fdTab(); if (old) ss.deleteSheet(old); cacheStore.delete('frontdoor-health');
+    if (!/ · My assessments: no reflection copy has registered yet$/.test(doGet({ parameter:{} }))) throw new Error('no tab: ' + doGet({ parameter:{} }));
+    props.delete('TRACKER_ID'); cacheStore.delete('frontdoor-health');
+    if (doGet({ parameter:{} }) !== 'Biology Labs endpoint is running · ' + SCRIPT_EDITION) throw new Error('record card off: ' + doGet({ parameter:{} }));
+  });
+  { const old = fdTab(); if (old) ss.deleteSheet(old); }
+  props.delete('TRACKER_ID'); cacheStore.delete('frontdoor-health');
+  CLIENT_ID = fdCid; TOKEN_EMAIL = fdTok; SCHOOL_DOMAIN = fdDom;
+}
+
 const st = ss.getSheetByName('Students');
 console.log('Students: ' + (st.getLastRow() - 1) + ' rows × ' + st.getLastColumn() + ' cols');
 const dg = ss.getSheetByName('Digestion');

@@ -1106,8 +1106,18 @@
                                                           assessments: t ? t.assessments : null,
                                                           unfinished: t ? t.unfinished : 0,
                                                           practice: t ? !!t.practice : false,
+                                                          myAssessments: t ? t.url : '',
                                                           at: Date.now() })); } catch (e) {}
     }
+    /* Where My assessments lives now (§front-door, 28 Sep 2026). Every assessment gets its own reflection
+       spreadsheet, and so its own web-app address; the one running the newest code writes its address into the
+       tracker, and the labs script hands it over with the record answer as `myAssessments`. Only an Apps Script
+       student page is ever followed; anything else, or no answer yet, keeps the address in `record.url`. */
+    function newest(u) {
+      u = String(u || '');
+      return /^https:\/\/script\.google\.com\/(?:a\/macros\/[a-z0-9.-]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec\?page=student$/.test(u) ? u : '';
+    }
+    function goMine(t) { var u = (t && t.url) || REC.url; if (mineEl) mineEl.href = u; return u; }
     /* Two numbers, never mixed up. `reflected` is digital reflections the student finished.
        `assessments` is everything with a real score — tests and lab reports the teacher marked,
        reflected on or not — so it is the bigger number: "3 of 7 reflected". Unfinished
@@ -1120,7 +1130,7 @@
       var reflected = n(j.reflected) !== null ? j.reflected : (n(j.count) || 0);
       return { reflected: reflected, assessments: n(j.assessments),
                unfinished: n(j.unfinished) !== null ? j.unfinished : (n(j.incomplete) || 0),
-               practice: !!j.practice };
+               practice: !!j.practice, url: newest(j.myAssessments) };
     }
     /* anything on My assessments to see: a reflection, finished or not, or practice */
     function worthOpening(t) { return !!(t.reflected || t.unfinished || t.practice); }
@@ -1187,7 +1197,7 @@
       }
       mineOpen(who, t);
       /* A teacher who has only ever submitted to the TEST class sees "test". */
-      asLink(REC.url, lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(t),
+      asLink(goMine(t), lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(t),
              teacher ? 'Signed in · test mode' : '');
       /* No `title` tooltip here: the house rule is instant tooltips or none, and the
          counts are already on the card and on the door. */
@@ -1291,7 +1301,7 @@
       if (kt && studentView && worthOpening(kt)) {                   /* at once, then confirmed below */
         mineSay(kt);
         showPersonal('mine', instant);
-        asLink(REC.url, tidyName(v.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt),
+        asLink(goMine(kt), tidyName(v.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt),
                known.teacher ? 'Signed in · test mode' : '');
         ask(v, true);
       } else {
