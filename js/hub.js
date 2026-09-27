@@ -1105,6 +1105,7 @@
                                                           reflected: t ? t.reflected : 0,
                                                           assessments: t ? t.assessments : null,
                                                           unfinished: t ? t.unfinished : 0,
+                                                          practice: t ? !!t.practice : false,
                                                           at: Date.now() })); } catch (e) {}
     }
     /* Two numbers, never mixed up. `reflected` is digital reflections the student finished.
@@ -1112,13 +1113,17 @@
        reflected on or not — so it is the bigger number: "3 of 7 reflected". Unfinished
        reflections are counted apart: an assessment done, a reflection not. An answer from a
        labs script that predates the two numbers has only `count` (= reflections), and then
-       only that is said. */
+       only that is said. `practice`: they have lab or Bio English practice in the records, which
+       My assessments shows too (Sept 2026), so the door opens for it before any reflection. */
     function tally(j) {
       var n = function (v) { return (typeof v === 'number' && v >= 0) ? v : null; };
       var reflected = n(j.reflected) !== null ? j.reflected : (n(j.count) || 0);
       return { reflected: reflected, assessments: n(j.assessments),
-               unfinished: n(j.unfinished) !== null ? j.unfinished : (n(j.incomplete) || 0) };
+               unfinished: n(j.unfinished) !== null ? j.unfinished : (n(j.incomplete) || 0),
+               practice: !!j.practice };
     }
+    /* anything on My assessments to see: a reflection, finished or not, or practice */
+    function worthOpening(t) { return !!(t.reflected || t.unfinished || t.practice); }
     function plural(k, word) { return k + ' ' + word + (k === 1 ? '' : 's'); }
     /* on the door, with room to spell it out: "7 assessments · 3 reflected · 1 unfinished" */
     function doorLine(t) {
@@ -1128,8 +1133,9 @@
       if (t.unfinished) bits.push(t.unfinished + ' unfinished');
       return bits.join(' · ');
     }
-    /* on the corner card, one line: "3 of 7 reflected · 1 unfinished" */
+    /* on the corner card, one line: "3 of 7 reflected · 1 unfinished", or "your practice" before any reflection */
     function cardLine(t) {
+      if (!t.reflected && !t.unfinished && t.practice) return 'your practice';
       var bits = [t.assessments !== null ? t.reflected + ' of ' + t.assessments + ' reflected'
                                          : t.reflected + ' reflected'];
       if (t.unfinished) bits.push(t.unfinished + ' unfinished');
@@ -1172,9 +1178,9 @@
       }
 
       var t = tally(j);
-      if (!t.reflected && !t.unfinished) {
-        /* On the list, nothing recorded yet — a new student, or one who has not sat a test.
-           Not an error, and not worth a link to an empty page. */
+      if (!worthOpening(t)) {
+        /* On the list, nothing recorded yet — a new student, or one who has not sat a test or
+           practised in a lab. Not an error, and not worth a link to an empty page. */
         mineShut(who);
         asButton(lbl, teacher ? 'Test mode · no test reflections yet' : 'Your assessments start at your first reflection', true);
         return;
@@ -1282,7 +1288,7 @@
       footer(true);
       var kt = known ? tally(known) : null;
       var studentView = !(known && known.teacher && mode() === 'teacher');
-      if (kt && studentView && (kt.reflected || kt.unfinished)) {      /* at once, then confirmed below */
+      if (kt && studentView && worthOpening(kt)) {                   /* at once, then confirmed below */
         mineSay(kt);
         showPersonal('mine', instant);
         asLink(REC.url, tidyName(v.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt),
