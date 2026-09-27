@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-26T01:35:20.724Z",
+  "generated": "2026-09-27T08:37:55.904Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -201,7 +201,7 @@
     },
     "circulation-lab": {
       "name": "Circulation Lab",
-      "questions": 114,
+      "questions": 115,
       "stations": [
         {
           "id": "system",
@@ -256,7 +256,7 @@
         {
           "id": "blood",
           "name": "What blood is made of",
-          "questions": 11
+          "questions": 12
         },
         {
           "id": "clotting",
