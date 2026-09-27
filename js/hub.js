@@ -673,10 +673,23 @@
     toast(now ? 'IB material shown — the same labs, with the extension revealed.' : 'IB material hidden.');
   });
 
-  /* ---------- 5. open now ---------- */
+  /* ---------- 5. open now ----------
+     A lab's size is added here from the register (js/data/labs.js, copied from labs-shared/labs.json
+     by tools/stamp.mjs), never written in shelves.js: written there by hand it went stale as the labs
+     grew — the Circulation Lab said 97 questions at 115, the Plants Lab 91 at 116. Matched by url, as
+     a shelf's statOf() finds its lab, so an entry the register does not know shows no size.
+     tools/status.mjs reports a sub that still states one. */
+  function sizeOf(o) {
+    var u = String(o.url || '').replace(/\/$/, '');
+    var l = ((window.LABS_REGISTER || {}).labs || []).filter(function (x) {
+      return String(x.url || '').replace(/\/$/, '') === u;
+    })[0];
+    return l && l.stations && l.questions ? l.stations + ' stations, ' + l.questions + ' questions' : '';
+  }
   var openList = document.getElementById('openList');
   if (openList) {
     OPEN.forEach(function (o) {
+      var size = sizeOf(o);
       var li = document.createElement('li');
       li.className = 'open__item' + (o.ibOnly ? ' open__item--ib' : '');
       li.innerHTML =
@@ -684,7 +697,8 @@
           '<span class="kind kind--' + o.kind + '">' + esc(o.kind) + '</span>' +
           '<span class="open__txt">' +
             '<span class="open__title">' + esc(o.title) + '</span>' +
-            '<span class="open__sub">' + esc(o.sub) + (o.ib ? ' <span class="ib-note">· ' + esc(o.ib) + '</span>' : '') + '</span>' +
+            '<span class="open__sub">' + esc(o.sub) + (size ? ' · ' + size : '') +
+              (o.ib ? ' <span class="ib-note">· ' + esc(o.ib) + '</span>' : '') + '</span>' +
             (o.progress ? '<span class="open__prog" id="prog-' + esc(o.progress) + '"></span>' : '') +
           '</span>' +
           '<span class="open__go" aria-hidden="true">→</span>' +
