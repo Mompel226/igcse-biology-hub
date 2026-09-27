@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '27 Sep 2026 — practice rounds: starting again keeps the record (this round · first round · best ever), merge fixed';
+var SCRIPT_EDITION = '28 Sep 2026 — My assessments follows the newest reflection copy';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -672,8 +672,9 @@ function doGet(e) {
     return _teacherAppPage_(page);
   }
   /* The health check names the script's edition, so a paste can be confirmed from outside
-     without signing in: open the /exec address and read the line. */
-  return _text_('Biology Labs endpoint is running · ' + SCRIPT_EDITION);
+     without signing in: open the /exec address and read the line. It also names the reflection code students'
+     My assessments runs (§front-door), for the same reason. */
+  return _text_('Biology Labs endpoint is running · ' + SCRIPT_EDITION + _frontDoorHealth_());
 }
 
 
@@ -2289,7 +2290,47 @@ function _ownRecord_(d) {
                  practice: _hasPractice_(who.email) || undefined,
                  /* absent — not false — for everybody who is not a teacher on the list */
                  teacher: isTeacher || undefined,
-                 teacherPage: isTeacher ? _teacherPageUrl_() : undefined });
+                 teacherPage: isTeacher ? _teacherPageUrl_() : undefined,
+                 /* where My assessments lives now: the reflection copy running the newest code (§front-door).
+                    Absent until a copy has registered; the hub then keeps the address in its local.js. */
+                 myAssessments: _frontDoorUrl_(wb) || undefined });
+}
+
+/* ============================================================
+   §front-door (reflection spec §40.78, 28 Sep 2026) — MY ASSESSMENTS FOLLOWS THE NEWEST COPY.
+   Daniel makes a new reflection spreadsheet, with its own web-app address, for every assessment, and the newest
+   one carries the newest code. The reflection copy running the newest code writes its address into the Student
+   Progress Tracker's "🚪 My assessments address" tab (the reflection Code.gs's _frontDoorClaim_); this script reads
+   it, gives it to a signed-in student with the `record` answer, and the hub's door opens it instead of the one
+   address in its local.js. Daniel's "Keep students here" tick in that tab is the reflection side's business. The
+   labels are a contract with the reflection Code.gs: IGCSE/AppScript/Test System harness/check_front_door.mjs runs
+   the writer there and this reader on one stand-in tracker.
+   ============================================================ */
+var FRONT_DOOR_TAB = '🚪 My assessments address';
+/* the tab's Address, Code edition and Build, or null — never a guess, never an address that is not a web app */
+function _frontDoor_(wb) {
+  var sh = wb ? wb.getSheetByName(FRONT_DOOR_TAB) : null;
+  if (!sh) return null;
+  var n = Math.min(Math.max(sh.getLastRow(), 1), 40), v = sh.getRange(1, 1, n, 2).getValues(), m = {};
+  for (var i = 0; i < v.length; i++) { var k = String(v[i][0] || '').trim(); if (k && !(k in m)) m[k] = v[i][1]; }
+  var url = String(m['Address'] || '').trim();
+  if (!/^https:\/\/script\.google\.com\/(?:a\/macros\/[a-z0-9.-]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec\?page=student$/.test(url)) return null;
+  return { url: url, edition: String(m['Code edition'] || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120), build: Number(m['Build']) || 0 };
+}
+function _frontDoorUrl_(wb) { try { var d = _frontDoor_(wb); return d ? d.url : ''; } catch (e) { return ''; } }
+/* For the health line: which code students' My assessments runs, so `node tools/status.mjs` can compare it with
+   the reflection code on Daniel's Mac without signing in. Read at most every ten minutes; says nothing when the
+   record card is off. */
+function _frontDoorHealth_() {
+  try {
+    if (!_trackerId_()) return '';
+    var cache = CacheService.getScriptCache(), hit = cache.get('frontdoor-health');
+    if (hit !== null && hit !== undefined) return hit;
+    var d = _frontDoor_(SpreadsheetApp.openById(_trackerId_()));
+    var line = d ? ' · My assessments: ' + (d.edition || 'no edition') + ' (build ' + d.build + ')' : ' · My assessments: no reflection copy has registered yet';
+    cache.put('frontdoor-health', line, 600);
+    return line;
+  } catch (e) { return ''; }
 }
 
 /* ============================================================
