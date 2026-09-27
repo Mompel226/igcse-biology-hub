@@ -27,7 +27,9 @@
      focus    object-position for the image, e.g. "50% 40%"
      alt      what the image shows, for readers who cannot see it
    years    which topics each year group meets — the split the student dashboard uses
-   open     everything that is live, for students who know where they are going
+   open     everything that is live, for students who know where they are going. Never
+            write a lab's size in its sub: js/hub.js adds "12 stations, 115 questions"
+            from the lab register (js/data/labs.js), found by the lab's url
    credits  where each door's image came from — printed in the colophon
    ============================================================ */
 window.HUB = {
@@ -115,16 +117,16 @@ window.HUB = {
       sub:'Topics 6, 8, 14.5, 16.3 and 18.2 on one plant, seed to fruit — the map above',
       url:'https://nlcsbiology.com/plants-hub/' },
     { title:'Classification Lab',   kind:'lab',       shelf:'life-on-earth',
-      sub:'Topic 1 · Characteristics and classification · 10 stations, 64 questions',
+      sub:'Topic 1 · Characteristics and classification',
       url:'https://nlcsbiology.com/classification-lab/' },
     { title:'Digestion Lab',        kind:'lab',       shelf:'human-body',
-      sub:'Topic 7 · Human nutrition · 14 stations, 123 activities',
+      sub:'Topic 7 · Human nutrition',
       url:'https://nlcsbiology.com/digestion-lab/', progress:'digestion' },
     { title:'Circulation Lab',      kind:'lab',       shelf:'human-body',
-      sub:'Topic 9 · Transport in animals · 12 stations, 97 questions',
+      sub:'Topic 9 · Transport in animals',
       url:'https://nlcsbiology.com/circulation-lab/' },
     { title:'Plants Lab',           kind:'lab',       shelf:'plants',
-      sub:'Topics 6, 8, 14.5, 16.3 and 18.2 · Plant nutrition to adaptive features · 12 stations, 91 questions',
+      sub:'Topics 6, 8, 14.5, 16.3 and 18.2 · Plant nutrition to adaptive features',
       url:'https://nlcsbiology.com/plants-lab/' },
     { title:'Protein & Enzyme Sim', kind:'sim',       shelf:'foundations',
       sub:'Topics 4 and 5 · build a protein, then watch heat and pH take it apart',
