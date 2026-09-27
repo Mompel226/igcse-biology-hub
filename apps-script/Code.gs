@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '26 Sep 2026 — 🔎 Find (shared drives too) + Missing one?; Teacher links menu; Circulation 114';
+var SCRIPT_EDITION = '27 Sep 2026 — 🔎 Find (shared drives too) + Missing one?; Teacher links menu; Circulation 115';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -171,7 +171,7 @@ var LABS = [
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
-  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:114 },
+  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:115 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
   { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
