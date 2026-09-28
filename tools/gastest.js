@@ -2428,6 +2428,67 @@ console.log('— my assessments follows the newest reflection copy —');
   CLIENT_ID = fdCid; TOKEN_EMAIL = fdTok; SCHOOL_DOMAIN = fdDom;
 }
 
+/* ── §hub-card (28 Sep 2026): "Your reflection" on the hub ──────────────────────────────────────────────────────────
+   A reflection spreadsheet switches itself on in the tracker's "📣 Reflections on the hub" tab; this script reads it and
+   the reflection spreadsheet's Marks tabs, LiveProgress and Reflections, and puts this person's card in the "Sit a test"
+   answer. The rule itself is run beside the reflection form's own functions on 39 pupils in
+   IGCSE/AppScript/Test System harness/check_reflect_card.mjs; these check the way through doPost. Here every id opens
+   the one fake spreadsheet, so the tracker tab and the reflection's tabs sit side by side in it. */
+console.log('— your reflection on the hub —');
+{
+  const rcCid = CLIENT_ID, rcTok = TOKEN_EMAIL, rcDom = SCHOOL_DOMAIN;
+  const FORM = 'https://script.google.com/a/macros/x.kr/s/AKfycbREFLECTIONformDeployment0001/exec';
+  const TABS = [REFL_CARD_TAB, 'Marks · 10A · C', 'LiveProgress', 'Reflections'];
+  const clear = () => { TABS.forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+                        ['rflon1', 'rsnap1:REFLECTIONspreadsheetId0001'].forEach(k => cacheStore.delete(k)); };
+  const rows = (name, list) => { const sh = ss.insertSheet(name); list.forEach((r, i) => r.forEach((v, j) => sh.getRange(i + 1, j + 1).setValue(v))); return sh; };
+  const post = email => { TOKEN_EMAIL = email;
+    return JSON.parse(doPost({ postData:{ contents: JSON.stringify({ token: TOK, action: 'test' }) } })); };
+  const pupils = _studentDirectory_().students.filter(s => /@x\.kr$/.test(s.email)).map(s => s.email);
+  const [p1, p2, p3] = pupils;
+  const switchOn = url => rows(REFL_CARD_TAB, [['Spreadsheet id', 'Assessment', 'Form address', 'Showing', 'Switched on', 'Switched on by', 'Time zone'],
+    ['REFLECTIONspreadsheetId0001', 'Test — Topic 7: Human Nutrition', url, true, new Date(), 'teacher@x.kr', 'Asia/Seoul']]);
+  const setUp = () => {
+    rows('Marks · 10A · C', [['T7'], [''], [''], [''], ['Email', 'Student Name'], [p1, 'One'], [p2, 'Two'], [p3, 'Three']]);
+    rows('LiveProgress', [['Email', 'Last update', 'Name', 'Class', 'Screen #', 'Current screen', 'Progress', 'Status', 'Self-score', 'Flags', 'Started',
+                           'Completed', 'Integrity', 'Test', 'Session Token', 'Validation flag names', 'MCQ Access Granted At', 'Started Screen 1 At'],
+                          [p2, '', 'Two', '10A', 8, '', '', 'Submitted incomplete'], [p3, '', 'Three', '10A', 8, '', '', 'Complete']]);
+    rows('Reflections', [['Email', 'Timestamp', 'Name', 'Class', 'Validation flags', 'Submission Count', 'Retry Allowed'],
+                         [p2, new Date(), 'Two', '10A', 'INCOMPLETE-SUBMISSION (screen 4)', 1, ''], [p3, new Date(), 'Three', '10A', '', 1, '']]);
+  };
+  ok &= run('your reflection: nothing switched on — no card, and nothing else in the answer changes', () => {
+    props.set('TRACKER_ID', 'tracker'); CLIENT_ID = 'CID'; SCHOOL_DOMAIN = 'x.kr'; clear();
+    if (!p1 || !p2 || !p3) throw new Error('three pupils at x.kr needed: ' + JSON.stringify(pupils));
+    const j = post(p1);
+    if (!j.ok || 'reflect' in j || 'reflectWhy' in j || j.state !== 'none') throw new Error(JSON.stringify(j).slice(0, 300));
+  });
+  ok &= run('your reflection: switched on, a pupil on its Marks tab who has not started gets Start, with the form\'s address', () => {
+    clear(); setUp(); switchOn(FORM);
+    const j = post(p1);
+    if (!j.ok || !j.reflect || j.reflect.state !== 'start' || j.reflect.url !== FORM || j.reflect.name !== 'Test — Topic 7: Human Nutrition')
+      throw new Error(JSON.stringify(j).slice(0, 300));
+  });
+  ok &= run('your reflection: only part of it handed in — the reminder, and no address', () => {
+    const j = post(p2);
+    if (!j.reflect || j.reflect.state !== 'part' || 'url' in j.reflect) throw new Error(JSON.stringify(j).slice(0, 300));
+  });
+  ok &= run('your reflection: a complete one — no card; and no answer ever names another pupil', () => {
+    const j = post(p3);
+    if ('reflect' in j) throw new Error(JSON.stringify(j).slice(0, 300));
+    for (const who of [p1, p2, p3]) { const a = JSON.stringify(post(who)); if ([p1, p2, p3].some(o => o !== who && a.includes(o))) throw new Error(who + ': ' + a.slice(0, 300)); }
+  });
+  ok &= run('your reflection: an address that is not an Apps Script web app is never handed over', () => {
+    for (const bad of ['https://evil.example/s/AKfycbREFLECTIONformDeployment0001/exec', FORM + '?page=student', 'javascript:alert(1)', '']) {
+      clear(); setUp(); switchOn(bad);
+      const j = post(p1);
+      if ('reflect' in j) throw new Error('handed over ' + bad + ': ' + JSON.stringify(j).slice(0, 200));
+    }
+  });
+  clear();
+  props.delete('TRACKER_ID');
+  CLIENT_ID = rcCid; TOKEN_EMAIL = rcTok; SCHOOL_DOMAIN = rcDom;
+}
+
 const st = ss.getSheetByName('Students');
 console.log('Students: ' + (st.getLastRow() - 1) + ' rows × ' + st.getLastColumn() + ' cols');
 const dg = ss.getSheetByName('Digestion');

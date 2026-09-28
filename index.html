@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1790549345">
+<link rel="stylesheet" href="css/hub.css?v=1790557864">
 </head>
 <body>
 
@@ -53,6 +53,19 @@
         </div>
         <a class="sit__go" id="fbkGo">See your feedback <span aria-hidden="true">&rarr;</span></a>
       </section>
+
+      <!-- "Your reflection": a reflection the teacher has switched on for the hub, for someone on its Marks tabs, until
+           they hand in a complete one — Start, Continue, or a reminder to ask the teacher. Filled in by js/hub.js from
+           the same answer as the test banner; a teacher sees it only in test mode. The link opens the reflection form. -->
+      <section class="sit sit--rfl" id="rfl" hidden aria-labelledby="rflName">
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="rflEye">Your reflection</span></span>
+          <span class="sit__name" id="rflName"></span>
+          <span class="sit__when" id="rflWhen"></span>
+        </div>
+        <a class="sit__go" id="rflGo" hidden>Start your reflection <span aria-hidden="true">&rarr;</span></a>
+      </section>
+      <p class="sit-note sit-note--rfl" id="rflNote" hidden></p>
     </div>
     <div class="masthead__r">
 
@@ -160,11 +173,11 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<script src="js/data/labs.js?v=1790549345"></script>
-<script src="js/progress.js?v=1790549345"></script>
-<script src="js/signin.js?v=1790549345"></script>
-<script src="js/shelves.js?v=1790549345"></script>
-<script src="js/local.js?v=1790549345"></script>
-<script src="js/hub.js?v=1790549345"></script>
+<script src="js/data/labs.js?v=1790557864"></script>
+<script src="js/progress.js?v=1790557864"></script>
+<script src="js/signin.js?v=1790557864"></script>
+<script src="js/shelves.js?v=1790557864"></script>
+<script src="js/local.js?v=1790557864"></script>
+<script src="js/hub.js?v=1790557864"></script>
 </body>
 </html>
