@@ -607,18 +607,47 @@
   }
   var yearsEl = document.getElementById('years');
   var YKEY = 'biology-hub.year';
+  /* Each year group's IGCSE exams, and so its syllabus (Daniel, 28 Sep 2026: "make very clear ... which syllabus is
+     for what year"). The school year turns over on 1 August, so 2026–27 ends with the June 2027 exams: Year 11 sits
+     them this year, Year 10 next, Year 9 in two. A student is kept as the year of their exams ('labs.examYear',
+     which the labs' IGCSE 0610 badge and Bio English share), so next August a Year 9 becomes a Year 10 by itself.
+     The versions come from js/data/syllabus-years.js (tools/stamp.mjs, from labs-shared). */
+  var EXAM_KEY = 'labs.examYear';
+  function schoolYearEnd() { var d = new Date(); return d.getMonth() >= 7 ? d.getFullYear() + 1 : d.getFullYear(); }
+  function examYearOf(g) { return schoolYearEnd() + (11 - g); }
+  function groupOf(e) { var g = 11 - (e - schoolYearEnd()); return g >= 9 && g <= 11 ? g : null; }
+  function sylFor(e) {
+    var L = window.SYLLABUS_YEARS || [], hit = null, newest = null;
+    L.forEach(function (v) {
+      var m = /^(\d{4})(?:-(\d{4}))?$/.exec(v.id); if (!m) return;
+      var a = +m[1], b = +(m[2] || m[1]);
+      if (e >= a && e <= b) hit = v;
+      if (!newest || b > newest.b) newest = { v: v, b: b };
+    });
+    return hit ? { v: hit, exact: true } : newest ? { v: newest.v, exact: false } : null;
+  }
+  function lab(id) { return String(id).replace('-', '\u2013'); }
+  function examLine(g) {
+    var e = examYearOf(g), f = sylFor(e), sy = (schoolYearEnd() - 1) + '\u2013' + String(schoolYearEnd()).slice(2);
+    var s = 'Year ' + g + ' in ' + sy + ': IGCSE exams in ' + e;
+    if (!f) return s + '.';
+    return s + ' \u2192 ' + (f.exact ? 'the syllabus for ' + lab(f.v.id) + (f.v.same ? ', word for word the same as ' + lab(f.v.same) : '') + '.'
+      : 'Cambridge has not published that syllabus yet; until it does, the newest is for ' + lab(f.v.id) + '.');
+  }
   if (yearsEl && YEARS.length) {
     var tabs = document.createElement('div'); tabs.className = 'ytabs';
     var lbl = document.createElement('span'); lbl.className = 'path__lbl'; lbl.textContent = 'Your year';
     tabs.appendChild(lbl);
     var pills = document.createElement('div'); pills.className = 'path'; pills.id = 'path';
     pills.setAttribute('aria-label', 'Your topics');
+    var ysyl = document.createElement('p'); ysyl.className = 'ysyl'; ysyl.setAttribute('aria-live', 'polite');
     var choose = function (id, save) {
       var y = YEARS.filter(function (v) { return v.id === id; })[0];
       Array.prototype.forEach.call(tabs.querySelectorAll('.ytab'), function (b) {
         b.setAttribute('aria-pressed', y && b.dataset.year === y.id ? 'true' : 'false');
       });
       pills.innerHTML = '';
+      ysyl.textContent = y ? examLine(+String(y.id).replace(/\D/g, '')) : 'Choose your year to see when your IGCSE exams are and which syllabus they follow.';
       if (!y) return;
       y.steps.forEach(function (s) {
         var b = document.createElement('button');
@@ -635,12 +664,14 @@
         });
         pills.appendChild(b);
       });
-      if (save) { try { localStorage.setItem(YKEY, y.id); } catch (e) {} }
+      if (save) { try { localStorage.setItem(YKEY, y.id); localStorage.setItem(EXAM_KEY, String(examYearOf(+String(y.id).replace(/\D/g, '')))); } catch (e) {} }
     };
     YEARS.forEach(function (y) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'ytab'; b.dataset.year = y.id; b.setAttribute('aria-pressed', 'false');
-      b.innerHTML = esc(y.label) + '<small>' + esc(y.sub) + '</small>';
+      var g = +String(y.id).replace(/\D/g, '');
+      /* the year of its exams on a line of its own: on one line with the topics the three tabs no longer fit a row */
+      b.innerHTML = esc(y.label) + '<small>' + esc(y.sub) + '</small>' + (g ? '<small>exams ' + examYearOf(g) + '</small>' : '');
       var doors = y.steps.map(function (s) { return s.shelf; });
       b.addEventListener('click', function () { choose(y.id, true); });
       b.addEventListener('pointerenter', function () { stopTour(); mark(doors); });
@@ -649,8 +680,10 @@
       b.addEventListener('blur',         function () { mark([]); restTour(); });
       tabs.appendChild(b);
     });
-    yearsEl.appendChild(tabs); yearsEl.appendChild(pills);
+    yearsEl.appendChild(tabs); yearsEl.appendChild(ysyl); yearsEl.appendChild(pills);
     var savedY = null; try { savedY = localStorage.getItem(YKEY); } catch (e) {}
+    /* the year of the exams wins: it moves the tab on by itself each August */
+    try { var ex = parseInt(localStorage.getItem(EXAM_KEY), 10), gx = ex ? groupOf(ex) : null; if (gx) savedY = 'y' + gx; } catch (e) {}
     choose(savedY, false);
     /* /#y11 opens the hub on that year's topics — a link to give a class */
     var hashY = (location.hash || '').replace(/^#/, '');
