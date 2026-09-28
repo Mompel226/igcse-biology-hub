@@ -228,40 +228,56 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 @media (max-width:560px){.sit--rfl .sit__txt{flex-basis:100%}}
 @media (prefers-reduced-motion:reduce){.sit,.sit.is-open .sit__dot{animation:none}}
 
-/* your year — three tabs, then that year's topics */
-.years{display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:600px}
-.ytabs{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px}
+/* your year — three lines, each one thing (Daniel, 28 Sep 2026: "a bit too much information and clunky").
+   1. the page's settings: the three years as ONE switch (the same pill as the account's Teacher/Test
+      switch), and the IB layer at the end of the row;
+   2. the two facts the year decides: when its IGCSE exams are, and their syllabus;
+   3. that year's topics, as one run of words rather than a wall of pills.
+   The block is left-aligned inside a column of its own width, so its lines share one left edge. */
+.years{display:flex;flex-direction:column;align-items:stretch;gap:9px;width:clamp(470px,48vw,620px)}
+.yhead{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}
+.yhead .path__lbl{margin-right:0}
+.yhead .ibtg{margin-left:auto}
+.ytabs{display:inline-flex;gap:2px;padding:2px;border:1px solid rgba(150,190,215,.34);border-radius:999px;background:rgba(7,15,21,.62)}
 .ytab{
-  font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#D7E3EA;
-  border:1px solid rgba(150,190,215,.28);border-radius:3px;padding:6px 11px;background:rgba(7,15,21,.55);
-  display:flex;flex-direction:column;align-items:flex-start;gap:2px;line-height:1.2;
-  transition:border-color .2s,background .2s,color .2s
+  font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#C5D4DD;
+  padding:6px 14px;border-radius:999px;line-height:1.2;white-space:nowrap;
+  transition:background .2s,color .2s,box-shadow .2s
 }
-.ytab small{font-size:9px;font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--chalk-mute)}
-.ytab:hover,.ytab:focus-visible{border-color:rgba(150,215,240,.7);color:#fff}
-.ytab[aria-pressed="true"]{background:rgba(120,200,230,.16);border-color:rgba(150,215,240,.75);color:#fff}
-.ytab[aria-pressed="true"] small{color:#BFE3F5}
-.path{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px}
+.ytab:hover,.ytab:focus-visible{color:#fff;background:rgba(120,200,230,.1)}
+.ytab[aria-pressed="true"]{color:#fff;background:rgba(120,200,230,.2);box-shadow:inset 0 0 0 1px rgba(150,215,240,.6)}
+.ysyl{margin:0;font-size:13px;line-height:1.45;color:var(--chalk)}
+.ysyl__k{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim)}
+.ysyl__sep{color:var(--chalk-mute);margin:0 5px}
+/* the topics: words, not boxes. Each is still a button (point at it and its door opens); the pad that
+   lights on hover is pulled back by the same 6px, so the first word starts on the block's left edge */
+.path{display:flex;flex-wrap:wrap;align-items:baseline;gap:1px 2px;margin-left:-6px}
 .path:empty{display:none}
-.ysyl{margin:0;font-size:12.5px;line-height:1.45;color:var(--chalk-dim);text-align:right;max-width:560px}
 .path__lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim);margin-right:6px}
 .path__arrow{font-family:var(--mono);font-size:11px;color:var(--chalk-mute)}
 .step{
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:#D7E3EA;
-  border:1px solid rgba(150,190,215,.28);border-radius:999px;padding:5px 10px 5px 8px;
-  background:rgba(7,15,21,.55);transition:border-color .2s,background .2s,color .2s;white-space:nowrap
+  font-size:12.5px;line-height:1.4;color:#C5D4DD;white-space:nowrap;
+  padding:2px 6px;border-radius:4px;transition:background .2s,color .2s
 }
-.step b{font-weight:500;color:var(--cyan);margin-right:6px}
-.step:hover,.step:focus-visible,.step.is-on{border-color:rgba(150,215,240,.7);background:rgba(120,200,230,.16);color:#fff}
+.step b{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--cyan);margin-right:1px}
+.step:hover,.step:focus-visible,.step.is-on{background:rgba(120,200,230,.16);color:#fff}
 
 .ibtg{
   font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#A9BECB;
-  border:1px solid rgba(150,190,215,.3);border-radius:2px;padding:5px 10px;background:rgba(7,15,21,.6);transition:.18s;
-  display:inline-flex;align-items:center;gap:8px
+  border:1px solid rgba(150,190,215,.3);border-radius:999px;padding:7px 13px;background:rgba(7,15,21,.6);transition:.18s;
+  display:inline-flex;align-items:center;gap:8px;line-height:1.2
 }
 .ibtg::before{content:"";width:8px;height:8px;border-radius:50%;background:rgba(169,190,203,.45);transition:.18s}
+.ibtg:hover,.ibtg:focus-visible{color:#fff;border-color:rgba(150,215,240,.7)}
 .ibtg[aria-pressed="true"]{background:rgba(179,136,255,.18);color:#E7DCFF;border-color:rgba(179,136,255,.6)}
 .ibtg[aria-pressed="true"]::before{background:var(--violet);box-shadow:0 0 10px var(--violet)}
+
+/* On a laptop the two halves of the revision masthead share one band: the sign-in stands level with the
+   top of the heading, and the year block ends level with the credit line (it used to hang above both). */
+@media (min-width:901px){
+  body[data-view="revision"] .masthead{align-items:stretch}
+  body[data-view="revision"] .masthead__hub{margin-top:auto}
+}
 
 /* ============ the doors ============ */
 .doors{display:flex;gap:8px;flex:1 1 0;min-height:380px}
@@ -609,9 +625,8 @@ noscript p{padding:20px}
   .acct__card{min-width:0;max-width:calc(100vw - 36px);width:100%}
   /* the row keeps the rectangle beside the card on a phone too; the card shrinks to share */
   .acct__row{width:100%;justify-content:flex-start}
-  .years{align-items:flex-start;max-width:none}
-  .ytabs,.path{justify-content:flex-start}
-  .ysyl{text-align:left}
+  .years{width:100%}
+  .yhead .ibtg{margin-left:0}
   .doors{flex-direction:column;flex:none;min-height:0;gap:10px}
   .door{flex:none;height:auto;min-height:0;transition:none}
   /* on a phone a door is as tall as its own content; sharing a screen-height shelf between
