@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-27T13:55:27.571Z",
+  "generated": "2026-09-28T06:34:32.789Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -192,7 +192,7 @@
           "id": "seed",
           "name": "A seed wakes",
           "questions": 8,
-          "sig": "8:w79ea9",
+          "sig": "8:1pg4w3m",
           "syl": "16.3.8|16.3.8|16.3.8||12.2.1|16.3.8,AO3.1||16.3.8,AO3.3"
         },
         {
@@ -255,14 +255,14 @@
           "id": "flower",
           "name": "The flower",
           "questions": 9,
-          "sig": "9:7katob",
+          "sig": "9:xy5hon",
           "syl": "16.3.1|16.3.2|16.3.5,16.3.6|16.3.7,16.3.4|16.3.3|16.3.4|16.3.10|16.3.11|"
         },
         {
           "id": "fruit",
           "name": "From flower to seed",
           "questions": 10,
-          "sig": "10:1rs8lsw",
+          "sig": "10:kk9kjd",
           "syl": "16.3.6|16.3.12|16.3.5,16.3.6||16.3.6|16.3.12|16.3.5,AO3.1,AO3.3|16.3.12||16.3.9,16.3.10,AO3.3"
         },
         {
