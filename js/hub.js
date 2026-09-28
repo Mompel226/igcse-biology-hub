@@ -934,6 +934,8 @@
       if (sitEl) { sitEl.hidden = true; sitEl.classList.remove('is-open'); }
       if (sitNote) sitNote.hidden = true;
       if (fbkEl) fbkEl.hidden = true;
+      if (rflEl) rflEl.hidden = true;
+      if (rflNote) rflNote.hidden = true;
     }
     /* ---------- "New feedback" (25 Sep 2026; a 5-day nudge since 26 Sep — the lasting way in is My assessments) ----------
        A second card under the test's, once the teacher has released this person's marked test in the
@@ -956,6 +958,48 @@
       fbkWhen.textContent = 'Shared ' + sitAt(f.at) + (f.more > 0 ? ' \u00b7 and ' + f.more + ' more' : '') + '. Read your marks and comments.';
       fbkGo.href = f.url;
       fbkEl.hidden = false;
+    }
+    /* ---------- "Your reflection" (§hub-card, reflection spec §40.80; 28 Sep 2026) ----------
+       A third card under the test's, for a reflection the teacher has switched on for the hub. The labs script works
+       out where this person is by the reflection form's own rules (_ownReflectCard_ in apps-script/Code.gs) and sends
+       it in the same answer as the test banner, so it costs nothing more. Start; then Continue once they have started,
+       or once the teacher lets them back in; a reminder with no link when they handed in only part of it or ran out
+       of time (the form would only say "submitted" or "locked out"); nothing once a complete reflection is in — Daniel:
+       it "should not disappear until they have made a complete submission". The link opens in THIS tab, like the
+       test's: the form counts every time a student leaves its tab. A teacher sees it in test mode only, seated on the
+       reflection's "Marks · Test" tab, and is told why when none shows. */
+    var rflEl   = document.getElementById('rfl'),
+        rflEye  = document.getElementById('rflEye'),
+        rflName = document.getElementById('rflName'),
+        rflWhen = document.getElementById('rflWhen'),
+        rflGo   = document.getElementById('rflGo'),
+        rflNote = document.getElementById('rflNote');
+    var RFL_SAY = {   /* [eyebrow, the line, the button — none for a reminder] */
+      start: ['Your reflection', 'Do it in class, when your teacher says. Look at your marks and plan your revision.', 'Start your reflection'],
+      going: ['Your reflection', 'You have started. Carry on where you stopped.', 'Continue your reflection'],
+      again: ['Your reflection', 'Your teacher has let you continue.', 'Continue your reflection'],
+      part:  ['Not finished', 'You handed in only part of it. Ask your teacher to let you finish it.', ''],
+      time:  ['Not finished', 'Your time ran out before you handed it in. Ask your teacher to let you finish it.', '']
+    };
+    function rflDraw(j) {
+      if (!rflEl || !j || !acting) return;
+      if (j.teacher && mode() !== 'test') return;
+      var r = j.reflect, say = r && RFL_SAY[r.state];
+      if (!say) {
+        if (j.teacher && rflNote && j.reflectWhy && j.reflectWhy.length) {
+          rflNote.textContent = 'Test mode · No reflection shows here: ' + j.reflectWhy[0] +
+            (j.reflectWhy.length > 1 ? ' · and ' + (j.reflectWhy.length - 1) + ' more' : '') + '.';
+          rflNote.hidden = false;
+        }
+        return;
+      }
+      rflEye.textContent  = (j.teacher ? 'Test mode · ' : '') + say[0];
+      rflName.textContent = r.name || 'Your reflection';
+      rflWhen.textContent = say[1];
+      rflEl.classList.toggle('is-waiting', !say[2]);
+      if (say[2] && r.url) { rflGo.firstChild.nodeValue = say[2] + ' '; rflGo.href = r.url; rflGo.hidden = false; }
+      else { rflGo.hidden = true; rflGo.removeAttribute('href'); }
+      rflEl.hidden = false;
     }
     /* "today at 09:00", "tomorrow at 09:00", "Tue 22 Sep at 09:00" — in the reader's own time */
     function sitAt(ms) {
@@ -1003,6 +1047,7 @@
     function sitDraw() {
       sitHide();
       fbkDraw(sitLast);
+      rflDraw(sitLast);
       var j = sitLast;
       if (!j || !acting || !sitEl) return;
       var t = !!j.teacher;

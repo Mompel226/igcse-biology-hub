@@ -58,7 +58,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '28 Sep 2026 — My assessments follows the newest reflection copy';
+var SCRIPT_EDITION = '28 Sep 2026 — Your reflection on the hub';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -2424,6 +2424,13 @@ function _ownTest_(d) {
        opening the test early. */
     if (best.url && best.state === 'open') out.url = best.url;
   }
+  /* §hub-card — "Your reflection" (reflection spec §40.80): this person's own card, when a reflection is switched on.
+     A teacher testing it is told why none shows, but only once something is switched on. */
+  try {
+    var rc = _ownReflectCard_(email, teacher, now);
+    if (rc.card) out.reflect = rc.card;
+    else if (teacher && rc.on && rc.why.length) out.reflectWhy = rc.why.slice(0, 3);
+  } catch (e) {}
   if (fb.length) {                                   /* the newest; "and N more" on the same page */
     fb.sort(function (a, b) { return b.at - a.at; });
     var f0 = fb[0];
@@ -2676,6 +2683,226 @@ function _ms_(s) {
   var n = Date.parse(String(s));
   return isNaN(n) ? 0 : n;
 }
+
+/* ============================================================
+   "YOUR REFLECTION" — a card for a reflection the teacher has switched on for the hub (§hub-card, the reflection
+   spec's §40.80, 28 Sep 2026).
+
+   Daniel: the reflection's link on the hub, "only for the students that are in the different tabs", and a card that
+   "should not disappear until they have made a complete submission". A reflection spreadsheet switches itself on in
+   ONE tab of the Student Progress Tracker, "📣 Reflections on the hub" (its 🧰 ToolBox ▸ 👥 Classes & rostering ▸
+   Show form link on the Biology Hub…): one row per spreadsheet — its id, the assessment's name, the form's address,
+   the time zone its script writes times in, and "Showing". For each one showing, this reads that spreadsheet (by
+   id, as it reads the tracker) and works out what its FORM would do for this one person, by the form's own rules,
+   copied:
+       on its list?     getStudentClassFromRoster: every Marks tab, the Email in column A from row 6; a class tab
+                        beats "Marks · Test" (the teachers' seat), whose work goes to "Reflections (Test)"
+       handed in?       checkReflectionsForSubmission_: the FIRST row of their email in Reflections (or Reflections
+                        (Test)) with a Timestamp and a Submission Count of 1 or more; "INCOMPLETE-SUBMISSION" in its
+                        Validation flags = only part of it
+       let back in?     isRetryAllowed_: "Retry Allowed" is YES, or RETRY_UNTIL a time still to come (ms, or
+                        dd/MM/yyyy HH:mm:ss in the reflection script's time zone); the next hand-in clears it
+       started? out     _isStudentLockedOut_: the first LiveProgress row — Screen #, "Started Screen 1 At" (for a row
+       of time?         stuck without it, "Started" once that is two lockouts old), and 80 minutes from then
+   giving ONE of
+       start   not started yet                                     "Start your reflection"; the form then waits
+                                                                   until the teacher lets them in
+       going   started, still inside the 80 minutes               "Continue your reflection"
+       again   handed in, and the teacher has let them back in     "Continue your reflection"
+       part    handed in only part of it, not let back in yet      a reminder to ask, no link: the form would only
+       time    started and ran out of time before handing in       say "submitted" or "locked out"
+   asked in the form's own order (checkExistingSession): out of time first, then a session under way, then what was
+   handed in. Nothing once a complete reflection is in, or for anyone not on its Marks tabs. Two showing for one
+   person: a card with a way in before a reminder, then the one switched on last.
+   IGCSE/AppScript/Test System harness/check_reflect_card.mjs runs these copies beside the reflection's own
+   functions on one stand-in spreadsheet: if the form's rules change, change them here. Returned: only this
+   person's own card — its state, the assessment's name and, for a card with a way in, the form's address (the one
+   posted to Classroom). Never a classmate, never the list. Read only.
+   ============================================================ */
+var REFL_CARD_TAB = '📣 Reflections on the hub';
+var REFL_LOCKOUT_MS = 80 * 60 * 1000;   /* copies FORM_LOCKOUT_MIN */
+var REFL_SNAP_SECONDS = 60;             /* one read of a reflection spreadsheet serves every student for this long */
+var REFL_RANK = { again: 0, going: 1, start: 2, part: 3, time: 3 };
+
+/* The reflections switched on for the hub, from the tracker: [{ id, name, url, tz, at }], kept a minute
+   (a teacher, `fresh`, reads it now). */
+function _reflCardList_(fresh) {
+  var key = 'rflon1', cache = null;
+  try { cache = CacheService.getScriptCache(); if (!fresh) { var hit = cache.get(key); if (hit) return JSON.parse(hit); } } catch (e) {}
+  var list = [], failed = false;
+  try {
+    var tid = _trackerId_();
+    if (tid) _eachRow_(SpreadsheetApp.openById(tid).getSheetByName(REFL_CARD_TAB),
+      ['Spreadsheet id', 'Showing', 'Assessment', 'Form address', 'Time zone', 'Switched on'], function (v) {
+        var on = v[1] === true || /^(true|yes)$/i.test(String(v[1]).trim());
+        var id = String(v[0]).trim(), url = String(v[3]).trim();
+        if (!on || !/^[A-Za-z0-9_-]{20,}$/.test(id)) return;
+        /* the way in comes out of a cell, so it is only ever accepted as a Google Apps Script web app */
+        if (!/^https:\/\/script\.google\.com\/(a\/macros\/[a-z0-9.-]+\/|macros\/)s\/[A-Za-z0-9_-]{20,}\/exec$/.test(url)) return;
+        list.push({ id: id, name: String(v[2] || '').replace(/\s+/g, ' ').trim().slice(0, 120), url: url,
+                    tz: String(v[4] || '').trim(), at: _ms_(v[5]) });
+      });
+  } catch (e) { failed = true; list = []; }
+  try { if (cache) cache.put(key, JSON.stringify(list), failed ? 10 : REFL_SNAP_SECONDS); } catch (e) {}
+  return list;
+}
+
+/* One reflection spreadsheet, read once and shared by every student for REFL_SNAP_SECONDS (a class opens the hub
+   within the same minute). Raw facts only — the card is worked out per request, against the clock. */
+function _reflSnapshot_(id, tz, fresh) {
+  var key = 'rsnap1:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes */
+  try { cache = CacheService.getScriptCache(); if (!fresh) hit = cache.get(key); } catch (e) {}
+  if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} }
+  var snap = null;
+  try { snap = _readReflSnapshot_(id, tz); } catch (e) { snap = null; }
+  if (cache) {   /* a failure is kept 10 s, so fixing it shows almost at once */
+    try { var s = snap ? JSON.stringify(snap) : '-'; if (s.length < 95000) cache.put(key, s, snap && !snap.fail ? REFL_SNAP_SECONDS : 10); } catch (e) {}
+  }
+  return snap;
+}
+
+function _readReflSnapshot_(id, tz) {
+  var wb;
+  try { wb = SpreadsheetApp.openById(id); }
+  catch (e) { return { fail: 'the hub cannot open a reflection spreadsheet that is switched on for it — share it with the account this script runs as (Viewer is enough)' }; }
+  var title = ''; try { title = String(wb.getName() || ''); } catch (e) {}
+  if (!tz) { try { tz = String(wb.getSpreadsheetTimeZone() || ''); } catch (e) {} }
+  /* who is on its list, and where: 0 = a class tab, 1 = only "Marks · Test" */
+  var seat = {};
+  wb.getSheets().forEach(function (sh) {
+    var info = _reflMarksTab_(sh.getName());
+    if (!info) return;
+    var last = sh.getLastRow();
+    if (last < 6) return;
+    sh.getRange(6, 1, last - 5, 1).getValues().forEach(function (r) {
+      var em = String(r[0] == null ? '' : r[0]).toLowerCase().trim();
+      if (!em || seat[em] === 0) return;           /* a class tab already has them */
+      seat[em] = info.isTest ? 1 : 0;
+    });
+  });
+  /* LiveProgress: [Screen #, Started Screen 1 At, Started] of the first row of each email */
+  var live = {};
+  _eachRow_(wb.getSheetByName('LiveProgress'), ['Email', 'Screen #', 'Started Screen 1 At', 'Started'], function (v) {
+    var em = String(v[0]).trim().toLowerCase();
+    if (!em || live.hasOwnProperty(em)) return;
+    live[em] = [parseInt(v[1], 10) || 0, Number(v[2]) || 0, _reflLooseMs_(v[3], tz)];
+  });
+  /* Reflections (0) and Reflections (Test) (1): [handed in, only part of it, let back in until (-1 = for good)] */
+  var subs = {};
+  ['Reflections', 'Reflections (Test)'].forEach(function (nm, k) {
+    _eachRow_(wb.getSheetByName(nm), ['Email', 'Timestamp', 'Submission Count', 'Retry Allowed', 'Validation flags'], function (v) {
+      var em = String(v[0]).trim().toLowerCase(), key = em + '|' + k;
+      if (!em || subs.hasOwnProperty(key)) return;  /* the first row of an email decides */
+      var ts = String(v[1] == null ? '' : v[1]).trim(), cnt = parseInt(v[2], 10) || 0;
+      subs[key] = [ts && cnt >= 1 ? 1 : 0, /INCOMPLETE-SUBMISSION/i.test(String(v[4] == null ? '' : v[4])) ? 1 : 0, _reflRetryUntil_(v[3], tz)];
+    });
+  });
+  return { title: title.slice(0, 120), seat: seat, live: live, subs: subs };
+}
+
+/* copies parseMarksTabName_: "Marks · 10A", "Marks·10A · B", "Marks · Test" (the teachers' seat) */
+function _reflMarksTab_(name) {
+  var sn = String(name);
+  if (sn.indexOf('Marks · ') !== 0 && sn.indexOf('Marks·') !== 0 && sn.indexOf('Marks ·') !== 0) return null;
+  var parts = sn.split('·').map(function (p) { return p.trim(); });
+  if (parts.length < 2 || !parts[1]) return null;
+  return { isTest: parts[1].toUpperCase() === 'TEST' };
+}
+
+/* copies isRetryAllowed_, as a time: -1 = YES (for good), a later ms = until then, 0 = not let back in */
+function _reflRetryUntil_(val, tz) {
+  if (!val) return 0;
+  var raw = String(val).trim(), upper = raw.toUpperCase();
+  if (upper === 'YES') return -1;
+  if (upper.indexOf('RETRY_UNTIL:') !== 0) return 0;
+  var p = raw.substring('RETRY_UNTIL:'.length).trim();
+  if (!p) return 0;
+  if (/^\d+$/.test(p)) { var n = parseInt(p, 10); return isNaN(n) ? 0 : n; }
+  var m = p.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+  return m ? _reflWallMs_(+m[3], +m[2], +m[1], +m[4], +m[5], +m[6], tz) : 0;
+}
+
+/* copies _parseSheetTimestampMs_ for LiveProgress "Started", read in the reflection script's time zone: a date or a
+   number as it is; text the way V8 reads it — "5/3/2026, 14:23:45" as 3 May, month first when it can be — else
+   day first, as the reflection's fallback does */
+function _reflLooseMs_(v, tz) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (v instanceof Date) { var t = v.getTime(); return (t && !isNaN(t)) ? t : 0; }
+  if (typeof v === 'number') return v > 0 ? v : 0;
+  var s = String(v).trim();
+  if (!s) return 0;
+  var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    var a = +m[1], b = +m[2];
+    if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return _reflWallMs_(+m[3], a, b, +m[4], +m[5], +(m[6] || 0), tz);
+    return _reflWallMs_(+m[3], b, a, +m[4], +m[5], +(m[6] || 0), tz);
+  }
+  var n = Date.parse(s);
+  return isNaN(n) ? 0 : n;
+}
+
+/* A wall-clock time in time zone `tz` as ms: what new Date(y, mo - 1, d, h, mi, s) gives in a script running there */
+function _reflWallMs_(y, mo, d, h, mi, s, tz) {
+  var guess = Date.UTC(y, mo - 1, d, h, mi, s);
+  if (isNaN(guess)) return 0;
+  if (!tz) return new Date(y, mo - 1, d, h, mi, s).getTime();
+  var off = function (t) {
+    var w = String(Utilities.formatDate(new Date(t), tz, "yyyy-MM-dd'T'HH:mm:ss"));
+    var x = w.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+    return x ? Date.UTC(+x[1], +x[2] - 1, +x[3], +x[4], +x[5], +x[6]) - t : 0;
+  };
+  return guess - off(guess - off(guess));
+}
+
+/* copies _computeEffectiveStamp1Ms_ */
+function _reflStamp1_(raw, screen, startedMs, now) {
+  if (raw > 0) return raw;
+  if (screen < 1 || screen >= 8) return 0;
+  return (startedMs > 0 && (now - startedMs) >= 2 * REFL_LOCKOUT_MS) ? startedMs : 0;
+}
+
+/* This person's card in one reflection: { state } — 'start' | 'going' | 'again' | 'part' | 'time' — or
+   { state: '', why: 'not-listed' | 'complete' } */
+function _reflCardFor_(snap, email, now) {
+  var seat = snap.seat[email];
+  if (seat !== 0 && seat !== 1) return { state: '', why: 'not-listed' };
+  var sub = snap.subs[email + '|' + seat], L = snap.live[email] || [0, 0, 0];
+  /* in the form's own order (checkExistingSession): out of time first — a pupil let back in who then runs out of
+     time again meets the lockout screen, so a "Continue" there would lead nowhere; then a session under way (screens
+     1–7, or a start stamp on a row cleared back to 0), which the form resumes whatever Reflections says; only then
+     what was handed in */
+  var s1 = _reflStamp1_(L[1], L[0], L[2], now);
+  if (s1 > 0 && L[0] < 8 && now >= s1 + REFL_LOCKOUT_MS) return { state: 'time' };
+  if ((L[0] >= 1 && L[0] < 8) || (L[0] === 0 && s1 > 0)) return { state: 'going' };
+  if (sub && sub[0]) {
+    if (sub[2] === -1 || sub[2] > now) return { state: 'again' };
+    return sub[1] ? { state: 'part' } : { state: '', why: 'complete' };
+  }
+  if (L[0] >= 8) return { state: '', why: 'complete' };        /* the form's own wall: handed in */
+  return { state: 'start' };
+}
+
+/* The card for this person across every reflection switched on: { card: {state, name, url?} | null, why: [], on } */
+function _ownReflectCard_(email, teacher, now) {
+  var list = _reflCardList_(teacher), best = null, why = [];
+  list.forEach(function (r) {
+    var snap = _reflSnapshot_(r.id, r.tz, teacher);    /* a teacher testing sees it as it is NOW */
+    if (!snap || snap.fail) { why.push((snap && snap.fail) || 'a reflection spreadsheet could not be read'); return; }
+    var c = _reflCardFor_(snap, email, now), nm = r.name || snap.title || 'Your reflection';
+    if (!c.state) {
+      why.push(c.why === 'complete' ? 'you have handed in a complete reflection for “' + nm + '”'
+                                    : '“' + nm + '” does not list ' + email + ' on any of its Marks tabs');
+      return;
+    }
+    var card = { state: c.state, name: nm, rank: REFL_RANK[c.state], at: r.at || 0 };
+    if (c.state === 'start' || c.state === 'going' || c.state === 'again') card.url = r.url;
+    if (!best || card.rank < best.rank || (card.rank === best.rank && card.at > best.at)) best = card;
+  });
+  var out = { card: null, why: why, on: list.length };
+  if (best) { out.card = { state: best.state, name: best.name }; if (best.url) out.card.url = best.url; }
+  return out;
+}
+/* §hub-card end */
 
 /* ============================================================
    The teacher page

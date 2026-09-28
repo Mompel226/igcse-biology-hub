@@ -218,6 +218,14 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .sit--fb .sit__dot{display:inline-block}
 .sit--fb .sit__go{color:#06201B}
 @media (max-width:560px){.sit--fb .sit__txt{flex-basis:100%}}
+/* "Your reflection" (§hub-card): the same card in the reflections' own orchid — the teacher page's Reflection cards are
+   #E879F9 — with no picture. A reminder, with nothing to press (.is-waiting), keeps the colour but loses the dot. */
+.sit--rfl{--sit:#E879F9;border-color:rgba(232,121,249,.34);background:linear-gradient(90deg,rgba(232,121,249,.10),rgba(7,15,21,.62) 55%)}
+.sit--rfl .sit__dot{display:inline-block}
+.sit--rfl.is-waiting .sit__dot{display:none}
+.sit--rfl .sit__go{color:#2A0930}
+.sit-note--rfl{border-left-color:rgba(232,121,249,.55)}
+@media (max-width:560px){.sit--rfl .sit__txt{flex-basis:100%}}
 @media (prefers-reduced-motion:reduce){.sit,.sit.is-open .sit__dot{animation:none}}
 
 /* your year — three tabs, then that year's topics */
