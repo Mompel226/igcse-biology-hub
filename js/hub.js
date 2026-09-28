@@ -599,9 +599,9 @@
   });
 
   /* ---------- 3. your year — which doors are yours ----------
-     Three tabs, the same split the student dashboard uses. Pick one and its
-     topics appear as pills; point at a pill and its door opens; point at the
-     tab itself and every door that year touches lights up. */
+     Three years, the same split the student dashboard uses. Pick one and its
+     topics appear beneath; point at a topic and its door opens; point at the
+     year itself and every door that year touches lights up. */
   function mark(ids) {
     Object.keys(doorEls).forEach(function (k) { doorEls[k].classList.toggle('is-year', ids.indexOf(k) >= 0); });
   }
@@ -627,32 +627,43 @@
     return hit ? { v: hit, exact: true } : newest ? { v: newest.v, exact: false } : null;
   }
   function lab(id) { return String(id).replace('-', '\u2013'); }
-  function examLine(g) {
-    var e = examYearOf(g), f = sylFor(e), sy = (schoolYearEnd() - 1) + '\u2013' + String(schoolYearEnd()).slice(2);
-    var s = 'Year ' + g + ' in ' + sy + ': IGCSE exams in ' + e;
-    if (!f) return s + '.';
-    return s + ' \u2192 ' + (f.exact ? 'the syllabus for ' + lab(f.v.id) + (f.v.same ? ', word for word the same as ' + lab(f.v.same) : '') + '.'
-      : 'Cambridge has not published that syllabus yet; until it does, the newest is for ' + lab(f.v.id) + '.');
+  /* the two facts that follow from a year, as [label, value]: when its IGCSE exams are, and their syllabus */
+  function examFacts(g) {
+    var e = examYearOf(g), f = sylFor(e), out = [['IGCSE exams', String(e)]];
+    if (f) out.push(['Syllabus', f.exact ? lab(f.v.id) + (f.v.same ? ' (the same as ' + lab(f.v.same) + ')' : '')
+                                         : 'not published yet (until then, ' + lab(f.v.id) + ')']);
+    return out;
   }
   if (yearsEl && YEARS.length) {
-    var tabs = document.createElement('div'); tabs.className = 'ytabs';
+    /* Three lines, each one thing (Daniel, 28 Sep 2026: the block "looks a bit too much information and clunky"):
+       the page's settings in one row (the three years as one switch, the IB layer at the end), then the two
+       facts the year decides, then that year's topics as one run of words. */
+    var head = document.createElement('div'); head.className = 'yhead';
     var lbl = document.createElement('span'); lbl.className = 'path__lbl'; lbl.textContent = 'Your year';
-    tabs.appendChild(lbl);
+    var tabs = document.createElement('div'); tabs.className = 'ytabs';
+    tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', 'Your year');
+    head.appendChild(lbl); head.appendChild(tabs);
+    var ibBtn = document.getElementById('ibToggle'); if (ibBtn) head.appendChild(ibBtn);
     var pills = document.createElement('div'); pills.className = 'path'; pills.id = 'path';
     pills.setAttribute('aria-label', 'Your topics');
     var ysyl = document.createElement('p'); ysyl.className = 'ysyl'; ysyl.setAttribute('aria-live', 'polite');
+    var paintFacts = function (g) {
+      if (!g) { ysyl.textContent = 'Choose your year to see when your IGCSE exams are and which syllabus they follow.'; return; }
+      ysyl.innerHTML = examFacts(g).map(function (p) { return '<span class="ysyl__k">' + esc(p[0]) + '</span> ' + esc(p[1]); })
+        .join(' <span class="ysyl__sep" aria-hidden="true">·</span> ');
+    };
     var choose = function (id, save) {
       var y = YEARS.filter(function (v) { return v.id === id; })[0];
       Array.prototype.forEach.call(tabs.querySelectorAll('.ytab'), function (b) {
         b.setAttribute('aria-pressed', y && b.dataset.year === y.id ? 'true' : 'false');
       });
       pills.innerHTML = '';
-      ysyl.textContent = y ? examLine(+String(y.id).replace(/\D/g, '')) : 'Choose your year to see when your IGCSE exams are and which syllabus they follow.';
+      paintFacts(y ? +String(y.id).replace(/\D/g, '') : 0);
       if (!y) return;
       y.steps.forEach(function (s) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'step'; b.dataset.shelf = s.shelf;
-        b.innerHTML = '<b>' + esc(s.no) + '</b>' + esc(s.t);
+        b.innerHTML = '<b>' + esc(s.no) + '</b> ' + esc(s.t);      /* the space: a screen reader says "9 Transport…", not "9Transport…" */
         var lit = function () { stopTour(); on(s.shelf); b.classList.add('is-on'); };
         var dim = function () { off(s.shelf); b.classList.remove('is-on'); restTour(); };
         b.addEventListener('pointerenter', lit); b.addEventListener('focus', lit);
@@ -670,8 +681,8 @@
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'ytab'; b.dataset.year = y.id; b.setAttribute('aria-pressed', 'false');
       var g = +String(y.id).replace(/\D/g, '');
-      /* the year of its exams on a line of its own: on one line with the topics the three tabs no longer fit a row */
-      b.innerHTML = esc(y.label) + '<small>' + esc(y.sub) + '</small>' + (g ? '<small>exams ' + examYearOf(g) + '</small>' : '');
+      b.textContent = y.label;
+      if (g) b.setAttribute('aria-label', y.label + ', IGCSE exams ' + examYearOf(g));
       var doors = y.steps.map(function (s) { return s.shelf; });
       b.addEventListener('click', function () { choose(y.id, true); });
       b.addEventListener('pointerenter', function () { stopTour(); mark(doors); });
@@ -680,7 +691,7 @@
       b.addEventListener('blur',         function () { mark([]); restTour(); });
       tabs.appendChild(b);
     });
-    yearsEl.appendChild(tabs); yearsEl.appendChild(ysyl); yearsEl.appendChild(pills);
+    yearsEl.appendChild(head); yearsEl.appendChild(ysyl); yearsEl.appendChild(pills);
     var savedY = null; try { savedY = localStorage.getItem(YKEY); } catch (e) {}
     /* the year of the exams wins: it moves the tab on by itself each August */
     try { var ex = parseInt(localStorage.getItem(EXAM_KEY), 10), gx = ex ? groupOf(ex) : null; if (gx) savedY = 'y' + gx; } catch (e) {}
