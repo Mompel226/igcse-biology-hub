@@ -243,6 +243,7 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .ytab[aria-pressed="true"] small{color:#BFE3F5}
 .path{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px}
 .path:empty{display:none}
+.ysyl{margin:0;font-size:12.5px;line-height:1.45;color:var(--chalk-dim);text-align:right;max-width:560px}
 .path__lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim);margin-right:6px}
 .path__arrow{font-family:var(--mono);font-size:11px;color:var(--chalk-mute)}
 .step{
@@ -610,6 +611,7 @@ noscript p{padding:20px}
   .acct__row{width:100%;justify-content:flex-start}
   .years{align-items:flex-start;max-width:none}
   .ytabs,.path{justify-content:flex-start}
+  .ysyl{text-align:left}
   .doors{flex-direction:column;flex:none;min-height:0;gap:10px}
   .door{flex:none;height:auto;min-height:0;transition:none}
   /* on a phone a door is as tall as its own content; sharing a screen-height shelf between
