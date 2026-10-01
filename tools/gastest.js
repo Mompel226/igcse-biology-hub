@@ -2421,7 +2421,8 @@ ok &= run('the Set homework page shows the date, and "Set again" refills the for
     const D = uiData('homework').data, hw = D.homework.filter(h => h.id === r.made[0])[0];
     const page = teacherPage();
     page.win.vHomework(D);
-    if (!page.html().includes('<div class="hw__due soon"><b>' + hw.dueText + '</b>due</div>')) throw new Error('the list does not show it due soon, on ' + hw.dueText);
+    /* no time was typed: the list says which time that is (Daniel, 2 Oct 2026: "it's not clear what time is set") */
+    if (!page.html().includes('<div class="hw__due soon"><b>' + hw.dueText + '</b>due at 23:59</div>')) throw new Error('the list does not show it due soon, on ' + hw.dueText + ', at 23:59');
     page.press('data-hw', hw.id);                   /* open it */
     page.press('data-again', hw.id);                /* threw: ReferenceError: names is not defined */
     const html = page.html();
@@ -2817,7 +2818,7 @@ ok &= run('a due time is kept: 08:00 on that day in the school’s zone; no time
     if (_hwTime_('8:05') !== '08:05:00' || _hwTime_('') !== '' || _hwTime_('noon') !== '') throw new Error('_hwTime_ misreads a time');
   } finally { [a, b, c].forEach(r => r && r.ok && homeworkDelete(r.made[0])); }
 });
-ok &= run('the Classroom post has ONE link per lab, at its first homework station, and its words name every station with no web address (Daniel, 1 Oct 2026)', () => {
+ok &= run('the Classroom post has ONE link per lab, at its first homework station; its words are a heading, numbered stations and numbered steps (sign in, answer EVERY question in the Practise tab), with no web address (Daniel, 1 and 2 Oct 2026)', () => {
   /* 29 Sep 2026 the post linked every station (the lab's front page did not show the homework); since the labs colour the
      homework stations, Daniel asked for one link per lab: "just one link … that's more than enough" */
   const POSTS = [];
@@ -2829,13 +2830,19 @@ ok &= run('the Classroom post has ONE link per lab, at its first homework statio
     const b = POSTS[0].body, d = b.description, urls = b.materials.map(m => m.link.url);
     if (urls.length !== 2 || urls[0] !== 'https://nlcsbiology.com/digestion-lab/#mouth' || !/\/bio-english-lab\/#\/hw\/HW-/.test(urls[1]))
       throw new Error('the links: ' + urls.join(' '));
-    if (!/Digestion\.\nComplete these stations:\n• Mouth and teeth\n• Stomach\n/.test(d)) throw new Error('the stations are not named: ' + d);
-    if (!/Bio English Lab\.\nComplete these sets:\n• T3 Keywords: meanings\n/.test(d)) throw new Error('the English set is not named: ' + d);
+    if (!/^YOUR HOMEWORK\n\nDigestion\nComplete these stations:\n1\. Mouth and teeth\n2\. Stomach\n\n/.test(d)) throw new Error('the stations are not named: ' + d);
+    if (!/\n\nBio English Lab\nComplete these sets:\n1\. T3 Keywords: meanings\n\nWHAT TO DO\n/.test(d)) throw new Error('the English set is not named: ' + d);
     if (/https?:|nlcsbiology\.com|#\/hw\//.test(d)) throw new Error('a web address in the words: ' + d);
-    if (!/There is one link for each lab\. Each link opens your homework in that lab\./.test(d)) throw new Error('the links are not explained: ' + d);
-    if (!/In the lab, your homework stations are coloured: red, not started; orange, part done; green, done\./.test(d) ||
-        !/Sign in with your school Google account, so that your work is recorded\.$/.test(d)) throw new Error('the closing lines: ' + d);
+    if (!/\n1\. Open the links below\. There is one link for each lab\. Each link opens your homework in that lab\.\n/.test(d)) throw new Error('the links are not explained: ' + d);
+    /* Daniel, 2 Oct 2026: the post did not say the practice questions must be answered, and the sign-in line did not stand out */
+    if (!/\n2\. SIGN IN with your school GOOGLE ACCOUNT\. If you do not sign in, your work is not recorded\.\n/.test(d)) throw new Error('the sign-in step: ' + d);
+    if (!/\n3\. In each homework station, open the Practise tab and answer EVERY question\. A station is done only when every question is answered\.\n/.test(d)) throw new Error('it does not say to answer every question: ' + d);
+    if (!/\n4\. In Bio English Lab, answer EVERY question in each set\.\n/.test(d)) throw new Error('the English sets: ' + d);
+    if (!/\n5\. Your homework stations are coloured: red = not started, orange = part done, green = done\. You have finished when every homework station is green\.$/.test(d)) throw new Error('the closing line: ' + d);
     if (/!/.test(d)) throw new Error('an exclamation mark in the post');
+    /* plain text only: Classroom shows a script's post as typed, so no marks that would show as marks, and no letters made
+       to look bold (a translator and a screen reader cannot read those) */
+    if (/[*_<>]|[\u{1D400}-\u{1D7FF}]/u.test(d)) throw new Error('formatting marks or look-alike bold letters in the post: ' + d);
     /* 08:30 on 3 March here is 23:30 UTC on 2 March */
     if (b.dueDate.day !== 2 || b.dueDate.month !== 3 || b.dueTime.hours !== 23 || b.dueTime.minutes !== 30) throw new Error('due ' + JSON.stringify([b.dueDate, b.dueTime]));
     if (b.topicId) throw new Error('a topic appeared that nobody asked for');
@@ -2844,21 +2851,28 @@ ok &= run('the Classroom post has ONE link per lab, at its first homework statio
     const one = homeworkCreate({ title:'Gut only', post:true, classes:[{ cls: enA.cls, due:'2027-03-03' }], tasks:[{ labId:'digestion-lab', stationIds:['stomach', 'mouth'] }] });
     const ob = POSTS[POSTS.length - 1].body;
     if (ob.materials.length !== 1 || ob.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#stomach') throw new Error('one lab: ' + JSON.stringify(ob.materials));
-    if (ob.description !== 'Your homework: Digestion.\nComplete these stations:\n• Stomach\n• Mouth and teeth\n\n' +
-        'The link opens the lab at your first homework station. In the lab, your homework stations are coloured: red, not started; orange, part done; green, done.\n\n' +
-        'Sign in with your school Google account, so that your work is recorded.') throw new Error('one lab, the words: ' + ob.description);
+    if (ob.description !== 'YOUR HOMEWORK: Digestion\n\nComplete these stations:\n1. Stomach\n2. Mouth and teeth\n\n' +
+        'WHAT TO DO\n1. Open the link below. It opens the lab at your first homework station.\n' +
+        '2. SIGN IN with your school GOOGLE ACCOUNT. If you do not sign in, your work is not recorded.\n' +
+        '3. In each homework station, open the Practise tab and answer EVERY question. A station is done only when every question is answered.\n' +
+        '4. Your homework stations are coloured: red = not started, orange = part done, green = done. You have finished when every homework station is green.') throw new Error('one lab, the words: ' + ob.description);
+    /* Bio English alone: its own link line and its own rule, and nothing about coloured stations */
+    const en = _hwPostText_('HW-ENG01', [{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }], _hwManifest_());
+    if (en !== 'YOUR HOMEWORK: Bio English Lab\n\nComplete these sets:\n1. T3 Keywords: meanings\n\n' +
+        'WHAT TO DO\n1. Open the link below. It opens your homework sets in Bio English Lab.\n2. SIGN IN with your school GOOGLE ACCOUNT. If you do not sign in, your work is not recorded.\n' +
+        '3. Answer EVERY question in each set. A set is done only when every question is answered.') throw new Error('Bio English alone, the words: ' + en);
     homeworkDelete(one.made[0]);
     /* 25 stations of one lab: still one link, and every station named */
     const many = []; for (let i = 0; i < 25; i++) many.push('s' + i);
     const p = _hwPost_('HW-MANY1', 'Many', 'x', [{ labId:'digestion-lab', stationIds: many }],
       { cls: enA.cls, setFor:[enA.email], due: new Date() }, _classroomIds_(), { man: _hwManifest_() });
     const last = POSTS[POSTS.length - 1].body;
-    if (!p.ok || last.materials.length !== 1 || last.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#s0' || !/\n• s24\n/.test(last.description))
+    if (!p.ok || last.materials.length !== 1 || last.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#s0' || !/\n25\. s24\n/.test(last.description))
       throw new Error('with 25 stations: ' + last.materials.length + ' links; ' + last.description.slice(-160));
     /* no manifest handed over (an older caller): the old words, one link, never a throw */
     const q = _hwPost_('HW-OLD01', 'Old', 'Digestion: Mouth', [{ labId:'digestion-lab', stationIds:['mouth'] }], { cls: enA.cls, setFor:[enA.email], due: new Date() }, _classroomIds_());
     const qb = POSTS[POSTS.length - 1].body;
-    if (!q.ok || !/^Digestion: Mouth\n\nSign in/.test(qb.description) || qb.materials.length !== 1) throw new Error('without a manifest: ' + qb.description);
+    if (!q.ok || !/^Digestion: Mouth\n\nSIGN IN with your school GOOGLE ACCOUNT\./.test(qb.description) || qb.materials.length !== 1) throw new Error('without a manifest: ' + qb.description);
   } finally { global.Classroom = undefined; }
 });
 ok &= run('a Classroom topic: an existing one is used, a new one is made, and if topics fail the post still goes, without it', () => {
@@ -2879,7 +2893,7 @@ ok &= run('a Classroom topic: an existing one is used, a new one is made, and if
     if (!list.ok || list.topics.join('|') !== 'Unit 7 — Nutrition|Other') throw new Error('the topics: ' + JSON.stringify(list));
     /* an existing topic, typed with other capitals and spaces */
     let r = homeworkCreate({ title:'Topic 1', post:true, topic:'  unit 7 — nutrition ', classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
-    if (!r.ok || POSTS[0].body.topicId !== 't-old' || MADE.length || r.topic !== 'unit 7 — nutrition' || r.topicMissed.length) throw new Error('existing: ' + JSON.stringify([r.topicMissed, POSTS[0].body.topicId, MADE]));
+    if (!r.ok || POSTS[0].body.topicId !== 't-old' || MADE.length || r.topic !== 'Unit 7 — Nutrition' || r.topicMissed.length) throw new Error('existing: ' + JSON.stringify([r.topicMissed, POSTS[0].body.topicId, MADE]));
     /* a new one is made in the course, once */
     r = homeworkCreate({ title:'Topic 2', post:true, topic:'Unit 9 — Transport', classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
     if (!r.ok || MADE.length !== 1 || POSTS[1].body.topicId !== 't-new1') throw new Error('new: ' + JSON.stringify([MADE, POSTS[1].body.topicId]));
@@ -2899,6 +2913,97 @@ ok &= run('a Classroom topic: an existing one is used, a new one is made, and if
     if (POSTS[4].body.topicId || MADE.length !== n0 || r.topicMissed.length) throw new Error('a topic was used with none asked for');
   } finally { global.Classroom = undefined; VISITOR = OWNER; made.forEach(r => r && r.ok && homeworkDelete(r.made[0])); }
   if (homeworkTopics({ classes:[{ cls: enA.cls }] }).ok !== false) throw new Error('with Classroom off the box claimed topics');
+});
+ok &= run('several classes, each with its own Classroom topic: a post goes under its own class’s topic, and a name is made new only where it is new (Daniel, 2 Oct 2026)', () => {
+  /* Daniel: "what happens if different classes have different section names?" One name for all made a NEW topic of
+     that name in every class that did not have it. Each class now brings its own. */
+  const POSTS = [], MADE = [], ca = _classroomIds_()[enA.email].courseId, cb = _classroomIds_()[enB.email].courseId;
+  if (!ca || !cb || ca === cb) throw new Error('this case needs two test classes from two Classroom courses, got ' + ca + ' and ' + cb);
+  const TOPICS = { [ca]: [{ topicId:'a1', name:'Topic 7 Nutrition' }], [cb]: [{ topicId:'b1', name:'Human nutrition' }] };
+  global.Classroom = { Courses: {
+    CourseWork: { create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; } },
+    Topics: { list: (courseId) => ({ topic: (TOPICS[courseId] || []).slice() }),
+              create: (t, courseId) => { const x = { topicId:'new' + (MADE.length + 1), name: t.name, courseId }; MADE.push(x); TOPICS[courseId].push(x); return x; } } } };
+  const task = [{ labId:'digestion-lab', stationIds:['mouth'] }], made = [], A = enA.cls, B = enB.cls;
+  const two = (ta, tb, extra) => { const r = homeworkCreate(Object.assign({ title:'Two classes', post:true, tasks:task,
+    classes:[Object.assign({ cls: A, due:'2027-03-04' }, ta === undefined ? {} : { topic: ta }), Object.assign({ cls: B, due:'2027-03-05' }, tb === undefined ? {} : { topic: tb })] }, extra || {})); made.push(r); return r; };
+  try {
+    /* each class's box lists that class's own topics; an empty row in between keeps its place */
+    const list = homeworkTopics({ classes:[{ cls: A }, { cls: '' }, { cls: B }] });
+    if (!list.ok || list.byClass.length !== 3 || list.byClass[0].topics.join('|') !== 'Topic 7 Nutrition' || list.byClass[1].known !== false ||
+        list.byClass[2].topics.join('|') !== 'Human nutrition' || list.byClass[2].cls !== String(B).toUpperCase() || list.topics.length !== 2)
+      throw new Error('the topics by class: ' + JSON.stringify(list));
+    /* each class under its own topic, spelt as its course spells it; nothing is made */
+    let r = two('Topic 7 Nutrition', ' human  nutrition ');
+    if (!r.ok || POSTS.length !== 2 || POSTS[0].courseId !== ca || POSTS[0].body.topicId !== 'a1' || POSTS[1].courseId !== cb || POSTS[1].body.topicId !== 'b1' || MADE.length)
+      throw new Error('each class its own topic: ' + JSON.stringify([r.why, POSTS.map(x => [x.courseId, x.body.topicId]), MADE]));
+    if (r.topic !== '' || r.topics.map(t => t.cls + '=' + t.name + (t.made ? '+' : '')).join('|') !== String(A).toUpperCase() + '=Topic 7 Nutrition|' + String(B).toUpperCase() + '=Human nutrition' || r.topicMissed.length)
+      throw new Error('the answer does not name each class’s topic: ' + JSON.stringify([r.topic, r.topics, r.topicMissed]));
+    /* one class with a topic, the other with none: nothing is made for the other, and nothing is reported as missed */
+    r = two('Topic 7 Nutrition', '');
+    if (POSTS[2].body.topicId !== 'a1' || POSTS[3].body.topicId || MADE.length || r.topicMissed.length) throw new Error('a class with no topic got one: ' + JSON.stringify([POSTS[3].body.topicId, MADE, r.topicMissed]));
+    /* the same name for both: made new only in the class that does not have it, and the answer says where */
+    r = two('Topic 7 Nutrition', 'Topic 7 Nutrition');
+    if (MADE.length !== 1 || MADE[0].courseId !== cb || POSTS[4].body.topicId !== 'a1' || POSTS[5].body.topicId !== 'new1') throw new Error('made where it was not new: ' + JSON.stringify(MADE));
+    if (r.topic !== 'Topic 7 Nutrition' || r.topics[0].made !== false || r.topics[1].made !== true) throw new Error('the answer does not say where it was made: ' + JSON.stringify(r.topics));
+    /* a page from before sends ONE topic for all: it still works as it did */
+    r = two(undefined, undefined, { topic:'Human nutrition' });
+    if (MADE.length !== 2 || MADE[1].courseId !== ca || POSTS[6].body.topicId !== 'new2' || POSTS[7].body.topicId !== 'b1') throw new Error('one topic for all (an older page): ' + JSON.stringify([MADE, POSTS[6].body.topicId, POSTS[7].body.topicId]));
+  } finally { global.Classroom = undefined; made.forEach(r => r && r.ok && r.made.forEach(id => homeworkDelete(id))); }
+});
+ok &= run('the Set homework form: "No time typed: due at 23:59"; with several classes, "↑ Same date and time" copies the class above and each class has its own topic box, which says when a name is new there (Daniel, 2 Oct 2026)', () => {
+  const D = JSON.parse(JSON.stringify(uiData('homework').data)); D.classroomOk = true;
+  const page = teacherPage(), CALLS = [], A = enA.cls, B = enB.cls;
+  let okFn = null;
+  const run = new Proxy({}, { get: (t, k) => k === 'withSuccessHandler' ? (f => { okFn = f; return run; }) : k === 'withFailureHandler' ? (() => run)
+    : (...args) => { CALLS.push([k, args]); if (okFn) okFn(k === 'homeworkTopics'
+        ? { ok:true, topics:['Topic 7 Nutrition', 'Human nutrition'], courses:2, byClass:[{ cls: String(A).toUpperCase(), known:true, topics:['Topic 7 Nutrition'] }, { cls: String(B).toUpperCase(), known:true, topics:['Human nutrition'] }] }
+        : { ok:true, made:['HW-T1', 'HW-T2'], posted:[A, B], notPosted:[], topic:'Topic 7 Nutrition', topics:[{ cls:A, name:'Topic 7 Nutrition', made:false }, { cls:B, name:'Topic 7 Nutrition', made:true }], topicMissed:[], data:D }); } });
+  page.win.google = { script: { run } };
+  page.win.vHomework(D);
+  let html = page.html();
+  /* one class: the time's meaning is said in its row; no copy button; the one topic box below */
+  if (!html.includes('<div class="tmsg" id="hth0" style="flex:1 1 100%">No time typed: due at 23:59, the end of that day.</div>')) throw new Error('an empty time does not say what it means');
+  if (/data-same=/.test(html) || /data-topic=/.test(html) || !/id="htopic"/.test(html)) throw new Error('one class: a copy button or a per-class topic box, or no topic box at all');
+  page.fire('change', 'data-cls', '0', A);
+  page.fire('input', 'data-due', '0', '2027-03-08'); page.fire('input', 'data-time', '0', '08:15');
+  page.fire('input', 'id', 'htopic', 'Topic 7 Nutrition');
+  page.press('id', 'addrow');
+  html = page.html();
+  if (!html.includes('id="hth0" style="flex:1 1 100%" hidden>') || !html.includes('<div class="tmsg" id="hth1" style="flex:1 1 100%">No time typed')) throw new Error('the note stays beside a typed time, or is missing beside an empty one');
+  if (/data-same="0"/.test(html) || !/<button class="act" data-same="1" data-tip="Copy the date and the time from the class above">↑ Same date and time<\/button>/.test(html)) throw new Error('no "↑ Same date and time" on the second class (or one on the first)');
+  /* each class has its own topic box, in its row; the first keeps what was typed in the one box; the one box is gone */
+  if (!/id="htp0" type="text" data-topic="0" list="htopics0"[^>]*value="Topic 7 Nutrition"/.test(html) || !/id="htp1" type="text" data-topic="1" list="htopics1"[^>]*value=""/.test(html) || /id="htopic"/.test(html))
+    throw new Error('several classes: not one topic box per class');
+  if (!html.includes('Each class has its own topic box')) throw new Error('the page does not say each class has its own topics');
+  page.fire('change', 'data-cls', '1', B);
+  page.press('data-same', '1');
+  html = page.html();
+  if (!/id="hd1" type="date" data-due="1" value="2027-03-08"/.test(html) || !/id="htm1" type="time" data-time="1" value="08:15"/.test(html)) throw new Error('"↑ Same date and time" did not copy the date and the time');
+  if (!html.includes('id="hth1" style="flex:1 1 100%" hidden>')) throw new Error('the copied time still reads "No time typed"');
+  if (CALLS.length) throw new Error('the page asked the server before a topic box was used: ' + CALLS.map(c => c[0]));
+  page.fire('focus', 'data-topic', '1');
+  if (CALLS.length !== 1 || CALLS[0][0] !== 'homeworkTopics' || CALLS[0][1][0].classes.map(c => c.cls).join('|') !== A + '|' + B) throw new Error('the topics were not asked for, for both classes: ' + JSON.stringify(CALLS));
+  page.fire('input', 'data-topic', '1', 'Topic 7 Nutrition');
+  page.fire('input', 'id', 'ht', 'Two classes');
+  page.press('data-all', 'digestion-lab');                        /* tick the lab's stations: the form is drawn again */
+  html = page.html();
+  if (!/<datalist id="htopics0"><option value="Topic 7 Nutrition"><\/option><\/datalist>/.test(html) || !/<datalist id="htopics1"><option value="Human nutrition"><\/option><\/datalist>/.test(html))
+    throw new Error('each box does not list its own class’s topics');
+  if (!html.includes('<div class="tmsg" id="htn1" style="flex:1 1 100%">“Topic 7 Nutrition” is not a topic in ' + B + '’s Classroom yet: it is made there when you set the homework.</div>'))
+    throw new Error('a name that is new in the second class is not said to be new there');
+  if (!html.includes('<div class="tmsg" id="htn0" style="flex:1 1 100%" hidden></div>')) throw new Error('the first class is warned about a topic it has');
+  page.press('id', 'hset');
+  const set = CALLS.filter(c => c[0] === 'homeworkCreate')[0];
+  if (!set) throw new Error('Set homework sent nothing');
+  const a = set[1][0];
+  if (a.topic !== '' || JSON.stringify(a.classes) !== JSON.stringify([{ cls:A, due:'2027-03-08', time:'08:15', emails:[], topic:'Topic 7 Nutrition' }, { cls:B, due:'2027-03-08', time:'08:15', emails:[], topic:'Topic 7 Nutrition' }]))
+    throw new Error('sent ' + JSON.stringify(a));
+  /* back to one class: the one box again, holding that class's topic */
+  const p2 = teacherPage(); p2.win.google = { script: { run } }; p2.win.vHomework(D);
+  p2.press('id', 'addrow'); p2.fire('input', 'data-topic', '0', 'Kept'); p2.press('data-rmrow', '1');
+  if (!/id="htopic"[^>]*value="Kept"/.test(p2.html()) || /data-topic=/.test(p2.html())) throw new Error('back to one class: the topic box did not keep the class’s topic');
+  /* a homework with a time shows it; one without says "due at 23:59" (the list) */
 });
 ok &= run('the Set homework page sends the time and the topic, and asks for the course’s topics only when the box is used', () => {
   const cls = enA.cls;
@@ -3077,7 +3182,9 @@ console.log('— reminders to the pupils who have not finished —');
         if ((p.name && a.body.text.indexOf(p.name) >= 0) || a.body.text.toLowerCase().indexOf(p.email) >= 0) throw new Error('the reminder names a pupil');
       });
       const words = 'Reminder: your homework "Week of the gut" is due on Monday 15 March at 15:00. You have not finished it yet.\n' +
-                    'Open it here: https://nlcsbiology.com/digestion-lab/#mouth\nSign in with your school Google account, so that your work is recorded.';
+                    'Open it here: https://nlcsbiology.com/digestion-lab/#mouth\n' +
+                    'Answer EVERY question in the Practise tab of each homework station. You have finished when every homework station is green.\n' +
+                    'SIGN IN with your school GOOGLE ACCOUNT. If you do not sign in, your work is not recorded.';
       if (a.body.text !== words) throw new Error('the words: ' + a.body.text);
       if (a.body.materials.length !== 1 || a.body.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#mouth') throw new Error('materials: ' + JSON.stringify(a.body.materials));
       const row = rowOf(id);
@@ -3181,6 +3288,25 @@ console.log('— reminders to the pupils who have not finished —');
       const fine = withClassroom(() => alertOf(() => checkSetup()));
       if (!/✅  the reminders can be posted: Google Classroom announcements are allowed/.test(fine)) throw new Error('with the permission: ' + fine.slice(-500));
     } finally { SCOPES_GRANTED = true; homeworkDelete(id); }
+  });
+  ok &= run('🩺 says which time zone due times and the reminders’ night hours are read in, and ❌ when the spreadsheet’s and the script’s differ or the spreadsheet has none', () => {
+    /* 2 Oct 2026: the paste list asked Daniel to check the spreadsheet's time zone by hand; he looked at the script's */
+    const handle = _ss_(), real = handle.getSpreadsheetTimeZone, keep = Session.getScriptTimeZone;
+    try {
+      Session.getScriptTimeZone = () => 'Asia/Seoul';
+      const fine = withClassroom(() => alertOf(() => checkSetup()));
+      if (!fine.includes('✅  times are read in Asia/Seoul (the spreadsheet’s time zone)')) throw new Error('both Asia/Seoul: ' + fine.slice(-400));
+      Session.getScriptTimeZone = () => 'America/New_York';
+      const two = withClassroom(() => alertOf(() => checkSetup()));
+      if (!two.includes('❌  the spreadsheet’s time zone is Asia/Seoul, but the script’s is America/New_York.') || !/File ▸ Settings ▸ Time zone/.test(two) || /✅  times are read in/.test(two))
+        throw new Error('two different zones: ' + two.slice(-600));
+      handle.getSpreadsheetTimeZone = () => '';
+      const none = alertOf(() => checkSetup());
+      if (!none.includes('❌  the spreadsheet has no time zone, so due times and the reminders’ night hours (22:00–07:00) are read in the script’s, America/New_York.')) throw new Error('no zone in the spreadsheet: ' + none.slice(-600));
+      /* a script zone that cannot be read: the spreadsheet's is said, with no ❌ */
+      handle.getSpreadsheetTimeZone = real; Session.getScriptTimeZone = () => { throw new Error('no'); };
+      if (_tzLine_() !== '✅  times are read in Asia/Seoul (the spreadsheet’s time zone)') throw new Error('script zone unreadable: ' + _tzLine_());
+    } finally { handle.getSpreadsheetTimeZone = real; if (keep) Session.getScriptTimeZone = keep; else delete Session.getScriptTimeZone; _TZ_MEMO = null; }
   });
   ok &= run('a failed announcement breaks nothing: written down (no long ids), logged, shown on the list, never tried again', () => {
     const s = KST(2027, 4, 19, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);

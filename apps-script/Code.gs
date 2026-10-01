@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '2 Oct 2026 — the teacher page reads its other views at the same time, not one by one, and asks the spreadsheet for its time zone once per call; before that, 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
+var SCRIPT_EDITION = '2 Oct 2026 (08:00) — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -1041,10 +1041,27 @@ function checkSetup() {
                           'Select all (or the line about announcements in Google Classroom) and press Allow. Then run this check again: this line turns ✅.'
       : '•  whether Google Classroom announcements are allowed (for the reminders) could not be checked here.');
   }
+  if (openOk) lines.push(_tzLine_());
   lines.push('');
   lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy, on each of your deployments.');
 
   SpreadsheetApp.getUi().alert('Biology Labs — set-up', lines.join('\n\n'), SpreadsheetApp.getUi().ButtonSet.OK);
+}
+/* 🩺 The zone every due time and the reminders' night hours are read in (_tz_: the spreadsheet's own, File ▸ Settings,
+   before the script's). 2 Oct 2026: the paste list asked the teacher to look this up by hand, and the script's zone
+   (appsscript.json) is the one that is easy to look at by mistake. The line says which zone is used; it is ❌ when the
+   spreadsheet has none, or when the two differ (then one of them is not the school's). Read straight from the
+   spreadsheet, not from _tz_'s kept answer. Never throws. */
+function _tzLine_() {
+  var sheet = '', script = '';
+  try { sheet = String(_ss_().getSpreadsheetTimeZone() || ''); } catch (e) {}
+  try { script = String(Session.getScriptTimeZone() || ''); } catch (e) {}
+  if (!sheet) return '❌  the spreadsheet has no time zone, so due times and the reminders’ night hours (22:00–07:00) are read in ' +
+    (script ? 'the script’s, ' + script : 'UTC') + '. In the spreadsheet, open File ▸ Settings ▸ Time zone and choose your school’s. Then run this check again.';
+  if (script && script !== sheet) return '❌  the spreadsheet’s time zone is ' + sheet + ', but the script’s is ' + script +
+    '. Due times and the reminders’ night hours (22:00–07:00) are read in the spreadsheet’s. If ' + sheet + ' is not your school’s time zone, ' +
+    'change it in the spreadsheet: File ▸ Settings ▸ Time zone. If it is, change the script’s instead: Apps Script editor ▸ Project Settings ▸ Time zone. Then run this check again.';
+  return '✅  times are read in ' + sheet + ' (the spreadsheet’s time zone)';
 }
 
 /* ============================================================
@@ -4461,10 +4478,15 @@ function homeworkCreate(d) {
     var due = null;
     if (w.due) due = _dueFrom_(w.due, time);    /* a plain yyyy-mm-dd, read in the school's zone */
     if (!due) return { ok:false, why: cls ? ('Give ' + cls + ' a due date.') : 'Give it a due date.' };
-    jobs.push({ cls: cls, emails: emails, due: due });
+    jobs.push({ cls: cls, emails: emails, due: due, topic: w.topic });
   }
-  /* the Classroom topic the post goes under: an existing one of the course's, or a new name, made there (_hwTopicId_) */
-  var topic = String(d.topic == null ? '' : d.topic).replace(/\s+/g, ' ').trim().slice(0, 100);
+  /* the Classroom topic the post goes under: an existing one of the course's, or a new name, made there (_hwTopicId_).
+     Since 2 Oct 2026 each class may bring its own (Daniel: "what happens if different classes have different section
+     names?" — one name for all made a NEW topic of that name in every class that did not have it). A class that brings
+     none (a page from before, or one class) takes the homework's one topic. */
+  var cleanTopic = function (x) { return String(x == null ? '' : x).replace(/\s+/g, ' ').trim().slice(0, 100); };
+  var topic = cleanTopic(d.topic);
+  jobs.forEach(function (job) { job.topic = job.topic === undefined || job.topic === null ? topic : cleanTopic(job.topic); });
   /* reminders to the pupils who have not finished (1 Oct 2026): only with the Classroom post, and only when the page asks
      (a page from before sends nothing, so nothing is posted to pupils that the teacher did not choose) */
   var remind = d.remind === true && !!d.post;
@@ -4519,16 +4541,17 @@ function homeworkCreate(d) {
   /* Posted only once the rows are safely written and the lock is let go: Classroom can take
      seconds per class, and pupils saving their work must not queue behind it. The ids come back
      under the lock again, each row found by its homework id — never by a row number read earlier. */
-  var posted = [], notPosted = [], topicMissed = [], remindOk = false;
+  var posted = [], notPosted = [], topicMissed = [], topicsUsed = [], remindOk = false;
   if (d.post && made.length) {
     var cids = _classroomIds_(), res = [];
     jobs.forEach(function (job, j) {
-      var p = _hwPost_(made[j], title, what, tasks, job, cids, { man: man, topic: topic });
+      var p = _hwPost_(made[j], title, what, tasks, job, cids, { man: man, topic: job.topic });
       res.push(p);
       if (p.ok) posted.push(job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's')));
       else notPosted.push((job.cls || 'the students') + ': ' + p.why);
       /* posted, but not under the topic: said, never a failure (29 Sep 2026) */
-      if (p.ok && topic && !p.topic) topicMissed.push((job.cls || 'the students') + ': ' + (p.topicWhy || 'the topic could not be used'));
+      if (p.ok && job.topic && !p.topic) topicMissed.push((job.cls || 'the students') + ': ' + (p.topicWhy || 'the topic could not be used'));
+      if (p.ok && p.topic) topicsUsed.push({ cls: job.cls || '', name: p.topic, made: !!p.topicMade });
     });
     if (res.some(function (p) { return p.ok; })) {
       var lk = null;
@@ -4547,7 +4570,10 @@ function homeworkCreate(d) {
       } finally { if (lk) { try { lk.releaseLock(); } catch (e) {} } }
     }
   }
-  return { ok:true, made: made, group: group, posted: posted, notPosted: notPosted, topic: topic, topicMissed: topicMissed,
+  /* `topic`: the one name when every post went under the same one (as before); `topics`: each class's own, and whether
+     it was made new there, for the page to say */
+  var oneTopic = topicsUsed.length && topicsUsed.every(function (t) { return t.name.toLowerCase() === topicsUsed[0].name.toLowerCase(); }) ? topicsUsed[0].name : '';
+  return { ok:true, made: made, group: group, posted: posted, notPosted: notPosted, topic: oneTopic || (topicsUsed.length ? '' : topic), topics: topicsUsed, topicMissed: topicMissed,
            remind: !remind ? 'off' : (posted.length ? 'on' : 'no post'),
            remindWhy: remind && posted.length && !remindOk ? 'The reminders could not be started: 🧪 Biology Labs ▸ 🩺 Check the set-up says why.' : '',
            data:_homeworkData_() };
@@ -5299,7 +5325,7 @@ function _hwPost_(id, title, what, tasks, job, ids, opt) {
   var links = _hwLinks_(id, tasks, opt.man).map(function (x) { return { link: { url: x.url } }; });
   var due = job.due, body = {
     title: title,
-    description: opt.man ? _hwPostText_(id, tasks, opt.man) : what + '\n\nSign in with your school Google account, so that your work is recorded.',
+    description: opt.man ? _hwPostText_(id, tasks, opt.man) : what + '\n\n' + HW_SIGNIN_LINE,
     materials: links.slice(0, 20), workType: 'ASSIGNMENT', state: 'PUBLISHED',
     dueDate: { year: due.getUTCFullYear(), month: due.getUTCMonth() + 1, day: due.getUTCDate() },
     dueTime: { hours: due.getUTCHours(), minutes: due.getUTCMinutes() }
@@ -5311,14 +5337,14 @@ function _hwPost_(id, title, what, tasks, job, ids, opt) {
     body.individualStudentsOptions = { studentIds: uids };
   }
   /* the topic, when one was asked for: found or made in this course. If that fails the post still goes, without it. */
-  var topicName = '', topicWhy = '';
+  var topicName = '', topicWhy = '', topicMade = false;
   if (opt.topic) {
     var tp = _hwTopicId_(courseId, opt.topic);
-    if (tp.id) { body.topicId = tp.id; topicName = tp.name; } else topicWhy = tp.why;
+    if (tp.id) { body.topicId = tp.id; topicName = tp.name; topicMade = !!tp.made; } else topicWhy = tp.why;
   }
   try {
     var w = Classroom.Courses.CourseWork.create(body, courseId);
-    return { ok:true, courseId: courseId, courseWorkId: String(w.id), topic: topicName, topicWhy: topicWhy };
+    return { ok:true, courseId: courseId, courseWorkId: String(w.id), topic: topicName, topicMade: topicMade, topicWhy: topicWhy };
   } catch (e) {
     return { ok:false, why: String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) };
   }
@@ -5339,26 +5365,45 @@ function _hwLinks_(id, tasks, man) {
   });
   return out;
 }
+/* The line every homework message carries (Daniel, 2 Oct 2026: "bold sign in, Google account"). A post the script sends
+   is plain text: Classroom's bold exists only for words typed in Classroom itself. So the things a pupil must not miss
+   are in CAPITALS, and the post is a short heading, a numbered list of stations and numbered steps. No letters made to
+   look bold (they break translation and screen readers, and many of these pupils read with a translator). */
+var HW_SIGNIN_LINE = 'SIGN IN with your school GOOGLE ACCOUNT. If you do not sign in, your work is not recorded.';
+/* What "finished" means, in the pupils' own words for the lab (its tabs are Learn and Practise; _hwScoreOne_ counts a
+   station done when every question in it is answered). Daniel, 2 Oct 2026: the post did not say the practice questions
+   must be completed, "otherwise they're not going to complete them". { labs, eng }: how many of each the homework has. */
+function _hwKinds_(tasks) {
+  var k = { labs: 0, eng: 0 };
+  (tasks || []).forEach(function (t) { if (t.labId === ENGLISH_ID) k.eng++; else k.labs++; });
+  return k;
+}
 /* The words of the Classroom post (Daniel, 1 Oct 2026): every station by the name the pupils see in the lab, and NO web
-   address in the text (the post's one link per lab carries it); then where the link opens, how the lab shows the
-   homework, and the sign-in line. A lab or station the manifest cannot name is written by its id, as "What" is. */
+   address in the text (the post's one link per lab carries it). Since 2 Oct 2026 (Daniel: "make that message a bit more
+   easy to read"): the heading, each lab's stations as a numbered list, then WHAT TO DO as numbered steps: open the link,
+   sign in, answer every question in the Practise tab, and what the colours mean. A lab or station the manifest cannot
+   name is written by its id, as "What" is. */
 function _hwPostText_(id, tasks, man) {
-  var blocks = [], labs = 0, links = _hwLinks_(id, tasks, man).length;
+  var blocks = [], k = _hwKinds_(tasks), links = _hwLinks_(id, tasks, man).length;
   tasks.forEach(function (t) {
     var lm = man && man.labs ? man.labs[t.labId] : null, nameOf = {}, en = t.labId === ENGLISH_ID;
     if (lm) (lm.stations || []).forEach(function (x) { nameOf[x.id] = x.name; });
-    if (!en) labs++;
-    var name = en ? 'Bio English Lab' : (lm && lm.name ? String(lm.name) : t.labId);
-    blocks.push([name + '.', 'Complete these ' + (en ? 'sets' : 'stations') + ':']
-      .concat((t.stationIds || []).map(function (s) { return '• ' + (nameOf[s] || s); })).join('\n'));
+    blocks.push({ name: en ? 'Bio English Lab' : (lm && lm.name ? String(lm.name) : t.labId),
+                  list: ['Complete these ' + (en ? 'sets' : 'stations') + ':']
+                    .concat((t.stationIds || []).map(function (sid, i) { return (i + 1) + '. ' + (nameOf[sid] || sid); })).join('\n') });
   });
-  var out = blocks.length === 1 ? ['Your homework: ' + blocks[0]] : ['Your homework:'].concat(blocks);
-  var how = !links ? '' : links > 1 ? 'There is one link for each lab. Each link opens your homework in that lab.'
-          : labs ? 'The link opens the lab at your first homework station.'
-          : 'The link opens your homework sets in Bio English Lab.';
-  if (labs) how += (how ? ' ' : '') + 'In the ' + (labs > 1 ? 'labs' : 'lab') + ', your homework stations are coloured: red, not started; orange, part done; green, done.';
-  if (how) out.push(how);
-  out.push('Sign in with your school Google account, so that your work is recorded.');
+  var out = blocks.length === 1 ? ['YOUR HOMEWORK: ' + blocks[0].name, blocks[0].list]
+          : ['YOUR HOMEWORK'].concat(blocks.map(function (b) { return b.name + '\n' + b.list; }));
+  var steps = [];
+  if (links) steps.push(links > 1 ? 'Open the links below. There is one link for each lab. Each link opens your homework in that lab.'
+                      : k.labs ? 'Open the link below. It opens the lab at your first homework station.'
+                      : 'Open the link below. It opens your homework sets in Bio English Lab.');
+  steps.push(HW_SIGNIN_LINE);
+  if (k.labs) steps.push('In each homework station, open the Practise tab and answer EVERY question. A station is done only when every question is answered.');
+  if (k.eng) steps.push(k.labs ? 'In Bio English Lab, answer EVERY question in each set.'
+                               : 'Answer EVERY question in each set. A set is done only when every question is answered.');
+  if (k.labs) steps.push('Your homework stations are coloured: red = not started, orange = part done, green = done. You have finished when every homework station is green.');
+  out.push('WHAT TO DO\n' + steps.map(function (x, i) { return (i + 1) + '. ' + x; }).join('\n'));
   return out.join('\n\n');
 }
 /* The Classroom topic called `name` in this course, made there if it is not there yet: { id, name } or { why }. Never
@@ -5384,37 +5429,46 @@ function _hwTopicId_(courseId, name) {
 }
 /* The Set homework page's topic box: the topics already in the Classroom course(s) the homework would go to, newest
    first, so a teacher can pick one or type a new one (homeworkCreate makes it). Gated like every teacher call; read only;
-   asked only when the box is used. { ok, topics, courses } or { ok:false, why }. */
+   asked only when the box is used. { ok, topics, courses, byClass } or { ok:false, why }. `byClass` (2 Oct 2026) has one
+   entry per class asked, in the same order: that class's own course's topics, so the page can give each class its own
+   box and say when a typed name is new there. */
 function homeworkTopics(d) {
   if (!_hwCaller_()) return { ok:false, why:'Not allowed.' };
   try { _needClassroom_(); } catch (e) { return { ok:false, why:'Google Classroom is not switched on in the script.' }; }
   d = d || {};
-  var roster = _studentDirectory_().students, ids = _classroomIds_(), courses = {}, names = [], seen = {};
+  var roster = _studentDirectory_().students, ids = _classroomIds_(), courses = {}, names = [], seen = {}, byClass = [];
   (d.classes && d.classes.length ? d.classes : []).forEach(function (w) {
     w = w || {};
     var cls = String(w.cls || '').trim().toUpperCase(), emails = (w.emails || []).map(_cleanEmail_).filter(function (e) { return !!e; });
+    var mine = { cls: cls, course: '', topics: [] };
+    byClass.push(mine);
     if (!cls && !emails.length) return;
     var count = {};
     _hwPupils_({ targets: { cls: cls, emails: emails }, setFor: null }, roster).forEach(function (p) {
       var c = ids[p.email] && ids[p.email].courseId; if (c) count[c] = (count[c] || 0) + 1;
     });
     var top = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; })[0];   /* the course _hwPost_ picks */
-    if (top) courses[top] = 1;
+    if (top) { courses[top] = 1; mine.course = top; }
   });
   var cids = Object.keys(courses);
   if (!cids.length) return { ok:false, why:'Nobody in it was imported from Google Classroom, so there is no course to ask.' };
   try {
+    var ofCourse = {};
     cids.forEach(function (cid) {
       var r = Classroom.Courses.Topics.list(cid, { pageSize: 100 }) || {};
+      ofCourse[cid] = [];
       (r.topic || []).forEach(function (t) {
         var n = String(t.name || '').replace(/\s+/g, ' ').trim(), k = n.toLowerCase();
+        if (n) ofCourse[cid].push(n);
         if (n && !seen[k]) { seen[k] = 1; names.push(n); }
       });
     });
+    byClass.forEach(function (c) { c.topics = c.course ? (ofCourse[c.course] || []) : []; });
   } catch (e) {
     return { ok:false, why:'The Classroom topics could not be read (' + String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 120) + '). You can still type a topic: if it cannot be used, the homework is posted without it.' };
   }
-  return { ok:true, topics: names, courses: cids.length };
+  return { ok:true, topics: names, courses: cids.length,
+           byClass: byClass.map(function (c) { return { cls: c.cls, known: !!c.course, topics: c.topics }; }) };
 }
 /* The homework tab's columns by heading, as _homeworkRows_ finds them. */
 function _hwHeadCols_(sh) {
@@ -5562,7 +5616,11 @@ function _hwRemindBody_(hw, studentIds, man) {
   var text = ['Reminder: your homework "' + hw.title + '" is due on ' + _hwDueWords_(_hwMs_(hw.due)) + '. You have not finished it yet.'];
   if (links.length === 1) text.push('Open it here: ' + links[0].url);
   else if (links.length) text = text.concat(['Open it here:'], links.map(function (x) { return '• ' + x.name + ': ' + x.url; }));
-  text.push('Sign in with your school Google account, so that your work is recorded.');
+  /* what "finished" means, as the post says it (2 Oct 2026) */
+  var k = _hwKinds_(hw.tasks);
+  if (k.labs) text.push('Answer EVERY question in the Practise tab of each homework station. You have finished when every homework station is green.');
+  if (k.eng) text.push((k.labs ? 'In Bio English Lab, answer' : 'Answer') + ' EVERY question in each homework set.');
+  text.push(HW_SIGNIN_LINE);
   return {
     text: text.join('\n'),
     materials: links.slice(0, 20).map(function (x) { return { link: { url: x.url } }; }),
