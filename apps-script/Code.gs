@@ -29,7 +29,7 @@
  *      and paste in the file of the same name from apps-script/. Save.
  *        ClassroomImport   the window that imports your classes (🎓 in the menu)
  *        Teacher           the teacher page: Spreadsheets, Lab progress, Bio English,
- *                          Students, Set homework
+ *                          Students, Set homework, ⏱️ Homework habits
  *        TeacherPage       the window behind 🔗 Add or remove links on the teacher page
  *                          and 👥 Teacher page: teachers and addresses
  *   4. Services (+) ▸ Classroom ▸ Add.        (needed for the roster import)
@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '1 Oct 2026 (night) — Set homework: the list sorts by due date or class, one link per lab in the Classroom post, two reminders to the pupils who have not finished; the teacher page tabs fit a phone screen';
+var SCRIPT_EDITION = '1 Oct 2026 (late night) — Set homework: the list sorts by due date or class, one link per lab in the Classroom post, two reminders to the pupils who have not finished; the teacher page tabs fit a phone screen; Homework habits (when each pupil finishes); the Analysis link for its viewers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -142,7 +142,7 @@ var HUB_URL           = '';
    -------------------------------------------------------------------------- */
 
 /* ---- The teacher page (optional) ------------------------------------------
-   A page for teachers only (Teacher.html), with five tabs:
+   A page for teachers only (Teacher.html), with six tabs:
      Spreadsheets   the address of every assessment spreadsheet — reflections, tests, surveys, the
                     tracker — from the "🔗 Teacher links" tab of this spreadsheet
      Lab progress   every pupil's marks in every built lab
@@ -150,6 +150,8 @@ var HUB_URL           = '';
      Students       the roster (names, classes, school addresses), with a way into each pupil's
                     own reflection tracker
      Set homework   the homework set, and how far each pupil has got with it
+     ⏱️ Homework habits  when each pupil finished each homework (against the time it was set and its due time), a
+                    habit line for each, and neutral "worth a look" flags; read only (end of this file)
    So it shows the roster and the marks, not only links. On the Biology Hub a teacher in teacher
    mode reaches it through the door where a student finds "My assessments".
 
@@ -237,7 +239,11 @@ var LAB_COLS = [
   { h:'First round', w:200, hide:true,
     note:'Every question as they answered it in their FIRST round: 0 not touched, t tried, 1 right after more tries, f right first time. Right first time and My assessments read this. Written by the lab. Do not edit.' },
   { h:'Best ever', w:200, hide:true,
-    note:'The best each question has ever been, in any round, in the same letters. Written by the lab. Do not edit.' }
+    note:'The best each question has ever been, in any round, in the same letters. Written by the lab. Do not edit.' },
+  /* ⏱️ Homework habits (1 Oct 2026): written by each save, inside the same write. Appended, so every column above keeps
+     its position (the reflection's My assessments reads columns 15, 17, 19 and 20 by position). */
+  { h:'Station times', w:200, hide:true,
+    note:'When each station was first tried, and when it was first finished, as their saves arrived. Kept from the first save after this column appeared; a first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' }
 ];
 var LAB_EMAIL = 15;
 var LAB_GNAME = 16;        /* the column that ties a row to a person */
@@ -245,6 +251,7 @@ var LAB_SNAP  = 17;        /* appended, so the two above keep their positions */
 var LAB_AGAIN = 18;        /* goes, Sept 2026 — appended again, for the same reason */
 var LAB_FIRST = 19;
 var LAB_BEST  = 20;
+var LAB_TIMES = 21;        /* ⏱️ Homework habits (1 Oct 2026): appended again, for the same reason */
 
 /* ---- Signing in ----------------------------------------------------------
    The labs are public web pages: anyone in the world can open one and work through it.
@@ -374,6 +381,10 @@ function doPost(e) {
            go, so practising again can never make it look better.
        Forty students save within the same minute, so the read-then-write takes turns — and it
        is one read and one write of the row, so a turn is short. */
+    /* ⏱️ Homework habits: the station list the homework scorer reads, fetched BEFORE the queue (cached; no sheet is
+       read), so a save's turn is no longer than it was. Never a reason for a save to fail. */
+    var stMan = null;
+    try { var stM0 = _manifest_(); stMan = { labs: (stM0 && stM0.labs) || {} }; } catch (eM) { stMan = null; }
     var lock = LockService.getScriptLock();
     try { lock.waitLock(8000); } catch (e) { return _text_('busy — it will try again'); }
     try {
@@ -383,6 +394,7 @@ function doPost(e) {
       var row = sh.getRange(r, 1, 1, LAB_COLS.length).getValues()[0];
       var was = Number(row[2]);
       var seen = Number(row[9]) || 0;
+      var perBefore = row[13];                              /* Per station before this save (⏱️ Homework habits) */
 
       row[0] = student.name; row[1] = student.cls;
       row[LAB_GNAME - 1] = _plain_(who.name);
@@ -417,6 +429,12 @@ function doPost(e) {
       /* an old page's own count is its first go only while no station here has gone past go 1 */
       var sentFirst = oldPage && /@\d/.test(hereBefore) ? 0 : Number(d.firstTime) || 0;
       row[7] = Math.max(Number(row[7]) || 0, _snapCount_(got.first, 'f'), sentFirst) || '';
+      /* ⏱️ Homework habits: when each station was first tried and first finished, by the homework scorer's own rule,
+         written in this same write. Never a reason for a save to fail: if anything goes wrong the cell stays as it was. */
+      try {
+        row[LAB_TIMES - 1] = _stNext_(row[LAB_TIMES - 1], _stLabState_(lab.id, who.email, perBefore, stMan),
+                                      _stLabState_(lab.id, who.email, row[13], stMan), +row[10]);
+      } catch (eT) {}
       sh.getRange(r, 1, 1, LAB_COLS.length).setValues([row]);
       if (r > lastBefore) _dressRows_(sh, LAB_COLS, r, 1);   /* a row made just now is dressed once, as Tidy up would */
       SpreadsheetApp.flush();                                 /* committed before the next save reads this row */
@@ -683,12 +701,12 @@ function _reject_(lab, row) {
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
   var page = e && e.parameter ? String(e.parameter.page || '') : '';
-  /* All five teacher views are ONE page now: the tabs swap in the browser instead of loading a
+  /* All the teacher views (six since ⏱️ Homework habits, 1 Oct 2026) are ONE page now: the tabs swap in the browser instead of loading a
      new document, so nothing flickers, the header never moves, and no link ever tries to open
      script.google.com inside the sandbox frame. The old ?page= values still work — each simply
      decides which tab opens first, so every bookmark and the hub's own door keep working. */
   if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework' ||
-      page === 'english') {
+      page === 'english' || page === 'habits') {
     return _teacherAppPage_(page);
   }
   /* The health check names the script's edition, so a paste can be confirmed from outside
@@ -4580,9 +4598,37 @@ function homeworkRemind(d) {
   return { ok:true, data:_homeworkData_() };
 }
 
+/* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
+   👥 list only. The list is kept by the tracker's own script (AppScript Tracker Analysis, _publishViewers_) as
+   SPREADSHEET-level developer metadata on the Student Progress Tracker: key ANALYSIS_VIEWERS, visibility DOCUMENT, value
+   {"v":1,"emails":[…]} (lowercase, cleaned, sorted). This reads it (about a second: the tracker opened, the key found),
+   keeps the list in the script cache for five minutes, and gives the page the website's address or '' — never the
+   list. A changed key or shape hides the link; the website keeps its own gate whatever this says. */
+var ANALYSIS_KEY = 'ANALYSIS_VIEWERS', ANALYSIS_CACHE = 'analysis-viewers', ANALYSIS_CACHE_S = 300;
+function _analysisLink_(email) {
+  try {
+    var hub = _hubUrl_(), id = _trackerId_(), me = _cleanEmail_(email);
+    if (!hub || !id || !me) return '';
+    var cache = null, list = null;
+    try { cache = CacheService.getScriptCache(); } catch (e) { cache = null; }
+    var hit = cache ? cache.get(ANALYSIS_CACHE) : null;
+    if (hit) { try { list = JSON.parse(hit); } catch (e) { list = null; } }
+    if (!Array.isArray(list)) {
+      list = [];
+      var found = SpreadsheetApp.openById(id).createDeveloperMetadataFinder().withKey(ANALYSIS_KEY).find();
+      if (found && found.length) {
+        var o = JSON.parse(found[0].getValue());
+        if (o && Array.isArray(o.emails)) list = o.emails.map(_cleanEmail_).filter(function (e) { return !!e; });
+      }
+      if (cache) { try { cache.put(ANALYSIS_CACHE, JSON.stringify(list), ANALYSIS_CACHE_S); } catch (e) {} }
+    }
+    return list.indexOf(me) >= 0 ? hub + '/analysis.html' : '';
+  } catch (e) { return ''; }
+}
+
 /* The one page, and the one endpoint behind it (uiData). The page is served with no data in it: the tab it opens
-   on is fetched at once, then the other four in the background, one at a time, each kept in the browser's
-   sessionStorage for ten minutes (Teacher.html). Lab progress alone is half a megabyte, so baking all five into
+   on is fetched at once, then the others in the background, one at a time, each kept in the browser's
+   sessionStorage for ten minutes (Teacher.html). Lab progress alone is half a megabyte, so baking them all into
    the page would make it slow to open. Nobody signed in, or somebody not on the list, gets only the page's name
    and who it is for (_teacherHtml_) — not a single link, name or mark. */
 function _teacherAppPage_(startTab) {
@@ -4591,9 +4637,10 @@ function _teacherAppPage_(startTab) {
   var dom = _schoolDomain_();
   if (!email) return _htmlOut_(_teacherHtml_({ state:'nobody', dom:dom }), 'Teachers');
   if (!_isTeacher_(email)) return _htmlOut_(_teacherHtml_({ state:'refused', email:email, dom:dom }), 'Teachers');
-  var boot = {                           /* all the page reads from it (Students and Set homework get theirs from uiData) */
+  var boot = {                           /* all the page reads from it (the views get theirs from uiData) */
     email: email,
-    tab: startTab || 'teachers'
+    tab: startTab || 'teachers',
+    analysis: _analysisLink_(email)      /* 📊 Analysis ↗: the website's address for a viewer on its 👥 list, else '' */
   };
   var json = JSON.stringify(boot).replace(/</g, '\\u003c');
   var html = HtmlService.createHtmlOutputFromFile('Teacher').getContent()
@@ -4611,6 +4658,7 @@ function uiData(which) {
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
     if (which === 'homework')  return { ok:true, data:_homeworkData_() };
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
+    if (which === 'habits')    return { ok:true, data:_habitsData_() };      /* ⏱️ Homework habits (1 Oct 2026): read only */
   } catch (err) { return { ok:false, why:String(err) }; }
   return { ok:false, why:'Unknown view.' };
 }
@@ -4893,9 +4941,12 @@ var ENGLISH_COLS = [
   { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
   { h:'Carried between devices', w:200, hide:true, note:'Which questions they have answered, set by set — the round they are on, their first round and their best — so signing in on another computer brings their work back. Written by the site. Do not edit.' },
   /* goes (September 2026): appended, so every column above keeps its position */
-  { h:'Practised again', w:300, note:'Sets they started again (Start again), so they could try the questions again. Nothing is lost: the counts, Sets finished, Per set and homework keep their best, and right first time stays from their FIRST round.\n\n"T3 Keywords: meanings (round 2, 5/18)" — that set is on its 2nd round, with 5 of its 18 questions done so far in this round.' }
+  { h:'Practised again', w:300, note:'Sets they started again (Start again), so they could try the questions again. Nothing is lost: the counts, Sets finished, Per set and homework keep their best, and right first time stays from their FIRST round.\n\n"T3 Keywords: meanings (round 2, 5/18)" — that set is on its 2nd round, with 5 of its 18 questions done so far in this round.' },
+  /* ⏱️ Homework habits (1 Oct 2026): appended, so every column above keeps its position */
+  { h:'Set times', w:200, hide:true,
+    note:'When each set was first tried, and when it was first finished, as the site’s saves arrived. Kept from the first save after this column appeared; a first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' }
 ];
-var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11, EN_AGAIN = 12;
+var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11, EN_AGAIN = 12, EN_TIMES = 13;
 /* One letter per question, as the site writes it. Two computers disagreeing keep the better. */
 var EN_RANK = { '0':0, 't':1, 's':2, '1':3, 'f':4 };   /* untouched < tried < answer shown < right < right first time */
 var EN_SID  = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -5075,12 +5126,18 @@ function _englishSave_(d) {
   if (ids.length > 300) return _json_({ ok:false, why:'too much at once' });
   var en = _englishManifest_(), bySet = {};
   if (en) (en.sets || []).forEach(function (s) { bySet[s.id] = s; });
+  /* ⏱️ Homework habits: the sets as the homework scorer counts them (_hwManifest_'s shape; no sheet is read) */
+  var stMan = { labs: {} };
+  try { if (en) stMan.labs[ENGLISH_ID] = _englishAsLab_(en); } catch (eM) {}
 
   var lock = LockService.getScriptLock();
   try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
   try {
     var sh = _englishSheet_(), r = _enRowFor_(sh, who.email, student);
-    var kept = _enParse_(sh.getRange(r, EN_SNAP).getValue()), saved = 0;
+    /* the sets, Practised again and Set times in ONE read (the sets alone were one read before) */
+    var cells = sh.getRange(r, EN_SNAP, 1, EN_TIMES - EN_SNAP + 1).getValues()[0];
+    var kept = _enParse_(cells[0]), saved = 0, stBefore = null;
+    try { stBefore = _stEnState_(kept, ids, who.email, stMan); } catch (eT) { stBefore = null; }
     ids.forEach(function (sid) {
       var s = sets[sid] || {}, m = bySet[sid] || null;
       if (en && !m) return;                                /* a set the site does not have */
@@ -5098,10 +5155,12 @@ function _englishSave_(d) {
       kept[sid] = _enMerge_(kept[sid], inc);
       saved++;
     });
-    var sum = _enSummary_(kept, en);
-    sh.getRange(r, 1, 1, EN_AGAIN).setValues([[
+    var sum = _enSummary_(kept, en), at = new Date(), times = cells[EN_TIMES - EN_SNAP];
+    /* ⏱️ Homework habits: when each set was first tried and first finished, in this same write; never a reason to fail */
+    try { if (stBefore) times = _stNext_(times, stBefore, _stEnState_(kept, ids, who.email, stMan), +at); } catch (eT) {}
+    sh.getRange(r, 1, 1, EN_TIMES).setValues([[
       student.name, student.cls, sum.vocab, sum.vocabFirst, sum.writing, sum.writingFirst, sum.finished,
-      new Date(), _plain_(sum.perSet), who.email, _enPack_(kept), _plain_(sum.again)
+      at, _plain_(sum.perSet), who.email, _enPack_(kept), _plain_(sum.again), times
     ]]);
     _dressRows_(sh, ENGLISH_COLS, r, 1);      /* so a row written between tidy-ups still reads properly */
     SpreadsheetApp.flush();
@@ -5648,4 +5707,434 @@ function _hwRemindSays_(hw, now) {
   out.says = '1: ' + word(1) + ' · 2: ' + word(2);
   out.plan = long(1) + ' ' + long(2);
   return out;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   ⏱️ HOMEWORK HABITS (Daniel, 1 Oct 2026, night)
+   "to see when the students are completing the homework and their completion pattern … track the pattern of individual
+   students over time as I set the homework … identify those students that are really not completing the homework, that
+   are waiting until the last minute … if a student that usually gets very bad scores does it very fast, that raises the
+   alarm." He chose part 1 only ("let's just not build the measure of the time"): NO lab is changed, and nothing here
+   measures time spent working.
+   1. RECORDING. Every save notes, per station (each lab tab's hidden "Station times") and per set (✍️ Bio English's
+      hidden "Set times"), the FIRST time it was tried and the FIRST time it was done, inside the row's own read and
+      write: not one sheet call more. "Done" is the homework scorer's own verdict (_hwScoreOne_, one station at a time,
+      as the pupils' coloured stations are scored), never worked out again here. A time is when the save arrived: a lab
+      saves about two minutes after the last answer, and at once when a lab or a set is finished or left. A first time
+      is never changed. Something already tried or done before the times began to be kept is written as a NEGATIVE
+      time: "at or before this save", the moment itself not known.
+   2. THE VIEW, ⏱️ Homework habits on the teacher page (uiData('habits'), behind the same gate as every view): per
+      homework and per pupil it was set for, when they finished against the time it was set and its due time; ⏰ when
+      they finished after a reminder had gone to them; checks and right first time on its stations; the span "from
+      first try to finish" (between two saves, never time spent working); a habit line from their last 6 homework; and
+      neutral "worth a look" flags. Read only: it writes nothing, anywhere, and the page is sent no address.
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+var ST_CAP = 45000;                            /* a cell holds 50,000 characters: a times cell never grows past this */
+
+/* A Station times (or Set times) cell as { id: [tried, done] }, never a throw: a cell somebody typed in reads as empty.
+   Each time is ms: positive = when the save that showed it arrived; negative = it was already so at that save, so it
+   happened at or before then; 0 = not yet. */
+function _stParse_(v) {
+  var o = null, out = {};
+  try { o = JSON.parse(String(v == null ? '' : v) || '{}'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  Object.keys(o).forEach(function (k) {
+    var x = o[k];
+    if (!EN_SID.test(k) || !Array.isArray(x)) return;
+    var t = Number(x[0]) || 0, d = Number(x[1]) || 0;
+    if (isFinite(t) && isFinite(d)) out[k] = [t, d];
+  });
+  return out;
+}
+/* The next times cell: from the cell as it was, each station's state BEFORE this save and AFTER it ({ id: { tried,
+   done } }) and the moment the save arrived. A first time is never changed. Something tried (or done) before this save
+   that the cell does not have yet is given the save's time as a NEGATIVE number ("at or before this save"). The cell
+   comes back as it was when nothing changed, or when the new one would not fit (ST_CAP): then nothing new is kept, and
+   nothing kept is lost. */
+function _stNext_(cell, before, after, now) {
+  var map = _stParse_(cell), changed = false;
+  Object.keys(after || {}).forEach(function (id) {
+    if (!EN_SID.test(id)) return;
+    var a = after[id] || {}, b = (before && before[id]) || {}, had = map[id] || [0, 0], x = [had[0], had[1]];
+    if (!x[0] && (a.tried || a.done)) x[0] = (b.tried || b.done) ? -now : now;
+    if (!x[1] && a.done) x[1] = b.done ? -now : now;
+    if (x[0] !== had[0] || x[1] !== had[1]) { map[id] = x; changed = true; }
+  });
+  var was = String(cell == null ? '' : cell);
+  if (!changed) return was;
+  var txt = JSON.stringify(map);
+  return txt.length <= ST_CAP ? txt : was;
+}
+/* Each station of a lab row as the homework scorer sees it. tried: a check or a right answer there (its Per station
+   entry, "mouth 5/8 in 6"); done: _hwScoreOne_ says "done" for that station alone, on the station list `man` — the rule
+   of the teacher's list, the reminders and the labs' colours. */
+function _stLabState_(labId, email, perStation, man) {
+  var byId = {}, idx = {}, out = {};
+  _parseStations_(perStation).forEach(function (s) { byId[s.name] = s; });   /* as _hwLabIndex_ reads the tab */
+  idx[labId] = {}; idx[labId][email] = { byId: byId, at: 0 };
+  Object.keys(byId).forEach(function (sid) {
+    var s = byId[sid];
+    out[sid] = { tried: s.done > 0 || s.checks > 0,
+                 done: _hwScoreOne_({ tasks: [{ labId: labId, stationIds: [sid] }] }, email, idx, man).state === 'done' };
+  });
+  return out;
+}
+/* The same for the Bio English sets a save names (`sids`), from the row's sets ({ id: { d, s, s1, b, … } }). tried: any
+   answer at all (as _hasPractice_ asks); done: _hwScoreOne_ on the sets as the homework scorer counts them. */
+function _stEnState_(kept, sids, email, man) {
+  var byId = {}, idx = {}, out = {};
+  Object.keys(kept).forEach(function (sid) { byId[sid] = { done: kept[sid].d }; });   /* as _englishIndex_ reads the tab */
+  idx[ENGLISH_ID] = {}; idx[ENGLISH_ID][email] = { byId: byId, at: 0 };
+  (sids || []).forEach(function (sid) {
+    var x = kept[sid]; if (!x) return;
+    out[sid] = { tried: x.d > 0 || /[1tfs]/.test(x.s + x.s1 + x.b),
+                 done: _hwScoreOne_({ tasks: [{ labId: ENGLISH_ID, stationIds: [sid] }] }, email, idx, man).state === 'done' };
+  });
+  return out;
+}
+
+/* ── the view ─────────────────────────────────────────────────────────────────────────────────────────────────────
+   The bands, measured from the time a homework was set (S) to its due time (D), in ONE place. 85% is the moment
+   reminder 2 is due (HW_REMIND_AT), so "in good time" means "before the last reminder"; reminder 1 (70%) falls inside
+   "in good time". */
+var HW_BAND_EARLY = 0.50;                      /* early: finished by half the time */
+var HW_BAND_GOOD = HW_REMIND_AT[1];            /* in good time: by 85% */
+var HW_CAT_WORDS = { before: 'done before it was set', early: 'early', good: 'in good time', last: 'last minute', late: 'late',
+                     none: 'not done', open: 'still open', unknown: 'finished, but when is not known' };
+var HW_CAT_PLACE = { before: 0, early: 1, good: 2, last: 3, late: 4, none: 5 };   /* the key's order */
+var HW_HABIT_LAST = 6, HW_HABIT_MIN = 3;       /* the habit line reads the last 6 homework with a band; fewer than 3: none */
+var HW_HABIT_DAYS = 365;                        /* the view: homework due in the last year, and all that is still to come */
+/* "Worth a look": under a third of the median span (at least 3 pupils with times), 90% or more right first time, and a
+   low baseline: tests under 50%, or (no paper) the median right first time of at least 2 earlier finished homework. */
+var HW_FLAG_SPAN = 3, HW_FLAG_PEERS = 3, HW_FLAG_RFT = 90, HW_FLAG_BASE = 50, HW_FLAG_EARLIER = 2;   /* span × 3 < median */
+
+/* When a share of the time from S to D has passed, in ms: the same sum as the reminder times. */
+function _hwBandAt_(S, D, share) { return S + Math.round(share * (D - S)); }
+/* One pupil's homework in one word, at `now` (ms). S set, D due (S < D); `fin` is { at } finished then, { hi } finished
+   at or before hi (the times began after it), or null (not finished). Finished before S: "done before it was set"; up
+   to and including 50% of the time: "early"; up to and including 85%: "in good time"; up to and including D: "last
+   minute"; after D: "late". Not finished: "not done" once D has passed, else "still open". */
+function _hwHabitCat_(S, D, fin, now) {
+  if (!fin) return now > D ? 'none' : 'open';
+  if (fin.at === undefined) return fin.hi < S ? 'before' : 'unknown';
+  var F = fin.at;
+  if (F < S) return 'before';
+  if (F > D) return 'late';
+  if (F <= _hwBandAt_(S, D, HW_BAND_EARLY)) return 'early';
+  if (F <= _hwBandAt_(S, D, HW_BAND_GOOD)) return 'good';
+  return 'last';
+}
+/* "2 days 3 h", "5 h 10 min", "9 min", "under a minute": the span from a first try to a finish (never time spent). */
+function _hwSpanWords_(ms) {
+  var m = Math.round(Math.max(0, ms) / 60000);
+  if (m < 1) return 'under a minute';
+  if (m < 60) return m + ' min';
+  var h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return h + ' h' + (mm ? ' ' + mm + ' min' : '');
+  var d = Math.floor(h / 24), hh = h % 24;
+  return d + ' day' + (d === 1 ? '' : 's') + (hh ? ' ' + hh + ' h' : '');
+}
+/* A recorded moment in words, in the school's zone: "3 Oct, 16:20"; "by 3 Oct, 16:20" when only a bound is known. */
+function _hwMomentWords_(ms) {
+  if (!ms) return '';
+  return (ms < 0 ? 'by ' : '') + _hwWhen_(Math.abs(ms));
+}
+function _hwMedian_(a) {
+  var s = a.slice().sort(function (x, y) { return x - y; }), n = s.length;
+  return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+}
+
+/* The habit line: ONE phrase from a pupil's last HW_HABIT_LAST homework that have a band (still open ones, and ones
+   finished before the times were kept, are left out), oldest first. The first rule that holds wins; `o` is its place
+   when the view is sorted by habit (most worth a look first). "Usually the last minute" is asked before "Only after a
+   reminder": a finish after 85% always comes after reminder 2 when reminders are on, so the other order would hide every
+   last-minute habit. h.n: how many; h.k: how many in each band; h.r: how many
+   finished after a reminder (⏰); h.older / h.newer: the mean place on the key (0 done before it was set … 5 not done)
+   of the older half and the newer half. */
+var HW_HABIT_RULES = [
+  { say: 'Getting better', o: 5, when: 'the newer half is at least 1.5 places earlier on the key than the older half (4 or more homework)',
+    test: function (h) { return h.n >= 4 && h.newer - h.older <= -1.5; } },
+  { say: 'Getting worse', o: 1, when: 'the newer half is at least 1.5 places later on the key than the older half (4 or more homework)',
+    test: function (h) { return h.n >= 4 && h.newer - h.older >= 1.5; } },
+  { say: 'Often late or not done', o: 0, when: 'late or not done in at least half of them',
+    test: function (h) { return (h.k.late + h.k.none) * 2 >= h.n; } },
+  { say: 'Usually the last minute', o: 3, when: 'at the last minute in at least half of them',
+    test: function (h) { return h.k.last * 2 >= h.n; } },
+  { say: 'Only after a reminder', o: 2, when: 'finished after a reminder (⏰) in at least half of them, and at least twice',
+    test: function (h) { return h.r >= 2 && h.r * 2 >= h.n; } },
+  { say: 'Usually early', o: 7, when: 'early, or done before it was set, in at least two thirds of them',
+    test: function (h) { return (h.k.before + h.k.early) * 3 >= h.n * 2; } },
+  { say: 'Usually in good time', o: 6, when: 'in good time or earlier in at least two thirds of them',
+    test: function (h) { return (h.k.before + h.k.early + h.k.good) * 3 >= h.n * 2; } },
+  { say: 'Mixed', o: 4, when: 'none of the other patterns holds', test: function () { return true; } }
+];
+/* `cats`: [{ c (band), r (⏰ reminder, 0 none) }] oldest first. null with fewer than HW_HABIT_MIN. */
+function _hwHabitOf_(cats) {
+  var use = (cats || []).filter(function (x) { return HW_CAT_PLACE[x.c] !== undefined; }).slice(-HW_HABIT_LAST);
+  if (use.length < HW_HABIT_MIN) return null;
+  var h = { n: use.length, k: { before: 0, early: 0, good: 0, last: 0, late: 0, none: 0 }, r: 0, older: 0, newer: 0 };
+  use.forEach(function (x) { h.k[x.c]++; if (x.r) h.r++; });
+  var half = Math.floor(use.length / 2);
+  var mean = function (a) { return a.reduce(function (s, x) { return s + HW_CAT_PLACE[x.c]; }, 0) / a.length; };
+  h.older = mean(use.slice(0, half)); h.newer = mean(use.slice(use.length - half));
+  for (var i = 0; i < HW_HABIT_RULES.length; i++) {
+    var R = HW_HABIT_RULES[i];
+    if (R.test(h)) {
+      var said = ['before', 'early', 'good', 'last', 'late', 'none'].filter(function (c) { return h.k[c]; })
+        .map(function (c) { return h.k[c] + ' ' + HW_CAT_WORDS[c]; });
+      if (h.r) said.push(h.r + ' after a reminder');
+      return { say: R.say, o: R.o, why: R.when + '. Their last ' + h.n + ' homework: ' + said.join(', ') + '.' };
+    }
+  }
+  return null;
+}
+
+/* A tracker row's kind of score, from its ScoreSource: a COPY of the reflection's _scoreKind_ (its Code.gs §score-kinds,
+   §40.101; Daniel's rule, three kinds of score, 1 Oct 2026). "teacher" (teacher marked) and "partly" (the teacher's
+   totals, the pupil's own per-question marks) count; "self" (only the pupil's own marks) never does. Keep the two the same. */
+function _scoreKind_(src) {
+  var o = src;
+  if (typeof o === 'string') {
+    var t = o.trim();
+    if (!t) return 'teacher';
+    if (t.charAt(0) !== '{') return (t === 'self' || t === 'none') ? 'self' : 'teacher';
+    try { o = JSON.parse(t); } catch (e) { return 'teacher'; }
+  }
+  if (!o || typeof o !== 'object' || !o.overall) return 'teacher';
+  if (o.overall !== 'teacher') return 'self';
+  return o.questions === 'self' ? 'partly' : 'teacher';
+}
+/* Each pupil's teacher-marked test average in the Student Progress Tracker, for the pupils in `need`: { email: { pct, n } }.
+   Read by heading from the cohort tabs ("Class of NNNN"; never TEST, never Unfinished reflections), each paper once per
+   pupil (the first row, as the analysis website reads it); a row with no AssessmentID is a stub and is skipped; a paper
+   with no score, or whose score is the pupil's own (_scoreKind_ "self"), is left out. Three narrow reads per tab: the
+   headings, Email … MaxScore, and ScoreSource. {} when there is no tracker or it cannot be read. Read only. */
+function _hwBaselines_(need) {
+  var out = {}, id = '', got = {}, seen = {};
+  try { id = _trackerId_(); } catch (e) { id = ''; }
+  if (!id || !Object.keys(need || {}).length) return out;
+  try {
+    var wb = SpreadsheetApp.openById(id);
+    wb.getSheets().forEach(function (sh) {
+      if (!/^Class of \d{4}$/.test(sh.getName())) return;
+      var last = sh.getLastRow(), lc = sh.getLastColumn();
+      if (last < 2 || lc < 1) return;
+      var head = sh.getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h == null ? '' : h).trim(); });
+      var cE = head.indexOf('Email'), cA = head.indexOf('AssessmentID'), cT = head.indexOf('TotalScore'),
+          cM = head.indexOf('MaxScore'), cS = head.indexOf('ScoreSource');
+      if (cE < 0 || cA < 0 || cT < 0 || cM < 0) return;
+      var v = sh.getRange(2, 1, last - 1, Math.max(cE, cA, cT, cM) + 1).getValues();
+      var src = cS >= 0 ? sh.getRange(2, cS + 1, last - 1, 1).getValues() : null;
+      for (var i = 0; i < v.length; i++) {
+        var em = _cleanEmail_(v[i][cE]);
+        if (!em || !need[em]) continue;
+        var aid = String(v[i][cA] == null ? '' : v[i][cA]).trim();
+        if (!aid || seen[em + '|' + aid]) continue;
+        seen[em + '|' + aid] = 1;
+        if (_scoreKind_(src ? src[i][0] : '') === 'self') continue;
+        var sc = v[i][cT], mx = parseFloat(v[i][cM]);
+        if (sc === '' || sc === null || isNaN(parseFloat(sc)) || !(mx > 0)) continue;
+        (got[em] = got[em] || []).push(100 * parseFloat(sc) / mx);
+      }
+    });
+  } catch (e) { /* no tracker reading: every pupil falls back to their homework */ }
+  Object.keys(got).forEach(function (em) {
+    var a = got[em];
+    out[em] = { pct: Math.round(a.reduce(function (s, x) { return s + x; }, 0) / a.length), n: a.length };
+  });
+  return out;
+}
+/* The times cells and the first round's letters, read once per tab, for the pupils some homework names:
+   { labId: { email: { t: { id: [tried, done] }, f: { id: right first time } } } }. A lab tab is read from School email to
+   Station times (its first round in between), ✍️ Bio English from School email to Set times; a tab no save has widened
+   yet reads as no times. */
+function _hwTimesIndex_(labIds, need) {
+  var ss = _ss_(), out = {};
+  labIds.forEach(function (id) {
+    if (id in out) return;
+    out[id] = {};
+    if (id === ENGLISH_ID) {
+      var en = ss.getSheetByName(T_ENGLISH);
+      if (!en || en.getLastRow() < 2) return;
+      en.getRange(2, EN_EMAIL, en.getLastRow() - 1, Math.min(EN_TIMES, en.getMaxColumns()) - EN_EMAIL + 1).getValues().forEach(function (r) {
+        var em = _cleanEmail_(r[0]); if (!em || !need[em]) return;
+        var kept = _enParse_(r[EN_SNAP - EN_EMAIL]), f = {};
+        Object.keys(kept).forEach(function (sid) { f[sid] = kept[sid].f; });
+        out[id][em] = { t: _stParse_(r[EN_TIMES - EN_EMAIL]), f: f };
+      });
+      return;
+    }
+    var lab = null;
+    LABS.forEach(function (l) { if (l.id === id) lab = l; });
+    var sh = lab ? ss.getSheetByName(lab.name) : null;
+    if (!sh || sh.getLastRow() < 2) return;
+    sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, Math.min(LAB_TIMES, sh.getMaxColumns()) - LAB_EMAIL + 1).getValues().forEach(function (r) {
+      var em = _cleanEmail_(r[0]); if (!em || !need[em]) return;
+      var first = _snapParse_(r[LAB_FIRST - LAB_EMAIL]), f = {};
+      first.order.forEach(function (sid) { f[sid] = (first.by[sid].q.match(/f/g) || []).length; });
+      out[id][em] = { t: _stParse_(r[LAB_TIMES - LAB_EMAIL]), f: f };
+    });
+  });
+  return out;
+}
+/* One pupil and one homework, or null when nothing in it can be scored. The stations counted, the "done" verdict and the
+   question count are the scorer's (_hwScoreOne_, each station on its own as _ownHomework_ does); the moments come from
+   the times cells. { c band, r (⏰: the latest reminder that went before they finished, 0 none), k checks (null for Bio
+   English only), f right first time, q questions, n lab stations, m Bio English sets, sm span ms or null, t first try,
+   e finish (ms; negative = at or before; 0 = none) }. */
+function _hwHabitCell_(hw, email, index, extra, man, ids, now) {
+  var live = _hwScoreOne_(hw, email, index, man);
+  if (!live.total) return null;
+  var parts = [], k = null, f = 0, nLab = 0, nEn = 0;
+  hw.tasks.forEach(function (t) {
+    var x = (extra[t.labId] || {})[email] || { t: {}, f: {} }, idx = index[t.labId], rec = idx ? idx[email] : null;
+    (t.stationIds || []).forEach(function (sid) {
+      var one = _hwScoreOne_({ tasks: [{ labId: t.labId, stationIds: [sid] }] }, email, index, man);
+      if (one.missing.length || !one.total) return;                       /* not scored by the list either */
+      parts.push(x.t[sid] || [0, 0]);
+      f += Math.min(Number(x.f[sid]) || 0, one.total);
+      if (t.labId === ENGLISH_ID) { nEn++; return; }
+      nLab++;
+      var g = rec && rec.byId ? rec.byId[sid] : null;
+      k = (k || 0) + (g ? Number(g.checks) || 0 : 0);
+    });
+  });
+  if (!parts.length) return null;
+  /* the first try: the earliest; only "at or before" when any station's own first try is */
+  var tt = 0, tBound = 0, tExact = true;
+  parts.forEach(function (p) {
+    if (!p[0]) return;
+    if (p[0] < 0) tExact = false;
+    var a = Math.abs(p[0]);
+    if (p[0] > 0 && (!tt || p[0] < tt)) tt = p[0];
+    if (!tBound || a < tBound) tBound = a;
+  });
+  var first = tExact ? tt : (tBound ? -tBound : 0);
+  /* the finish: only when the scorer says done; exact when the latest station's moment is */
+  var fin = null, e = 0;
+  if (live.state === 'done') {
+    var lo = 0, hi = 0, all = true;
+    parts.forEach(function (p) {
+      if (!p[1]) { all = false; return; }
+      if (p[1] > 0) lo = Math.max(lo, p[1]);
+      hi = Math.max(hi, Math.abs(p[1]));
+    });
+    if (!all) { fin = { hi: now }; e = -now; }                             /* done, but not every moment was kept */
+    else if (hi === lo) { fin = { at: lo }; e = lo; }
+    else { fin = { hi: hi }; e = -hi; }
+  }
+  var c = _hwHabitCat_(hw.S, hw.D, fin, now);
+  /* ⏰: they finished after a reminder had gone to them — it went (its row says how many it went to), they were not done
+     then, and they have a Classroom user id in the course it was posted to (the reminders' own rule). Never a name. */
+  var r = 0, cid = ids[email];
+  if (fin && fin.at !== undefined && cid && cid.userId && hw.course && cid.courseId === hw.course) {
+    for (var j = 2; j >= 1 && !r; j--) {
+      var R = _hwMs_(hw.rem[j - 1].at);
+      if (R && /^\d+$/.test(String(hw.rem[j - 1].said)) && R < fin.at) r = j;
+    }
+  }
+  return { c: c, r: r, k: k, f: f, q: live.total, n: nLab, m: nEn,
+           sm: (tExact && tt && fin && fin.at !== undefined) ? Math.max(0, fin.at - tt) : null, t: first, e: e };
+}
+/* "12 stations", "3 Bio English sets", "12 stations and 3 Bio English sets" */
+function _hwPartsWords_(n, m) {
+  var a = [];
+  if (n) a.push(n + ' station' + (n === 1 ? '' : 's'));
+  if (m) a.push(m + ' Bio English set' + (m === 1 ? '' : 's'));
+  return a.join(' and ');
+}
+
+/* "Worth a look", in neutral words, or '' (Daniel: "if a student that usually gets very bad scores does it very fast,
+   that raises the alarm"). A reason to talk with the pupil, never a finding. All three must hold:
+     · from first try to finish under a third of the median for the same homework (`med`, from at least 3 pupils with
+       times; null: no flag);
+     · right first time 90% or more on its stations and sets;
+     · a low baseline: `base`, their teacher-marked tests average in the Student Progress Tracker (_hwBaselines_), under
+       50%; with no marked paper at all, the median right first time of their EARLIER homework that they finished
+       (`earlier`, at least 2), under 50%. The words say which baseline was used. */
+function _hwHabitFlag_(cell, med, base, earlier) {
+  if (med === null || med === undefined || cell.sm === null || cell.sm === undefined || !(cell.sm * HW_FLAG_SPAN < med)) return '';
+  var rft = cell.q ? 100 * cell.f / cell.q : 0;
+  if (rft < HW_FLAG_RFT) return '';
+  var why = '';
+  if (base) {
+    if (!(base.pct < HW_FLAG_BASE)) return '';
+    why = 'teacher-marked tests average ' + base.pct + '% (' + base.n + ' paper' + (base.n === 1 ? '' : 's') + ')';
+  } else {
+    var e = (earlier || []).filter(function (x) { return x.q && x.e; }).map(function (x) { return 100 * x.f / x.q; });
+    if (e.length < HW_FLAG_EARLIER) return '';
+    var m = Math.round(_hwMedian_(e));
+    if (!(m < HW_FLAG_BASE)) return '';
+    why = 'right first time on their earlier homework: median ' + m + '% (' + e.length + ' homework)';
+  }
+  return 'Finished ' + _hwPartsWords_(cell.n, cell.m) + ' within ' + _hwSpanWords_(cell.sm) + ' of the first try (median for this homework: ' +
+    _hwSpanWords_(med) + '), ' + (cell.f >= cell.q ? 'all right first time' : Math.round(rft) + '% right first time') + '; ' + why + '.';
+}
+
+/* The view's whole payload (uiData('habits')), at `now` (ms; the tests pass a fake clock). Read only. Pupils come as
+   name and class: no address, no id. */
+function _habitsData_(now) {
+  now = now || Date.now();
+  var man = _hwManifest_(), roster = _studentDirectory_().students, since = now - HW_HABIT_DAYS * 864e5, left = 0, list = [];
+  /* no Homework tab: nothing set yet (and none is made here: this view only reads) */
+  (_ss_().getSheetByName(T_HOMEWORK) ? _homeworkRows_() : []).forEach(function (hw) {
+    var S = _hwMs_(hw.created), D = _hwMs_(hw.due);
+    if (!S || !D || D <= S) { left++; return; }                            /* no due time to measure against */
+    if (D < since) return;
+    hw.S = S; hw.D = D; list.push(hw);
+  });
+  list.sort(function (a, b) { return a.D - b.D || a.S - b.S; });
+  var pupilsFor = {}, need = {}, labIds = [];
+  list.forEach(function (hw) {
+    var ps = _hwPupils_(hw, roster);
+    pupilsFor[hw.id] = ps;
+    ps.forEach(function (p) { need[p.email] = 1; });
+    hw.tasks.forEach(function (t) { if (labIds.indexOf(t.labId) < 0) labIds.push(t.labId); });
+  });
+  var index = _hwLabIndex_(labIds, need), extra = _hwTimesIndex_(labIds, need);
+  var recorded = Object.keys(extra).some(function (l) {
+    return Object.keys(extra[l]).some(function (em) { return Object.keys(extra[l][em].t).length > 0; });
+  });
+  var ids = _classroomIds_(), base = _hwBaselines_(need), who = {}, order = [];
+  var hwOut = list.map(function (hw, i) {
+    var spans = [];
+    (pupilsFor[hw.id] || []).forEach(function (p) {
+      var cell = _hwHabitCell_(hw, p.email, index, extra, man, ids, now);
+      if (!cell) return;
+      cell.h = i;
+      if (!who[p.email]) { who[p.email] = { p: p, cells: [] }; order.push(p.email); }
+      who[p.email].cells.push(cell);
+      if (cell.sm !== null) spans.push(cell.sm);
+    });
+    hw.med = spans.length >= HW_FLAG_PEERS ? _hwMedian_(spans) : null;
+    return { id: hw.id, title: hw.title, who: hw.who, set: _hwWhen_(hw.S), due: _hwWhen_(hw.D), day: _hwDueText_(hw.D),
+             med: hw.med === null ? '' : _hwSpanWords_(hw.med), withTimes: spans.length };
+  });
+  var pupils = order.map(function (em) {
+    var P = who[em], cells = P.cells, b = base[em] || null, flags = [];
+    cells.forEach(function (cell, j) {
+      var says = _hwHabitFlag_(cell, list[cell.h].med, b, cells.slice(0, j));
+      if (says) flags.push({ h: cell.h, says: says });
+    });
+    return {
+      name: P.p.name, cls: P.p.cls,
+      base: b ? 'Teacher-marked tests average ' + b.pct + '% (' + b.n + ' paper' + (b.n === 1 ? '' : 's') + ')' : '',
+      habit: _hwHabitOf_(cells.filter(function (x) { return x.c !== 'open'; })),
+      /* [homework, band, ⏰, checks, right first time, questions, stations, sets, span words, first try, finish] */
+      cells: cells.map(function (x) {
+        return [x.h, x.c, x.r, x.k, x.f, x.q, x.n, x.m, x.sm === null ? '' : _hwSpanWords_(x.sm), _hwMomentWords_(x.t), _hwMomentWords_(x.e)];
+      }),
+      flags: flags
+    };
+  });
+  return {
+    generatedAt: new Date(now).toISOString(), recorded: recorded, left: left, manifestOk: !!man.labsOk,
+    bands: { early: Math.round(HW_BAND_EARLY * 100), good: Math.round(HW_BAND_GOOD * 100) },
+    words: HW_CAT_WORDS,
+    habits: HW_HABIT_RULES.map(function (R) { return { say: R.say, when: R.when }; }),
+    flagWords: 'Worth a look: a homework finished in under a third of the median time from first try to finish for it, with ' +
+      HW_FLAG_RFT + '% or more right first time, by a pupil whose teacher-marked tests average under ' + HW_FLAG_BASE + '% (with no ' +
+      'marked test: the median right first time of their earlier homework). A reason to talk with them, never proof of anything.',
+    homework: hwOut, pupils: pupils
+  };
 }
