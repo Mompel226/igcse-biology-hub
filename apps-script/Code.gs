@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '1 Oct 2026 (evening) — Set homework: the list sorts by due date or class, one link per lab in the Classroom post, two reminders to the pupils who have not finished';
+var SCRIPT_EDITION = '1 Oct 2026 (night) — Set homework: the list sorts by due date or class, one link per lab in the Classroom post, two reminders to the pupils who have not finished; the teacher page tabs fit a phone screen';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
