@@ -1,9 +1,9 @@
 /* Bump the cache stamp.  node tools/stamp.mjs
    First copies in from labs-shared: labs.json (as js/data/labs.json and labs.js), progress.js,
    signin.js, stations.json and the syllabus years (js/data/syllabus-years.js). Then rewrites every
-   ?v= in index.html and applications.html, AND version.txt, from one value.
+   ?v= in every page at the top of the repo (index.html first), AND version.txt, from one value.
    version.txt on its own is a lie: the ?v= stamps are the real cache key. */
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -62,8 +62,9 @@ if (SHARED) {
 }
 /* Every page that carries ?v= stamps, not just the front one — a page left unstamped serves a
    stale stylesheet to anyone who has visited before, which is a bug you only see on someone
-   else's machine. index.html must exist and must carry stamps; the rest are stamped if present. */
-const PAGES = ['index.html', 'applications.html'];
+   else's machine. index.html must exist and must carry stamps; every other page at the top of the repo is stamped
+   too (read from the folder, so a new page is never left out). */
+const PAGES = ['index.html'].concat(readdirSync(REPO).filter(f => /\.html$/.test(f) && f !== 'index.html').sort());
 let n = 0;
 for (const page of PAGES) {
   const f = resolve(REPO, page);
