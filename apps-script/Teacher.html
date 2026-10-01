@@ -28,11 +28,19 @@ body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-eve
 .top__in{max-width:1120px;margin:0 auto;padding:10px clamp(16px,4vw,32px) 12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
 .eye{font:600 10px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin:0;flex:1 1 100%}
 .eye b{color:var(--accent);transition:color .3s}
-.tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line2);border-radius:999px;background:var(--card)}
+/* The bar wraps whenever one row will not fit, however many tabs it has. On a 375 px phone the five tabs (571 px in a
+   row) ran past the screen edge and the whole page scrolled sideways (1 Oct 2026). One row looks as before: 20 px
+   corners on a 39 px bar draw the same round ends as the 999 px they replace. */
+.tabs{display:inline-flex;flex-wrap:wrap;max-width:100%;gap:4px;padding:4px;border:1px solid var(--line2);border-radius:20px;background:var(--card)}
 .tab{font:600 11px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);background:none;border:0;
   padding:9px 14px;border-radius:999px;cursor:pointer;transition:color .15s,background .15s;white-space:nowrap}
 .tab:hover{color:var(--chalk)}.tab.on{color:var(--ink);background:var(--chalk)}
 .tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* A phone: the bar takes the full width and shares each row out evenly (three tabs, then two, at 375 px). */
+@media (max-width:640px){
+  .tabs{display:flex;width:100%}
+  .tab{flex:1 1 0;padding:9px 6px}
+}
 .who{display:inline-flex;align-items:center;gap:8px;padding:6px 13px 6px 10px;border:1px solid var(--line2);border-radius:999px;
   background:rgba(120,200,230,.06);font-size:12.5px;color:var(--dim);margin-left:auto}
 .who svg{color:var(--cyan);opacity:.85;flex:none}.who b{color:var(--chalk);font-weight:500}

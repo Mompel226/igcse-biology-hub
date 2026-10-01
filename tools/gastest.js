@@ -494,6 +494,32 @@ ok &= run('a reload draws Lab progress, Bio English and Set homework from the se
   if (/\n  go\(BOOT\.tab \|\| 'teachers'\);\n\}\)\(\);/.test(s1)) throw new Error('the page starts before the second script has run');
   if (!/addEventListener\('DOMContentLoaded', function\(\)\{ go\(BOOT\.tab \|\| 'teachers'\); \}\)/.test(s1)) throw new Error('the page does not wait for both scripts');
 });
+ok &= run('the tab bar wraps rather than run past a phone screen, and a computer keeps its one row of pills', () => {
+  /* found 1 Oct 2026: the five tabs are 571 px in a row, so on a 375 px phone the whole page scrolled sideways and
+     Students and Set homework sat past the edge. The bar now wraps whenever one row will not fit (so a tab added later
+     cannot bring the fault back), a phone shares each row out evenly, and a computer draws the page exactly as before
+     (proved in headless Chrome that day: the page 375 px wide at 375, and every picture at 641 to 1280 px unchanged). */
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  const css = h.slice(h.indexOf('<style>'), h.indexOf('</style>'));
+  const rule = sel => { const m = css.match(new RegExp('(?:^|\\n)\\s*' + sel.replace('.', '\\.') + '\\{([^}]*)\\}')); return m ? m[1] : null; };
+  const bar = rule('.tabs'), tab = rule('.tab');
+  if (!bar || !tab) throw new Error('the tab bar or its tabs have no rule of their own: look at this test again');
+  if (!/flex-wrap:wrap/.test(bar) || !/max-width:100%/.test(bar))
+    throw new Error('the tab bar cannot wrap: on a phone it runs past the screen edge and the whole page scrolls sideways');
+  if (!/display:inline-flex/.test(bar)) throw new Error('on a computer the tab bar no longer sits beside the address and Refresh');
+  if (!/border-radius:20px/.test(bar)) throw new Error('the bar corners changed: a 999 px corner on two rows makes a stadium that the end tabs poke out of');
+  if (/\bflex:/.test(tab)) throw new Error('on a computer the tabs stretch: each should keep its own width');
+  /* the phone rule: every @media (max-width:N px) block, read brace by brace */
+  const blocks = [];
+  for (const m of css.matchAll(/@media \(max-width:(\d+)px\)\{/g)) {
+    let i = m.index + m[0].length, depth = 1;
+    while (i < css.length && depth) { if (css[i] === '{') depth++; else if (css[i] === '}') depth--; i++; }
+    blocks.push({ w: +m[1], body: css.slice(m.index + m[0].length, i - 1) });
+  }
+  const even = blocks.filter(b => /\.tab\{[^}]*flex:1 1 0/.test(b.body) && /\.tabs\{[^}]*width:100%/.test(b.body));
+  if (!even.length) throw new Error('on a phone the rows of tabs are not shared out evenly');
+  if (even.some(b => b.w < 400 || b.w > 700)) throw new Error('the even rows start at ' + even.map(b => b.w).join(', ') + ' px: not a phone width');
+});
 ok &= run('every served page escapes the Apps Script sandbox iframe', () => {
   /* Apps Script serves a web-app page inside a sandbox iframe. A link without a target navigates
      INSIDE that frame, which tries to load script.google.com in a frame — Google refuses, and the
