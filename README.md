@@ -326,7 +326,7 @@ It has five tabs:
 | **Lab progress** | how each class is doing in the labs: every student against every lab, who needs a look, and the stations a class finds hardest |
 | **Bio English** | how far each student has got with the Bio English Lab sets of their year |
 | **Students** | find any pupil and open their own reflection tracker, the same page they see |
-| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named and linked, under a Classroom topic you choose or type — and see who has done them. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
+| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
 
 **Nothing about that page is in this website.** Not its address, not a spreadsheet link, not who
 the teachers are, not a single pupil or mark. It is guarded twice:
@@ -437,7 +437,7 @@ Never a class's times, anyone else's, or a single question.
 | 🟢 **Students** | the dashboard — every student, their class, and their best score in **every** lab, red through amber to green; a lab not built yet has a paler heading and an empty grey column |
 | 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported |
 | 🟢 **✍️ Bio English** | a row per student, made at their first save in Bio English Lab: keyword and answer-writing questions answered, how many right first time, sets finished |
-| 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title or due date here |
+| 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title, its due date, or its reminders (Remind: on or off) here; the last columns say when each reminder went and to how many pupils, never who |
 | 🟣 **👩‍🏫 Teachers** | the other teachers who may open the teacher page |
 | 🔵 **🔗 Teacher links** | the spreadsheets the teacher page lists |
 | 🟡 **Labs** | one row for each lab in the script, written afresh by every Tidy up, and how many saves each has had |
@@ -468,7 +468,7 @@ stays in the browser and is sent the moment the student signs in.
 | 🧪 Biology Labs ▸ | What it does |
 |---|---|
 | **🎓 Import students from Classroom…** | the main one. Adds new students, then builds and formats everything |
-| **🩺 Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up — and each optional part: the record card, the teacher page, homework, the morning email |
+| **🩺 Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up — and each optional part: the record card, the teacher page, homework, the morning email, the homework reminders and the Classroom permission they need |
 | **📊 Refresh everyone's progress** | re-reads the lab tabs into the dashboard |
 | **🎨 Tidy up** | rebuild anything missing, write the **Labs** tab afresh from the script's list of labs, and re-apply the formatting |
 | **🔗 Add or remove links on the teacher page…** | the spreadsheets the teacher page lists — see *Teacher mode* above |

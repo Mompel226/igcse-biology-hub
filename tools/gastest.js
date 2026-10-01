@@ -219,10 +219,16 @@ global.ScriptApp = {
   deleteTrigger: t => { const i = TRIGGERS.indexOf(t); if (i >= 0) TRIGGERS.splice(i, 1); },
   newTrigger: (fn) => ({
     forSpreadsheet: () => ({ onEdit: () => ({ create: () => {} }) }),
-    timeBased: () => { const b = { everyDays: () => b, atHour: () => b,
-      create: () => { const t = { getHandlerFunction: () => fn }; TRIGGERS.push(t); return t; } }; return b; }
-  })
+    timeBased: () => { const b = { everyDays: () => b, atHour: () => b, everyMinutes: n => { b.minutes = n; return b; },
+      create: () => { const t = { getHandlerFunction: () => fn, minutes: b.minutes }; TRIGGERS.push(t); return t; } }; return b; }
+  }),
+  /* which of the scopes asked about the owner has allowed (the reminders' Classroom announcements, 1 Oct 2026):
+     all of them, unless a test sets SCOPES_GRANTED = false */
+  AuthMode: { FULL: 'FULL' },
+  getAuthorizationInfo: (mode, scopes) => ({ getAuthorizedScopes: () => (SCOPES_GRANTED ? (scopes || []).slice() : []),
+                                             getAuthorizationStatus: () => (SCOPES_GRANTED ? 'NOT_REQUIRED' : 'REQUIRED') })
 };
+global.SCOPES_GRANTED = true;
 global.MAILS = [];
 global.MailApp = { sendEmail: (to, subj, body) => { MAILS.push({ to, subj, body }); } };
 global.LockService = { getScriptLock: () => ({ waitLock: () => true, releaseLock: () => {} }) };
@@ -261,6 +267,9 @@ global.Utilities = {
   formatDate: (d, tz, fmt) => {
     const x = new Date(d.getTime() + 9 * 3600 * 1000);
     if (fmt === 'HH:mm') return ('0' + x.getUTCHours()).slice(-2) + ':' + ('0' + x.getUTCMinutes()).slice(-2);
+    /* the reminders (1 Oct 2026) ask for the hour alone, and the day as yyyy-MM-dd */
+    if (fmt === 'HH') return ('0' + x.getUTCHours()).slice(-2);
+    if (fmt === 'yyyy-MM-dd') return x.getUTCFullYear() + '-' + ('0' + (x.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + x.getUTCDate()).slice(-2);
     const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return x.getUTCDate() + ' ' + M[x.getUTCMonth()];
   },
@@ -365,7 +374,7 @@ ok &= run('every google.script.run call in every window exists — the import di
   }
   /* and the scan itself still sees the calls it must, or it could pass by finding nothing (renamed one? change it here too) */
   const want = { ClassroomImport: ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress'],
-                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics'],
+                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind'],
                  TeacherPage: ['teacherPanelData', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherAddLink', 'teacherSetHubUrl'] };
   Object.keys(want).forEach(f => { const lost = want[f].filter(n => seen[f].indexOf(n) < 0);
     if (lost.length) throw new Error('the scan no longer finds ' + f + '.html calling ' + lost.join(', ')); });
@@ -476,6 +485,15 @@ ok &= run('a cached view says how old it is', () => {
   const g = h.slice(h.indexOf('function ssGet('), h.indexOf('function ssPut('));
   if (!/stamp\[tab\]\s*=\s*o\.at/.test(g)) throw new Error('a restored view is stamped with the page load, not the read');
 });
+ok &= run('a reload draws Lab progress, Bio English and Set homework from the session copy: the page starts once both scripts have run', () => {
+  /* found 1 Oct 2026: a view kept in sessionStorage is drawn at once, and those three views are defined by the SECOND
+     script, so starting at the end of the first left them on "Loading" after any reload within ten minutes */
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  const s1 = h.slice(h.indexOf('<script>'), h.indexOf('</script>'));
+  if (!/window\.vHomework = function/.test(h.slice(h.indexOf('</script>')))) throw new Error('Set homework has left the second script: look at this test again');
+  if (/\n  go\(BOOT\.tab \|\| 'teachers'\);\n\}\)\(\);/.test(s1)) throw new Error('the page starts before the second script has run');
+  if (!/addEventListener\('DOMContentLoaded', function\(\)\{ go\(BOOT\.tab \|\| 'teachers'\); \}\)/.test(s1)) throw new Error('the page does not wait for both scripts');
+});
 ok &= run('every served page escapes the Apps Script sandbox iframe', () => {
   /* Apps Script serves a web-app page inside a sandbox iframe. A link without a target navigates
      INSIDE that frame, which tries to load script.google.com in a frame — Google refuses, and the
@@ -507,14 +525,18 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
     'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder', 'teacherWatchFolder',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
-    'homeworkCreate', 'homeworkDelete', 'homeworkTopics',                     /* gated: _hwCaller_ */
+    'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind',   /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
     'checkChips',            /* gated: _isAdminCaller_ — Run ▸ checkChips in the editor, which cannot
                                 list a name ending in an underscore; it only writes to the owner's log */
-    'sendDueSummaries'       /* a trigger must be callable: it only ever emails the teacher who set each
+    'sendDueSummaries',      /* a trigger must be callable: it only ever emails the teacher who set each
                                 overdue homework, once, and hands back a count */
+    'sendHomeworkReminders'  /* a trigger must be callable (1 Oct 2026): it takes nothing from its caller, posts only the
+                                reminders due at that moment, each once, to the pupils who have not finished, and hands
+                                back a count */
   ];
+  global.ALLOWED_NAMES = ALLOWED;
   const callable = [...new Set([...SRC.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]))]
     .filter(n => !n.endsWith('_'));
   const extra = callable.filter(n => !ALLOWED.includes(n));
@@ -524,12 +546,22 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the ones that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',
-   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'uiData', 'installDailySummary', 'checkChips'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'uiData', 'installDailySummary', 'checkChips'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
     }
   });
+});
+
+ok &= run('the reminders add two public names, both on the list: the 🔔 switch checks the caller, the trigger takes nothing from its caller', () => {
+  ['homeworkRemind', 'sendHomeworkReminders'].forEach(n => {
+    if (!defined(n)) throw new Error(n + ' is not in Code.gs');
+    if (!(global.ALLOWED_NAMES || []).includes(n)) throw new Error(n + ' is not on the ALLOWED list');
+  });
+  if (!/_hwCaller_\(\)/.test(SRC.slice(SRC.indexOf('function homeworkRemind(')).slice(0, 400))) throw new Error('homeworkRemind does not check the caller first');
+  if (!/^function sendHomeworkReminders\(\)\s*\{\s*return _hwRemindRun_\(Date\.now\(\)\);\s*\}/m.test(SRC))
+    throw new Error('the trigger takes something from its caller (it must be: function sendHomeworkReminders() { return _hwRemindRun_(Date.now()); })');
 });
 
 console.log('— with an empty spreadsheet —');
@@ -2155,7 +2187,7 @@ function teacherPage() {
       const want = new RegExp('\\s' + attr + '="' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"');
       const hit = on.filter(x => x[1] === ev && want.test(x[0])).pop();
       if (!hit) throw new Error('nothing on the page takes ' + ev + ': ' + attr + '="' + val + '"');
-      if (value !== undefined) hit[3].value = value;
+      if (value !== undefined) { hit[3].value = value; if (typeof value === 'boolean') hit[3].checked = value; }
       hit[2]({ stopPropagation() {}, preventDefault() {}, target: { closest: () => null } });
     }
   };
@@ -2737,36 +2769,48 @@ ok &= run('a due time is kept: 08:00 on that day in the school’s zone; no time
     if (_hwTime_('8:05') !== '08:05:00' || _hwTime_('') !== '' || _hwTime_('noon') !== '') throw new Error('_hwTime_ misreads a time');
   } finally { [a, b, c].forEach(r => r && r.ok && homeworkDelete(r.made[0])); }
 });
-ok &= run('the Classroom post names every station, each with its own link, and the English sets by name', () => {
+ok &= run('the Classroom post has ONE link per lab, at its first homework station, and its words name every station with no web address (Daniel, 1 Oct 2026)', () => {
+  /* 29 Sep 2026 the post linked every station (the lab's front page did not show the homework); since the labs colour the
+     homework stations, Daniel asked for one link per lab: "just one link … that's more than enough" */
   const POSTS = [];
   global.Classroom = { Courses: { CourseWork: { create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; } } } };
   try {
     const r = homeworkCreate({ title:'Gut and words', post:true, classes:[{ cls: enA.cls, due:'2027-03-03', time:'08:30' }],
       tasks:[ { labId:'digestion-lab', stationIds:['mouth', 'stomach'] }, { labId:'bio-english-lab', stationIds:['t3.kw.meanings'] } ] });
     if (!r.ok || !r.posted.length) throw new Error(JSON.stringify([r.why, r.notPosted]));
-    const b = POSTS[0].body, d = b.description;
-    if (!/Mouth and teeth: https:\/\/nlcsbiology\.com\/digestion-lab\/#mouth/.test(d)) throw new Error('mouth is not named and linked: ' + d);
-    if (!/Stomach: https:\/\/nlcsbiology\.com\/digestion-lab\/#stomach/.test(d)) throw new Error('stomach is not named and linked: ' + d);
-    if (!/T3 Keywords: meanings/.test(d) || !/bio-english-lab\/#\/hw\/HW-/.test(d)) throw new Error('the English set is not named, or its link is gone: ' + d);
-    if (!/red, not started; orange, part done; green, done/.test(d) || !/Sign in with your school Google account/.test(d)) throw new Error('the closing lines are missing: ' + d);
-    if (/!/.test(d)) throw new Error('an exclamation mark in the post');
-    const urls = b.materials.map(m => m.link.url);
-    if (urls.length !== 3 || urls[0] !== 'https://nlcsbiology.com/digestion-lab/#mouth' || urls[1] !== 'https://nlcsbiology.com/digestion-lab/#stomach' || !/#\/hw\//.test(urls[2]))
+    const b = POSTS[0].body, d = b.description, urls = b.materials.map(m => m.link.url);
+    if (urls.length !== 2 || urls[0] !== 'https://nlcsbiology.com/digestion-lab/#mouth' || !/\/bio-english-lab\/#\/hw\/HW-/.test(urls[1]))
       throw new Error('the links: ' + urls.join(' '));
+    if (!/Digestion\.\nComplete these stations:\n• Mouth and teeth\n• Stomach\n/.test(d)) throw new Error('the stations are not named: ' + d);
+    if (!/Bio English Lab\.\nComplete these sets:\n• T3 Keywords: meanings\n/.test(d)) throw new Error('the English set is not named: ' + d);
+    if (/https?:|nlcsbiology\.com|#\/hw\//.test(d)) throw new Error('a web address in the words: ' + d);
+    if (!/There is one link for each lab\. Each link opens your homework in that lab\./.test(d)) throw new Error('the links are not explained: ' + d);
+    if (!/In the lab, your homework stations are coloured: red, not started; orange, part done; green, done\./.test(d) ||
+        !/Sign in with your school Google account, so that your work is recorded\.$/.test(d)) throw new Error('the closing lines: ' + d);
+    if (/!/.test(d)) throw new Error('an exclamation mark in the post');
     /* 08:30 on 3 March here is 23:30 UTC on 2 March */
     if (b.dueDate.day !== 2 || b.dueDate.month !== 3 || b.dueTime.hours !== 23 || b.dueTime.minutes !== 30) throw new Error('due ' + JSON.stringify([b.dueDate, b.dueTime]));
     if (b.topicId) throw new Error('a topic appeared that nobody asked for');
     homeworkDelete(r.made[0]);
-    /* Classroom takes 20 links at most; the words still list every station */
+    /* one lab: exactly one link, the first homework station, and the words say where it opens */
+    const one = homeworkCreate({ title:'Gut only', post:true, classes:[{ cls: enA.cls, due:'2027-03-03' }], tasks:[{ labId:'digestion-lab', stationIds:['stomach', 'mouth'] }] });
+    const ob = POSTS[POSTS.length - 1].body;
+    if (ob.materials.length !== 1 || ob.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#stomach') throw new Error('one lab: ' + JSON.stringify(ob.materials));
+    if (ob.description !== 'Your homework: Digestion.\nComplete these stations:\n• Stomach\n• Mouth and teeth\n\n' +
+        'The link opens the lab at your first homework station. In the lab, your homework stations are coloured: red, not started; orange, part done; green, done.\n\n' +
+        'Sign in with your school Google account, so that your work is recorded.') throw new Error('one lab, the words: ' + ob.description);
+    homeworkDelete(one.made[0]);
+    /* 25 stations of one lab: still one link, and every station named */
     const many = []; for (let i = 0; i < 25; i++) many.push('s' + i);
     const p = _hwPost_('HW-MANY1', 'Many', 'x', [{ labId:'digestion-lab', stationIds: many }],
       { cls: enA.cls, setFor:[enA.email], due: new Date() }, _classroomIds_(), { man: _hwManifest_() });
     const last = POSTS[POSTS.length - 1].body;
-    if (!p.ok || last.materials.length !== 20 || !/• s24: https:\/\/nlcsbiology\.com\/digestion-lab\/#s24/.test(last.description))
-      throw new Error('with 25 stations: ' + last.materials.length + ' links; ' + last.description.slice(-120));
-    /* no manifest handed over (an older caller): the old words, never a throw */
+    if (!p.ok || last.materials.length !== 1 || last.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#s0' || !/\n• s24\n/.test(last.description))
+      throw new Error('with 25 stations: ' + last.materials.length + ' links; ' + last.description.slice(-160));
+    /* no manifest handed over (an older caller): the old words, one link, never a throw */
     const q = _hwPost_('HW-OLD01', 'Old', 'Digestion: Mouth', [{ labId:'digestion-lab', stationIds:['mouth'] }], { cls: enA.cls, setFor:[enA.email], due: new Date() }, _classroomIds_());
-    if (!q.ok || !/^Digestion: Mouth\n\nSign in/.test(POSTS[POSTS.length - 1].body.description)) throw new Error('without a manifest: ' + POSTS[POSTS.length - 1].body.description);
+    const qb = POSTS[POSTS.length - 1].body;
+    if (!q.ok || !/^Digestion: Mouth\n\nSign in/.test(qb.description) || qb.materials.length !== 1) throw new Error('without a manifest: ' + qb.description);
   } finally { global.Classroom = undefined; }
 });
 ok &= run('a Classroom topic: an existing one is used, a new one is made, and if topics fail the post still goes, without it', () => {
@@ -2887,6 +2931,329 @@ ok &= run('progress makes no Homework tab and never fails over homework', () => 
     if (_ownHomework_('', '').length !== 0) throw new Error('an empty email was given homework');
   } finally { if (keep && !ss.getSheetByName(T_HOMEWORK)) ss.sheets.push(keep); }
 });
+/* ── Reminders to the pupils who have not finished, and the list's sort (Daniel, 1 Oct 2026) ─────────────────────
+   Two Classroom announcements before the due time, at 70% and 85% of the time from setting to due, none between 22:00
+   and 07:00, each addressed only to the pupils it was set for who have not finished, by their Classroom ids. The clock
+   is the test's: _hwRemindRun_(ms) is the trigger's work at that moment, and times are written as the school's wall
+   clock (UTC+9 in this stand-in). Each case removes its own homework, so one case's reminders never reach another. */
+console.log('— reminders to the pupils who have not finished —');
+{
+  const KST = (y, mo, d, h, mi) => Date.UTC(y, mo - 1, d, h - 9, mi || 0);
+  const W = 7 * 864e5, RA = [];                                 /* every announcement posted, in order */
+  let annFail = '';
+  const fakeClassroom = () => ({ Courses: {
+    CourseWork: { create: () => ({ id: 'cw-' + Math.floor(Math.random() * 1e9) }) },
+    Announcements: { create: (body, courseId) => { if (annFail) throw new Error(annFail); RA.push({ body, courseId }); return { id: 'an' + RA.length }; } } } });
+  const withClassroom = fn => { global.Classroom = fakeClassroom(); try { return fn(); } finally { global.Classroom = undefined; } };
+  const runAt = ms => withClassroom(() => _hwRemindRun_(ms));
+  const cls = enA.cls, ids = _classroomIds_(), course = ids[enA.email] && ids[enA.email].courseId;
+  const mates = _studentDirectory_().students.filter(s => s.cls === cls);
+  const rowOf = id => _homeworkRows_().filter(h => h.id === id)[0];
+  const cardOf = id => uiData('homework').data.homework.filter(h => h.id === id)[0];
+  const notDone = () => mates.forEach(p => hwStations(p.email, ''));
+  const uidsOf = ps => [...new Set(ps.map(p => ids[p.email] && ids[p.email].userId).filter(Boolean))].sort();
+  const alertOf = fn => { const keep = SpreadsheetApp.getUi; let said = '';
+    SpreadsheetApp.getUi = () => Object.assign(keep(), { alert: (a, b) => { said = String(b === undefined ? a : b); } });
+    try { fn(); } finally { SpreadsheetApp.getUi = keep; } return said; };
+  /* homework for the class (or chosen pupils), posted, reminders as asked; then the set and due times the case needs */
+  const setHw = (title, setMs, dueMs, o) => withClassroom(() => {
+    o = o || {};
+    const r = homeworkCreate({ title, post: o.post !== false, remind: o.remind !== false,
+      classes: [o.emails ? { cls:'', due:'2027-06-01', emails:o.emails } : { cls, due:'2027-06-01' }],
+      tasks: o.tasks || [{ labId:'digestion-lab', stationIds:['mouth'] }] });
+    if (!r.ok) throw new Error('could not set it: ' + r.why);
+    const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh), row = rowOf(r.made[0]).row;
+    sh.getRange(row, hc.Created).setValue(new Date(setMs)); sh.getRange(row, hc.Due).setValue(new Date(dueMs));
+    return r;
+  });
+  if (!course || mates.length < 5 || uidsOf(mates).length < 4) throw new Error('the test roster has changed: ' + cls + ' ' + course + ' ' + mates.length);
+
+  ok &= run('a Homework tab made before the reminder columns is widened when homework is set; its old rows read as off', () => {
+    const sh = ss.getSheetByName(T_HOMEWORK);
+    for (const k of Array.from(sh.cells.keys())) if (+k.split(':')[1] > 14) sh.cells.delete(k);
+    sh.maxC = 14;                                               /* as Tidy up left it before 1 Oct 2026 */
+    if (_homeworkRows_().some(h => h.remindOn)) throw new Error('an old row reads as reminders on');
+    const r = homeworkCreate({ title:'On an old tab', classes:[{ cls, due:'2027-06-02' }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+    if (!r.ok) throw new Error('an old tab refused homework: ' + r.why);
+    try {
+      const head = sh.getRange(1, 1, 1, 19).getValues()[0].map(h => String(h).replace(/^✎\s*/, ''));
+      if (head.slice(14).join('|') !== 'Remind|Reminder 1|Reminder 1 students|Reminder 2|Reminder 2 students') throw new Error('headings: ' + head.slice(14).join('|'));
+      const row = rowOf(r.made[0]);
+      if (row.remindOn || row.rem.some(x => x.at)) throw new Error('reminders on for homework that was not posted: ' + JSON.stringify(row.rem));
+    } finally { homeworkDelete(r.made[0]); }
+  });
+  ok &= run('reminder times: 70% and 85% of the time from setting to due — a week: 2.1 and 1.05 days before; six hours: 1 h 48 and 54 min before', () => {
+    const s = KST(2027, 3, 1, 15, 0), d = s + W;
+    const a = _hwRemindTime_(s, d, 1), b = _hwRemindTime_(s, d, 2);
+    if (a.at !== s + Math.round(0.7 * W) || b.at !== s + Math.round(0.85 * W) || a.moved || b.moved) throw new Error('a week: ' + JSON.stringify([a, b]));
+    if ((d - a.at) / 3600e3 !== 50.4 || (d - b.at) / 3600e3 !== 25.2) throw new Error('a week: ' + (d - a.at) / 3600e3 + ' h and ' + (d - b.at) / 3600e3 + ' h before');
+    const s6 = KST(2027, 3, 2, 9, 0), d6 = s6 + 6 * 3600e3;
+    const c = _hwRemindTime_(s6, d6, 1), e = _hwRemindTime_(s6, d6, 2);
+    if ((d6 - c.at) / 60e3 !== 108 || (d6 - e.at) / 60e3 !== 54) throw new Error('six hours: ' + (d6 - c.at) / 60e3 + ' and ' + (d6 - e.at) / 60e3 + ' min before');
+    if (!_hwRemindTime_(s, s, 1).skip || !_hwRemindTime_(d, s, 2).skip) throw new Error('a due time at or before the set time was timed');
+  });
+  ok &= run('none between 22:00 and 07:00: a reminder there goes at 07:00, or is skipped when 07:00 is 30 minutes or less from the due time', () => {
+    /* set 06:00, due 07:36 the next day: reminder 1 falls at 23:55, reminder 2 at 03:45 — both wait for 07:00 */
+    const s = KST(2027, 3, 3, 6, 0), d = KST(2027, 3, 4, 7, 36), seven = KST(2027, 3, 4, 7, 0);
+    const a = _hwRemindTime_(s, d, 1), b = _hwRemindTime_(s, d, 2);
+    if (a.at !== seven || !a.moved || b.at !== seven || !b.moved) throw new Error('moved to ' + new Date(a.at).toISOString() + ' and ' + new Date(b.at).toISOString());
+    /* due at 07:30: 07:00 is only 30 minutes before it, so a reminder from the night is skipped */
+    const d2 = KST(2027, 3, 4, 7, 30);
+    if (!_hwRemindTime_(s, d2, 1).skip || !_hwRemindTime_(KST(2027, 3, 3, 20, 0), d2, 2).skip) throw new Error('a night reminder 30 minutes before the due time was not skipped');
+    /* the trigger: nothing at night, then ONE reminder at 07:00 (reminder 2; reminder 1 is not repeated beside it) */
+    notDone();
+    const r = setHw('Night test', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      [KST(2027, 3, 3, 22, 1), KST(2027, 3, 3, 23, 58), KST(2027, 3, 4, 3, 50), KST(2027, 3, 4, 6, 59)].forEach(t => {
+        if (runAt(t) || RA.length) throw new Error('posted in the night, at ' + new Date(t).toISOString()); });
+      if (runAt(KST(2027, 3, 4, 7, 2)) !== 1 || RA.length !== 1) throw new Error('not one reminder at 07:00: ' + RA.length);
+      const row = rowOf(id);
+      if (!/^skipped: reminder 2 was due at the same time/.test(row.rem[0].said) || !/^\d+$/.test(row.rem[1].said)) throw new Error('the row reads ' + JSON.stringify(row.rem));
+      if (runAt(KST(2027, 3, 4, 7, 17)) || RA.length !== 1) throw new Error('posted again at 07:17');
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('a reminder goes ONCE, as one announcement to the pupils who have not finished, by their Classroom ids, naming nobody; reminder 2 is worked out again', () => {
+    const s = KST(2027, 3, 8, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W), t2 = s + Math.round(0.85 * W);
+    notDone();
+    const fin = mates[0]; hwStations(fin.email, 'mouth 8/8 in 11');          /* this pupil has finished */
+    const r = setHw('Week of the gut', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      if (runAt(t1 - 60e3) || RA.length) throw new Error('a reminder went before 70% of the time had passed');
+      if (runAt(t1 + 60e3) !== 1 || RA.length !== 1) throw new Error('reminder 1 did not go, once: ' + RA.length);
+      const a = RA[0], want = uidsOf(mates.filter(p => p !== fin));
+      if (a.courseId !== course) throw new Error('posted to ' + a.courseId + ', not the class’s course ' + course);
+      if (a.body.assigneeMode !== 'INDIVIDUAL_STUDENTS' || a.body.state !== 'PUBLISHED') throw new Error('not addressed to individuals: ' + JSON.stringify(a.body).slice(0, 200));
+      const got = a.body.individualStudentsOptions.studentIds.slice().sort();
+      if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error('to ' + got + ', want ' + want + ' (each id once, the finished pupil left out)');
+      _studentDirectory_().students.forEach(p => {
+        if ((p.name && a.body.text.indexOf(p.name) >= 0) || a.body.text.toLowerCase().indexOf(p.email) >= 0) throw new Error('the reminder names a pupil');
+      });
+      const words = 'Reminder: your homework "Week of the gut" is due on Monday 15 March at 15:00. You have not finished it yet.\n' +
+                    'Open it here: https://nlcsbiology.com/digestion-lab/#mouth\nSign in with your school Google account, so that your work is recorded.';
+      if (a.body.text !== words) throw new Error('the words: ' + a.body.text);
+      if (a.body.materials.length !== 1 || a.body.materials[0].link.url !== 'https://nlcsbiology.com/digestion-lab/#mouth') throw new Error('materials: ' + JSON.stringify(a.body.materials));
+      const row = rowOf(id);
+      if (!row.rem[0].at || row.rem[0].said !== String(want.length) || row.rem[1].at) throw new Error('the row: ' + JSON.stringify(row.rem));
+      /* the row keeps a count: no name, address or Classroom id */
+      const cells = ss.getSheetByName(T_HOMEWORK).getRange(row.row, 15, 1, 5).getValues()[0].join(' ');
+      if (mates.some(p => cells.indexOf(p.email) >= 0 || (p.name && cells.indexOf(p.name) >= 0)) || want.some(u => new RegExp('\\b' + u + '\\b').test(cells)))
+        throw new Error('the row holds who: ' + cells);
+      if (runAt(t1 + 2 * 60e3) || RA.length !== 1) throw new Error('reminder 1 went twice');
+      const c1 = cardOf(id).remind;
+      if (c1.says !== '1: sent to ' + want.length + ' · 2: waiting' || c1.bad || !c1.on || !c1.can) throw new Error('the list says ' + JSON.stringify(c1));
+      /* reminder 2, worked out again at its moment: another pupil has finished since */
+      const fin2 = mates[1]; hwStations(fin2.email, 'mouth 8/8 in 11');
+      if (runAt(t2 + 60e3) !== 1 || RA.length !== 2) throw new Error('reminder 2 did not go');
+      const want2 = uidsOf(mates.filter(p => p !== fin && p !== fin2));
+      if (JSON.stringify(RA[1].body.individualStudentsOptions.studentIds.slice().sort()) !== JSON.stringify(want2)) throw new Error('reminder 2 went to ' + RA[1].body.individualStudentsOptions.studentIds);
+      if (RA[1].body.text !== words) throw new Error('reminder 2 has other words: ' + RA[1].body.text);
+      if (cardOf(id).remind.says !== '1: sent to ' + want.length + ' · 2: sent to ' + want2.length) throw new Error('the list says ' + cardOf(id).remind.says);
+      /* nothing after the due time, and never a third */
+      if (runAt(d + 60e3) || RA.length !== 2) throw new Error('a reminder after the due time');
+    } finally { homeworkDelete(id); notDone(); }
+  });
+  ok &= run('everyone finished: no announcement; the due time passed first: skipped, never posted late', () => {
+    const s = KST(2027, 3, 15, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone(); mates.forEach(p => hwStations(p.email, 'mouth 8/8 in 11'));
+    const r = setHw('All done', s, d), id = r.made[0];
+    const late = setHw('Too late', s, d), lid = late.made[0]; RA.length = 0;
+    try {
+      /* "Too late": its 70% moment passes while nothing runs, and the next run is after the due time */
+      if (runAt(t1 + 60e3) || RA.length) throw new Error('an announcement to nobody');
+      if (rowOf(id).rem[0].said !== 'not needed: everyone had finished') throw new Error('the row reads ' + rowOf(id).rem[0].said);
+      notDone();
+      const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh);
+      sh.getRange(rowOf(lid).row, hc['Reminder 1']).setValue(''); sh.getRange(rowOf(lid).row, hc['Reminder 1 students']).setValue('');
+      if (runAt(d + 5 * 60e3) || RA.length) throw new Error('posted after the due time');
+      const lr = rowOf(lid);
+      if (!/^skipped: the due time had passed/.test(lr.rem[0].said) || !/^skipped: the due time had passed/.test(lr.rem[1].said)) throw new Error('the row reads ' + JSON.stringify(lr.rem));
+      /* the list, read after the due time (the test's clock): both skipped, and no switch offered */
+      const said = _hwRemindSays_(lr, d + 5 * 60e3);
+      if (said.can || said.says !== '1: skipped: the due time had passed · 2: skipped: the due time had passed') throw new Error('the list says ' + JSON.stringify(said));
+    } finally { homeworkDelete(id); homeworkDelete(lid); notDone(); }
+  });
+  ok &= run('the 🔔 switch: off stops the reminders, on starts them again; a pupil cannot touch it', () => {
+    const s = KST(2027, 3, 22, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Switch test', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      VISITOR = 'pupil@pupils.x.kr';
+      if (homeworkRemind({ id, on:false }).ok !== false) throw new Error('a pupil switched the reminders off');
+      VISITOR = OWNER;
+      const off = homeworkRemind({ id, on:false });
+      if (!off.ok) throw new Error(off.why);
+      const c = off.data.homework.filter(h => h.id === id)[0].remind;
+      if (c.says !== 'off' || c.on || !c.can) throw new Error('the list says ' + JSON.stringify(c));
+      if (runAt(t1 + 60e3) || RA.length) throw new Error('a reminder went while switched off');
+      if (rowOf(id).rem[0].at) throw new Error('a switched-off reminder was written down');
+      const on = homeworkRemind({ id, on:true });
+      if (!on.ok || !rowOf(id).remindOn) throw new Error('could not switch it on again: ' + on.why);
+      if (runAt(t1 + 2 * 60e3) !== 1 || RA.length !== 1) throw new Error('switched on again, reminder 1 did not go');
+      if (homeworkRemind({ id:'HW-NONE1', on:true }).ok !== false) throw new Error('a homework that is not there was switched');
+    } finally { VISITOR = OWNER; homeworkDelete(id); }
+  });
+  ok &= run('homework for chosen pupils reminds only them; a pupil with no Classroom id is left out; homework not in Classroom is never reminded', () => {
+    const s = KST(2027, 4, 5, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const chosen = [mates[2], mates[4]];
+    const a = setHw('Two of them', s, d, { emails: chosen.map(p => p.email) }), ida = a.made[0];
+    /* posting asked for, but Classroom is off: the switch is kept, and nothing can ever be reminded */
+    const b = homeworkCreate({ title:'Never posted', post:true, remind:true, classes:[{ cls, due:'2027-06-01' }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] }), idb = b.made[0];
+    const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh);
+    sh.getRange(rowOf(idb).row, hc.Created).setValue(new Date(s)); sh.getRange(rowOf(idb).row, hc.Due).setValue(new Date(d));
+    RA.length = 0;
+    /* one of the chosen pupils has no Classroom user id */
+    const st = ss.getSheetByName(T_STUDENTS), ec = _emailCol_(st), uc = _headerCol_(st, 'Classroom user id', ec + 3);
+    const at = st.getRange(2, ec, st.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === chosen[1].email) + 2;
+    const keep = st.getRange(at, uc).getValue(); st.getRange(at, uc).setValue('');
+    try {
+      if (b.remind !== 'no post' || !rowOf(idb).remindOn) throw new Error('the switch was not kept: ' + b.remind);
+      if (runAt(t1 + 60e3) !== 1 || RA.length !== 1) throw new Error(RA.length + ' announcements');
+      const got = RA[0].body.individualStudentsOptions.studentIds;
+      if (got.join() !== ids[chosen[0].email].userId) throw new Error('to ' + got + ', want only ' + ids[chosen[0].email].userId);
+      if (rowOf(idb).rem[0].at) throw new Error('homework not in Classroom was reminded');
+      if (cardOf(idb).remind.says !== 'no reminders: not posted in Google Classroom') throw new Error('the list says ' + cardOf(idb).remind.says);
+    } finally { st.getRange(at, uc).setValue(keep); homeworkDelete(ida); homeworkDelete(idb); }
+  });
+  ok &= run('🩺 says plainly when the Classroom announcements permission is missing; a reminder then is not tried, and the list shows why', () => {
+    const s = KST(2027, 4, 12, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Permission test', s, d), id = r.made[0]; RA.length = 0;
+    SCOPES_GRANTED = false;
+    try {
+      const said = withClassroom(() => alertOf(() => checkSetup()));
+      if (!/❌  the reminders CANNOT be posted: Google has not been allowed to post Classroom announcements for this script/.test(said) ||
+          !/checkSetup/.test(said) || !/▶ Run/.test(said) || !/Select all/.test(said)) throw new Error('🩺 does not say it: ' + said.slice(-700));
+      if (uiData('homework').data.remindAllowed !== false) throw new Error('the page is not told');
+      if (runAt(t1 + 60e3) || RA.length) throw new Error('a reminder was tried without the permission');
+      if (!/^not sent: Google has not been allowed to post Classroom announcements/.test(rowOf(id).rem[0].said)) throw new Error('the row reads ' + rowOf(id).rem[0].said);
+      const c = cardOf(id).remind;
+      if (!/^1: ⚠ not sent: Google has not been allowed/.test(c.says) || !c.bad) throw new Error('the list says ' + c.says);
+      SCOPES_GRANTED = true;
+      const fine = withClassroom(() => alertOf(() => checkSetup()));
+      if (!/✅  the reminders can be posted: Google Classroom announcements are allowed/.test(fine)) throw new Error('with the permission: ' + fine.slice(-500));
+    } finally { SCOPES_GRANTED = true; homeworkDelete(id); }
+  });
+  ok &= run('a failed announcement breaks nothing: written down (no long ids), logged, shown on the list, never tried again', () => {
+    const s = KST(2027, 4, 19, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Failure test', s, d), id = r.made[0]; RA.length = 0;
+    annFail = 'Classroom is busy for user 114583920114583920114 just now';
+    try {
+      if (runAt(t1 + 60e3) !== 0) throw new Error('a failed post was counted');
+      const said = rowOf(id).rem[0].said;
+      if (!/^not sent: Classroom is busy/.test(said) || /\d{12,}/.test(said)) throw new Error('the row reads ' + said);
+      const c = cardOf(id).remind;
+      if (!c.bad || !/^1: ⚠ not sent: Classroom is busy/.test(c.says)) throw new Error('the list says ' + c.says);
+      if (!calls.some(x => /^log: Homework reminder 1 for HW-\w+ not sent: Classroom is busy/.test(x))) throw new Error('the failure was not logged');
+      annFail = '';
+      if (runAt(t1 + 20 * 60e3) || RA.length) throw new Error('a failed reminder was tried again');
+    } finally { annFail = ''; homeworkDelete(id); }
+  });
+  ok &= run('the 15-minute check is cheap when nothing is due: one read of the Homework tab, no station list, no Classroom', () => {
+    const s = KST(2027, 4, 26, 15, 0);
+    const r = setHw('Cheap test', s, s + W), id = r.made[0];
+    const seen = [], keepGet = ss.getSheetByName, keepFetch = UrlFetchApp.fetch;
+    let fetched = 0, asked = 0;
+    ss.getSheetByName = function (n) { seen.push(n); return keepGet.call(ss, n); };
+    UrlFetchApp.fetch = function () { fetched++; return keepFetch.apply(UrlFetchApp, arguments); };
+    global.Classroom = new Proxy({}, { get: () => { asked++; return undefined; } });
+    try {
+      const c0 = __CALLS;
+      if (_hwRemindRun_(s + 60e3) !== 0) throw new Error('something was posted');
+      const reads = __CALLS - c0;
+      if (sendHomeworkReminders({ now: 9e15 }) !== 0) throw new Error('the trigger, called with something, posted now');
+      if (seen.some(n => n !== T_HOMEWORK)) throw new Error('it read ' + [...new Set(seen)].join(', '));
+      if (fetched || asked) throw new Error('it fetched the station list or asked Classroom: ' + fetched + ' / ' + asked);
+      if (reads > 2) throw new Error(reads + ' reads of the sheet, want the headings and the rows');
+    } finally { ss.getSheetByName = keepGet; UrlFetchApp.fetch = keepFetch; global.Classroom = undefined; homeworkDelete(id); }
+  });
+  ok &= run('the 15-minute check starts by itself when homework with reminders is set — once — and 🩺 reports it, and starts it again if it is gone', () => {
+    const mine = () => TRIGGERS.filter(t => t.getHandlerFunction() === 'sendHomeworkReminders');
+    const daily = TRIGGERS.filter(t => t.getHandlerFunction() === 'sendDueSummaries').length;
+    mine().forEach(t => ScriptApp.deleteTrigger(t));
+    const s = KST(2027, 5, 3, 15, 0);
+    const off = setHw('No reminders', s, s + W, { remind:false }), made = [off];
+    try {
+      if (mine().length) throw new Error('reminders off, and the check started anyway');
+      if (rowOf(off.made[0]).remindOn || off.remind !== 'off') throw new Error('the switch was not kept off');
+      made.push(setHw('Reminders 1', s, s + W), setHw('Reminders 2', s, s + W));
+      if (mine().length !== 1 || mine()[0].minutes !== 15) throw new Error(mine().length + ' checks, every ' + (mine()[0] || {}).minutes + ' minutes');
+      if (made[1].remind !== 'on' || made[1].remindWhy) throw new Error('the answer: ' + JSON.stringify([made[1].remind, made[1].remindWhy]));
+      const said = withClassroom(() => alertOf(() => checkSetup()));
+      if (!/✅  homework reminders: checked every 15 minutes/.test(said) || /started just now/.test(said)) throw new Error('🩺: ' + said.slice(-600));
+      mine().forEach(t => ScriptApp.deleteTrigger(t));            /* deleted by hand in the editor */
+      const again = withClassroom(() => alertOf(() => checkSetup()));
+      if (mine().length !== 1 || !/✅  homework reminders: checked every 15 minutes \(started just now\)/.test(again)) throw new Error('🩺 did not start it again: ' + mine().length);
+      if (TRIGGERS.filter(t => t.getHandlerFunction() === 'sendDueSummaries').length !== daily) throw new Error('the morning email changed');
+    } finally { made.forEach(x => homeworkDelete(x.made[0])); mine().forEach(t => ScriptApp.deleteTrigger(t)); }
+  });
+  ok &= run('the list sorts by due date or by class, remembered in this browser; the 🔔 line and switch; the form asks about reminders, ticked by default', () => {
+    const now = Date.now(), iso = days => new Date(now + days * 864e5).toISOString();
+    const hw = (id, c, days) => ({ id, title: 'Homework ' + id, who: c || '2 students', what: 'Digestion: Mouth and teeth', teacher: OWNER,
+      due: days === null ? null : iso(days), dueText: days === null ? '' : 'a day', overdue: days !== null && days < 0, soon: false, dueBad: days === null,
+      targets: c ? { cls: c } : { emails: ['a@x.kr', 'b@x.kr'] }, tasks: [], pupils: [], tally: { done:0, partly:0, none:0 }, missing: [],
+      setCount: 0, gone: 0, joined: 0, created: iso(-10),
+      remind: { on: true, can: true, bad: false, says: '1: sent to 4 · 2: waiting', plan: 'Reminder 1: sent on 1 Oct, 17:00 to 4 pupils. Reminder 2: about 2 Oct, 09:00, to the pupils who have not finished then.' } });
+    const D = { labs: [], students: [], english: null, classroomOk: true, manifestOk: true, hubSet: true, remindAllowed: true,
+      homework: [ hw('A', '10B', 2), hw('B', '9A', 5), hw('C', '9A', -1), hw('D', '', 1), hw('E', '10B', -3), hw('F', '9A', null) ] };
+    const order = h => [...h.matchAll(/class="hw__h"[^>]*data-hw="([^"]+)"/g)].map(m => m[1]).join('');
+    const store = { m: {}, getItem(k) { return k in this.m ? this.m[k] : null; }, setItem(k, v) { this.m[k] = String(v); } };
+    const page = teacherPage(); page.win.localStorage = store; page.win.vHomework(D);
+    let html = page.html();
+    if (!/data-hsort="due" aria-pressed="true">Due date</.test(html) || !/data-hsort="class" aria-pressed="false">Class</.test(html)) throw new Error('no “Sort by: Due date · Class” switch, on Due date');
+    /* not yet due, soonest first; past, most recent first; no readable date last */
+    if (order(html) !== 'DABCEF') throw new Error('by due date: ' + order(html));
+    page.press('data-hsort', 'class'); html = page.html();
+    if (order(html) !== 'BCFAED') throw new Error('by class: ' + order(html));
+    const groups = [...html.matchAll(/<span class="coh__t">([^<]+)<\/span>/g)].map(m => m[1]);
+    if (groups.join('|') !== '9A|10B|Chosen pupils') throw new Error('the groups: ' + groups.join('|'));
+    if (store.m['homework.sort'] !== 'class') throw new Error('the choice was not remembered');
+    const page2 = teacherPage(); page2.win.localStorage = store; page2.win.vHomework(D);   /* a reload */
+    if (order(page2.html()) !== 'BCFAED') throw new Error('not remembered after a reload: ' + order(page2.html()));
+    const page3 = teacherPage();                                 /* storage blocked: still drawn, by due date, and the switch works */
+    page3.win.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
+    page3.win.vHomework(D);
+    if (order(page3.html()) !== 'DABCEF') throw new Error('with storage blocked: ' + order(page3.html()));
+    page3.press('data-hsort', 'class'); if (order(page3.html()) !== 'BCFAED') throw new Error('the switch failed with storage blocked');
+    /* the 🔔 line; opened, the plan and the switch, which asks the server */
+    if (!/class="hw__r">🔔 1: sent to 4 · 2: waiting</.test(html)) throw new Error('no 🔔 line');
+    const CALLS = [];
+    const gsr = new Proxy({}, { get: (t, k) => (k === 'withSuccessHandler' || k === 'withFailureHandler') ? (() => gsr) : (...args) => { CALLS.push([k, args]); } });
+    page.win.google = { script: { run: gsr } };
+    page.press('data-hw', 'A'); html = page.html();
+    if (!/🔔 Reminder 1: sent on 1 Oct, 17:00 to 4 pupils/.test(html) || !/data-remind="A" data-on="0">Switch reminders off</.test(html)) throw new Error('no plan or switch on an opened homework');
+    page.press('data-remind', 'A');
+    if (!CALLS.length || CALLS[0][0] !== 'homeworkRemind' || CALLS[0][1][0].id !== 'A' || CALLS[0][1][0].on !== false) throw new Error('the switch sent ' + JSON.stringify(CALLS));
+    const D2 = JSON.parse(JSON.stringify(D)); D2.remindAllowed = false;
+    const page4 = teacherPage(); page4.win.vHomework(D2);
+    if (!/The reminders cannot be posted: Google has not been allowed/.test(page4.html())) throw new Error('no warning when the permission is missing');
+    /* the form: the reminder box under the Classroom box, ticked by default; what it sends, ticked and unticked */
+    const r0 = homeworkCreate({ title:'Refill for reminders', classes:[{ cls, due:'2027-03-05' }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+    try {
+      const real = JSON.parse(JSON.stringify(uiData('homework').data)); real.classroomOk = true;
+      const sentWith = untick => {
+        const got = [];
+        const g2 = new Proxy({}, { get: (t, k) => (k === 'withSuccessHandler' || k === 'withFailureHandler') ? (() => g2) : (...args) => { got.push([k, args]); } });
+        const p = teacherPage(); p.win.google = { script: { run: g2 } }; p.win.vHomework(real);
+        p.press('data-hw', r0.made[0]); p.press('data-again', r0.made[0]);
+        p.fire('input', 'data-due', '0', '2027-03-06');
+        if (!/<input type="checkbox" id="hremind" checked><span>Remind pupils who have not finished \(2 reminders before the due time\)<\/span>/.test(p.html()))
+          throw new Error('no reminder box under “Post it in Google Classroom too”, ticked');
+        if (untick) p.fire('change', 'id', 'hremind', false);
+        p.press('id', 'hset');
+        const c = got.filter(x => x[0] === 'homeworkCreate')[0];
+        if (!c) throw new Error('Set homework sent nothing');
+        return c[1][0];
+      };
+      const a1 = sentWith(false), a2 = sentWith(true);
+      if (a1.remind !== true || !a1.post) throw new Error('ticked, it sent ' + JSON.stringify([a1.post, a1.remind]));
+      if (a2.remind !== false || !a2.post) throw new Error('unticked, it sent ' + JSON.stringify([a2.post, a2.remind]));
+      const p5 = teacherPage(); p5.win.vHomework(real); p5.fire('change', 'id', 'hpost', false);
+      if (/id="hremind"/.test(p5.html())) throw new Error('a reminder box with no Classroom post');
+    } finally { homeworkDelete(r0.made[0]); }
+  });
+}
 homeworkDelete(enHw.id);
 { const t = ss.getSheetByName(T_ENGLISH); if (t) ss.deleteSheet(t); }
 ENGLISH_JSON = ''; TRIGGERS.length = 0; MAILS.length = 0; CLIENT_ID = enCid; TOKEN_EMAIL = enTok;

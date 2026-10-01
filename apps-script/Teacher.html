@@ -265,6 +265,12 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .acts{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
 .gone{margin-top:9px;font-size:12.5px;color:#F6D08A}
 .churn{font:500 10.5px/1 var(--mono);color:var(--warn);margin-left:8px}
+/* homework reminders (🔔) and the list's sort switch, 1 Oct 2026 */
+.hw__r{font:500 11px/1.4 var(--mono);color:var(--dim);margin-top:4px;overflow-wrap:anywhere}.hw__r.bad{color:var(--warn)}
+.hwrem{margin-top:9px;font-size:12.5px;color:var(--dim)}
+.hsort{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
+.hsort__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
+.hwgrp{margin:22px 0 0}.hwlist>.hwgrp:first-child{margin-top:8px}
 /* Bio English */
 .yrs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
 .hmcard{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;margin-top:14px}
@@ -330,7 +336,7 @@ var BOOT = __BOOT__;
       note:'Opening a tracker signs you in as yourself; it shows that pupil’s page because you are their teacher.' },
     homework:{ label:'Set homework', accent:'#F5A623', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets or both — say who it is for and when it is due.',
-      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again.' },
+      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again. Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
     english:{ label:'Bio English', accent:'#62D38A', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
       note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' }
@@ -745,7 +751,11 @@ var BOOT = __BOOT__;
   });
 
   setInterval(showAge, 30000);               /* the label must age by itself, or it lies */
-  go(BOOT.tab || 'teachers');
+  /* Start once BOTH scripts have run. A view kept in this tab's sessionStorage is drawn at once, and Lab progress, Bio
+     English and Set homework are defined by the second script: started here, a reload within ten minutes of a read threw
+     and left those views on "Loading" (found 1 Oct 2026). */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ go(BOOT.tab || 'teachers'); });
+  else go(BOOT.tab || 'teachers');
 })();
 </script>
 <script>
@@ -1053,10 +1063,12 @@ var BOOT = __BOOT__;
 
   /* ─────────────────────── Set homework ─────────────────────── */
   var hState = { title:'', rows:[{cls:'',due:'',time:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
-                 post:true, enYr:'', topic:'', topics:{}, topicMsg:'' };
+                 post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'' };
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   window.vHomework = function(D){
     var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
+    /* "Sort by: Due date · Class" (Daniel, 1 Oct 2026), remembered in this browser */
+    if(!hState.sort){ var s0=''; try { s0=localStorage.getItem('homework.sort')||''; } catch(e){} hState.sort=(s0==='class')?'class':'due'; }
     function useEn(){ EN=D.english||null; ENS={}; if(EN)(EN.sets||[]).forEach(function(s){ ENS[s.id]=s; }); }
     useEn();
     function picked(){ var tasks=[],st=0,q=0,es=[];
@@ -1188,17 +1200,21 @@ var BOOT = __BOOT__;
           '<span class="size__n">'+p.questions+'</span><span class="size__k">questions</span><span class="size__h">'+esc(hint)+'</span></div>'+
           '<label class="ck" style="margin-top:14px"><input type="checkbox" id="hpost"'+(hState.post&&D.classroomOk?' checked':'')+(D.classroomOk?'':' disabled')+'>'+
           '<span>Post it in Google Classroom too'+(D.classroomOk?'':' — Google Classroom is not switched on in the script')+'</span></label>'+
+          (hState.post&&D.classroomOk?'<label class="ck" style="margin-top:10px;display:flex"><input type="checkbox" id="hremind"'+(hState.remind?' checked':'')+'>'+
+            '<span>Remind pupils who have not finished (2 reminders before the due time)</span></label>'+
+            '<div class="tmsg" style="margin:3px 0 0 22px">Only they see them, in Google Classroom: when 70% and 85% of the time to the due time has passed. None between 22:00 and 07:00.</div>':'')+
           (hState.post&&D.classroomOk?topicBox():'')+
           '<div style="margin-top:14px"><button class="go" id="hset"'+(p.any&&ready()?'':' disabled')+'>'+
           (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
-      var list = !HW.length ? '<div class="empty">Nothing set yet.</div>' : HW.map(function(h){
-        var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id];
+      function card(h){
+        var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id], rm=h.remind||null;
         var w=n||1;   /* nobody left is "nobody left", not "0 of 1 done" */
         var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+(h.joined?'<span class="churn">'+h.joined+' joined since</span>':'')+
           (h.dueBad?'<span class="churn">the due date cannot be read</span>':'');
         return '<div class="hw"><div class="hw__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-hw="'+esc(h.id)+'">'+
           '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
-          (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div></div>'+
+          (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div>'+
+          (rm&&rm.says?'<div class="hw__r'+(rm.bad?' bad':'')+'">🔔 '+esc(rm.says)+'</div>':'')+'</div>'+
           '<div class="bars" data-tip="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
           '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
           '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
@@ -1210,15 +1226,39 @@ var BOOT = __BOOT__;
             ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
             (h.dueBad?'<div class="gone">The Due cell for this homework in the 📚 Homework tab is not a date, so it has no due date: it is never shown as overdue, and no summary is emailed. Type the date into that cell, then press Refresh.</div>':'')+
             (h.missing&&h.missing.length?'<div class="gone">Not scored: '+esc(h.missing.join(', '))+' — that part is no longer in the lab, so it is left out rather than counted as nothing done.</div>':'')+
+            (rm&&rm.plan?'<div class="hwrem">🔔 '+esc(rm.plan)+'</div>':'')+
             '<div class="acts"><button class="act" data-again="'+esc(h.id)+'">Set again</button>'+
+            (rm&&rm.can?'<button class="act" data-remind="'+esc(h.id)+'" data-on="'+(rm.on?'0':'1')+'">'+(rm.on?'Switch reminders off':'Switch reminders on')+'</button>':'')+
             (hState.confirmDel===h.id
               ? '<button class="act danger" data-del="'+esc(h.id)+'">Yes, remove it</button><button class="act" data-keep="1">Keep it</button>'
-              : '<button class="act danger" data-ask="'+esc(h.id)+'">Remove</button>')+'</div></div>':'')+'</div>'; }).join('');
+              : '<button class="act danger" data-ask="'+esc(h.id)+'">Remove</button>')+'</div></div>':'')+'</div>'; }
+      /* Due date: what is not yet due first, the soonest first; then what is past, the most recent first; a due date that
+         cannot be read last. Class: one group per class in year order, each in that same order, and homework set for
+         chosen pupils in a group of its own at the end. The server judged "overdue" in the school's zone. */
+      function dueRank(h){ return !h.due ? 2 : (h.overdue ? 1 : 0); }
+      function byDue(a,b){ var ra=dueRank(a), rb=dueRank(b); if(ra!==rb) return ra-rb;
+        var ta=a.due?Date.parse(a.due):0, tb=b.due?Date.parse(b.due):0;
+        return (ra===0 ? ta-tb : ra===1 ? tb-ta : String(b.created||'').localeCompare(String(a.created||''))) ||
+          cmpClass((a.targets&&a.targets.cls)||'~',(b.targets&&b.targets.cls)||'~') || String(a.title||'').localeCompare(String(b.title||'')); }
+      var list;
+      if (!HW.length) list='<div class="empty">Nothing set yet.</div>';
+      else if (hState.sort==='class') {
+        var grp={}; HW.forEach(function(h){ var k=(h.targets&&h.targets.cls)||''; (grp[k]=grp[k]||[]).push(h); });
+        var keys=Object.keys(grp).filter(function(k){ return k; }).sort(cmpClass); if(grp['']) keys.push('');
+        list=keys.map(function(k){ return '<div class="hwgrp"><div class="coh"><span class="coh__t">'+esc(k||'Chosen pupils')+'</span>'+
+          '<span class="n">'+grp[k].length+'</span></div>'+grp[k].slice().sort(byDue).map(card).join('')+'</div>'; }).join('');
+      }
+      else list=HW.slice().sort(byDue).map(card).join('');
+      var sortBar = HW.length>1 ? '<div class="hsort" role="group" aria-label="Sort the homework"><span class="hsort__k">Sort by</span>'+
+        [['due','Due date'],['class','Class']].map(function(o){ var on=hState.sort===o[0];
+          return '<button class="chip'+(on?' on':'')+'" data-hsort="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+'</div>' : '';
       $('view').innerHTML = warn+
         '<section class="sec"><div class="sec__h"><span class="sec__t">New homework</span></div>'+
         '<p class="sec__d">Practice works best on something already taught. Tick only the stations you have covered.</p>'+builder+'</section>'+
-        '<section class="sec"><div class="sec__h"><span class="sec__t">What you have set</span></div>'+
-        '<p class="sec__d">Open one to see each student. “Set again” refills the form above.</p>'+list+'</section>';
+        '<section class="sec"><div class="sec__h"><span class="sec__t">What you have set</span>'+sortBar+'</div>'+
+        '<p class="sec__d">Open one to see each student. “Set again” refills the form above.</p>'+
+        (D.remindAllowed===false?'<div class="warn">The reminders cannot be posted: Google has not been allowed to post Classroom announcements for this script. 🧪 Biology Labs ▸ 🩺 Check the set-up says what to do.</div>':'')+
+        '<div class="hwlist">'+list+'</div></section>';
       wireH();
     }
     function say(t,bad){ var m=$('hmsg'); if(m){ m.textContent=t||''; m.className='msg'+(t?(bad?' bad':' ok'):''); } }
@@ -1287,6 +1327,14 @@ var BOOT = __BOOT__;
         var mine=hState.picked[ENID]=hState.picked[ENID]||{}, id=b.getAttribute('data-enpick');
         if(b.checked) mine[id]=1; else delete mine[id]; paint(); }); });
       var hp=$('hpost'); if(hp) hp.addEventListener('change', function(){ hState.post=hp.checked; paint(); });
+      var hr=$('hremind'); if(hr) hr.addEventListener('change', function(){ hState.remind=hr.checked; });
+      document.querySelectorAll('[data-hsort]').forEach(function(b){ b.addEventListener('click', function(){
+        var v=b.getAttribute('data-hsort')==='class'?'class':'due'; if(v===hState.sort) return;
+        hState.sort=v; try { localStorage.setItem('homework.sort', v); } catch(e){} paint(); }); });
+      /* the 🔔 switch: the button says it is working until the server answers, then the list is drawn from that answer */
+      document.querySelectorAll('[data-remind]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(hState.busy) return; b.disabled=true; b.textContent='Switching…';
+        send('homeworkRemind', { id:b.getAttribute('data-remind'), on:b.getAttribute('data-on')==='1' }); }); });
       var g=$('hset'); if(g) g.addEventListener('click', submit);
     }
     function send(fn, arg){
@@ -1294,8 +1342,8 @@ var BOOT = __BOOT__;
       google.script.run.withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D}); paint(); }
-          else say((r&&r.why)||'That did not work.', true); })
-        .withFailureHandler(function(){ hState.busy=false; say('That did not work.', true); })[fn](arg);
+          else { paint(); say((r&&r.why)||'That did not work.', true); } })
+        .withFailureHandler(function(){ hState.busy=false; paint(); say('That did not work.', true); })[fn](arg);
     }
     function submit(){
       if (hState.busy) return;
@@ -1315,10 +1363,13 @@ var BOOT = __BOOT__;
             if(r.posted&&r.posted.length) m+=' Posted in Google Classroom for '+r.posted.join(', ')+(r.topic&&!(r.topicMissed&&r.topicMissed.length)?', under the topic “'+r.topic+'”':'')+'.';
             if(r.topicMissed&&r.topicMissed.length) m+=' Posted without the topic — '+r.topicMissed.join('; ')+'.';
             if(r.notPosted&&r.notPosted.length) m+=' Not posted in Classroom — '+r.notPosted.join('; ')+'.';
-            paint(); say(m, !!((r.notPosted&&r.notPosted.length)||(r.topicMissed&&r.topicMissed.length))); }
+            if(r.remind==='on') m+=' Pupils who have not finished get 2 reminders in Google Classroom before the due time.';
+            if(r.remindWhy) m+=' '+r.remindWhy;
+            paint(); say(m, !!((r.notPosted&&r.notPosted.length)||(r.topicMissed&&r.topicMissed.length)||r.remindWhy)); }
           else say((r&&r.why)||'Could not set it.', true); })
         .withFailureHandler(function(){ hState.busy=false; say('Could not set it.', true); })
         .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks, post:!!(hState.post&&D.classroomOk),
+          remind:!!(hState.post&&D.classroomOk&&hState.remind),
           topic:(hState.post&&D.classroomOk)?String(hState.topic||'').trim():'',
           /* the plain date, and the time when one was typed: the server reads both in the school's zone (no time = the end of that day) */
           classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]}; }) });
