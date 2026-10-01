@@ -311,14 +311,14 @@ wrong workbook in.
 ## 👩‍🏫 Teacher mode, and the teacher page
 
 <details>
-<summary><b>A page only your Biology teachers can open: spreadsheets, lab progress, Bio English, students and homework</b></summary>
+<summary><b>A page only your Biology teachers can open: spreadsheets, lab progress, Bio English, students, homework and homework habits</b></summary>
 
 <br>
 
 Signed in on the hub as a teacher, the corner card gains a **Teacher | Test** switch.
 **Test** shows you the hub exactly as a student sees it, from your own TEST reflections.
 **Teacher** replaces the student's door with **Assessment system**, which opens the teacher page.
-It has five tabs:
+It has six tabs:
 
 | Tab | What it shows |
 |---|---|
@@ -327,6 +327,11 @@ It has five tabs:
 | **Bio English** | how far each student has got with the Bio English Lab sets of their year |
 | **Students** | find any pupil and open their own reflection tracker, the same page they see |
 | **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
+| **⏱️ Homework habits** | when each pupil finishes each homework, against the time it was set and its due time: *done before it was set*, *early* (by half the time), *in good time* (by 85%), *last minute*, *late*, *not done* or *still open*; ⏰ when they finished after a reminder had gone to them; their checks and right first time; and the time *from their first try to their finish* (between two saves: never time spent working). Each pupil gets a habit line from their last six homework (*Usually early*, *Usually in good time*, *Usually the last minute*, *Often late or not done*, *Only after a reminder*, *Getting better*, *Getting worse* or *Mixed*), and a neutral *Worth a look* when a homework is finished very fast and almost all right first time by a pupil whose results are usually low (teacher-marked tests under 50%): a reason to talk with them, never proof of anything. Pick a class; click a name for that pupil's timeline. The times are kept, per station, from the first save after the script is pasted |
+
+If you also run the analysis website (its own script in the Student Progress Tracker), the teachers on its 👥 list see
+**📊 Analysis ↗** at the end of the tab row; it opens the website in a new tab. Nobody else sees it, and the list stays in
+the tracker: the page is told only the website's address.
 
 **Nothing about that page is in this website.** Not its address, not a spreadsheet link, not who
 the teachers are, not a single pupil or mark. It is guarded twice:
@@ -435,8 +440,8 @@ Never a class's times, anyone else's, or a single question.
 | Tab | What is in it |
 |---|---|
 | 🟢 **Students** | the dashboard — every student, their class, and their best score in **every** lab, red through amber to green; a lab not built yet has a paler heading and an empty grey column |
-| 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported |
-| 🟢 **✍️ Bio English** | a row per student, made at their first save in Bio English Lab: keyword and answer-writing questions answered, how many right first time, sets finished |
+| 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported. Its last column, *Station times* (hidden), notes when each station was first tried and first finished, for ⏱️ Homework habits |
+| 🟢 **✍️ Bio English** | a row per student, made at their first save in Bio English Lab: keyword and answer-writing questions answered, how many right first time, sets finished; the last column, *Set times* (hidden), notes when each set was first tried and first finished |
 | 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title, its due date, or its reminders (Remind: on or off) here; the last columns say when each reminder went and to how many pupils, never who |
 | 🟣 **👩‍🏫 Teachers** | the other teachers who may open the teacher page |
 | 🔵 **🔗 Teacher links** | the spreadsheets the teacher page lists |

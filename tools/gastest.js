@@ -794,9 +794,10 @@ ok &= run('a column of the teacher\'s own after the snapshot is kept, moved to t
   sh.getRange(1, 18).setValue('My notes'); sh.getRange(2, 18).setValue('keep me');
   const out = deeSaves({ app: 'circulation-lab', score: 1, total: 115, snap: 'system~7:abc:f000000', stations: { system: '1/7 in 1' } });
   if (!/^recorded/.test(out)) throw new Error(out);
-  const head = sh.getRange(1, 18, 1, 4).getValues()[0].join('|');
-  if (head !== 'Practised again|First round|Best ever|My notes') throw new Error('headings: ' + head);
-  if (sh.getRange(2, 21).getValue() !== 'keep me') throw new Error('the teacher\'s own column lost its note');
+  /* every column of ours after the snapshot (Station times since 1 Oct 2026, ⏱️ Homework habits), then the teacher's own */
+  const ours = LAB_COLS.slice(17).map(c => c.h), head = sh.getRange(1, 18, 1, ours.length + 1).getValues()[0].join('|');
+  if (head !== ours.join('|') + '|My notes') throw new Error('headings: ' + head);
+  if (sh.getRange(2, LAB_COLS.length + 1).getValue() !== 'keep me') throw new Error('the teacher\'s own column lost its note');
 });
 /* ── Review fixes (27 Sep 2026) ── */
 const partOf = (snap, id) => String(snap).split('|').filter(x => x.startsWith(id + '~'))[0] || '';
@@ -844,9 +845,9 @@ ok &= run('notes typed under no heading are moved right, never written over', ()
   sh.getRange(3, 18).setValue('my note');                 /* no heading above it */
   const out = deeSaves({ app: 'plants-lab', score: 1, total: 116, snap: 'x~3:abc:f00', stations: { x: '1/3 in 1' } });
   if (!/^recorded/.test(out)) throw new Error(out);
-  const head = sh.getRange(1, 18, 1, 3).getValues()[0].join('|');
-  if (head !== 'Practised again|First round|Best ever') throw new Error('headings: ' + head);
-  if (sh.getRange(3, 21).getValue() !== 'my note') throw new Error('the note was not kept: ' + sh.getRange(3, 21).getValue());
+  const ours = LAB_COLS.slice(17).map(c => c.h), head = sh.getRange(1, 18, 1, ours.length).getValues()[0].join('|');
+  if (head !== ours.join('|')) throw new Error('headings: ' + head);
+  if (sh.getRange(3, LAB_COLS.length + 1).getValue() !== 'my note') throw new Error('the note was not kept: ' + sh.getRange(3, LAB_COLS.length + 1).getValue());
 });
 ok &= run('a heading of ours is known however it is dressed', () => {
   const sh = ss.getSheetByName('Classification');
@@ -3279,6 +3280,478 @@ console.log('— reminders to the pupils who have not finished —');
       if (/id="hremind"/.test(p5.html())) throw new Error('a reminder box with no Classroom post');
     } finally { homeworkDelete(r0.made[0]); }
   });
+}
+/* ── ⏱️ Homework habits, part 1 (Daniel, 1 Oct 2026, night) ──────────────────────────────────────────────────────────
+   Each save notes when each station (and each Bio English set) was FIRST tried and FIRST finished, inside the one read and
+   one write it always made; "finished" is the homework scorer's own verdict. The teacher page's ⏱️ Homework habits reads
+   those times: a band per homework and pupil, ⏰ after a reminder, a habit line, and neutral "worth a look" flags. No
+   measure of time spent: the span is from the first try to the finish, between two saves. */
+console.log('— ⏱️ homework habits —');
+{
+  const habCid = CLIENT_ID, habTok = TOKEN_EMAIL, habMan = MANIFEST_JSON, realOpen = SpreadsheetApp.openById;
+  CLIENT_ID = 'CID'; VISITOR = OWNER; SCHOOL_DOMAIN = 'x.kr';
+  const KST = (y, mo, d, h, mi) => Date.UTC(y, mo - 1, d, h - 9, mi || 0);
+  const MAN = (mouth, stomach) => JSON.stringify({ generated:'t', labs: { 'digestion-lab': { name:'Digestion', questions:123,
+    stations:[ {id:'mouth',name:'Mouth and teeth',questions:mouth}, {id:'stomach',name:'Stomach',questions:stomach} ] } } });
+  const setMan = j => { MANIFEST_JSON = j; for (const k of Array.from(cacheStore.keys())) if (/^STATIONS_MANIFEST_/.test(k)) cacheStore.delete(k); };
+  setMan(MAN(8, 9));
+  const HCLS = '9H', HCOURSE = 'cH';
+  const people = ['Ana', 'Ben', 'Cal', 'Dov', 'Eve', 'Fay', 'Gus'].map((n, i) => ({ name: 'Hab ' + n, email: 'hab' + i + '@x.kr', userId: 'uh' + i }));
+  _upsertStudents_(people, HCLS, 'Y9 Habits', HCOURSE);
+  _seedLab_(LABS.filter(l => l.id === 'digestion-lab')[0]);
+  const E = people.map(p => p.email);
+  const dig = () => ss.getSheetByName('Digestion');
+  const rowOf = email => { const sh = dig(), n = sh.getLastRow() - 1, v = sh.getRange(2, 1, n, LAB_COLS.length).getValues();
+    for (let i = 0; i < n; i++) if (String(v[i][LAB_EMAIL - 1]).toLowerCase() === email) return { r: i + 2, v: v[i] };
+    throw new Error('no Digestion row for ' + email); };
+  const timesOf = email => _stParse_(rowOf(email).v[LAB_TIMES - 1]);
+  const save = (email, stations, more) => { TOKEN_EMAIL = email;
+    try { return String(doPost({ postData: { contents: JSON.stringify(Object.assign({ app: 'digestion-lab', token: TOK, name: 'Hab',
+      score: 0, total: QN, complete: false, stations: stations }, more || {})) } })); } finally { TOKEN_EMAIL = habTok; } };
+  const setRow = (email, per, first, times) => { const r = rowOf(email).r, sh = dig();
+    sh.getRange(r, 14).setValue(per || ''); sh.getRange(r, LAB_FIRST).setValue(first || '');
+    sh.getRange(r, LAB_TIMES).setValue(times ? JSON.stringify(times) : ''); };
+  /* every range call a function makes, and on which tab */
+  const counted = fn => { const seen = [], orig = Sheet.prototype.getRange, c0 = __CALLS;
+    Sheet.prototype.getRange = function (...a) { seen.push(this.name); return orig.apply(this, a); };
+    let out; try { out = fn(); } finally { Sheet.prototype.getRange = orig; }
+    return { out, calls: __CALLS - c0, on: name => seen.filter(n => n === name).length }; };
+  /* homework of our own for the pupils given, on mouth (8) + stomach (9), set at S and due at D; posted in course HCOURSE
+     with its reminders as given ([when, what the row says]) */
+  const made = [];
+  const mkHw = (title, S, D, emails, o) => {
+    o = o || {};
+    const r = homeworkCreate({ title, classes: [{ cls: '', due: '2027-06-01', emails }], tasks: [{ labId: 'digestion-lab', stationIds: ['mouth', 'stomach'] }] });
+    if (!r.ok) throw new Error('could not set it: ' + r.why);
+    const id = r.made[0], sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh), row = _homeworkRows_().filter(h => h.id === id)[0].row;
+    made.push(id);
+    sh.getRange(row, hc.Created).setValue(new Date(S)); sh.getRange(row, hc.Due).setValue(new Date(D));
+    if (o.course) { sh.getRange(row, hc.Course).setValue(o.course); sh.getRange(row, hc.CourseWork).setValue('cw-' + id); }
+    (o.rem || []).forEach((x, i) => { if (!x) return;
+      sh.getRange(row, hc['Reminder ' + (i + 1)]).setValue(new Date(x[0])); sh.getRange(row, hc['Reminder ' + (i + 1) + ' students']).setValue(x[1]); });
+    return id;
+  };
+  const L = (S, D, share) => S + Math.round(share * (D - S));
+  const cellOf = (d, id, name) => { const h = d.homework.findIndex(x => x.id === id), p = d.pupils.filter(x => x.name === name)[0];
+    return p ? (p.cells.filter(c => c[0] === h)[0] || null) : null; };
+  const DONE = 'mouth 8/8 in 9 · stomach 9/9 in 12', HALF = 'mouth 3/8 in 4 · stomach 0/9';
+  const ALLF = 'mouth~8:aa:ffffffff|stomach~9:bb:fffffffff';
+  try {
+    ok &= run('habits: a save notes when each station was first tried and first finished, in the one read and one write it always made (5 range calls, 3 on the lab tab)', () => {
+      const e = E[0], t0 = Date.now();
+      let out = save(e, { mouth: '0/8 in 2', stomach: '0/9' });
+      if (!/^recorded/.test(out)) throw new Error(out);
+      let t = timesOf(e);
+      if (!t.mouth || !(t.mouth[0] >= t0 && t.mouth[0] <= Date.now()) || t.mouth[1] !== 0) throw new Error('mouth, tried: ' + JSON.stringify(t));
+      if (t.stomach) throw new Error('a station not tried has a time: ' + JSON.stringify(t));
+      /* an older first try stays: a first time is never overwritten */
+      dig().getRange(rowOf(e).r, LAB_TIMES).setValue(JSON.stringify({ mouth: [111, 0] }));
+      const t1 = Date.now(), c = counted(() => save(e, { mouth: '8/8 in 9', stomach: '3/9 in 3' }));
+      if (!/^recorded/.test(c.out)) throw new Error(c.out);
+      t = timesOf(e);
+      if (t.mouth[0] !== 111) throw new Error('the first try was overwritten: ' + JSON.stringify(t.mouth));
+      if (!(t.mouth[1] >= t1)) throw new Error('mouth was finished and has no time: ' + JSON.stringify(t.mouth));
+      if (!(t.stomach && t.stomach[0] >= t1 && t.stomach[1] === 0)) throw new Error('stomach: ' + JSON.stringify(t.stomach));
+      /* measured on the code from before this change (1 Oct 2026): 5 range calls, 3 on the lab tab (the address column, the
+         row read, the row write) and 2 on the Students tab (who this is) */
+      if (c.calls !== 5 || c.on('Digestion') !== 3) throw new Error('a save now costs ' + c.calls + ' range calls (' + c.on('Digestion') + ' on the lab tab), want 5 (3)');
+      const again = _stNext_(JSON.stringify({ a: [5, 7] }), { a: { tried: true, done: true } }, { a: { tried: true, done: true } }, 99);
+      if (again !== JSON.stringify({ a: [5, 7] })) throw new Error('a later save moved a first time: ' + again);
+    });
+    ok &= run('habits: "finished" is exactly the homework scorer\'s verdict, station by station, whatever the lab says', () => {
+      const e = E[1];
+      const scorer = sid => _hwScoreOne_({ tasks: [{ labId: 'digestion-lab', stationIds: [sid] }] }, e,
+                                         _hwLabIndex_(['digestion-lab'], { [e]: 1 }), _hwManifest_()).state;
+      setMan(MAN(8, 10));                                         /* the list says stomach has 10 questions; the lab says 9/9 */
+      save(e, { mouth: '8/8 in 8', stomach: '9/9 in 12' });
+      let t = timesOf(e);
+      if (!(t.mouth[1] > 0) || scorer('mouth') !== 'done') throw new Error('mouth: ' + JSON.stringify(t.mouth) + ' ' + scorer('mouth'));
+      if (t.stomach[1] !== 0 || scorer('stomach') === 'done') throw new Error('stomach, 9 of the list\'s 10, was taken as finished: ' + JSON.stringify(t.stomach));
+      setMan(MAN(8, 9));                                          /* the list agrees now: finished at or before this save */
+      const t1 = Date.now();
+      save(e, { mouth: '8/8 in 8', stomach: '9/9 in 12' });
+      t = timesOf(e);
+      if (scorer('stomach') !== 'done' || !(t.stomach[1] < 0 && -t.stomach[1] >= t1)) throw new Error('stomach once the list agrees: ' + JSON.stringify(t.stomach));
+      save(e, { mouth: '8/8 in 8', stomach: '9/9 in 12', ghost: '5/5 in 5' });  /* a station the list does not have */
+      t = timesOf(e);
+      if (!t.ghost || t.ghost[1] !== 0) throw new Error('a station the list lacks was finished: ' + JSON.stringify(t.ghost));
+    });
+    ok &= run('habits: work already saved when the times began is "at or before" that save (a negative time), never a time it was not done', () => {
+      const e = E[2];
+      setRow(e, 'mouth 8/8 in 9 · stomach 2/9 in 2', '', null);         /* saved before the paste: no times */
+      const t1 = Date.now();
+      save(e, { mouth: '8/8 in 9', stomach: '3/9 in 4' });
+      const t = timesOf(e);
+      if (!(t.mouth[0] < 0 && t.mouth[1] < 0 && -t.mouth[0] >= t1 && -t.mouth[1] >= t1)) throw new Error('mouth: ' + JSON.stringify(t.mouth));
+      if (!(t.stomach[0] < 0 && t.stomach[1] === 0)) throw new Error('stomach: ' + JSON.stringify(t.stomach));
+    });
+    ok &= run('habits: a times cell never passes 45,000 characters (a cell holds 50,000): nothing new is kept, and nothing kept is lost', () => {
+      const big = {}; let i = 0;
+      while (JSON.stringify(big).length < ST_CAP - 30) big['s' + (i++)] = [1759300000000, 1759300000001];
+      const cell = JSON.stringify(big);
+      if (_stNext_(cell, {}, { mouth: { tried: true, done: true } }, 1759400000000) !== cell) throw new Error('the full cell changed');
+      const small = _stNext_(JSON.stringify({ a: [5, 0] }), {}, { a: { tried: true, done: true }, b: { tried: true } }, 9);
+      if (small !== JSON.stringify({ a: [5, 9], b: [9, 0] })) throw new Error('under the cap: ' + small);
+      const e = E[3];
+      dig().getRange(rowOf(e).r, LAB_TIMES).setValue(cell);
+      const out = save(e, { mouth: '2/8 in 2', stomach: '0/9' });
+      if (!/^recorded/.test(out)) throw new Error(out);
+      if (rowOf(e).v[LAB_TIMES - 1] !== cell) throw new Error('a save changed the full cell');
+    });
+    ok &= run('habits: a save never fails because of the times — a step that throws, no station list, an unreadable cell', () => {
+      const e = E[4], keepNext = _stNext_, keepMan = _manifest_;
+      try {
+        _stNext_ = () => { throw new Error('boom'); };
+        dig().getRange(rowOf(e).r, LAB_TIMES).setValue('{"mouth":[5,0]}');
+        let out = save(e, { mouth: '4/8 in 4', stomach: '0/9' }, { score: 4 });
+        if (!/^recorded/.test(out)) throw new Error('a broken times step failed the save: ' + out);
+        let v = rowOf(e).v;
+        if (v[2] !== 4 || v[LAB_TIMES - 1] !== '{"mouth":[5,0]}') throw new Error('the save was not written as before: ' + v[2] + ' ' + v[LAB_TIMES - 1]);
+        _stNext_ = keepNext;
+        _manifest_ = () => { throw new Error('no list'); };
+        out = save(e, { mouth: '8/8 in 9', stomach: '0/9' }, { score: 8 });
+        if (!/^recorded/.test(out)) throw new Error('no station list failed the save: ' + out);
+        v = rowOf(e).v;
+        const m = _stParse_(v[LAB_TIMES - 1]).mouth;
+        if (m[0] !== 5 || m[1] !== 0) throw new Error('with no station list to judge by, it was called finished: ' + JSON.stringify(m));
+        _manifest_ = keepMan;
+        dig().getRange(rowOf(e).r, LAB_TIMES).setValue('{oops');
+        out = save(e, { mouth: '8/8 in 9', stomach: '1/9 in 1' }, { score: 9 });
+        if (!/^recorded/.test(out)) throw new Error('an unreadable cell failed the save: ' + out);
+        const t = timesOf(e);
+        if (!(t.mouth[0] < 0 && t.mouth[1] < 0 && t.stomach[0] > 0)) throw new Error('an unreadable cell was not started again: ' + JSON.stringify(t));
+      } finally { _stNext_ = keepNext; _manifest_ = keepMan; }
+    });
+    ok &= run('habits: Bio English sets are timed the same way, inside the same one read and one write (7 range calls, 5 on its tab)', () => {
+      const e = E[5];
+      const en = d => { TOKEN_EMAIL = e; try { return JSON.parse(doPost({ postData:{ contents: JSON.stringify({ action:'english.save', token: TOK, sets:{ 't3.kw.meanings': d } }) } })); }
+                        finally { TOKEN_EMAIL = habTok; } };
+      const setTimes = () => { const sh = ss.getSheetByName(T_ENGLISH), v = sh.getRange(2, 1, sh.getLastRow() - 1, EN_TIMES).getValues();
+        const r = v.filter(x => String(x[EN_EMAIL - 1]).toLowerCase() === e)[0]; return r ? _stParse_(r[EN_TIMES - 1]) : null; };
+      const t0 = Date.now();
+      if (!en({ done:1, first:1, total:4, snap:'f000', v:'k1' }).ok) throw new Error('the first save');
+      let t = setTimes();
+      if (!t || !t['t3.kw.meanings'] || !(t['t3.kw.meanings'][0] >= t0) || t['t3.kw.meanings'][1] !== 0) throw new Error('tried: ' + JSON.stringify(t));
+      const c = counted(() => en({ done:4, first:3, total:4, snap:'ff1f', v:'k1' }));
+      if (!c.out.ok) throw new Error(JSON.stringify(c.out));
+      const x = setTimes()['t3.kw.meanings'];
+      if (!(x[0] >= t0 && x[1] >= x[0])) throw new Error('finished: ' + JSON.stringify(x));
+      /* measured on the code from before this change: 7 range calls, 5 on ✍️ Bio English and 2 on the Students tab */
+      if (c.calls !== 7 || c.on(T_ENGLISH) !== 5) throw new Error('a Bio English save now costs ' + c.calls + ' range calls (' + c.on(T_ENGLISH) + ' on its tab), want 7 (5)');
+      const keep = _stEnState_;
+      try { _stEnState_ = () => { throw new Error('boom'); };
+        if (!en({ done:4, first:3, total:4, snap:'ff1f', v:'k1' }).ok) throw new Error('a broken times step failed a Bio English save');
+      } finally { _stEnState_ = keep; }
+    });
+    ok &= run('habits: the bands at their edges, on a fake clock: before, early (50%), in good time (85%, when reminder 2 is due), last minute, late; not done; still open', () => {
+      const S = KST(2027, 3, 1, 9, 0), D = S + 100000, at = F => _hwHabitCat_(S, D, { at: F }, D + 5);
+      [[S - 1, 'before'], [S, 'early'], [S + 50000, 'early'], [S + 50001, 'good'], [S + 85000, 'good'], [S + 85001, 'last'], [D, 'last'], [D + 1, 'late']]
+        .forEach(([F, c]) => { if (at(F) !== c) throw new Error('finished at S+' + (F - S) + ': ' + at(F) + ', want ' + c); });
+      if (_hwHabitCat_(S, D, null, D) !== 'open' || _hwHabitCat_(S, D, null, D + 1) !== 'none') throw new Error('not finished: still open until the due time, not done after it');
+      if (_hwHabitCat_(S, D, { hi: S - 1 }, D) !== 'before' || _hwHabitCat_(S, D, { hi: S + 10 }, D) !== 'unknown') throw new Error('a finish known only as "at or before"');
+      if (HW_BAND_GOOD !== HW_REMIND_AT[1]) throw new Error('"in good time" no longer ends when reminder 2 is due');
+      const W = 7 * 864e5, s = KST(2027, 3, 1, 15, 0);
+      if (_hwRemindTime_(s, s + W, 2).at !== _hwBandAt_(s, s + W, HW_BAND_GOOD)) throw new Error('the 85% edge and reminder 2 disagree');
+    });
+    ok &= run('habits: the view puts each pupil in a band from the recorded times; before the due time a pupil not finished is still open', () => {
+      const S = KST(2027, 4, 5, 9, 0), D = S + 7 * 864e5, now = D + 3600e3;
+      const id = mkHw('Habits bands', S, D, E.slice(0, 6));
+      const fin = (t, f) => ({ mouth: [t, f], stomach: [t + 1000, f - 1000] });
+      setRow(E[0], DONE, ALLF, fin(S - 864e5, S - 3600e3));
+      setRow(E[1], DONE, ALLF, fin(S + 1000, L(S, D, 0.5)));
+      setRow(E[2], DONE, ALLF, fin(S + 1000, L(S, D, 0.85)));
+      setRow(E[3], DONE, ALLF, fin(S + 1000, D));
+      setRow(E[4], DONE, ALLF, fin(S + 1000, D + 60000));
+      setRow(E[5], HALF, '', { mouth: [S + 1000, 0] });
+      const d = _habitsData_(now);
+      ['before', 'early', 'good', 'last', 'late', 'none'].forEach((c, i) => {
+        const x = cellOf(d, id, people[i].name); if (!x || x[1] !== c) throw new Error(people[i].name + ': ' + JSON.stringify(x) + ', want ' + c); });
+      if (!d.recorded) throw new Error('times were recorded, and the view says none');
+      const x1 = cellOf(d, id, people[1].name);
+      if (x1[3] !== 21 || x1[4] !== 17 || x1[5] !== 17 || x1[6] !== 2 || x1[8] !== '3 days 12 h') throw new Error('checks, right first time, the span: ' + JSON.stringify(x1));
+      if (cellOf(_habitsData_(D - 1), id, people[5].name)[1] !== 'open') throw new Error('before the due time a pupil not finished is not "still open"');
+      if (/@/.test(JSON.stringify(d))) throw new Error('an address reached the page');
+    });
+    ok &= run('habits: ⏰ — finished after a reminder had gone to them: it went, they were not done then, and they are in its Classroom course', () => {
+      const S = KST(2027, 5, 3, 9, 0), D = S + 7 * 864e5, R1 = L(S, D, 0.7), R2 = L(S, D, 0.85), now = D + 3600e3;
+      const id = mkHw('Habits reminders', S, D, E.slice(0, 5), { course: HCOURSE, rem: [[R1, '4'], [R2, '2']] });
+      const fin = f => ({ mouth: [S + 1000, f], stomach: [S + 2000, f - 1] });
+      setRow(E[0], DONE, ALLF, fin(R1 - 60000));
+      setRow(E[1], DONE, ALLF, fin(R1 + 60000));
+      setRow(E[2], DONE, ALLF, fin(R2 + 60000));
+      setRow(E[3], DONE, ALLF, fin(R2 + 60000));
+      setRow(E[4], HALF, '', { mouth: [S + 1000, 0] });
+      const st = ss.getSheetByName('Students'), ec = _emailCol_(st), cc = _headerCol_(st, 'Course id', ec + 4);
+      const r3 = st.getRange(2, 1, st.getLastRow() - 1, ec).getValues().findIndex(r => String(r[ec - 1]).toLowerCase() === E[3]) + 2;
+      const keepCourse = st.getRange(r3, cc).getValue();
+      if (keepCourse !== HCOURSE) throw new Error('the pupils were not imported into ' + HCOURSE + ': ' + keepCourse);
+      st.getRange(r3, cc).setValue('another-course');
+      try {
+        const d = _habitsData_(now), r = i => (cellOf(d, id, people[i].name) || [])[2];
+        if ([0, 1, 2, 3, 4].map(r).join(',') !== '0,1,2,0,0') throw new Error('⏰: ' + [0, 1, 2, 3, 4].map(r).join(','));
+        const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh), row = _homeworkRows_().filter(h => h.id === id)[0].row;
+        sh.getRange(row, hc['Reminder 1 students']).setValue('not sent: Classroom is busy');
+        sh.getRange(row, hc['Reminder 2 students']).setValue('skipped: the due time had passed');
+        const d2 = _habitsData_(now);
+        if ([1, 2].some(i => cellOf(d2, id, people[i].name)[2] !== 0)) throw new Error('⏰ for a reminder that never went');
+        if (_homeworkRows_().filter(h => h.id === id)[0].rem.some(x => /hab/i.test(x.said))) throw new Error('a name in the row');
+      } finally { st.getRange(r3, cc).setValue(keepCourse); }
+    });
+    ok &= run('habits: the habit line — one table of rules in Daniel\'s words, the first that holds wins, from the last 6 with a band', () => {
+      const want = ['Usually early', 'Usually in good time', 'Usually the last minute', 'Often late or not done', 'Only after a reminder', 'Getting better', 'Getting worse', 'Mixed'];
+      if (HW_HABIT_RULES.map(r => r.say).sort().join('|') !== want.slice().sort().join('|')) throw new Error('the phrases: ' + HW_HABIT_RULES.map(r => r.say).join(', '));
+      if (HW_HABIT_RULES.some(r => !r.when || typeof r.test !== 'function')) throw new Error('a rule with no words or no test');
+      const R = c => ({ c, r: 1 }), say = cs => { const h = _hwHabitOf_(cs.map(c => typeof c === 'string' ? { c, r: 0 } : c)); return h ? h.say : null; };
+      [[['early', 'early', 'before', 'early'], 'Usually early'],
+       [['good', 'early', 'good', 'good', 'last'], 'Usually in good time'],
+       [['last', 'last', 'good', 'last'], 'Usually the last minute'],
+       [['late', 'none', 'good', 'early', 'late', 'none'], 'Often late or not done'],
+       [[R('good'), R('last'), 'early', R('good')], 'Only after a reminder'],
+       [[R('last'), R('last'), R('good'), R('last')], 'Usually the last minute'],   /* after 85% is always after reminder 2: last minute is asked first */
+       [['none', 'none', 'late', 'good', 'early', 'good'], 'Getting better'],
+       [['early', 'good', 'early', 'late', 'none', 'late'], 'Getting worse'],
+       [['early', 'last', 'good', 'late'], 'Mixed'],
+       [['early', 'early'], null],
+       [['open', 'unknown', 'early', 'early'], null],
+       [['none', 'none', 'none', 'none', 'early', 'early', 'early', 'early', 'early', 'early'], 'Usually early']
+      ].forEach(([cs, w]) => { const got = say(cs); if (got !== w) throw new Error(JSON.stringify(cs) + ': ' + got + ', want ' + w); });
+      const h = _hwHabitOf_(['late', 'none', 'late'].map(c => ({ c, r: 0 })));
+      if (!/late or not done in at least half/.test(h.why) || !/Their last 3 homework: 2 late, 1 not done\./.test(h.why)) throw new Error('the words: ' + h.why);
+    });
+    ok &= run('habits: "worth a look" — under a third of the median, 90%+ right first time, and a low baseline: each edge, and the words say which baseline', () => {
+      const cell = (sm, f) => ({ sm, f, q: 17, n: 2, m: 0 });
+      const low = { pct: 38, n: 2 }, MED = 864e5, fast = 9 * 60e3;
+      const says = _hwHabitFlag_(cell(fast, 17), MED, low, []);
+      if (says !== 'Finished 2 stations within 9 min of the first try (median for this homework: 1 day), all right first time; teacher-marked tests average 38% (2 papers).')
+        throw new Error('the words: ' + says);
+      if (_hwHabitFlag_(cell(MED / 3, 17), MED, low, [])) throw new Error('a third of the median exactly is not under it');
+      if (_hwHabitFlag_(cell(fast, 15), MED, low, [])) throw new Error('88% right first time was flagged');
+      if (!/94% right first time/.test(_hwHabitFlag_(cell(fast, 16), MED, low, []))) throw new Error('94% is 90% or more');
+      if (_hwHabitFlag_(cell(fast, 17), MED, { pct: 50, n: 3 }, [])) throw new Error('a 50% average is not under 50%');
+      if (_hwHabitFlag_(cell(fast, 17), null, low, [])) throw new Error('flagged with no median (fewer than 3 with times)');
+      const earlier = [{ q: 10, f: 3, e: 5 }, { q: 10, f: 4, e: -5 }, { q: 10, f: 10, e: 0 }];
+      const fb = _hwHabitFlag_(cell(fast, 17), MED, null, earlier);
+      if (!/; right first time on their earlier homework: median 35% \(2 homework\)\.$/.test(fb)) throw new Error('the fallback: ' + fb);
+      if (_hwHabitFlag_(cell(fast, 17), MED, null, earlier.slice(0, 1))) throw new Error('flagged from one earlier homework');
+      if (/cheat|copied|suspicious|dishonest/i.test(says + fb)) throw new Error('the words accuse');
+    });
+    ok &= run('habits: the baseline is the teacher-marked test average in the tracker (three kinds of score: partly self-reported counts, self-reported never), else the earlier homework', () => {
+      const S = KST(2027, 6, 7, 9, 0), D = S + 7 * 864e5, now = D + 3600e3;
+      const id = mkHw('Habits flags', S, D, E.slice(0, 5));
+      const span = ms => ({ mouth: [S + 3600e3, S + 3600e3 + ms], stomach: [S + 3600e3 + 1, S + 3600e3 + ms - 1] });
+      setRow(E[0], DONE, ALLF, span(9 * 60e3));
+      setRow(E[1], DONE, ALLF, span(2 * 864e5));
+      setRow(E[2], DONE, ALLF, span(864e5));
+      setRow(E[3], DONE, ALLF, span(3 * 864e5));
+      setRow(E[4], DONE, ALLF, span(4 * 3600e3));
+      const tss = new SS(), tab = tss.insertSheet('Class of 2029'), other = tss.insertSheet('TEST');
+      const src = (o, q) => JSON.stringify(Object.assign({ overall: o, mcq: o, written: o }, q ? { questions: q } : {}));
+      [['Email', 'StudentName', 'Class', 'AssessmentID', 'AssessmentDate', 'TotalScore', 'MaxScore', 'ScoreSource'],
+       [E[0], 'x', HCLS, 'A1', '', 28, 80, src('teacher', 'teacher')],
+       [E[0], 'x', HCLS, 'A2', '', 33, 80, ''],
+       [E[0], 'x', HCLS, '', '', 80, 80, ''],
+       [E[0], 'x', HCLS, 'A3', '', '', 80, src('teacher')],
+       [E[2], 'x', HCLS, 'A1', '', 70, 80, src('teacher', 'self')],
+       [E[3], 'x', HCLS, 'A1', '', 10, 80, src('self')]].forEach((r, i) => r.forEach((v, j) => tab.getRange(i + 1, j + 1).setValue(v)));
+      [['Email', 'AssessmentID', 'TotalScore', 'MaxScore'], [E[4], 'T1', 1, 80]].forEach((r, i) => r.forEach((v, j) => other.getRange(i + 1, j + 1).setValue(v)));
+      props.set('TRACKER_ID', 'HABITS-TRACKER');
+      SpreadsheetApp.openById = x => x === 'HABITS-TRACKER' ? tss : realOpen(x);
+      try {
+        const b = _hwBaselines_({ [E[0]]: 1, [E[2]]: 1, [E[3]]: 1, [E[4]]: 1 });
+        if (!b[E[0]] || b[E[0]].pct !== 38 || b[E[0]].n !== 2) throw new Error('teacher marked (two papers; a stub and an unmarked paper left out): ' + JSON.stringify(b[E[0]]));
+        if (!b[E[2]] || b[E[2]].pct !== 88) throw new Error('partly self-reported counts: ' + JSON.stringify(b[E[2]]));
+        if (b[E[3]]) throw new Error('a self-reported paper was counted: ' + JSON.stringify(b[E[3]]));
+        if (b[E[4]]) throw new Error('the TEST tab was read: ' + JSON.stringify(b[E[4]]));
+        const d = _habitsData_(now), h = d.homework.findIndex(x => x.id === id), pupil = n => d.pupils.filter(p => p.name === people[n].name)[0];
+        if (d.homework[h].med !== '1 day') throw new Error('the median: ' + d.homework[h].med);
+        const f0 = pupil(0).flags.filter(f => f.h === h);
+        if (f0.length !== 1 || !/within 9 min of the first try .*teacher-marked tests average 38% \(2 papers\)\.$/.test(f0[0].says)) throw new Error('the flag: ' + JSON.stringify(f0));
+        if (pupil(0).base !== 'Teacher-marked tests average 38% (2 papers)') throw new Error('the baseline line: ' + pupil(0).base);
+        if (pupil(2).flags.some(f => f.h === h)) throw new Error('an 88% average was flagged');
+        /* Hab Eve: 4 h, all right first time, no marked paper; her earlier finished homework were all right first time */
+        if (pupil(4).flags.some(f => f.h === h)) throw new Error('flagged against a high earlier-homework baseline');
+        if (pupil(4).base !== '') throw new Error('a baseline from the TEST tab: ' + pupil(4).base);
+      } finally { SpreadsheetApp.openById = realOpen; props.delete('TRACKER_ID'); }
+    });
+    ok &= run('habits: no times yet, no homework, and homework with no due time — said plainly, never an error', () => {
+      const keep = ss.getSheetByName(T_HOMEWORK);
+      ss.deleteSheet(keep);
+      try {
+        const d = _habitsData_(Date.now());
+        if (d.homework.length || d.pupils.length || d.recorded) throw new Error('something from nothing: ' + JSON.stringify(d).slice(0, 160));
+        if (ss.getSheetByName(T_HOMEWORK)) throw new Error('reading the view made a Homework tab');
+      } finally { if (ss.getSheetByName(T_HOMEWORK)) ss.deleteSheet(ss.getSheetByName(T_HOMEWORK)); ss.sheets.push(keep); }
+      const S = KST(2027, 7, 5, 9, 0), id = mkHw('Habits no times', S, S + 864e5, [E[6]]);
+      setRow(E[6], HALF, '', null);
+      const d = _habitsData_(S + 2 * 864e5), x = cellOf(d, id, people[6].name);
+      if (!x || x[1] !== 'none') throw new Error('a pupil with no times who did not finish: ' + JSON.stringify(x));
+      const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh), row = _homeworkRows_().filter(h => h.id === id)[0].row;
+      sh.getRange(row, hc.Due).setValue('next Friday');
+      const d2 = _habitsData_(S + 2 * 864e5);
+      if (d2.homework.some(x2 => x2.id === id) || !(d2.left >= 1)) throw new Error('homework with no due time was not left out and counted');
+    });
+    ok &= run('habits: the view is behind the teacher gate like every view, and reads nothing it writes', () => {
+      VISITOR = 'hab0@pupils.x.kr';
+      try { const r = uiData('habits'); if (r.ok !== false || r.data) throw new Error('a pupil read the habits: ' + JSON.stringify(r).slice(0, 120)); }
+      finally { VISITOR = OWNER; }
+      const before = JSON.stringify(dig().getRange(1, 1, dig().getLastRow(), LAB_COLS.length).getValues()) +
+                     JSON.stringify(ss.getSheetByName(T_HOMEWORK).getRange(1, 1, ss.getSheetByName(T_HOMEWORK).getLastRow(), _HW_HEADERS_.length).getValues());
+      const t = uiData('habits');
+      if (!t.ok || !t.data || !Array.isArray(t.data.pupils) || !t.data.pupils.length) throw new Error('a teacher was refused: ' + JSON.stringify(t).slice(0, 160));
+      const after = JSON.stringify(dig().getRange(1, 1, dig().getLastRow(), LAB_COLS.length).getValues()) +
+                    JSON.stringify(ss.getSheetByName(T_HOMEWORK).getRange(1, 1, ss.getSheetByName(T_HOMEWORK).getLastRow(), _HW_HEADERS_.length).getValues());
+      if (before !== after) throw new Error('reading the view changed a tab');
+      if (/@/.test(JSON.stringify(t.data))) throw new Error('an address reached the page');
+      const page = doGet({ parameter: { page: 'habits' } });
+      if (!/"tab":"habits"/.test(page.html)) throw new Error('?page=habits does not open the view');
+    });
+    ok &= run('habits: no new public name — the view is a branch of uiData behind _hwCaller_ (ALLOWED unchanged), and every habits function ends in _', () => {
+      const mine = [...SRC.matchAll(/^function\s+(_(?:st[A-Z]|hwHabit|hwBand|hwSpan|hwMoment|hwMedian|hwBaselines|hwTimesIndex|hwPartsWords|habitsData|scoreKind)\w*)\s*\(/gm)].map(m => m[1]);
+      if (mine.length < 16) throw new Error('the habits code is not all here: ' + mine.join(', '));
+      if (mine.some(n => !n.endsWith('_'))) throw new Error('public: ' + mine.filter(n => !n.endsWith('_')).join(', '));
+      const ui = SRC.slice(SRC.indexOf('function uiData('), SRC.indexOf('function showTeacherPanel('));
+      if (ui.indexOf('_hwCaller_()') < 0 || ui.indexOf("which === 'habits'") < ui.indexOf('_hwCaller_()')) throw new Error('the habits branch is not behind the gate');
+      if ((global.ALLOWED_NAMES || []).some(n => /habit/i.test(n))) throw new Error('a habits name was added to ALLOWED');
+    });
+    /* ── the page (Teacher.html), with made-up data in the stand-in page ── */
+    const HD = () => ({ recorded: true, left: 1, bands: { early: 50, good: 85 }, words: HW_CAT_WORDS, flagWords: 'Worth a look: the rule.',
+      homework: [ { id:'HW-A', title:'Gut stations', who:'9H', set:'1 Oct, 16:00', due:'8 Oct, 16:00', day:'8 Oct', med:'1 day', withTimes:3 },
+                  { id:'HW-B', title:'Osmosis words, and a very long title indeed', who:'9H', set:'9 Oct, 16:00', due:'16 Oct, 16:00', day:'16 Oct', med:'', withTimes:1 },
+                  { id:'HW-C', title:'Ten A only', who:'10A', set:'9 Oct, 16:00', due:'16 Oct, 16:00', day:'16 Oct', med:'', withTimes:0 } ],
+      pupils: [
+        { name:'Zed Park', cls:'9H', base:'', habit:{ say:'Often late or not done', o:0, why:'late or not done in at least half of them. Their last 3 homework: 2 late, 1 not done.' },
+          cells:[[0,'late',0,21,17,17,2,0,'1 day 2 h','7 Oct, 18:00','8 Oct, 20:00'], [1,'good',1,12,6,8,1,0,'5 h','10 Oct, 09:00','14 Oct, 14:00']], flags:[] },
+        { name:'Amy Cho', cls:'9H', base:'Teacher-marked tests average 38% (2 papers)', habit:{ say:'Usually early', o:7, why:'early, or done before it was set, in at least two thirds of them.' },
+          cells:[[0,'early',0,5,17,17,2,0,'9 min','1 Oct, 18:00','1 Oct, 18:09']],
+          flags:[{ h:0, says:'Finished 2 stations within 9 min of the first try (median for this homework: 1 day), all right first time; teacher-marked tests average 38% (2 papers).' }] },
+        { name:'Bo Lim', cls:'10A', base:'', habit:null, cells:[[2,'none',0,0,0,8,1,0,'','','']], flags:[] } ] });
+    const habPage = store => { const p = teacherPage();
+      p.win.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+      p.drawn = null; p.win.__view.openDraw = (t, m, b) => { p.drawn = { t, m, b }; };
+      return p; };
+    ok &= run('habits page: a sixth view of the one page — its tab "⏱️ Homework habits", its help note task first, drawn by the second script', () => {
+      const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      if (!/var ORDER = \[[^\]]*'habits'\];/.test(h)) throw new Error('no habits tab in ORDER');
+      if (!/habits:\{ label:'⏱️ Homework habits'/.test(h)) throw new Error('the tab is not called ⏱️ Homework habits');
+      if (!/note:'Start here: pick a class\./.test(h)) throw new Error('the help note does not start with what to do');
+      if (/homework analysis/i.test(h)) throw new Error('it is not called "homework analysis"');
+      if (!/if \(cur==='habits'\) return window\.vHabits\(r\.data\);/.test(h)) throw new Error('the view is never drawn');
+      if (!/window\.vHabits = function/.test(h.slice(h.indexOf('<script>', h.indexOf('</script>'))))) throw new Error('the view is not in the second script');
+      const spent = [...h.matchAll(/time spent/gi)].map(m => h.slice(m.index - 4, m.index));
+      if (spent.some(x => x !== 'not ')) throw new Error('a time is called "time spent"');
+    });
+    ok &= run('habits page: one class, pupils down and homework across in date order, one mark with its words on hover, the habit line, the flags column, the key', () => {
+      const store = {}, p = habPage(store);
+      p.win.vHabits(HD());
+      const html = p.html();
+      if (!/<select id="hbcls"><option value="9H" selected>9H<\/option><option value="10A">10A<\/option><\/select>/.test(html)) throw new Error('the class picker: ' + (html.match(/<select id="hbcls">.*?<\/select>/) || [''])[0]);
+      const a = html.indexOf('>Amy Cho<'), z = html.indexOf('>Zed Park<');
+      if (a < 0 || z < 0 || a > z || html.indexOf('Bo Lim') >= 0) throw new Error('the pupils of 9H by name');
+      const A = html.indexOf('Gut stations<span class="lt">8 Oct'), Bc = html.indexOf('Osmosis words, and a …<span class="lt">16 Oct');
+      if (A < 0 || Bc < 0 || A > Bc || /Ten A only/.test(html)) throw new Error('the homework columns, oldest first, this class only');
+      if (!/class="hbm hbm--early" data-tip="Gut stations\nSet 1 Oct, 16:00 · due 8 Oct, 16:00\nEarly: finished 1 Oct, 18:09\nFrom first try to finish: 9 min\n5 checks · 17\/17 right first time \(100%\)"/.test(html))
+        throw new Error('a mark and its words');
+      if (!/class="hbm hbm--good" data-tip="[^"]*⏰ finished after reminder 1[^"]*"><i aria-hidden="true">⏰<\/i><\/span>/.test(html)) throw new Error('⏰ on a mark');
+      if (!/<div class="hbh" data-tip="Usually early — early, or done before it was set[^"]*">Usually early<\/div>/.test(html)) throw new Error('the habit line under the name');
+      if (!/<span class="hbflag" data-tip="Gut stations: Finished 2 stations within 9 min[^"]*">⚑ 1<\/span>/.test(html)) throw new Error('the flags column');
+      if (!/class="hbkey"/.test(html) || !/Early \(by 50% of the time\)/.test(html) || !/In good time \(by 85%\)/.test(html) || !/finished after a reminder/.test(html)) throw new Error('the key');
+      if (!/1 homework left out: it has no due time to measure against/.test(html)) throw new Error('homework left out is not said');
+      if (/\stitle="/.test(html)) throw new Error('help in a title= tooltip');
+    });
+    ok &= run('habits page: sort by name or by habit (most worth a look first), remembered in this browser; the class picker', () => {
+      const store = {}, p = habPage(store);
+      p.win.vHabits(HD());
+      p.press('data-hbsort', 'habit');
+      let html = p.html();
+      if (!(html.indexOf('>Zed Park<') < html.indexOf('>Amy Cho<'))) throw new Error('by habit, "often late or not done" first');
+      if (store['habits.sort'] !== 'habit' || !/data-hbsort="habit" aria-pressed="true"/.test(html)) throw new Error('the sort is not remembered or shown');
+      const p2 = habPage(store); p2.win.vHabits(HD());
+      if (!(p2.html().indexOf('>Zed Park<') < p2.html().indexOf('>Amy Cho<'))) throw new Error('a new page forgot the sort');
+      p2.press('data-hbsort', 'name');
+      if (store['habits.sort'] !== 'name' || !(p2.html().indexOf('>Amy Cho<') < p2.html().indexOf('>Zed Park<'))) throw new Error('back to names');
+      p2.fire('change', 'id', 'hbcls', '10A');
+      html = p2.html();
+      if (!/>Bo Lim</.test(html) || /Amy Cho/.test(html) || !/Ten A only/.test(html) || !/class="hbm hbm--none"/.test(html)) throw new Error('10A');
+      if (!/class="hbh none" data-tip="Fewer than 3 homework with times so far\.">—/.test(html)) throw new Error('no habit line yet is said');
+      const p3 = habPage({}); p3.win.localStorage = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+      p3.win.vHabits(HD()); p3.press('data-hbsort', 'habit');
+      if (!(p3.html().indexOf('>Zed Park<') < p3.html().indexOf('>Amy Cho<'))) throw new Error('storage blocked broke the sort');
+    });
+    ok &= run('habits page: a name opens the pupil\'s timeline — set and due, first try, finish, band, ⏰, checks, right first time, the flag words', () => {
+      const p = habPage({});
+      p.win.vHabits(HD());
+      p.press('data-hbp', '0');
+      const d = p.drawn;
+      if (!d || d.t !== 'Zed Park' || !/9H · Often late or not done/.test(d.m)) throw new Error('the drawer: ' + JSON.stringify(d && [d.t, d.m]));
+      ['Set 9 Oct, 16:00 · due 16 Oct, 16:00', 'First try <b>10 Oct, 09:00</b>', 'Finished <b>14 Oct, 14:00</b>', 'From first try to finish <b>5 h</b>',
+       'In good time · ⏰ after reminder 1', '<b>12</b> checks', '<b>6</b>/8 right first time', 'Late', 'No teacher-marked test in the Student Progress Tracker yet.']
+        .forEach(w => { if (d.b.indexOf(w) < 0) throw new Error('the timeline lacks: ' + w); });
+      p.press('data-hbp', '1');
+      if (p.drawn.b.indexOf('⚑ Worth a look: Finished 2 stations within 9 min') < 0 || p.drawn.b.indexOf('Teacher-marked tests average 38% (2 papers).') < 0)
+        throw new Error('the flag words or the baseline in the timeline');
+    });
+    ok &= run('habits page: "No times recorded yet" before the first saves after the paste; no homework said plainly', () => {
+      const p = habPage({});
+      p.win.vHabits(Object.assign(HD(), { recorded: false }));
+      if (!/No times recorded yet\./.test(p.html()) || /<table/.test(p.html())) throw new Error('no times: ' + p.html().slice(0, 160));
+      p.win.vHabits({ homework: [], pupils: [], recorded: false });
+      if (!/No homework with a due time yet\./.test(p.html())) throw new Error('no homework: ' + p.html().slice(0, 160));
+    });
+    ok &= run('📊 Analysis ↗: only for the people on the analysis website\'s 👥 list (the tracker\'s ANALYSIS_VIEWERS metadata), cached 5 minutes; the list never reaches the page', () => {
+      let finds = 0, meta = JSON.stringify({ v: 1, emails: ['teacher@x.kr', 'other.teacher@x.kr'] });
+      const tracker = { createDeveloperMetadataFinder: () => ({ withKey: k => ({ find: () => { finds++;
+        return k === 'ANALYSIS_VIEWERS' && meta !== null ? [{ getValue: () => meta }] : []; } }) }) };
+      const keepHub = HUB_URL, LINK = 'https://nlcsbiology.com/biology-hub/analysis.html', fresh = () => cacheStore.delete('analysis-viewers');
+      props.set('TRACKER_ID', 'ANALYSIS-TRACKER');
+      SpreadsheetApp.openById = x => x === 'ANALYSIS-TRACKER' ? tracker : realOpen(x);
+      try {
+        HUB_URL = 'https://nlcsbiology.com/biology-hub'; fresh();
+        if (_analysisLink_(OWNER) !== LINK) throw new Error('a viewer: ' + _analysisLink_(OWNER));
+        const f1 = finds;
+        if (_analysisLink_(OWNER) !== LINK || finds !== f1) throw new Error('the second load read the tracker again');
+        if (_analysisLink_('colleague@x.kr') !== '') throw new Error('a teacher not on the list got the link');
+        fresh(); meta = null;
+        if (_analysisLink_(OWNER) !== '') throw new Error('no metadata, and still a link');
+        fresh(); meta = '{broken';
+        if (_analysisLink_(OWNER) !== '') throw new Error('broken JSON, and still a link');
+        fresh(); meta = JSON.stringify({ v: 1, emails: ['teacher@x.kr'] }); HUB_URL = ''; props.delete('HUB_URL');   /* a typed HUB_URL is kept in Script Properties */
+        if (_analysisLink_(OWNER) !== '') throw new Error('no hub address, and still a link');
+        HUB_URL = 'https://nlcsbiology.com/biology-hub'; fresh(); meta = JSON.stringify({ v: 1, emails: ['teacher@x.kr', 'other.teacher@x.kr'] });
+        const page = doGet({ parameter: { page: 'teachers' } }).html;
+        if (page.indexOf('"analysis":"' + LINK + '"') < 0) throw new Error('the page was not given the address');
+        if (/other\.teacher@x\.kr/.test(page)) throw new Error('the list reached the page');
+        if (/analysis/i.test((global.ALLOWED_NAMES || []).join(' ')) || !/^function _analysisLink_\(/m.test(SRC)) throw new Error('a new public name');
+      } finally { HUB_URL = keepHub; SpreadsheetApp.openById = realOpen; props.delete('TRACKER_ID'); fresh(); }
+    });
+    ok &= run('the header with six tabs: who is signed in, the age and Refresh wrap TOGETHER on the right on a computer, and flow as before on a phone', () => {
+      /* found 1 Oct 2026 (late night) in headless Chrome: with six tabs, at 1280 px Refresh wrapped ALONE to the left of a second
+         row; grouped, the three wrap as one, on the right; below 700 px the group dissolves (display:contents) */
+      const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      if (!/<div class="meta">\s*<span class="who" id="who"><\/span>\s*<span class="age" id="age"[^>]*><\/span>\s*<button class="rf" id="rf"[\s\S]*?Refresh<\/button>\s*<\/div>/.test(h))
+        throw new Error('who, age and Refresh are not one group');
+      const css = h.slice(h.indexOf('<style>'), h.indexOf('</style>'));
+      const meta = (css.match(/\n\.meta\{([^}]*)\}/) || ['', ''])[1];
+      if (!/margin-left:auto/.test(meta) || !/flex-wrap:wrap/.test(meta) || !/justify-content:flex-end/.test(meta)) throw new Error('the group does not sit on the right: ' + meta);
+      if (!/@media \(max-width:700px\)\{\.meta\{display:contents\}/.test(css)) throw new Error('on a phone the group does not dissolve');
+    });
+    ok &= run('📊 Analysis ↗ on the page: a link out (new tab, rel=noopener), beside the tab list and never one of its tabs, hidden unless the server gave an address', () => {
+      const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      const tag = (h.match(/<a class="ana"[^>]*>[^<]*<\/a>/) || [''])[0];
+      if (!/target="_blank"/.test(tag) || !/rel="noopener"/.test(tag) || !/\shidden>/.test(tag) || !/>📊 Analysis ↗<\/a>$/.test(tag)) throw new Error('the link: ' + tag);
+      if (!/<\/nav>\n\s*<a class="ana"/.test(h)) throw new Error('not the next thing after the tab list');
+      if (/\btab\b/.test((tag.match(/class="([^"]*)"/) || ['', ''])[1])) throw new Error('the link is a tab');
+      const iife = (h.match(/\(function\(\)\{ var a=\$\('ana'\)[\s\S]*?\}\)\(\);/) || [''])[0];
+      if (!iife) throw new Error('the page no longer shows the link from BOOT');
+      const show = url => { const a = { hidden: true, at: {}, setAttribute(k, v) { this.at[k] = v; } };
+        require('vm').runInNewContext(iife, { $: () => a, BOOT: { analysis: url } }); return a; };
+      const ok1 = show('https://nlcsbiology.com/biology-hub/analysis.html');
+      if (ok1.hidden || ok1.at.href !== 'https://nlcsbiology.com/biology-hub/analysis.html') throw new Error('a viewer does not see it');
+      if (!show('').hidden || !show(undefined).hidden || !show('javascript:alert(1)//analysis.html').hidden) throw new Error('shown without a good address');
+    });
+  } finally {
+    made.forEach(id => { try { homeworkDelete(id); } catch (e) {} });
+    setMan(habMan); CLIENT_ID = habCid; TOKEN_EMAIL = habTok; SpreadsheetApp.openById = realOpen;
+  }
 }
 homeworkDelete(enHw.id);
 { const t = ss.getSheetByName(T_ENGLISH); if (t) ss.deleteSheet(t); }

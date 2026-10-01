@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
 <style>
-/* ONE palette and ONE shell for all five views. Each view tints --accent, nothing else moves. */
+/* ONE palette and ONE shell for all the views. Each view tints --accent, nothing else moves. */
 :root{
   --ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);
   --chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;
@@ -286,7 +286,57 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .enkinds{display:flex;gap:6px;flex-wrap:wrap;padding:8px 13px 2px}
 .hm thead th.en .lt{font:500 9px/1.2 var(--mono);color:var(--mute);display:block;margin-top:3px;text-transform:uppercase}
 .hm thead th.sum{color:var(--chalk);background:color-mix(in srgb,var(--accent) 12%,var(--cardhi))}
-@media (max-width:700px){.who{margin-left:0}.bars{width:100%}.size__h{margin-left:0;text-align:left}.hw__h{flex-wrap:wrap}}
+/* ⏱️ Homework habits (1 Oct 2026): one mark per pupil per homework, the habit line under each name */
+.hbwrap{overflow:auto;max-height:560px}
+table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numeric:tabular-nums}
+.hb th,.hb td{padding:0;text-align:center}
+.hb thead th{position:sticky;top:0;z-index:3;background:var(--cardhi);border-bottom:1px solid var(--line2);padding:8px 5px;
+  font:600 9.5px/1.25 var(--mono);color:var(--dim);vertical-align:bottom}
+.hb thead th.hbcol{min-width:62px;max-width:88px;overflow-wrap:break-word;cursor:help}
+.hb thead th.hbcol .lt{display:block;margin-top:3px;font-weight:500;color:var(--mute)}
+.hb thead th.hbfh{min-width:64px;cursor:help}
+.hb th.cnr{left:0;z-index:5;text-align:left;padding-left:15px;min-width:170px}
+.hb td.name{position:sticky;left:0;z-index:2;background:var(--card);border-bottom:1px solid var(--line);border-right:1px solid var(--line2);
+  text-align:left;padding:7px 10px 7px 15px}
+.hb tbody tr:hover td.name{background:var(--cardhi)}
+.hbn{display:block;max-width:200px;padding:0;border:0;background:none;color:var(--chalk);font:600 12.5px/1.3 var(--sans);text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.hbn:hover{color:var(--accent)}.hbn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hbh{font:500 10.5px/1.3 var(--mono);color:var(--accent);margin-top:2px;cursor:help;white-space:nowrap}.hbh.none{color:var(--mute)}
+.hb td.cell{border-bottom:1px solid var(--line);padding:6px 4px}
+.hb td.hbfl{border-bottom:1px solid var(--line);padding:6px 8px}
+.hbm{position:relative;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;
+  font:600 12px/1 var(--mono);border:1px solid transparent;cursor:help;vertical-align:middle;flex:none}
+.hbm i{position:absolute;top:-8px;right:-9px;font-style:normal;font-size:12px;line-height:1}
+.hbm--before{background:rgba(96,165,250,.32);border-color:rgba(96,165,250,.85);color:#DBEAFE}
+.hbm--early{background:rgba(45,212,191,.42);border-color:#2DD4BF;color:#CCFBF1}
+.hbm--good{background:rgba(190,227,92,.26);border-color:rgba(190,227,92,.8);color:#ECFCCB}
+.hbm--last{background:rgba(245,166,35,.28);border-color:rgba(245,166,35,.7);color:#F6D08A}
+.hbm--late{background:rgba(239,107,107,.38);border-color:rgba(239,107,107,.8);color:#FDE2E2}
+.hbm--none{background:transparent;border-color:rgba(239,107,107,.8);color:#F3B4B4}
+.hbm--open{background:transparent;border:1px dashed var(--line2);color:var(--mute)}
+.hbm--unknown{background:rgba(150,190,215,.14);border-color:var(--line2);color:var(--dim)}
+.hbm--unset{width:10px;height:2px;border-radius:1px;background:var(--line2)}
+.hbflag{display:inline-flex;align-items:center;gap:4px;font:600 10.5px/1 var(--mono);color:#F1CFFB;padding:5px 8px;border-radius:999px;
+  border:1px solid rgba(232,121,249,.45);background:rgba(232,121,249,.12);cursor:help;white-space:nowrap}
+.hbnone{color:var(--mute);font:500 11px/1 var(--mono)}
+.hbkey{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:11px 15px;border-top:1px solid var(--line);color:var(--mute);font-size:12px}
+.hbkey>span{display:inline-flex;align-items:center;gap:7px}.hbkey .hbm,.hbkey .hbflag{cursor:default}
+.hbwhy{font-size:12.5px;color:var(--dim);line-height:1.5;margin:0 0 6px}.hbwhy b{color:var(--chalk)}
+.hbwhen{font:500 11px/1.4 var(--mono);color:var(--mute);margin-top:4px}
+.hbflagw{margin-top:9px;padding:9px 11px;border:1px solid rgba(232,121,249,.4);border-radius:9px;background:rgba(232,121,249,.08);color:#F1CFFB;font-size:12.5px;line-height:1.45}
+@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal}}
+/* 📊 Analysis ↗ (1 Oct 2026): a link OUT to the analysis website, in its own colour, for the people on that website's
+   👥 list only. Not a view: never class "tab", never inside the tab list (markTabs and the phone rule act on .tab). */
+.ana{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+  color:#FFB199;background:rgba(255,138,101,.1);border:1px solid rgba(255,138,101,.45);border-radius:999px;padding:9px 13px;
+  text-decoration:none;white-space:nowrap}
+.ana:hover{background:rgba(255,138,101,.2);color:#FFD2C4}.ana:focus-visible{outline:2px solid #FF8A65;outline-offset:2px}
+/* Who is signed in, the age of the view and Refresh wrap TOGETHER, on the right, when a computer's first row is full (six
+   tabs, 1 Oct 2026: Refresh had wrapped alone to the left of a second row). On a phone the group dissolves, so its three
+   items flow exactly as they did before. */
+.meta{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px 14px;margin-left:auto}
+@media (max-width:700px){.meta{display:contents}.who{margin-left:0}.bars{width:100%}.size__h{margin-left:0;text-align:left}.hw__h{flex-wrap:wrap}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -295,10 +345,13 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
   <div class="top__in">
     <p class="eye">Biology Hub · <b>Teachers only</b></p>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Teacher views"></nav>
+    <a class="ana" id="ana" href="#" target="_blank" rel="noopener" hidden>📊 Analysis ↗</a>
+    <div class="meta">
     <span class="who" id="who"></span>
     <span class="age" id="age" aria-live="polite"></span>
     <button class="rf" id="rf" data-tip="Read the sheet again">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>
+    </div>
   </div>
 </header>
 <main class="wrap">
@@ -347,9 +400,12 @@ var BOOT = __BOOT__;
       note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again. Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
     english:{ label:'Bio English', accent:'#62D38A', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
-      note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' }
+      note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' },
+    habits:{ label:'⏱️ Homework habits', accent:'#A78BFA', h1:'⏱️ Homework <em>habits</em>',
+      lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
+      note:'Start here: pick a class. Each row is a pupil and each column a homework, oldest on the left; hover over or tap a mark for when they finished, and click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working. Times are kept per station from the first save after this was pasted, so a station set again that a pupil had already finished shows “done before it was set”.' }
   };
-  var ORDER = ['teachers','progress','english','students','homework'];
+  var ORDER = ['teachers','progress','english','students','homework','habits'];
   var cache = {}, stamp = {}, cur = null, inflight = {}, prefetched = false;
   /* Cookies would be the wrong tool — they cap at about 4KB and the Lab-progress payload is
      hundreds. sessionStorage holds megabytes, is per-tab, and dies with the window, which is
@@ -471,6 +527,7 @@ var BOOT = __BOOT__;
     if (cur==='students') return vStudents(r.data, r.trackerBase);
     if (cur==='homework') return window.vHomework(r.data);
     if (cur==='english') return window.vEnglish(r.data);
+    if (cur==='habits') return window.vHabits(r.data);
   }
 
   /* ─────────── Spreadsheets ─────────── */
@@ -758,16 +815,20 @@ var BOOT = __BOOT__;
     el.click();
   });
 
+  /* 📊 Analysis ↗ (1 Oct 2026): shown only when the server put an address in BOOT (this teacher is on the analysis
+     website's 👥 list). The page is given the address or nothing, never the list. */
+  (function(){ var a=$('ana'), u=String(BOOT.analysis||'');
+    if (a && /^https:\/\/[^\s"'<>]+\/analysis\.html$/.test(u)) { a.setAttribute('href', u); a.hidden=false; } })();
   setInterval(showAge, 30000);               /* the label must age by itself, or it lies */
   /* Start once BOTH scripts have run. A view kept in this tab's sessionStorage is drawn at once, and Lab progress, Bio
-     English and Set homework are defined by the second script: started here, a reload within ten minutes of a read threw
+     English, Set homework and ⏱️ Homework habits are defined by the second script: started here, a reload within ten minutes of a read threw
      and left those views on "Loading" (found 1 Oct 2026). */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ go(BOOT.tab || 'teachers'); });
   else go(BOOT.tab || 'teachers');
 })();
 </script>
 <script>
-/* Lab progress, Bio English and Set homework live here so the shell above stays readable. They take their
+/* Lab progress, Bio English, Set homework and ⏱️ Homework habits live here so the shell above stays readable. They take their
    helpers from window.__view rather than repeating them. */
 (function(){
   "use strict";
@@ -1381,6 +1442,123 @@ var BOOT = __BOOT__;
           topic:(hState.post&&D.classroomOk)?String(hState.topic||'').trim():'',
           /* the plain date, and the time when one was typed: the server reads both in the school's zone (no time = the end of that day) */
           classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]}; }) });
+    }
+    paint();
+  };
+
+  /* ─────────────────────── ⏱️ Homework habits (1 Oct 2026) ───────────────────────
+     When each pupil finished each homework, against the time it was set and its due time. The server decides every band,
+     ⏰, habit line and flag, and words every time in the school's zone; this page only draws. Read only. One class at a
+     time: pupils down, homework across in date order, one mark per cell (its words on hover or tap); the habit line under
+     each name and "worth a look" beside it; a name opens that pupil's timeline. The sort (name or habit) is kept in this
+     browser (localStorage habits.sort). */
+  var hbState = { cls:null, sort:'' };
+  var HB_GLYPH = { before:'', early:'', good:'', last:'', late:'!', none:'×', open:'·', unknown:'?' };
+  var HB_KEY = ['before','early','good','last','late','none','open','unknown'];
+  window.vHabits = function(D){
+    var HW = D.homework||[], PUP = D.pupils||[], W = D.words||{}, B = D.bands||{early:50, good:85};
+    if (!hbState.sort){ var s0=''; try { s0=localStorage.getItem('habits.sort')||''; } catch(e){} hbState.sort=(s0==='habit')?'habit':'name'; }
+    if (!HW.length) { $('view').innerHTML = '<div class="empty">No homework with a due time yet. Set some on the Set homework tab: this view then shows when each pupil finishes it.</div>'; return; }
+    if (!D.recorded) { $('view').innerHTML = '<div class="empty"><b>No times recorded yet.</b><br>Each pupil’s times are kept from their first save after this version of the script was pasted. After a day of homework, a mark appears here for each pupil and each homework.</div>'; return; }
+    PUP.forEach(function(p,i){ p.__i=i; p.__by={}; (p.cells||[]).forEach(function(c){ p.__by[c[0]]=c; }); });
+    var CLS = [];
+    PUP.forEach(function(p){ var c=p.cls||''; if (CLS.indexOf(c)<0) CLS.push(c); });
+    CLS.sort(cmpClass);
+    if (hbState.cls===null || CLS.indexOf(hbState.cls)<0) hbState.cls = CLS[0];
+    function cap(s){ s=String(s||''); return s.charAt(0).toUpperCase()+s.slice(1); }
+    function word(b){ return W[b]||b; }
+    function shortTitle(t){ t=String(t||''); return t.length>22 ? t.slice(0,21)+'…' : t; }
+    function mark(b, r, tip){
+      return '<span class="hbm hbm--'+esc(b)+'"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(HB_GLYPH[b]||'')+
+        (r?'<i aria-hidden="true">⏰</i>':'')+'</span>';
+    }
+    /* c: [homework, band, ⏰ reminder, checks, right first time, questions, stations, sets, span, first try, finish] */
+    function cellWords(h, c){
+      var hw=HW[h], L=[hw.title, 'Set '+hw.set+' · due '+hw.due];
+      if (c[1]==='unknown') L.push('Finished '+c[10]+', before the times began to be kept: when exactly is not known');
+      else if (c[1]==='open' || c[1]==='none') L.push(cap(word(c[1])));
+      else L.push(cap(word(c[1]))+': finished '+c[10]);
+      if (c[2]) L.push('⏰ finished after reminder '+c[2]);
+      if (c[8]) L.push('From first try to finish: '+c[8]);
+      else if (c[9]) L.push('First try: '+c[9]);
+      var bits=[];
+      if (c[3]!==null && c[3]!==undefined) bits.push(c[3]+' check'+(c[3]===1?'':'s'));
+      bits.push(c[4]+'/'+c[5]+' right first time'+(c[5]?' ('+Math.round(100*c[4]/c[5])+'%)':''));
+      L.push(bits.join(' · '));
+      return L.join('\n');
+    }
+    function paint(){
+      var list = PUP.filter(function(p){ return (p.cls||'')===hbState.cls; });
+      var used = {};
+      list.forEach(function(p){ (p.cells||[]).forEach(function(c){ used[c[0]]=1; }); });
+      var cols = [];
+      HW.forEach(function(h,i){ if (used[i]) cols.push(i); });
+      list.sort(function(a,b){
+        if (hbState.sort==='habit'){ var oa=a.habit?a.habit.o:9, ob=b.habit?b.habit.o:9; if (oa!==ob) return oa-ob; }
+        return String(a.name||'').localeCompare(String(b.name||''));
+      });
+      var nFlag = 0;
+      var head = '<tr><th class="cnr">Pupil · habit</th><th class="hbfh" data-tip="'+esc(D.flagWords||'')+'">Worth a look</th>'+
+        cols.map(function(i){ var h=HW[i];
+          return '<th class="hbcol" data-tip="'+esc(h.title+'\nSet '+h.set+' · due '+h.due+(h.who?'\nFor '+h.who:'')+
+            (h.med?'\nMedian from first try to finish: '+h.med:'')+'\nWith times: '+h.withTimes+' pupil'+(h.withTimes===1?'':'s'))+'">'+
+            esc(shortTitle(h.title))+'<span class="lt">'+esc(h.day)+'</span></th>'; }).join('')+'</tr>';
+      var rows = list.map(function(p){
+        var fl = (p.flags||[]).filter(function(f){ return used[f.h]; }), hb = p.habit;
+        if (fl.length) nFlag++;
+        return '<tr><td class="name"><button type="button" class="hbn" data-hbp="'+p.__i+'">'+esc(p.name||'(no name)')+'</button>'+
+          '<div class="hbh'+(hb?'':' none')+'" data-tip="'+esc(hb?hb.say+' — '+hb.why:'Fewer than 3 homework with times so far.')+'">'+esc(hb?hb.say:'—')+'</div></td>'+
+          '<td class="hbfl">'+(fl.length?'<span class="hbflag" data-tip="'+esc(fl.map(function(f){ return HW[f.h].title+': '+f.says; }).join('\n\n'))+'">⚑ '+fl.length+'</span>'
+                                         :'<span class="hbnone">—</span>')+'</td>'+
+          cols.map(function(i){ var c=p.__by[i];
+            if (!c) return '<td class="cell"><span class="hbm hbm--unset" data-tip="'+esc(HW[i].title+': not set for this pupil.')+'"></span></td>';
+            return '<td class="cell">'+mark(c[1], c[2], cellWords(i, c))+'</td>'; }).join('')+'</tr>'; }).join('');
+      var key = '<div class="hbkey">'+HB_KEY.map(function(b){
+          var more = b==='early' ? ' (by '+B.early+'% of the time)' : b==='good' ? ' (by '+B.good+'%)' : b==='last' ? ' (before the due time)' : '';
+          return '<span>'+mark(b, 0, '')+esc(cap(word(b))+more)+'</span>'; }).join('')+
+        '<span>'+mark('good', 1, '')+'finished after a reminder</span><span><span class="hbflag">⚑</span>worth a look</span></div>';
+      $('view').innerHTML =
+        '<div class="bar2"><div class="fld"><label for="hbcls">Class</label><select id="hbcls">'+
+        CLS.map(function(c){ return '<option value="'+esc(c)+'"'+(c===hbState.cls?' selected':'')+'>'+esc(c||'No class')+'</option>'; }).join('')+
+        '</select></div><div class="hsort" role="group" aria-label="Sort the pupils"><span class="hsort__k">Sort by</span>'+
+        [['name','Name'],['habit','Habit']].map(function(o){ var on=hbState.sort===o[0];
+          return '<button class="chip'+(on?' on':'')+'" data-hbsort="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+
+        '</div></div>'+
+        '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(hbState.cls||'No class')+'</span><span class="sec__n">'+
+        list.length+' pupil'+(list.length===1?'':'s')+' · '+cols.length+' homework'+(nFlag?' · '+nFlag+' worth a look':'')+'</span></div>'+
+        '<p class="sec__d">Oldest homework on the left. Hover over or tap a mark for when they finished; click a name for their timeline.</p>'+
+        '<div class="panel"><div class="hbwrap"><table class="hb"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+key+'</div></section>'+
+        (D.left?'<p class="sec__d" style="margin-top:12px">'+D.left+' homework left out: '+(D.left===1?'it has':'they have')+' no due time to measure against.</p>':'');
+      wireHb();
+    }
+    function wireHb(){
+      var s=$('hbcls');
+      if (s) s.addEventListener('change', function(){ hbState.cls=s.value; paint(); });
+      document.querySelectorAll('[data-hbsort]').forEach(function(b){ b.addEventListener('click', function(){
+        hbState.sort=b.getAttribute('data-hbsort');
+        try { localStorage.setItem('habits.sort', hbState.sort); } catch(e){}
+        paint(); }); });
+      document.querySelectorAll('[data-hbp]').forEach(function(b){ b.addEventListener('click', function(){ timeline(PUP[+b.getAttribute('data-hbp')]); }); });
+    }
+    /* a pupil's timeline, oldest first: each homework's set and due times, first try, finish, band, ⏰, checks, right first time */
+    function timeline(p){
+      if (!p) return;
+      var hb=p.habit;
+      var body = '<div class="dlab"><p class="hbwhy">'+(hb?'<b>'+esc(hb.say)+'</b> — '+esc(hb.why):'No habit line yet: fewer than 3 homework with times.')+'</p>'+
+        '<p class="hbwhy">'+(p.base?esc(p.base)+'.':'No teacher-marked test in the Student Progress Tracker yet.')+'</p></div>'+
+        (p.cells||[]).map(function(c){
+          var h=HW[c[0]], fl=(p.flags||[]).filter(function(f){ return f.h===c[0]; });
+          return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(h.title)+'</span>'+
+            '<span class="dlab__p">'+mark(c[1], c[2], '')+' '+esc(cap(word(c[1])))+(c[2]?' · ⏰ after reminder '+c[2]:'')+'</span></div>'+
+            '<div class="hbwhen">Set '+esc(h.set)+' · due '+esc(h.due)+'</div>'+
+            '<div class="dchips">'+
+              (c[9]?'<span class="dchip">First try <b>'+esc(c[9])+'</b></span>':'<span class="dchip">Not tried</span>')+
+              (c[10]?'<span class="dchip">Finished <b>'+esc(c[10])+'</b></span>':'')+
+              (c[8]?'<span class="dchip">From first try to finish <b>'+esc(c[8])+'</b></span>':'')+
+              (c[3]!==null&&c[3]!==undefined?'<span class="dchip"><b>'+c[3]+'</b> check'+(c[3]===1?'':'s')+'</span>':'')+
+              '<span class="dchip"><b>'+c[4]+'</b>/'+c[5]+' right first time</span></div>'+
+            fl.map(function(f){ return '<div class="hbflagw">⚑ Worth a look: '+esc(f.says)+'</div>'; }).join('')+'</div>'; }).join('');
+      V.openDraw(p.name||'(no name)', esc(p.cls||'—')+(hb?' · '+esc(hb.say):''), body);
     }
     paint();
   };
