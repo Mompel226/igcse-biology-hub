@@ -1,7 +1,7 @@
 /* ============================================================
    Biology Hub — the register
    ------------------------------------------------------------
-   THIS IS THE ONLY FILE YOU EDIT WHEN SOMETHING CHANGES.
+   THE ONLY SHARED REGISTER: the shelves, the year groups, what is open.
 
    It is SHARED BY BOTH EDITIONS — the NLCS one (repo biology-hub) and the
    open one every other school can use (repo igcse-biology-hub). Anything
@@ -9,11 +9,12 @@
    the only file the two editions do not share. After editing this file,
    run `node tools/sync-edition.mjs` to carry it across.
    A shelf goes live: give it a url and set status to "live".
-   The term moves on: rewrite the path. A lab opens: add it to open.
+   A lab opens: add it to `open`, and correct its shelf door's `detail`. The lab's size
+   comes from labs-shared/labs.json (the lab's own build writes it), never from here.
 
    doors    the doors, in the order they stand
      id       unique key — also the image name in assets/doors/
-     kind     "shelf" | "cca"
+     kind     "shelf" (the school's own doors, and their kinds, are in js/local.js)
      eyebrow  the small line above the title
      title    what the door says; <em> marks the word that takes the accent
      blurb    one or two sentences, revealed when the door opens
@@ -27,9 +28,14 @@
      focus    object-position for the image, e.g. "50% 40%"
      alt      what the image shows, for readers who cannot see it
    years    which topics each year group meets — the split the student dashboard uses
-   open     everything that is live, for students who know where they are going. Never
-            write a lab's size in its sub: js/hub.js adds "12 stations, 115 questions"
-            from the lab register (js/data/labs.js), found by the lab's url
+     id       "y9" | "y10" | "y11" — the number is the year group, which gives the exam year
+     label    the tab's words
+     steps    the topics, in order: { no, t, shelf } — shelf is the door the topic lights
+   open     everything that is live, for students who know where they are going
+     title, kind ("hub" | "lab" | "sim" | "practical"), shelf (the door it lights), url
+     sub      one line under the title. Never write a lab's size here: js/hub.js adds
+              "12 stations, 115 questions" from the lab register (js/data/labs.js), found by url
+     ib       a note shown in the IB layer · ibOnly  listed only when the IB layer is on
    credits  where each door's image came from — printed in the colophon
    ============================================================ */
 window.HUB = {
@@ -51,7 +57,7 @@ window.HUB = {
       topics:[ {no:7,t:'Human nutrition'}, {no:9,t:'Transport in animals'}, {no:10,t:'Diseases and immunity'},
                {no:11,t:'Gas exchange'}, {no:12,t:'Respiration'}, {no:13,t:'Excretion'},
                {no:14,t:'Coordination and response'}, {no:15,t:'Drugs'}, {no:16,t:'Reproduction'} ],
-      status:'live', url:'https://nlcsbiology.com/human-body-hub/', detail:'1 lab open · 8 being built',
+      status:'live', url:'https://nlcsbiology.com/human-body-hub/', detail:'2 labs open · 7 being built',
       accent:'#FF5C5C', tone:'dark', focus:'50% 40%',
       alt:'The heart and lungs with their vessels, from Bourgery and Jacob\'s anatomy of the 1830s, shown in red' },
 
@@ -76,13 +82,13 @@ window.HUB = {
 
   /* which topics each year group meets — the same split as the student dashboard */
   years: [
-    { id:'y9',  label:'Year 9',  sub:'Topics 1–5', steps:[
+    { id:'y9',  label:'Year 9',  steps:[
       { no:'1',  t:'Classification',        shelf:'life-on-earth' },
       { no:'2',  t:'Cells',                 shelf:'foundations' },
       { no:'3',  t:'In and out of cells',   shelf:'foundations' },
       { no:'4',  t:'Biological molecules',  shelf:'foundations' },
       { no:'5',  t:'Enzymes',               shelf:'foundations' } ] },
-    { id:'y10', label:'Year 10', sub:'Topics 7–16', steps:[
+    { id:'y10', label:'Year 10', steps:[
       { no:'7',  t:'Human nutrition',       shelf:'human-body' },
       { no:'9',  t:'Transport in animals',  shelf:'human-body' },
       { no:'10', t:'Diseases and immunity', shelf:'human-body' },
@@ -92,7 +98,7 @@ window.HUB = {
       { no:'14', t:'Coordination and response', shelf:'human-body' },
       { no:'15', t:'Drugs',                 shelf:'human-body' },
       { no:'16', t:'Reproduction',          shelf:'human-body' } ] },
-    { id:'y11', label:'Year 11', sub:'Plants, and topics 17–21', steps:[
+    { id:'y11', label:'Year 11', steps:[
       { no:'6',    t:'Plant nutrition',       shelf:'plants' },
       { no:'8',    t:'Transport in plants',   shelf:'plants' },
       { no:'14.5', t:'Tropic responses',      shelf:'plants' },
@@ -121,7 +127,7 @@ window.HUB = {
       url:'https://nlcsbiology.com/classification-lab/' },
     { title:'Digestion Lab',        kind:'lab',       shelf:'human-body',
       sub:'Topic 7 · Human nutrition',
-      url:'https://nlcsbiology.com/digestion-lab/', progress:'digestion' },
+      url:'https://nlcsbiology.com/digestion-lab/' },
     { title:'Circulation Lab',      kind:'lab',       shelf:'human-body',
       sub:'Topic 9 · Transport in animals',
       url:'https://nlcsbiology.com/circulation-lab/' },

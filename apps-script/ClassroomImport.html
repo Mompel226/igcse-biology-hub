@@ -46,6 +46,7 @@ input[type="text"].err { border-color: #f85149; }
 .summary { margin-top: 12px; padding: 10px 14px; background: #161b22; border-radius: 6px; font-size: 12px; color: #8b949e; line-height: 1.6; }
 .course-name { color: #e6edf3; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 .section { color: #8b949e; font-size: 11px; }
+.key { margin-top: 8px; color: #8b949e; font-size: 11px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -77,7 +78,16 @@ google.script.run
 function esc(s) { var d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
 
 function render() {
+  /* the script answers only the spreadsheet's owner or a teacher on its list (labs-script-010: anyone else
+     used to be told "No active courses found", which sent them looking in Classroom) */
+  if (DATA && DATA.refused) {
+    document.getElementById('subtitle').textContent = '';
+    document.getElementById('content').innerHTML =
+      '<div class="loading">Only the owner of this spreadsheet, or a teacher on its 👩‍🏫 Teachers list, can import students.</div>';
+    return;
+  }
   if (!DATA || !DATA.courses.length) {
+    document.getElementById('subtitle').textContent = '';
     document.getElementById('content').innerHTML = '<div class="loading">No active courses found.</div>';
     return;
   }
@@ -106,7 +116,7 @@ function render() {
       '<td class="status" id="st-' + i + '">—</td>' +
     '</tr>';
   });
-  html += '</tbody></table>';
+  html += '</tbody></table><p class="key" id="key" hidden></p>';
   document.getElementById('content').innerHTML = html;
   updateUI();
 }
@@ -141,20 +151,28 @@ function updateUI() {
     cc.classList.toggle('err', document.getElementById('cb-' + i).checked && !cc.value.trim());
   });
 
-  var byCode = {}, hasEmpty = false;
+  /* what a badge means is said in words under the table, never in a title= tooltip: that waits a second, and
+     never shows at all on a touch screen or to a keyboard */
+  var byCode = {}, hasEmpty = false, anyHave = false, anyDup = false;
   sels.forEach(function (s) {
     if (!s.classCode) { hasEmpty = true; return; }
     var have = DATA.have[s.classCode];
-    if (have) document.getElementById('badge-' + s.idx).innerHTML =
-      '<span class="badge badge-have" title="Already in the Students tab — they will be skipped">' + have + ' already</span>';
+    if (have) { anyHave = true; document.getElementById('badge-' + s.idx).innerHTML =
+      '<span class="badge badge-have">' + have + ' already</span>'; }
     (byCode[s.classCode] = byCode[s.classCode] || []).push(s.idx);
   });
   Object.keys(byCode).forEach(function (code) {
     if (byCode[code].length > 1) byCode[code].forEach(function (idx) {
-      document.getElementById('badge-' + idx).innerHTML =
-        '<span class="badge badge-dup" title="Two courses share this class code — their students will be merged into one class">merge</span>';
+      anyDup = true;
+      document.getElementById('badge-' + idx).innerHTML = '<span class="badge badge-dup">merge</span>';
     });
   });
+  var key = document.getElementById('key'), said = [];
+  /* a "merge" badge replaces an "already" one on the same row: say only what is on the screen */
+  anyHave = sels.some(function (s) { return document.getElementById('badge-' + s.idx).innerHTML.indexOf('badge-have') >= 0; });
+  if (anyHave) said.push('“already”: that class already has that many students on the Students tab. Anyone imported before is skipped, never added twice.');
+  if (anyDup) said.push('“merge”: two ticked courses share one class code, so their students become one class.');
+  if (key) { key.textContent = said.join(' '); key.hidden = !said.length; }
 
   document.getElementById('btn-import').disabled = sels.length === 0 || hasEmpty;
 }

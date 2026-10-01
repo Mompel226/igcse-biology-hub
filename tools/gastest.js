@@ -55,6 +55,9 @@ class Range {
     for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sheet.get(this.r + i, this.c + j)); out.push(row); }
     return out;
   }
+  /* This stand-in keeps a formula as its own text, so a cell holding one gives it back here, as the real
+     getFormulas does (and '' for every other cell). */
+  getFormulas() { return this.getValues().map(r => r.map(v => (typeof v === 'string' && v[0] === '=') ? v : '')); }
   getValue() { return this.sheet.get(this.r, this.c); }
   isBlank() { return this.getValues().every(r => r.every(v => v === '' || v == null)); }
   getRow() { return this.r; } getColumn() { return this.c; }
@@ -257,6 +260,7 @@ global.Utilities = {
   },
   formatDate: (d, tz, fmt) => {
     const x = new Date(d.getTime() + 9 * 3600 * 1000);
+    if (fmt === 'HH:mm') return ('0' + x.getUTCHours()).slice(-2) + ':' + ('0' + x.getUTCMinutes()).slice(-2);
     const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return x.getUTCDate() + ' ' + M[x.getUTCMonth()];
   },
@@ -283,7 +287,7 @@ function run(label, fn) {
 }
 let ok = true;
 /* Everything that reaches a function by NAME rather than by calling it: the menu items,
-   and every google.script.run call in the dialog. Apps Script only finds out these are
+   and every google.script.run call in every window. Apps Script only finds out these are
    wrong when a human clicks — "Script function not found" — so they are checked here. */
 console.log('— names reached by string —');
 const SRC = fs.readFileSync(process.argv[2] || 'apps-script/Code.gs', 'utf8');
@@ -296,14 +300,75 @@ ok &= run('every menu item points at a function that exists', () => {
   const missing = named.filter(n => !defined(n));
   if (missing.length) throw new Error('the menu names nothing: ' + missing.join(', '));
 });
-ok &= run('every google.script.run call in the window exists', () => {
-  if (!/google\.script\.run/.test(HTML)) throw new Error('the window calls nothing at all — has it been gutted?');
-  /* the chain is written one call per line, so the server call is a line-leading .name( */
-  const named = [...new Set([...HTML.matchAll(/^\s*\.\s*([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]))]
-    .filter(n => !['withSuccessHandler', 'withFailureHandler', 'withUserObject'].includes(n));
-  if (!named.length) throw new Error('found no server calls to check');
-  const missing = named.filter(n => !defined(n));
-  if (missing.length) throw new Error('the window calls nothing named: ' + missing.join(', '));
+/* The server calls a window makes (labs-script-013, 30 Sep 2026: this read only ClassroomImport.html, so a renamed
+   teacher* or homework* function would have shown only when a teacher clicked). Each google.script.run chain is walked
+   with its brackets balanced, so a handler's own calls are never taken for the server's: its last link is the call.
+   A chain kept in a variable is followed to where it is called (TeacherPage's Find: run.teacherFindAgain), and a chain
+   ending in [fn] to the names its helper is handed (Teacher.html: send('homeworkDelete', …)). */
+function serverCalls(html) {
+  const WITH = /^with(SuccessHandler|FailureHandler|UserObject)$/;
+  const skip = (s, i) => {                  /* s[i] opens a string, a comment or a bracket: the index where it ends */
+    const c = s[i];
+    if (c === '"' || c === "'" || c === '`') { for (i++; i < s.length && s[i] !== c; i++) if (s[i] === '\\') i++; return i; }
+    if (c === '/' && s[i + 1] === '*') return s.indexOf('*/', i + 2) + 1;
+    if (c === '/' && s[i + 1] === '/') return s.indexOf('\n', i);
+    for (let d = 0; i < s.length; i++) {
+      const x = s[i];
+      if (x === '"' || x === "'" || x === '`' || (x === '/' && (s[i + 1] === '*' || s[i + 1] === '/'))) { i = skip(s, i); continue; }
+      if (x === '(' || x === '[' || x === '{') d++;
+      else if ((x === ')' || x === ']' || x === '}') && --d === 0) return i;
+    }
+    return s.length;
+  };
+  const out = new Set(), unknown = [];
+  for (const m of html.matchAll(/google\.script\.run\b/g)) {
+    let i = m.index + m[0].length, last = '', computed = false, k;
+    for (;;) {
+      if ((k = /^\s*\.\s*([A-Za-z_$][\w$]*)\s*\(/.exec(html.slice(i, i + 200)))) { last = k[1]; i = skip(html, i + k[0].length - 1) + 1; continue; }
+      if ((k = /^\s*\[/.exec(html.slice(i, i + 40)))) {
+        computed = true; i = skip(html, i + k[0].length - 1) + 1;
+        if ((k = /^\s*\(/.exec(html.slice(i, i + 40)))) i = skip(html, i + k[0].length - 1) + 1;
+        continue;
+      }
+      break;
+    }
+    if (last && !WITH.test(last) && !computed) { out.add(last); continue; }
+    let names = [], via = '';
+    if (computed) {                           /* function send(fn, arg){ … google.script.run…[fn](arg) } */
+      const f = [...html.slice(0, m.index).matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)].pop();
+      via = f ? f[1] + '(…)' : '[fn]';
+      if (f) names = [...html.matchAll(new RegExp('\\b' + f[1] + "\\(\\s*'([A-Za-z_$][\\w$]*)'", 'g'))].map(x => x[1]);
+    } else {                                  /* var run = google.script.run.with…(…); … run.name(…) */
+      const held = /([A-Za-z_$][\w$]*)\s*=\s*$/.exec(html.slice(Math.max(0, m.index - 60), m.index));
+      via = held ? held[1] : html.slice(m.index, m.index + 60).replace(/\s+/g, ' ');
+      if (held) names = [...html.matchAll(new RegExp('\\b' + held[1] + '\\s*\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(', 'g'))]
+        .map(x => x[1]).filter(n => !WITH.test(n));
+    }
+    if (!names.length) unknown.push(via);
+    names.forEach(n => out.add(n));
+  }
+  return { names: [...out], unknown };
+}
+ok &= run('every google.script.run call in every window exists — the import dialog, the teacher page and its dialog', () => {
+  const seen = {};
+  for (const f of ['ClassroomImport', 'Teacher', 'TeacherPage']) {
+    const html = fs.readFileSync('apps-script/' + f + '.html', 'utf8');
+    if (!/google\.script\.run/.test(html)) throw new Error(f + '.html calls nothing at all — has it been gutted?');
+    const r = serverCalls(html);
+    if (r.unknown.length) throw new Error(f + '.html: cannot tell what this call reaches: ' + r.unknown.join('; '));
+    const missing = r.names.filter(n => !defined(n));
+    if (missing.length) throw new Error(f + '.html calls nothing named: ' + missing.join(', '));
+    /* Apps Script keeps a name ending in _ private: google.script.run refuses it */
+    const priv = r.names.filter(n => /_$/.test(n));
+    if (priv.length) throw new Error(f + '.html calls a private function, which google.script.run refuses: ' + priv.join(', '));
+    seen[f] = r.names;
+  }
+  /* and the scan itself still sees the calls it must, or it could pass by finding nothing (renamed one? change it here too) */
+  const want = { ClassroomImport: ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress'],
+                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics'],
+                 TeacherPage: ['teacherPanelData', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherAddLink', 'teacherSetHubUrl'] };
+  Object.keys(want).forEach(f => { const lost = want[f].filter(n => seen[f].indexOf(n) < 0);
+    if (lost.length) throw new Error('the scan no longer finds ' + f + '.html calling ' + lost.join(', ')); });
 });
 ok &= run('the teacher page is reachable by keyboard and screen reader', () => {
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
@@ -358,6 +423,13 @@ ok &= run('help text never waits on the browser\u2019s own tooltip', () => {
   if (!/Escape/.test(h)) throw new Error('a tooltip that cannot be dismissed');
   /* a tap must work: the ? exists to be asked, and an iPad has no hover at all */
   if (!/closest\('button\.q'\)/.test(h)) throw new Error('tapping the ? does nothing on a touch screen');
+});
+ok &= run('the two sheet windows explain nothing in a title= tooltip either', () => {
+  /* labs-script-050 (30 Sep 2026): the import window's two badges explained themselves only in title= */
+  ['ClassroomImport', 'TeacherPage'].forEach(n => {
+    const k = [...fs.readFileSync('apps-script/' + n + '.html', 'utf8').matchAll(/\stitle="/g)].length;
+    if (k) throw new Error(n + '.html: ' + k + ' explanation(s) still rely on the native title tooltip');
+  });
 });
 ok &= run('the ? is a real button, not a span pretending to be one', () => {
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
@@ -435,7 +507,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
     'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder', 'teacherWatchFolder',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
-    'homeworkCreate', 'homeworkDelete', 'homeworkRefresh',                    /* gated: _hwCaller_ */
+    'homeworkCreate', 'homeworkDelete', 'homeworkTopics',                     /* gated: _hwCaller_ */
     'uiData',                                                                /* gated: _hwCaller_ */
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
     'checkChips',            /* gated: _isAdminCaller_ — Run ▸ checkChips in the editor, which cannot
@@ -450,9 +522,9 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     throw new Error('reachable by anyone via google.script.run: ' + extra.join(', ') +
       '\n   Give each a trailing underscore, or gate it and add it to ALLOWED with the reason.');
   }
-  /* and the three that must stay callable really do check the caller */
+  /* and the ones that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',
-   'homeworkCreate', 'homeworkDelete', 'homeworkRefresh', 'uiData', 'installDailySummary', 'checkChips'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'uiData', 'installDailySummary', 'checkChips'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -482,7 +554,7 @@ ok &= run('every student is waiting in every lab, with no marks', () => {
     const v = sh.getRange(2, 1, 2, LAB_COLS.length).getValues();
     if (v[0][0] !== 'Ana Lee' || v[0][1] !== '9A') throw new Error(l.name + ': the name and class are not there');
     if (v[0][LAB_EMAIL - 1] !== 'ana@x.kr') throw new Error(l.name + ': no email to key on');
-    if (v[0][2] !== '' || v[0][4] !== '') throw new Error(l.name + ': a mark appeared before anyone handed in');
+    if (v[0][2] !== '' || v[0][4] !== '') throw new Error(l.name + ': a mark appeared before anyone saved');
   });
 });
 ok &= run('importing twice does not double anybody up', () => {
@@ -925,7 +997,7 @@ ok &= run('running it again moves nothing', () => {
 
 
 /* ============================================================================
-   THE AUDIT — every lab in the register, not only the two that exist yet, and a
+   THE AUDIT — every lab in the register, built or not, and a
    Students tab that has been knocked about the way a real one gets knocked about.
    ============================================================================ */
 console.log('— every lab in the register —');
@@ -1254,6 +1326,144 @@ ok &= run('a lab taken back out leaves its marks alone and says so', () => {
   if (!/Old Topic 22/.test(report)) throw new Error('it stopped naming what it kept: ' + report);
 });
 
+ok &= run('a lab put in the MIDDLE of LABS: every percentage stays under its own heading (labs-script-006)', () => {
+  /* LABS order and the sheet's part as soon as a lab goes in mid-list (Plants, 8 Sep): the sheet keeps its columns and
+     the new lab's goes on the end of the labs. The figures must follow the headings, not places in LABS. */
+  const stu = ss.getSheetByName('Students');
+  const head = () => stu.getRange(1, 1, 1, stu.getLastColumn()).getValues()[0].map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const rowOn = (sh, email) => { const n = sh.getLastRow() - 1, ec = sh === stu ? _emailCol_(stu) : LAB_EMAIL;
+    const v = sh.getRange(2, ec, n, 1).getValues(); for (let i = 0; i < n; i++) if (_cleanEmail_(v[i][0]) === email) return i + 2; return -1; };
+  const dg = ss.getSheetByName('Digestion');
+  const marked = dg.getRange(2, 1, dg.getLastRow() - 1, LAB_EMAIL).getValues().filter(r => r[4] !== '' && _cleanEmail_(r[LAB_EMAIL - 1]));
+  if (!marked.length) throw new Error('nobody has a Digestion score to watch');
+  const who = _cleanEmail_(marked[0][LAB_EMAIL - 1]);
+  const at = LABS.findIndex(l => l.name === 'Digestion');
+  LABS.splice(at, 0, { id: 'middle-lab', name: 'Middle Lab', topic: '7 · Somewhere in the middle', questions: 0 });
+  try {
+    setup();                                        /* Tidy up: the new lab's column goes on the end of the labs */
+    const mid = ss.getSheetByName('Middle Lab');
+    mid.getRange(rowOn(mid, who), 5).setValue(0.5);
+    refreshDashboard();
+    const h = head(), row = stu.getRange(rowOn(stu, who), 1, 1, stu.getLastColumn()).getValues()[0];
+    if (h.indexOf('Middle Lab') !== h.indexOf('Labs started') - 1) throw new Error('the new lab did not go on the end of the labs: ' + h.join(' | '));
+    LABS.forEach(l => {
+      const t = ss.getSheetByName(l.name); if (!t || t.getLastRow() < 2) return;
+      const rr = rowOn(t, who), want = rr > 0 && t.getRange(rr, 5).getValue() !== '' ? Number(t.getRange(rr, 5).getValue()) : '';
+      if (row[h.indexOf(l.name)] !== want) throw new Error('under "' + l.name + '": ' + row[h.indexOf(l.name)] + ', but its own tab says ' + want);
+    });
+  } finally {
+    const mid = ss.getSheetByName('Middle Lab');
+    if (mid) { const r = rowOn(mid, who); if (r > 0) mid.getRange(r, 5).setValue(''); }
+    refreshDashboard();                             /* its column empties… */
+    LABS.splice(at, 1);
+    if (mid) ss.deleteSheet(mid);
+    const lt = ss.getSheetByName(T_LABS), lr = lt.getRange(1, 2, lt.getLastRow(), 1).getValues().findIndex(r => r[0] === 'Middle Lab');
+    if (lr >= 0) lt.deleteRow(lr + 1);
+    setup();                                        /* …so Tidy up clears it away quietly */
+  }
+  if (head().indexOf('Middle Lab') >= 0) throw new Error('the test could not take its lab back out');
+});
+ok &= run('the Labs tab counts each lab\'s saves, not its pupils — an old sheet is put right by Tidy up (labs-script-007)', () => {
+  /* "Saves" counted the Class column, which every imported pupil has: it showed the size of the roster */
+  const lt = ss.getSheetByName(T_LABS);
+  const saves = LAB_COLS.findIndex(c => c.h === 'Saves') + 1;
+  if (saves !== 10) throw new Error('Saves has moved on the lab tabs (to column ' + saves + '), but the Labs tab adds up column J');
+  /* Lab id, Lab, Topic, Saves since 1 Oct 2026 (labs-script-019: the Questions column went) */
+  const rows = () => lt.getRange(2, 1, lt.getLastRow() - 1, 4).getValues();
+  /* an old sheet: the old formula, and no row for a lab added since */
+  const dig = rows().findIndex(r => r[1] === 'Digestion') + 2;
+  lt.getRange(dig, 4).setValue('=IFERROR(COUNTA(INDIRECT("\'"&B' + dig + '&"\'!B2:B")),0)');
+  const pl = rows().findIndex(r => r[0] === 'plants-lab') + 2;
+  if (pl > 1) lt.deleteRow(pl);
+  setup();
+  const after = rows();
+  LABS.forEach(l => {
+    const i = after.findIndex(r => r[0] === l.id || r[1] === l.name);
+    if (i < 0) throw new Error(l.name + ' has no row on the Labs tab');
+    if (String(after[i][3]) !== '=IFERROR(SUM(INDIRECT("\'"&B' + (i + 2) + '&"\'!J2:J")),0)') throw new Error(l.name + ' counts ' + after[i][3]);
+  });
+});
+ok &= run('Tidy up writes the Labs tab afresh from LABS: old labs and the Questions column go, the teacher\'s own columns stay with their labs (labs-script-019)', () => {
+  /* the tab as a sheet made in early September has it: the ✎ Questions column, a row for each of the two plant labs
+     that plants-lab replaced, and two columns of the teacher's own — one headed, one typed under no heading */
+  ss.deleteSheet(ss.getSheetByName(T_LABS));
+  const lt = ss.insertSheet(T_LABS);
+  const OLD = '=IFERROR(COUNTA(INDIRECT("\'"&B2&"\'!B2:B")),0)';
+  lt.getRange(1, 1, 5, 7).setValues([
+    ['Lab id', 'Lab', 'Topic', '✎ Questions', 'Saves', 'My notes', ''],
+    ['digestion-lab', 'Digestion', '7 · Human nutrition', 97, OLD, 'check the villus station first', ''],
+    ['plant-nutrition-lab', 'Plant nutrition', '6 · Plant nutrition', 0, OLD, '', ''],
+    ['plant-transport-lab', 'Plant transport', '8 · Transport in plants', 0, OLD, 'ask about xylem', ''],
+    ['classification-lab', 'Classification', '1 · Characteristics and classification', 61, OLD, '=A5&" notes"', 'under no heading']]);
+  const grid = () => lt.getRange(1, 1, lt.getLastRow(), lt.getLastColumn()).getValues();
+  const said = setup();
+  const g = grid(), head = g[0], body = g.slice(1);
+  if (head.join('|') !== 'Lab id|Lab|Topic|Saves|My notes|') throw new Error('headings: ' + head.join(' | '));
+  if (body.length !== LABS.length + 1) throw new Error(body.length + ' rows for ' + LABS.length + ' labs and one kept row');
+  LABS.forEach((l, i) => {
+    const r = body[i];
+    if (r[0] !== l.id || r[1] !== l.name || r[2] !== l.topic) throw new Error('row ' + (i + 2) + ' is ' + r.slice(0, 3).join(' | ') + ', not ' + l.name);
+    if (r[3] !== _labsSaves_(i + 2)) throw new Error(l.name + ' counts ' + r[3]);
+  });
+  const of = id => body[LABS.findIndex(l => l.id === id)];
+  if (of('digestion-lab')[4] !== 'check the villus station first') throw new Error('the teacher\'s note left Digestion: ' + of('digestion-lab')[4]);
+  if (of('classification-lab')[4] !== '=A5&" notes"') throw new Error('the teacher\'s formula was lost: ' + of('classification-lab')[4]);
+  if (of('classification-lab')[5] !== 'under no heading') throw new Error('notes typed under no heading were lost');
+  if (body.some(r => r[1] === 'Plant nutrition')) throw new Error('Plant nutrition, which the script no longer has, is still listed');
+  const kept = body[LABS.length];
+  if (kept[1] !== 'Plant transport' || kept[3] !== '' || kept[4] !== 'ask about xylem') throw new Error('the row the teacher typed on went, or kept a count: ' + kept.join(' | '));
+  if (!/Labs tab: the Questions column went/.test(said) || !/removed Plant nutrition/.test(said) || !/kept Plant transport/.test(said))
+    throw new Error('Tidy up did not say what it did: ' + said);
+  /* a second Tidy up changes nothing; it only reminds the teacher of the row they typed on, as the Students tab's
+     "Kept, because…" line does */
+  const before = JSON.stringify(grid());
+  const again = (setup().match(/Labs tab: [^.]*\./) || [''])[0];
+  if (again !== 'Labs tab: kept Plant transport, which the script no longer has, because you typed on its row: delete it when you are done.')
+    throw new Error('a second Tidy up says: ' + again);
+  if (JSON.stringify(grid()) !== before) throw new Error('a second Tidy up changed the Labs tab');
+  /* the note gone, the old lab's row goes with the next Tidy up */
+  lt.getRange(LABS.length + 2, 5).setValue('');
+  const third = setup();
+  if (!/removed Plant transport/.test(third) || grid().some(r => r[1] === 'Plant transport')) throw new Error('the row stayed once its note was gone: ' + third);
+  /* back as the other tests expect it: no columns of the teacher's own */
+  lt.deleteColumns(5, 2);
+  setup();
+  if (grid()[0].join('|') !== 'Lab id|Lab|Topic|Saves' || grid().length !== LABS.length + 1) throw new Error('the tab did not settle back: ' + grid()[0].join(' | '));
+});
+ok &= run('a lab with questions: 0 is "not built yet" on the Students tab, and 🩺 counts built labs only (labs-script-025)', () => {
+  /* every lab has had a tab since the first Tidy up, so a tab is no sign of a built lab: the old rule called all 20 built */
+  const built = LABS.filter(l => l.questions > 0), unbuilt = LABS.filter(l => !(l.questions > 0));
+  if (!built.length || !unbuilt.length) throw new Error('the register needs built and unbuilt labs for this test');
+  if (unbuilt.some(l => !ss.getSheetByName(l.name))) throw new Error('an unbuilt lab has no tab, so the old rule would pass here by luck');
+  let heads = null;
+  const was = _dress2_;
+  _dress2_ = function (sh, cols) { if (sh.getName() === 'Students') heads = cols; return was.apply(this, arguments); };
+  try { _styleStudents_(); } finally { _dress2_ = was; }
+  if (!heads) throw new Error('_styleStudents_ did not dress the Students tab');
+  LABS.forEach(l => {
+    const c = heads.find(h => h.h === l.name);
+    if (!c) throw new Error('no Students column for ' + l.name);
+    const soon = c.head === HDR_SOON, says = /not built yet/.test(c.note || '');
+    if ((l.questions > 0) === soon || soon !== says) throw new Error(l.name + ' (questions: ' + l.questions + ') is styled ' + (soon ? '"not built yet"' : 'as built') + (soon !== says ? ', and its note disagrees' : ''));
+  });
+  let said = '';
+  const ui = SpreadsheetApp.getUi;
+  SpreadsheetApp.getUi = () => Object.assign(ui(), { alert: (a, b) => { said = String(b); } });
+  try { checkSetup(); } finally { SpreadsheetApp.getUi = ui; }
+  const m = said.match(/labs built so far: (\d+) of (\d+)/);
+  if (!m) throw new Error('🩺 no longer says how many labs are built: ' + said.slice(0, 160));
+  if (+m[1] !== built.length || +m[2] !== LABS.length) throw new Error('🩺 says "' + m[0] + '", but ' + built.length + ' of ' + LABS.length + ' are built');
+});
+ok &= run('the unused Classroom-marks helpers are gone, and neither README tells anyone to run them (labs-script-022/054/015)', () => {
+  const left = ['createAssignmentFor', 'pushGradesFor', '_tidy_'].filter(n => SRC.includes(n));
+  if (left.length) throw new Error('Code.gs still names ' + left.join(', '));
+  ['README.md', '../igcse-biology-hub/README.md'].forEach(f => {
+    if (!fs.existsSync(f)) return;                /* an edition on its own has only its own README */
+    if (/createAssignmentFor|pushGradesFor|Pushing marks into Google Classroom/.test(fs.readFileSync(f, 'utf8')))
+      throw new Error(f + ' still describes the Classroom marks helpers');
+  });
+});
+
 console.log('— signing in, safely —');
 ok &= run('junk and other apps\' sign-ins are turned away without asking Google', () => {
   const before = FETCHES;
@@ -1333,7 +1543,6 @@ ok &= run('the teacher page address must be a web app, and points at the page', 
 });
 ok &= run('the teacher page shows nothing to nobody, to a pupil, or to unlisted staff', () => {
   SCHOOL_DOMAIN = 'x.kr';
-  setUpTeacherPage_.length;                      /* exists */
   /* setup() now makes this tab itself, so clear any existing one before planting the old shape */
   { const old = ss.getSheetByName(T_LINKS); if (old) ss.deleteSheet(old); }
   const tab = ss.insertSheet(T_LINKS);
@@ -1445,12 +1654,23 @@ ok &= run('checkChips reads nothing for a pupil or a stranger who calls it from 
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
 
+ok &= run('the import window tells an editor who may not import so, instead of "no courses"', () => {
+  /* labs-script-010 (30 Sep 2026): anyone else was answered with an empty list, and the window said "No active courses found" */
+  const was = VISITOR;
+  VISITOR = 'kid@pupils.x.kr';
+  let d;
+  try { d = getBatchImportData(); } finally { VISITOR = was; }
+  if (!d || !d.refused || d.courses.length) throw new Error('a pupil was answered as if they simply had no courses: ' + JSON.stringify(d));
+  if (!/DATA && DATA\.refused/.test(fs.readFileSync('apps-script/ClassroomImport.html', 'utf8'))) throw new Error('the window does not say who may import');
+});
+
 console.log('— the teacher-page control panel —');
 ok &= run('add teachers and links from the dialog, read live, no code edit', () => {
   SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
   let d = teacherPanelData();
   if (!d.ok || d.owner !== OWNER) throw new Error('panel refused the owner: ' + JSON.stringify(d).slice(0,120));
+  if (!(d.y10 >= 2028)) throw new Error('the window is not told this school year’s Y10: ' + d.y10);
   d = teacherAddTeacher('Dr Colleague', 'Colleague@X.kr ');
   if (!d.teachers.some(t => t.email === 'colleague@x.kr' && t.name === 'Dr Colleague')) throw new Error('teacher not added');
   if (!_isTeacher_('colleague@x.kr')) throw new Error('the added teacher is not recognised by _isTeacher_');
@@ -1725,6 +1945,9 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     if (c.verdict !== 'folder' || !c.canAdd || !/kid@pupils/.test(c.say.join(' '))) throw new Error('someone else\'s folder: ' + JSON.stringify(c));
     c = chk(url(COPY));
     if (c.verdict !== 'copy' || c.canAdd) throw new Error('a copy naming a listed dashboard: ' + JSON.stringify(c));
+    /* labs-script-008 (30 Sep 2026): this copy is a reflection's, and it was sent to the Test System's menu */
+    if (!/Rebuild 🔗 Links tab/.test(c.say.join(' ')) || /Rebuild Links/.test(c.say.join(' '))) throw new Error('a copied reflection was told another system’s fix: ' + c.say.join(' | '));
+    if (!/Rebuild Links/.test(_ownWebAppFix_('Test'))) throw new Error('a copied test is no longer sent to 🔗 Rebuild Links');
     d = teacherAddChecked(COPY.id);
     if (d.links.some(l => _sheetIdOf_(l.url) === COPY.id)) throw new Error('Add it added a copy that opens the wrong dashboard');
     const NEWT = { id: ID('t17new'), owner: OWNER, folderOwner: OWNER, made: 9000, unindexed: true,
@@ -1822,7 +2045,7 @@ ok &= run('lab progress reads the marks — labs, roster, per-student entries, n
   if (!data.students.length) throw new Error('no students');
   data.students.forEach(s => { if ('email' in s) throw new Error('a raw email leaked into the lab-progress payload'); });
   const withDig = data.students.filter(s => s.byLab['digestion-lab']);
-  if (!withDig.length) throw new Error('nobody has a Digestion entry, though hand-ins were recorded');
+  if (!withDig.length) throw new Error('nobody has a Digestion entry, though saves were recorded');
   const e = withDig[0].byLab['digestion-lab'];
   if (typeof e.pct !== 'number' || typeof e.done !== 'number' || typeof e.total !== 'number' || !Array.isArray(e.stations))
     throw new Error('entry shape wrong: ' + JSON.stringify(e));
@@ -1841,16 +2064,21 @@ ok &= run('the student directory lists the roster with emails, cohorts, sorted',
 ok &= run('the tracker address is validated, kept, and builds per-pupil links', () => {
   props.delete('TRACKER_APP_URL'); TRACKER_APP_URL = '';
   if (_trackerAppUrl_() !== '') throw new Error('an unset tracker url was not empty');
-  if (_studentTrackerUrl_('a@x.kr') !== '') throw new Error('a link was built with no base');
+  /* the per-pupil link is built in the page — Teacher.html's link(), from uiData('students').trackerBase — so that is
+     what is tested (labs-script-032, 30 Sep 2026: this tested _studentTrackerUrl_, a copy nothing called) */
+  const rule = (fs.readFileSync('apps-script/Teacher.html', 'utf8').match(/function link\(e\)\{[^\n]*\}/) || [])[0];
+  if (!rule) throw new Error('Teacher.html link() has moved — this test can no longer see it');
+  const linkFor = base => new Function('base', rule + '\nreturn link;')(base);
+  if (linkFor('')('a@x.kr') !== '') throw new Error('a link was built with no base');
   SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
   if (teacherSetTrackerUrl('https://evil.example/exec').ok !== false) throw new Error('a non-Google url was accepted');
   const set = teacherSetTrackerUrl('https://script.google.com/a/macros/x.kr/s/AKtrack/exec');
   if (!set.ok || !set.trackerLive) throw new Error('a good tracker url was refused: ' + JSON.stringify(set).slice(0, 120));
-  if (_studentTrackerUrl_('A@X.kr') !== 'https://script.google.com/a/macros/x.kr/s/AKtrack/exec?page=student&email=a%40x.kr')
-    throw new Error('per-pupil link wrong: ' + _studentTrackerUrl_('A@X.kr'));
-  TEACHER_PAGE_URL = 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec';
-  if (_pageUrl_('progress') !== 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec?page=progress') throw new Error('progress url: ' + _pageUrl_('progress'));
-  if (_pageUrl_('students') !== 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec?page=students') throw new Error('students url: ' + _pageUrl_('students'));
+  const st = uiData('students');
+  if (!st.ok || st.trackerBase !== 'https://script.google.com/a/macros/x.kr/s/AKtrack/exec')
+    throw new Error('the page is not handed the tracker address: ' + JSON.stringify(st).slice(0, 120));
+  if (linkFor(st.trackerBase)('A@X.kr ') !== 'https://script.google.com/a/macros/x.kr/s/AKtrack/exec?page=student&email=a%40x.kr')
+    throw new Error('per-pupil link wrong: ' + linkFor(st.trackerBase)('A@X.kr '));
   VISITOR = 'stu@pupils.x.kr';
   if (teacherSetTrackerUrl('https://script.google.com/a/macros/x.kr/s/AK/exec').ok !== false) throw new Error('a student set the tracker url');
   VISITOR = ''; SCHOOL_DOMAIN = '';
@@ -1874,6 +2102,64 @@ ok &= run('lab-progress and students pages show data to a teacher, the door to e
   VISITOR = ''; SCHOOL_DOMAIN = ''; TEACHER_PAGE_URL = '';
   props.delete('TRACKER_APP_URL'); props.delete('TEACHER_PAGE_URL'); props.delete('SCHOOL_DOMAIN');
 });
+
+/* The teacher page, run for real: Teacher.html's second script (Lab progress, Bio English, Set homework) in a small
+   stand-in window — enough of a page to draw a view, find its buttons by what they carry, and press them. Nothing ran
+   the page before, which is how "Set again" threw unseen for twelve days (labs-script-002, 30 Sep 2026). */
+function teacherPage() {
+  const vm = require('vm');
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  const s1 = h.slice(h.indexOf('<script>') + 8, h.indexOf('</script>'));
+  const at2 = h.indexOf('<script>', h.indexOf('</script>'));
+  const s2 = h.slice(at2 + 8, h.indexOf('</script>', at2));
+  const helpers = s1.slice(s1.indexOf('var $ = function(id)'), s1.indexOf('var VIEWS = {'));
+  if (!helpers || at2 < 0 || !/window\.vHomework = function/.test(s2)) throw new Error('Teacher.html has changed shape: the stand-in page cannot find its scripts');
+  let view = '';
+  const on = [];                                              /* [the element's opening tag, event, handler] */
+  const unesc = s => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const el = tag => {
+    const a = {};
+    for (const m of tag.replace(/^<[a-z0-9]+/i, '').matchAll(/([\w-]+)(?:="([^"]*)")?/g)) a[m[1]] = m[2] === undefined ? '' : unesc(m[2]);
+    const o = { tag, getAttribute: n => (n in a ? a[n] : null), value: a.value || '', checked: 'checked' in a,
+                addEventListener: (ev, fn) => on.push([tag, ev, fn, o]), focus() {}, scrollIntoView() {}, closest: () => null };
+    return o;
+  };
+  const tags = () => view.match(/<[a-z][^>]*>/gi) || [];
+  const document = {
+    getElementById: id => id === 'view' ? { set innerHTML(x) { view = x; }, get innerHTML() { return view; } }
+      : (t => (t ? el(t) : null))(tags().find(t => new RegExp('\\sid="' + id + '"').test(t))),
+    querySelectorAll: sel => {
+      const m = /^(?:\.([\w-]+))?(?:\[([\w-]+)\])?$/.exec(sel);
+      if (!m) throw new Error('the stand-in page cannot look for "' + sel + '"');
+      return tags().filter(t => (!m[1] || new RegExp('class="[^"]*\\b' + m[1] + '\\b').test(t)) &&
+                                (!m[2] || new RegExp('\\s' + m[2] + '(=|\\s|>)').test(t))).map(el);
+    }
+  };
+  const win = { document, BOOT: { email: OWNER }, console };
+  win.window = win;
+  vm.createContext(win);
+  vm.runInContext(helpers + '\nwindow.__view = { $:$, esc:esc, r0:r0, r1:r1, pc:pc, heat:heat, short:short, cmpClass:cmpClass,' +
+                  ' openDraw:function(){}, put:function(){} };', win);
+  vm.runInContext(s2, win);
+  return {
+    win, html: () => view,
+    /* press what carries the attribute (with that value, when given), as the latest drawing wired it */
+    press(attr, val) {
+      const want = new RegExp('\\s' + attr + '="' + (val === undefined ? '[^"]*' : val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) + '"');
+      const hit = on.filter(x => x[1] === 'click' && want.test(x[0])).pop();
+      if (!hit) throw new Error('nothing on the page to press: ' + attr + (val === undefined ? '' : '="' + val + '"'));
+      hit[2]({ stopPropagation() {}, preventDefault() {}, target: { closest: () => null } });
+    },
+    /* an input, change or focus on what carries the attribute, as the latest drawing wired it; `value` is typed in first */
+    fire(ev, attr, val, value) {
+      const want = new RegExp('\\s' + attr + '="' + val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"');
+      const hit = on.filter(x => x[1] === ev && want.test(x[0])).pop();
+      if (!hit) throw new Error('nothing on the page takes ' + ev + ': ' + attr + '="' + val + '"');
+      if (value !== undefined) hit[3].value = value;
+      hit[2]({ stopPropagation() {}, preventDefault() {}, target: { closest: () => null } });
+    }
+  };
+}
 
 console.log('— setting homework —');
 global.MANIFEST_JSON = JSON.stringify({ generated:'t', labs: { 'digestion-lab': {
@@ -1900,7 +2186,7 @@ ok &= run('a pupil cannot set or remove homework', () => {
   VISITOR = 'pupil@pupils.x.kr';
   if (homeworkCreate({ title:'x' }).ok !== false) throw new Error('a pupil set homework');
   if (homeworkDelete('HW-XXXXX').ok !== false) throw new Error('a pupil removed homework');
-  if (homeworkRefresh().ok !== false) throw new Error('a pupil read the homework data');
+  if (uiData('homework').ok !== false) throw new Error('a pupil read the homework data');
   VISITOR = OWNER;
 });
 ok &= run('homework refuses to be half-written', () => {
@@ -2025,6 +2311,45 @@ ok &= run('a due date means the end of that day in the SCHOOL’s clock', () => 
     throw new Error('a non-ISO date was accepted');
   }
   homeworkDelete(hw.id);
+});
+ok &= run('the Set homework list is sent each date in words, and whether it is overdue or due soon (labs-script-001)', () => {
+  /* _homeworkRows_ worded each date and judged it in the school's zone, but the page's own list (_homeworkData_)
+     dropped all three: every homework read "— due", and none was ever shown overdue or due soon */
+  const cls = _studentDirectory_().students[0].cls;
+  const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const words = d => +d.slice(8, 10) + ' ' + MON[+d.slice(5, 7) - 1];
+  const soon = homeworkCreate({ title:'Due tomorrow', classes:[{ cls, due: day(1) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+  const late = homeworkCreate({ title:'Due last week', classes:[{ cls, due: day(-5) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+  if (!soon.ok || !late.ok) throw new Error('could not set the test homework');
+  try {
+    const page = uiData('homework');
+    if (!page.ok) throw new Error(page.why);
+    const s = page.data.homework.filter(h => h.id === soon.made[0])[0], l = page.data.homework.filter(h => h.id === late.made[0])[0];
+    if (!s || s.dueText !== words(day(1)) || s.soon !== true || s.overdue !== false)
+      throw new Error('due tomorrow reads ' + JSON.stringify(s && [s.dueText, s.soon, s.overdue]) + ', want ' + words(day(1)) + ', soon');
+    if (!l || l.dueText !== words(day(-5)) || l.overdue !== true || l.soon !== false)
+      throw new Error('due last week reads ' + JSON.stringify(l && [l.dueText, l.overdue, l.soon]) + ', want ' + words(day(-5)) + ', overdue');
+  } finally { homeworkDelete(soon.made[0]); homeworkDelete(late.made[0]); }
+});
+ok &= run('the Set homework page shows the date, and "Set again" refills the form: title, class and stations (labs-script-002)', () => {
+  const cls = _studentDirectory_().students[0].cls;
+  const r = homeworkCreate({ title:'Again, please', classes:[{ cls, due: new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10) }],
+    tasks:[{ labId:'digestion-lab', stationIds:['stomach'] }] });
+  if (!r.ok) throw new Error('could not set the test homework: ' + r.why);
+  try {
+    const D = uiData('homework').data, hw = D.homework.filter(h => h.id === r.made[0])[0];
+    const page = teacherPage();
+    page.win.vHomework(D);
+    if (!page.html().includes('<div class="hw__due soon"><b>' + hw.dueText + '</b>due</div>')) throw new Error('the list does not show it due soon, on ' + hw.dueText);
+    page.press('data-hw', hw.id);                   /* open it */
+    page.press('data-again', hw.id);                /* threw: ReferenceError: names is not defined */
+    const html = page.html();
+    if (!/id="ht"[^>]*value="Again, please"/.test(html)) throw new Error('the title was not carried over');
+    if (!new RegExp('<option value="' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '" selected>').test(html)) throw new Error('the class ' + cls + ' was not chosen again');
+    if (!/data-pick="digestion-lab\|stomach" checked/.test(html)) throw new Error('its station was not ticked again');
+    if (/data-pick="digestion-lab\|mouth" checked/.test(html)) throw new Error('a station it did not set was ticked');
+  } finally { homeworkDelete(r.made[0]); }
 });
 ok &= run('homework can be removed again', () => {
   const rows = _homeworkRows_(), last = rows[rows.length - 1];
@@ -2291,6 +2616,40 @@ ok &= run('the due-date email goes to the teacher once, and never for last month
   if (MAILS.filter(m => /Due yesterday/.test(m.subj)).length !== 1) throw new Error('emailed twice');
   homeworkDelete(r.made[0]); homeworkDelete(old.made[0]);
 });
+ok &= run('a Due cell typed over with words breaks nothing, and the teacher is shown it (labs-script-003)', () => {
+  /* Due is the teacher's to edit in the tab. new Date("next Friday").toISOString() threw, and one such cell broke the
+     homework page, every rostered pupil's english.mine and the morning email */
+  MAILS.length = 0;
+  const due = homeworkCreate({ title:'Due before', classes:[{ cls: enA.cls, due: enDay(-1.5) }],
+    tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+  const r = homeworkCreate({ title:'Typed over', classes:[{ cls: enA.cls, due: enDay(3) }],
+    tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+  if (!due.ok || !r.ok) throw new Error('could not set the test homework');
+  const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh);
+  const at = _homeworkRows_().filter(h => h.id === r.made[0])[0].row;
+  sh.getRange(at, hc.Due).setValue('next Friday');
+  sh.getRange(at, hc.Created).setValue('this morning');
+  try {
+    const bad = _homeworkRows_().filter(h => h.id === r.made[0])[0];
+    if (!bad.dueBad || bad.due !== null || bad.dueText !== '' || bad.overdue || bad.soon || bad.created !== null)
+      throw new Error('the row reads ' + JSON.stringify(bad).slice(0, 240));
+    const page = uiData('homework');
+    if (!page.ok) throw new Error('the homework page failed: ' + page.why);
+    const card = page.data.homework.filter(h => h.id === r.made[0])[0];
+    if (!card || !card.dueBad) throw new Error('the page is not told the date cannot be read');
+    const tp = teacherPage(); tp.win.vHomework(page.data); tp.press('data-hw', card.id);
+    if (!/the due date cannot be read/.test(tp.html()) || !/is not a date/.test(tp.html())) throw new Error('the teacher is not shown it');
+    const me = enPost({ action:'english.mine' }, enA.email);
+    const mine = (me.homework || []).filter(h => h.id === r.made[0])[0];
+    if (!me.ok || !mine || mine.due !== '' || mine.overdue) throw new Error('english.mine: ' + JSON.stringify(me).slice(0, 240));
+    sendDueSummaries();
+    if (MAILS.filter(m => /Due before/.test(m.subj)).length !== 1) throw new Error('the homework really due was not emailed');
+    if (MAILS.some(m => /Typed over/.test(m.subj))) throw new Error('homework with no readable date was emailed');
+  } finally {
+    sh.getRange(at, hc.Due).setValue(new Date()); sh.getRange(at, hc.Created).setValue(new Date());
+    homeworkDelete(r.made[0]); homeworkDelete(due.made[0]);
+  }
+});
 ok &= run('the morning email is switched on once, however often the menu is used', () => {
   installDailySummary(); installDailySummary();
   const t = ScriptApp.getProjectTriggers().filter(x => x.getHandlerFunction() === 'sendDueSummaries');
@@ -2355,6 +2714,178 @@ ok &= run('English: a tab made before the new column is widened by the next save
   if (!r.ok) throw new Error(JSON.stringify(r));
   if (sh.maxC < 12 || sh.getRange(1, 12).getValue() !== 'Practised again') throw new Error('not widened: ' + sh.maxC);
   if (!/round 2, 2\/4/.test(sh.getRange(enRowNo(enB.email), EN_AGAIN).getValue())) throw new Error('practised again not written');
+});
+/* ── Homework the pupils can see (Daniel, 29 Sep 2026) ─────────────────────────────────────────────────────────
+   The Classroom post names every station with its own link; a due TIME; a Classroom TOPIC; and the pupil's own
+   homework in the progress answer, each station scored by the teacher's _hwScoreOne_. */
+console.log('— homework the pupils can see —');
+ok &= run('a due time is kept: 08:00 on that day in the school’s zone; no time still means the end of the day', () => {
+  const cls = enA.cls, task = [{ labId:'digestion-lab', stationIds:['mouth'] }];
+  const a = homeworkCreate({ title:'Timed', classes:[{ cls, due:'2027-03-02', time:'08:00' }], tasks:task });
+  const b = homeworkCreate({ title:'Untimed', classes:[{ cls, due:'2027-03-02' }], tasks:task });
+  const c = homeworkCreate({ title:'Old page', classes:[{ cls, due:'2027-03-02T23:59:00' }], tasks:task });
+  try {
+    if (!a.ok || !b.ok || !c.ok) throw new Error('refused: ' + [a.why, b.why, c.why].join(' / '));
+    const rowOf = id => _homeworkRows_().filter(h => h.id === id)[0];
+    const A = rowOf(a.made[0]), B = rowOf(b.made[0]), C = rowOf(c.made[0]);
+    if (A.due !== '2027-03-01T23:00:00.000Z') throw new Error('08:00 in the school’s zone (UTC+9 here) is 23:00 UTC the day before, got ' + A.due);
+    if (A.dueText !== '2 Mar, 08:00') throw new Error('the time is not in the words: ' + A.dueText);
+    if (B.due !== '2027-03-02T14:59:59.000Z' || B.dueText !== '2 Mar') throw new Error('no time is no longer the end of the day: ' + B.due + ' ' + B.dueText);
+    if (C.due !== B.due) throw new Error('a page from before (a date with a time glued on) changed meaning: ' + C.due);
+    const bad = homeworkCreate({ title:'Bad time', classes:[{ cls, due:'2027-03-02', time:'25:00' }], tasks:task });
+    if (bad.ok !== false || !/time/.test(bad.why)) throw new Error('a time that is not a time was accepted: ' + JSON.stringify(bad));
+    if (_hwTime_('8:05') !== '08:05:00' || _hwTime_('') !== '' || _hwTime_('noon') !== '') throw new Error('_hwTime_ misreads a time');
+  } finally { [a, b, c].forEach(r => r && r.ok && homeworkDelete(r.made[0])); }
+});
+ok &= run('the Classroom post names every station, each with its own link, and the English sets by name', () => {
+  const POSTS = [];
+  global.Classroom = { Courses: { CourseWork: { create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; } } } };
+  try {
+    const r = homeworkCreate({ title:'Gut and words', post:true, classes:[{ cls: enA.cls, due:'2027-03-03', time:'08:30' }],
+      tasks:[ { labId:'digestion-lab', stationIds:['mouth', 'stomach'] }, { labId:'bio-english-lab', stationIds:['t3.kw.meanings'] } ] });
+    if (!r.ok || !r.posted.length) throw new Error(JSON.stringify([r.why, r.notPosted]));
+    const b = POSTS[0].body, d = b.description;
+    if (!/Mouth and teeth: https:\/\/nlcsbiology\.com\/digestion-lab\/#mouth/.test(d)) throw new Error('mouth is not named and linked: ' + d);
+    if (!/Stomach: https:\/\/nlcsbiology\.com\/digestion-lab\/#stomach/.test(d)) throw new Error('stomach is not named and linked: ' + d);
+    if (!/T3 Keywords: meanings/.test(d) || !/bio-english-lab\/#\/hw\/HW-/.test(d)) throw new Error('the English set is not named, or its link is gone: ' + d);
+    if (!/red, not started; orange, part done; green, done/.test(d) || !/Sign in with your school Google account/.test(d)) throw new Error('the closing lines are missing: ' + d);
+    if (/!/.test(d)) throw new Error('an exclamation mark in the post');
+    const urls = b.materials.map(m => m.link.url);
+    if (urls.length !== 3 || urls[0] !== 'https://nlcsbiology.com/digestion-lab/#mouth' || urls[1] !== 'https://nlcsbiology.com/digestion-lab/#stomach' || !/#\/hw\//.test(urls[2]))
+      throw new Error('the links: ' + urls.join(' '));
+    /* 08:30 on 3 March here is 23:30 UTC on 2 March */
+    if (b.dueDate.day !== 2 || b.dueDate.month !== 3 || b.dueTime.hours !== 23 || b.dueTime.minutes !== 30) throw new Error('due ' + JSON.stringify([b.dueDate, b.dueTime]));
+    if (b.topicId) throw new Error('a topic appeared that nobody asked for');
+    homeworkDelete(r.made[0]);
+    /* Classroom takes 20 links at most; the words still list every station */
+    const many = []; for (let i = 0; i < 25; i++) many.push('s' + i);
+    const p = _hwPost_('HW-MANY1', 'Many', 'x', [{ labId:'digestion-lab', stationIds: many }],
+      { cls: enA.cls, setFor:[enA.email], due: new Date() }, _classroomIds_(), { man: _hwManifest_() });
+    const last = POSTS[POSTS.length - 1].body;
+    if (!p.ok || last.materials.length !== 20 || !/• s24: https:\/\/nlcsbiology\.com\/digestion-lab\/#s24/.test(last.description))
+      throw new Error('with 25 stations: ' + last.materials.length + ' links; ' + last.description.slice(-120));
+    /* no manifest handed over (an older caller): the old words, never a throw */
+    const q = _hwPost_('HW-OLD01', 'Old', 'Digestion: Mouth', [{ labId:'digestion-lab', stationIds:['mouth'] }], { cls: enA.cls, setFor:[enA.email], due: new Date() }, _classroomIds_());
+    if (!q.ok || !/^Digestion: Mouth\n\nSign in/.test(POSTS[POSTS.length - 1].body.description)) throw new Error('without a manifest: ' + POSTS[POSTS.length - 1].body.description);
+  } finally { global.Classroom = undefined; }
+});
+ok &= run('a Classroom topic: an existing one is used, a new one is made, and if topics fail the post still goes, without it', () => {
+  const POSTS = [], MADE = [], cid = _classroomIds_()[enA.email].courseId;
+  let TOPICS = { [cid]: [ { topicId:'t-old', name:'Unit 7 — Nutrition' }, { topicId:'t-x', name:'Other' } ] }, broken = false;
+  global.Classroom = { Courses: {
+    CourseWork: { create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; } },
+    Topics: { list: (courseId) => { if (broken) throw new Error('Request had insufficient authentication scopes.'); return { topic: (TOPICS[courseId] || []).slice() }; },
+              create: (t, courseId) => { if (broken) throw new Error('Request had insufficient authentication scopes.');
+                                          const x = { topicId:'t-new' + (MADE.length + 1), name: t.name }; MADE.push(x); (TOPICS[courseId] = TOPICS[courseId] || []).push(x); return x; } } } };
+  const task = [{ labId:'digestion-lab', stationIds:['mouth'] }], made = [];
+  try {
+    /* the teacher page's box: the course's topics, for a teacher only */
+    VISITOR = 'pupil@pupils.x.kr';
+    if (homeworkTopics({ classes:[{ cls: enA.cls }] }).ok !== false) throw new Error('a pupil listed the Classroom topics');
+    VISITOR = OWNER;
+    const list = homeworkTopics({ classes:[{ cls: enA.cls }] });
+    if (!list.ok || list.topics.join('|') !== 'Unit 7 — Nutrition|Other') throw new Error('the topics: ' + JSON.stringify(list));
+    /* an existing topic, typed with other capitals and spaces */
+    let r = homeworkCreate({ title:'Topic 1', post:true, topic:'  unit 7 — nutrition ', classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
+    if (!r.ok || POSTS[0].body.topicId !== 't-old' || MADE.length || r.topic !== 'unit 7 — nutrition' || r.topicMissed.length) throw new Error('existing: ' + JSON.stringify([r.topicMissed, POSTS[0].body.topicId, MADE]));
+    /* a new one is made in the course, once */
+    r = homeworkCreate({ title:'Topic 2', post:true, topic:'Unit 9 — Transport', classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
+    if (!r.ok || MADE.length !== 1 || POSTS[1].body.topicId !== 't-new1') throw new Error('new: ' + JSON.stringify([MADE, POSTS[1].body.topicId]));
+    r = homeworkCreate({ title:'Topic 3', post:true, topic:'Unit 9 — Transport', classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
+    if (MADE.length !== 1 || POSTS[2].body.topicId !== 't-new1') throw new Error('the new topic was made twice');
+    /* the permission not yet allowed: posted without the topic, and it says so; the homework is set either way */
+    broken = true;
+    r = homeworkCreate({ title:'Topic 4', post:true, topic:'Unit 10', classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
+    if (!r.ok || !r.posted.length || POSTS.length !== 4 || POSTS[3].body.topicId) throw new Error('with topics broken it was not posted plainly: ' + JSON.stringify(r.notPosted));
+    if (r.topicMissed.length !== 1 || !/could not be used/.test(r.topicMissed[0])) throw new Error('it did not say the topic was left out: ' + JSON.stringify(r.topicMissed));
+    if (!_homeworkRows_().some(h => h.id === r.made[0])) throw new Error('the homework itself was lost');
+    const l2 = homeworkTopics({ classes:[{ cls: enA.cls }] });
+    if (l2.ok !== false || !/You can still type a topic/.test(l2.why)) throw new Error('the box was not told why: ' + JSON.stringify(l2));
+    /* no topic asked for: nothing is listed or made */
+    broken = false; const n0 = MADE.length;
+    r = homeworkCreate({ title:'Topic 5', post:true, classes:[{ cls: enA.cls, due:'2027-03-04' }], tasks:task }); made.push(r);
+    if (POSTS[4].body.topicId || MADE.length !== n0 || r.topicMissed.length) throw new Error('a topic was used with none asked for');
+  } finally { global.Classroom = undefined; VISITOR = OWNER; made.forEach(r => r && r.ok && homeworkDelete(r.made[0])); }
+  if (homeworkTopics({ classes:[{ cls: enA.cls }] }).ok !== false) throw new Error('with Classroom off the box claimed topics');
+});
+ok &= run('the Set homework page sends the time and the topic, and asks for the course’s topics only when the box is used', () => {
+  const cls = enA.cls;
+  const r = homeworkCreate({ title:'Refill me', classes:[{ cls, due:'2027-03-05' }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+  if (!r.ok) throw new Error(r.why);
+  try {
+    const D = JSON.parse(JSON.stringify(uiData('homework').data)); D.classroomOk = true;
+    const page = teacherPage(), CALLS = [];
+    let okFn = null;
+    const run = new Proxy({}, { get: (t, k) => k === 'withSuccessHandler' ? (f => { okFn = f; return run; }) : k === 'withFailureHandler' ? (() => run)
+      : (...args) => { CALLS.push([k, args]); if (okFn) okFn(k === 'homeworkTopics' ? { ok:true, topics:['Unit 7'], courses:1 } : { ok:true, made:['HW-TEST1'], posted:[cls], notPosted:[], topic:'Unit 7', topicMissed:[], data:D }); } });
+    page.win.google = { script: { run } };
+    page.win.vHomework(D);
+    page.press('data-hw', r.made[0]); page.press('data-again', r.made[0]);
+    let html = page.html();
+    if (!/id="htm0" type="time" data-time="0"/.test(html) || !/<label for="htm0">Time \(optional\)<\/label>/.test(html)) throw new Error('no labelled time box beside the date');
+    if (!/id="htopic"[^>]*list="htopics"/.test(html) || !/<label for="htopic">Classroom topic \(optional\)<\/label>/.test(html)) throw new Error('no topic box under “Post it in Google Classroom”');
+    if (CALLS.length) throw new Error('the page asked the server before the box was used: ' + CALLS.map(c => c[0]));
+    page.fire('focus', 'id', 'htopic');
+    if (!CALLS.length || CALLS[0][0] !== 'homeworkTopics' || CALLS[0][1][0].classes[0].cls !== cls) throw new Error('the topics were not asked for: ' + JSON.stringify(CALLS));
+    page.fire('input', 'data-due', '0', '2027-03-06');
+    page.fire('input', 'data-time', '0', '07:45');
+    page.fire('input', 'id', 'htopic', 'Unit 7');
+    page.press('id', 'hset');
+    const set = CALLS.filter(c => c[0] === 'homeworkCreate')[0];
+    if (!set) throw new Error('Set homework sent nothing');
+    const a = set[1][0];
+    if (a.classes[0].due !== '2027-03-06' || a.classes[0].time !== '07:45' || a.topic !== 'Unit 7' || !a.post) throw new Error('sent ' + JSON.stringify(a));
+    /* the post box unticked: no topic box, and no topic sent */
+    const page2 = teacherPage(); page2.win.google = { script: { run } }; D.classroomOk = false; page2.win.vHomework(D);
+    if (/id="htopic"/.test(page2.html())) throw new Error('a topic box with Classroom off');
+  } finally { homeworkDelete(r.made[0]); }
+});
+ok &= run('progress gives a pupil their own lab homework, each station scored by the teacher’s rule', () => {
+  const cls = enA.cls;
+  const r = homeworkCreate({ title:'Gut stations', classes:[{ cls, due: enDay(4) }],
+    tasks:[ { labId:'digestion-lab', stationIds:['mouth', 'stomach', 'ghost'] }, { labId:'bio-english-lab', stationIds:['t3.kw.meanings'] } ] });
+  const old = homeworkCreate({ title:'Long gone', classes:[{ cls, due: enDay(-40) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+  const eng = homeworkCreate({ title:'Words only', classes:[{ cls, due: enDay(4) }], tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+  if (!r.ok || !old.ok || !eng.ok) throw new Error('could not set the test homework');
+  try {
+    if (!hwStations(enA.email, 'mouth 8/8 in 11 · stomach 3/9 in 4')) throw new Error('no Digestion row for the pupil');
+    const me = enPost({ action:'progress' }, enA.email);
+    if (!me.ok || !Array.isArray(me.homework)) throw new Error('no homework in the answer: ' + JSON.stringify(me).slice(0, 200));
+    const hw = me.homework.filter(h => h.id === r.made[0])[0];
+    if (!hw) throw new Error('the pupil was not given their homework');
+    if (me.homework.some(h => h.id === old.made[0])) throw new Error('homework a month past its date was listed');
+    if (me.homework.some(h => h.id === eng.made[0])) throw new Error('English-only homework was listed for the labs');
+    const by = {}; hw.stations.forEach(s => { by[s.id] = s; });
+    if (!by.mouth || by.mouth.state !== 'done' || by.mouth.done !== 8 || by.mouth.total !== 8 || by.mouth.name !== 'Mouth and teeth' || by.mouth.lab !== 'digestion-lab')
+      throw new Error('mouth: ' + JSON.stringify(by.mouth));
+    if (!by.stomach || by.stomach.state !== 'partly' || by.stomach.done !== 3 || by.stomach.total !== 9) throw new Error('stomach: ' + JSON.stringify(by.stomach));
+    if (by.ghost || by['t3.kw.meanings']) throw new Error('a station the lab does not have, or an English set, was listed: ' + Object.keys(by));
+    if (hw.title !== 'Gut stations' || !hw.due || hw.overdue) throw new Error('the homework itself: ' + JSON.stringify([hw.title, hw.due, hw.overdue]));
+    /* the teacher's page, on the same tabs, says the same about the lab part */
+    const t = _hwScoreOne_({ tasks:[{ labId:'digestion-lab', stationIds:['mouth', 'stomach'] }] }, enA.email, _hwLabIndex_(['digestion-lab']), _hwManifest_());
+    if (t.done !== hw.done || t.total !== hw.total || t.state !== hw.state) throw new Error('teacher ' + JSON.stringify(t) + ' vs pupil ' + JSON.stringify([hw.done, hw.total, hw.state]));
+    /* nothing done yet: not started */
+    hwStations(enA.email, '');
+    const none = enPost({ action:'progress' }, enA.email).homework.filter(h => h.id === r.made[0])[0];
+    if (none.stations.some(s => s.state !== 'none' || s.done !== 0)) throw new Error('not started: ' + JSON.stringify(none.stations));
+    /* another class, a stranger: nothing */
+    if (enB.cls !== cls && enPost({ action:'progress' }, enB.email).homework.some(h => h.id === r.made[0])) throw new Error('another class was given it');
+    const stranger = enPost({ action:'progress' }, 'stranger@elsewhere.com');
+    if (stranger.homework || Object.keys(stranger.labs).length) throw new Error('a stranger was told something: ' + JSON.stringify(stranger));
+    /* the answer a page from before reads is unchanged beside the new field */
+    if (!('labs' in me) || typeof me.labs !== 'object') throw new Error('the labs part of the answer changed');
+  } finally { [r, old, eng].forEach(x => homeworkDelete(x.made[0])); }
+});
+ok &= run('progress makes no Homework tab and never fails over homework', () => {
+  const t = ss.getSheetByName(T_HOMEWORK), keep = t;
+  if (t) ss.deleteSheet(t);
+  try {
+    const me = enPost({ action:'progress' }, enA.email);
+    if (!me.ok || me.homework.length !== 0) throw new Error(JSON.stringify(me).slice(0, 200));
+    if (ss.getSheetByName(T_HOMEWORK)) throw new Error('a pupil’s question made the Homework tab');
+    /* a broken manifest: an empty list, and the rest of the answer as ever */
+    if (_ownHomework_('', '').length !== 0) throw new Error('an empty email was given homework');
+  } finally { if (keep && !ss.getSheetByName(T_HOMEWORK)) ss.sheets.push(keep); }
 });
 homeworkDelete(enHw.id);
 { const t = ss.getSheetByName(T_ENGLISH); if (t) ss.deleteSheet(t); }
@@ -2489,11 +3020,81 @@ console.log('— your reflection on the hub —');
   CLIENT_ID = rcCid; TOKEN_EMAIL = rcTok; SCHOOL_DOMAIN = rcDom;
 }
 
+/* ── "Sit a test": each version's Marks tab read with ITS OWN columns (test-169, 30 Sep 2026) ─────────────────────────
+   The Test System's ⏰ Hub schedule names each version's columns in marks.byVersion: T3T4's versions differ in Section B,
+   so Extra time is column 40 on an A tab, 43 on a B tab and 39 on a C tab. A class tab left by another, narrower test
+   must not hide the banner from the whole spreadsheet (labs-script-004), and a Test System from before byVersion is
+   read exactly as before. The whole two-system run, on the real Test System, is audit_versions.py in the harness. */
+console.log('— sit a test: each version read with its own columns —');
+{
+  const tss = new SS(), TSID = 'TESTsystemSpreadsheet0001', realOpen = SpreadsheetApp.openById;
+  const stCid = CLIENT_ID, stTok = TOKEN_EMAIL, stIds = _testSheetIds_;
+  const NOW = Date.now(), REL = NOW - 3600e3, LOCK = NOW + 3600e3, WIN = LOCK - REL;
+  const when = ms => new Date(ms).toISOString();
+  const version = id => ({ id, name: 'Test T3T4', releaseAt: when(REL), lockoutAt: when(LOCK), classes: {} });
+  const OWN = { A: { email: 1, cls: 3, extraTime: 40 }, B: { email: 1, cls: 3, extraTime: 43 }, C: { email: 1, cls: 3, extraTime: 39 } };
+  const schedule = byVersion => {
+    const old = tss.getSheetByName(T_HUB_SCHEDULE); if (old) tss.deleteSheet(old);
+    const m = { v: 1, at: NOW, activeId: 'Test T3T4', formUrl: 'https://script.google.com/macros/s/AKfycbSITtestForm0000001/exec',
+      timerMode: 'window', timeLimitMinutes: 60,
+      marks: Object.assign({ prefix: 'Marks · ', dataStart: 5, email: 1, cls: 3, extraTime: 40 }, byVersion ? { byVersion } : {}),
+      versions: { '': version('Test T3T4'), A: version('Test T3T4'), B: version('Test T3T4·B'), C: version('Test T3T4·C') }, names: {} };
+    const sh = tss.insertSheet(T_HUB_SCHEDULE);
+    sh.getRange(1, 1).setValue(HUB_SCHEDULE_KEY); sh.getRange(1, 2).setValue(JSON.stringify(m));
+  };
+  const marks = (name, width, email, cells) => {
+    const old = tss.getSheetByName(name); if (old) tss.deleteSheet(old);
+    const sh = tss.insertSheet(name); sh.maxC = width;
+    sh.getRange(4, 1).setValue('Email'); sh.getRange(5, 1).setValue(email); sh.getRange(5, 3).setValue('9A');
+    (cells || []).forEach(([c, v]) => sh.getRange(5, c).setValue(v));
+  };
+  const read = email => { cacheStore.delete('tsnap4:' + TSID); const snap = _testSnapshot_(TSID, true);
+    return { snap, me: _testFor_(snap, email, Date.now()) }; };
+  const PA = 'pa.sit@x.kr', PB = 'pb.sit@x.kr', PZ = 'pz.sit@x.kr', EXTRA = LOCK + Math.round(25 / 100 * WIN);
+  SpreadsheetApp.openById = id => (id === TSID ? tss : realOpen(id));
+  try {
+    ok &= run('sit a test: a version B pupil\'s extra time comes from B\'s own column, not A\'s (test-169, labs-script-005)', () => {
+      schedule(OWN);
+      marks('Marks · 9A · A', 42, PA, [[40, 'Extra 25%']]);
+      marks('Marks · 9A · B', 45, PB, [[40, 12], [43, 'Extra 25%']]);   /* 40 on a B tab is a mark (its total), never extra time */
+      const a = read(PA).me, b = read(PB).me;
+      if (!a || a.state !== 'open' || a.closesAt !== EXTRA) throw new Error('A: ' + JSON.stringify(a));
+      if (!b || b.state !== 'open' || b.closesAt !== EXTRA)
+        throw new Error('B closes at ' + (b && when(b.closesAt)) + ', want ' + when(EXTRA) + ' (25 % extra time in window mode)');
+    });
+    ok &= run('sit a test: a class tab narrower than this test (left by another) no longer hides the banner from everybody (labs-script-004)', () => {
+      marks('Marks · 9Z', 14, PZ);
+      const { snap, me } = read(PA);
+      if (!snap || snap.fail) throw new Error('the spreadsheet could not be read: ' + JSON.stringify(snap));
+      if (!me || me.closesAt !== EXTRA) throw new Error('a version A pupil lost the banner: ' + JSON.stringify(me));
+      const z = _testFor_(snap, PZ, Date.now());
+      if (!z || z.closesAt !== LOCK) throw new Error('the narrow tab\'s pupil (no Extra time column there, so none): ' + JSON.stringify(z));
+      /* and the banner itself, through doPost */
+      CLIENT_ID = 'CID'; TOKEN_EMAIL = PA; _testSheetIds_ = () => [TSID]; cacheStore.delete('tsnap4:' + TSID);
+      const j = JSON.parse(doPost({ postData:{ contents: JSON.stringify({ token: TOK, action: 'test' }) } }));
+      if (j.state !== 'open' || j.closesAt !== EXTRA || !j.url) throw new Error(JSON.stringify(j).slice(0, 300));
+    });
+    ok &= run('sit a test: a Test System from before byVersion is read exactly as before, and a narrow tab no longer hides it', () => {
+      tss.deleteSheet(tss.getSheetByName('Marks · 9Z'));
+      schedule(null);
+      /* the old reading, all an old Test System allows: the active test's column 40 on every tab — B's total, 12 → 12 % */
+      const b = read(PB).me;
+      if (!b || b.closesAt !== LOCK + Math.round(12 / 100 * WIN)) throw new Error('B: ' + JSON.stringify(b));
+      marks('Marks · 9Z', 14, PZ);
+      const { snap } = read(PA);
+      if (!snap || snap.fail || !_testFor_(snap, PA, Date.now())) throw new Error('with an old Test System a narrow tab still hides the banner');
+    });
+  } finally {
+    SpreadsheetApp.openById = realOpen; _testSheetIds_ = stIds; CLIENT_ID = stCid; TOKEN_EMAIL = stTok;
+    cacheStore.delete('tsnap4:' + TSID);
+  }
+}
+
 const st = ss.getSheetByName('Students');
 console.log('Students: ' + (st.getLastRow() - 1) + ' rows × ' + st.getLastColumn() + ' cols');
 const dg = ss.getSheetByName('Digestion');
 const filled = dg ? dg.getRange(2, 3, dg.getLastRow() - 1, 1).getValues().filter(r => r[0] !== '').length : 0;
-console.log('Digestion: ' + (dg ? dg.getLastRow() - 1 : 0) + ' student(s), ' + filled + ' handed in');
+console.log('Digestion: ' + (dg ? dg.getLastRow() - 1 : 0) + ' student(s), ' + filled + ' with work saved');
 const rj = ss.getSheetByName('Rejected');
 console.log('Rejected:  ' + (rj ? rj.getLastRow() - 1 : 0) + ' row(s)');
 process.exit(ok ? 0 : 1);

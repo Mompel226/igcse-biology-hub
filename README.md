@@ -18,7 +18,7 @@ by **Dr Daniel Mompel Riera**
 
 </div>
 
-![The Biology Hub: four doors, with Life on Earth open](docs/img/screen.jpg)
+![The Biology Hub: a door for each of the four parts of the subject, and the hubs and labs open now beneath](docs/img/screen.jpg)
 
 ---
 
@@ -32,18 +32,19 @@ PC, and progress is saved in the student's own browser.
 | Door | Topics (0610) | Behind it |
 |---|---|---|
 | **Foundations** | 2 · 3 · 4 · 5 | being built |
-| **The human body** | 7 · 9–16 | [Human Body Hub](https://nlcsbiology.com/human-body-hub/) 🟢 · [Digestion Lab](https://nlcsbiology.com/digestion-lab/) 🟢 |
-| **Plants** | 6 · 8 · 16.3 | planned |
+| **The human body** | 7 · 9–16 | [Human Body Hub](https://nlcsbiology.com/human-body-hub/) 🟢 · [Digestion Lab](https://nlcsbiology.com/digestion-lab/) 🟢 · [Circulation Lab](https://nlcsbiology.com/circulation-lab/) 🟢 |
+| **Plants** | 6 · 8 · 14.5 · 16.3 · 18.2 | [Plants Hub](https://nlcsbiology.com/plants-hub/) 🟢 · [Plants Lab](https://nlcsbiology.com/plants-lab/) 🟢 |
 | **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
 
 Also here: the [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/), and an
 [IB B1.1 practical](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) behind the
-**IB extension** toggle. The year tabs show which topics each year meets; `…/#y10` opens a year
-and `…/#plants` a door — both are useful links to hand a class.
+**IB extension** toggle. The year tabs show which topics each year meets, the year of its IGCSE
+exams and which syllabus those follow; `…/#y10` opens a year and `…/#plants` a door — both are
+useful links to hand a class.
 
 **Progress follows the student.** Each lab remembers what they have answered and this page adds it
 up — a bar per shelf, and the same figure on each door. If you set up the spreadsheet below, what
-they hand in comes back to them after a cleared browser too.
+the labs save for a signed-in student comes back to them after a cleared browser too.
 
 ---
 
@@ -57,13 +58,13 @@ It takes about half an hour, once, and you do not need to know any code.
 </div>
 
 **One** Google Sheet, with a tab per lab — every lab you use reports into the same one. Each tab is your class list: every student has a row from
-the moment you import them from Google Classroom, and handing in fills theirs in — score,
+the moment you import them from Google Classroom, and each save fills theirs in — score,
 percentage, how many checks it took, how many they got right first time, how long they worked.
 
 <table>
 <tr><td colspan="2" align="center">
 
-**🧑‍🎓 Your student works through a lab &nbsp;→&nbsp; presses Hand in &nbsp;→&nbsp; signs in with Google**
+**🧑‍🎓 Your student signs in with Google &nbsp;→&nbsp; works through a lab &nbsp;→&nbsp; the lab saves on its own**
 
 </td></tr>
 <tr>
@@ -78,14 +79,14 @@ Their row fills in on **your** Sheet — score, percentage, and the work behind 
 
 #### 🌍 &nbsp;Anyone else in the world
 
-**Nothing is saved, anywhere.** No row, no name, no email. They still get their code.
+**Nothing is saved, anywhere.** No row, no name, no email. Their work stays in their own browser.
 
 </td>
 </tr>
 </table>
 
 > [!IMPORTANT]
-> **The labs stay open to everyone.** A hand-in is recorded **only** when the Google account
+> **The labs stay open to everyone.** Work is recorded **only** when the Google account
 > that signed in is on your class list. For everybody else nothing is written down at all —
 > no row, no name, no email. That decision is made on the server, so it holds.
 
@@ -109,7 +110,7 @@ You will need three things, all free:
 ### Step 1 · Make your own copy of a lab 🐙
 
 > ### ⚠️ &nbsp;The step people skip
-> **Nothing works without it.** If you share *my* links with your students, their hand-ins go
+> **Nothing works without it.** If you share *my* links with your students, their work goes
 > to *my* script — and since they are not on my class list, nothing is saved for anyone. You
 > need your own copy, at your own web address, pointing at your own spreadsheet.
 
@@ -148,8 +149,8 @@ the whole thing under your own name, and you want it pointing at *your* labs rat
 | # | Do this |
 |:--:|---|
 | **4** | Make a **new Google Sheet**. The name does not matter. |
-| **5** | In it: **Extensions ▸ Apps Script**. Delete whatever is there and paste in **[`Code.gs`](apps-script/Code.gs)** — open that file and use GitHub's copy button, or take it from [the copy at the bottom of this page](#-the-two-files-to-paste). |
-| **6** | Press **+** beside *Files* ▸ **HTML** ▸ name it exactly `ClassroomImport` ▸ paste in **[`ClassroomImport.html`](apps-script/ClassroomImport.html)**. Save. |
+| **5** | In it: **Extensions ▸ Apps Script**. Delete whatever is there and paste in **[`Code.gs`](apps-script/Code.gs)** — open that file and use GitHub's copy button. [The list at the bottom of this page](#the-four-files-to-paste) has all four files. |
+| **6** | Press **+** beside *Files* ▸ **HTML**, three times, and name the three files exactly `ClassroomImport`, `Teacher` and `TeacherPage`. Paste into each the file with the same name: **[`ClassroomImport.html`](apps-script/ClassroomImport.html)**, **[`Teacher.html`](apps-script/Teacher.html)** and **[`TeacherPage.html`](apps-script/TeacherPage.html)**. Save. |
 | **7** | In the left sidebar, beside **Services**, press **+** ▸ choose **Google Classroom API** ▸ **Add**. Leave the identifier as `Classroom`. |
 | **8** | **Run ▸ `setup`**, and authorise when asked — it is your own script, on your own Sheet. It builds and formats every tab. |
 
@@ -208,6 +209,7 @@ secret — it sits in plain sight in the page. One long string ending
 > **Every time you edit the script from now on:** Deploy ▸ Manage deployments ▸ **✏️ pencil**
 > ▸ *Version* ▸ **New version** ▸ Deploy. Editing alone changes nothing. Use the pencil rather
 > than *New deployment* and the URL stays the same, so you never touch `config.js` again.
+> Do it on each deployment you have: this one, and the teacher page's if you make one (below).
 
 ---
 
@@ -216,7 +218,7 @@ secret — it sits in plain sight in the page. One long string ending
 | # | Do this |
 |:--:|---|
 | **17** | In your Sheet: **🧪 Biology Labs ▸ Import students from Classroom…** Tick your courses, check the class codes it guesses, **Import**. Every lab tab fills with names. |
-| **18** | Open **your** lab link, answer one question, press **Hand in**, and sign in as yourself. |
+| **18** | Open **your** lab link, sign in as yourself (the button at the top right) and answer one question. Within two minutes the lab saves it. |
 
 If you are on the Students tab, your row fills in. If you are not — you are the teacher, after
 all — nothing is saved, which is the system working. Add yourself to the **Students** tab by
@@ -241,6 +243,7 @@ much is in there.
 | `Classroom is not defined` | step 7 was missed — Services ▸ + ▸ Google Classroom API ▸ Add, then run `setup` |
 | `Illegal spreadsheet id or key: …` | the **deployment** is older than the editor — redeploy with the ✏️ pencil, *New version* |
 | the import window lists no courses | that Google account has no **active** Classroom courses |
+| the import window says only the owner or a listed teacher can import | you are signed in to the Sheet as somebody else — its owner, or a teacher added under **👥 Teacher page: teachers and addresses**, runs it |
 | no sign-in button on the lab | `googleClientId` is empty in your fork's `js/config.js` |
 | `access blocked: this app has not completed verification` | step 11 was missed — Audience ▸ **Publish app** |
 | sign-in works, but nothing reaches the Sheet | `CLIENT_ID` is empty, is a different string from `googleClientId`, or the deployment is stale |
@@ -289,7 +292,9 @@ rather than shown a door they cannot open. Matching is on the **email**, never t
 2. **Deploy ▸ Manage deployments ▸ ✏️ ▸ Version: New version ▸ Deploy.** Editing alone
    changes nothing.
 3. The `record` block and `googleClientId` in `js/local.js`, including `record.url` — the
-   address of the student page.
+   address of the student page. It is the fallback: once a reflection copy running current code
+   writes its address into the workbook's **🚪 My assessments address** tab, the card opens that
+   one instead.
 
 The script expects tabs named `Class of ____` (and optionally `TEST`) with `Email`,
 `StudentName`, `AssessmentID`, `AssessmentName` and `LastUpdated` columns, plus an optional
@@ -306,54 +311,64 @@ wrong workbook in.
 ## 👩‍🏫 Teacher mode, and the teacher page
 
 <details>
-<summary><b>A page of every assessment spreadsheet, that only your Biology teachers can open</b></summary>
+<summary><b>A page only your Biology teachers can open: spreadsheets, lab progress, Bio English, students and homework</b></summary>
 
 <br>
 
 Signed in on the hub as a teacher, the corner card gains a **Teacher | Test** switch.
 **Test** shows you the hub exactly as a student sees it, from your own TEST reflections.
-**Teacher** replaces the student's door with **Assessment system**, which opens a page listing
-every spreadsheet you put on it: each assessment's, the test copies, the tracker.
+**Teacher** replaces the student's door with **Assessment system**, which opens the teacher page.
+It has five tabs:
 
-The page groups them by **cohort — the year they graduate** (this year's Y10 is Class of 2028), and
-works out the current year group (Y9/Y10/Y11) itself, so it never goes stale. Records are pinned at
-the top; within a cohort the spreadsheets are grouped by **type** (Reflection · Test · Survey · …,
-colour-coded). There is a **search box**, **filter chips** by type, an **Only current cohorts** toggle (on by default) that
-hides cohorts who have left, a **This year** key mapping year groups to cohorts, and a **Copy link**
-button on every card for pasting into Google Classroom or an email.
+| Tab | What it shows |
+|---|---|
+| **Spreadsheets** | every spreadsheet you put on it — each assessment's, the test copies, the tracker — grouped by **cohort, the year they graduate** (in 2026–27, Y10 is Class of 2028), with the current year group (Y9/Y10/Y11) worked out for you, so it never goes stale. Records are pinned at the top; within a cohort the spreadsheets are grouped by **type** (Reflection · Test · Survey · …, colour-coded). There is a **search box**, **filter chips** by type, an **Only current cohorts** toggle (on by default) that hides cohorts who have left, and a **Copy** button on every card for pasting into Google Classroom or an email. |
+| **Lab progress** | how each class is doing in the labs: every student against every lab, who needs a look, and the stations a class finds hardest |
+| **Bio English** | how far each student has got with the Bio English Lab sets of their year |
+| **Students** | find any pupil and open their own reflection tracker, the same page they see |
+| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named and linked, under a Classroom topic you choose or type — and see who has done them. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
 
 **Nothing about that page is in this website.** Not its address, not a spreadsheet link, not who
-the teachers are. It is guarded twice:
+the teachers are, not a single pupil or mark. It is guarded twice:
 
 1. **By Google.** The page is served by a *second* deployment of the labs script whose access is
    **Anyone within** your school. Google signs the visitor in with their school account before a
    line of script runs, so a sign-in copied out of a web page is no use: what opens it is Google's
    own sign-in, which no page can read.
-2. **By the script.** It shows the links only to you (the script's owner) and to the addresses you
-   type into `TEACHERS` — and only at your school's own domain, so a pupil's address typed there by
-   mistake still opens nothing. Anybody else sees who the page is for, and not a single link.
+2. **By the script.** It opens only for you (the script's owner) and the teachers you add in the
+   window below (or type into `TEACHERS`) — and only at your school's own domain, so a pupil's
+   address added there by mistake still opens nothing. Anybody else sees who the page is for, and
+   not a single link, name or mark. This check stands on its own too: the labs deployment, which is
+   open to anyone, would serve the page as well, and there the script's check is the only guard.
 
 A link on the page opens only for the people that spreadsheet is shared with. The page lists your
 spreadsheets; it does not share them.
 
-**To switch it on** — everything is done from **🧪 Biology Labs ▸ 🔗 Teacher page**, a window in
-the labs spreadsheet ("Student data"). You never edit the code for any of this:
+**To switch it on** — everything is done in one window in the labs spreadsheet, which the
+**🧪 Biology Labs** menu opens in two places: **👥 Teacher page: teachers and addresses…** (the page's
+addresses and the teachers) and **🔗 Add or remove links on the teacher page…** (the links). You never
+edit the code for any of this:
 
 1. **Make the page's own deployment, once.** In the Apps Script editor: **Deploy ▸ New deployment ▸
    ⚙ ▸ Web app**, Execute as **Me**, Who has access **Anyone within** your school — *not* "Anyone".
    Deploy, and copy the **Web app URL**.
-2. Open **🔗 Teacher page** from the menu. Paste that URL into **The page address** and Save. Add the
-   other Biology teachers by name and school address. Add a row for each spreadsheet — its
-   **Type** (Reflection, Test, Survey…), the **Assessment**, the **Graduation year** (the cohort —
-   this year's Y10 is 2028, next year's is 2029), and the **Link**. The same test for another cohort
-   is another row; the page groups by cohort and works out the current year group (Y9/Y10/Y11) itself.
+2. Open **👥 Teacher page: teachers and addresses…** from the menu. Under **Set up once**, paste that
+   URL into **The page address** and Save; the tracker's address (**Open a student's tracker**, for
+   the Students tab) and the hub's address (**Set homework**) go there too. Add the other Biology
+   teachers by name and school address. Then, in **🔗 Add or remove links on the teacher page…**,
+   press **🔎 Find new reflection and test spreadsheets**: it adds every reflection and test
+   spreadsheet that has labelled itself in your Drive. Add a row by hand for anything else — records,
+   surveys, a colleague's spreadsheet — with its **Type** (Reflection, Test, Survey…), the
+   **Assessment**, the **Graduation year** (the cohort — in 2026–27, Y10 is 2028 and Y9 is 2029), and
+   the **Link**. The same test for another cohort is another row; the page groups by cohort and works
+   out the current year group (Y9/Y10/Y11) itself.
    A row may also carry a **Dashboard** address. Both the test system and the reflection system serve
    a live teacher dashboard at their own web-app address ending `/exec?page=dashboard`; put it there
    and the card offers it beside the spreadsheet, so reaching the dashboard no longer means opening
    the spreadsheet first and hunting for the link inside. Leave it blank and the card is unchanged.
-3. That is all. Teachers, links and the address are read live, so anything you add or change here
-   takes effect at once — no new version, no redeploy. (A redeploy is only ever needed when the
-   **code** itself changes.)
+3. That is all. Teachers, links and the addresses are read live, so anything you add or change here
+   takes effect at once on the page, and on the hub within a minute — no new version, no redeploy.
+   (A redeploy is only ever needed when the **code** itself changes.)
 
 The first time you run anything after pasting this version, Google asks for one new permission —
 to see the email address of whoever opens the teacher page. Allow it **before** deploying the labs
@@ -390,6 +405,18 @@ It needs three things:
 3. **This script redeployed** (✏️ pencil ▸ New version) — both deployments, the labs endpoint that
    answers the banner and the teacher page.
 
+Two more cards come in the same answer, so they cost the hub nothing more:
+
+- **New feedback** — for five days after you release a pupil's marked test in the Test System's
+  Marker Review, a card names the test and offers **See your feedback →**, the Test System's own
+  read-only feedback page. After that the feedback is still on My assessments.
+- **Your reflection** — for a reflection spreadsheet you switch on for the hub (in that
+  spreadsheet: 🧰 ToolBox ▸ 👥 Classes & rostering ▸ **📣 Share the form link…** (answer 2, the Biology Hub), which
+  writes a row in the tracker's **📣 Reflections on the hub** tab), each pupil on its Marks tabs sees
+  **Start your reflection** or **Continue your reflection**, worked out by the form's own rules — or,
+  if they handed in only part of it or ran out of time, a reminder to ask you. It goes once they have
+  handed in a complete reflection.
+
 A teacher sees exactly what a student would, in **test mode**, once they are on the test's
 **Marks · Test** tab (the test system's 🧑‍🏫 Set up Teacher Test tab); in teacher mode it stays hidden.
 
@@ -407,11 +434,15 @@ Never a class's times, anyone else's, or a single question.
 
 | Tab | What is in it |
 |---|---|
-| 🟢 **Students** | the dashboard — every student, their class, and their best score in **every** lab, red through amber to green |
+| 🟢 **Students** | the dashboard — every student, their class, and their best score in **every** lab, red through amber to green; a lab not built yet has a paler heading and an empty grey column |
 | 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported |
-| 🟡 **Labs** | one row per lab: how many questions it has, how many hand-ins it has had |
+| 🟢 **✍️ Bio English** | a row per student, made at their first save in Bio English Lab: keyword and answer-writing questions answered, how many right first time, sets finished |
+| 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title or due date here |
+| 🟣 **👩‍🏫 Teachers** | the other teachers who may open the teacher page |
+| 🔵 **🔗 Teacher links** | the spreadsheets the teacher page lists |
+| 🟡 **Labs** | one row for each lab in the script, written afresh by every Tidy up, and how many saves each has had |
 | 🟡 **Setup** | what everything is, your web app URL, and the tick-box buttons |
-| 🔴 **Rejected** | a hand-in from one of your students whose numbers did not add up, with the reason |
+| 🔴 **Rejected** | a save from one of your students whose numbers did not add up, with the reason |
 
 Every tab explains itself: hover a heading to see what the column is for. A **dark green
 heading** is filled in for you; an **amber heading with a ✎** is yours to change.
@@ -420,9 +451,12 @@ heading** is filled in for you; an **amber heading with a ✎** is yours to chan
 import again whenever somebody joins: students are keyed on their school email, so it adds
 the new ones, moves anyone whose class changed, and never duplicates.
 
-**Handing in twice is fine and does not make a second row.** *Hand-ins* counts the goes and
-*Last hand-in* always moves, but the score is replaced only when the new attempt **beat** the
-old one — a careless re-run cannot wipe out a good result.
+**Nothing is handed in.** Signed in, a lab sends the work on its own — two minutes after the
+last check, and at once when the lab is finished or the page is left — and every save updates
+the same row. *Saves* counts them and *Last saved* always moves, but the score is replaced only
+when the new attempt **beat** the old one, and the carried answers only ever grow — a careless
+re-run, or a second device that knows less, cannot wipe out a good result. Work done signed out
+stays in the browser and is sent the moment the student signs in.
 
 </details>
 
@@ -433,47 +467,30 @@ old one — a careless re-run cannot wipe out a good result.
 
 | 🧪 Biology Labs ▸ | What it does |
 |---|---|
-| **Import students from Classroom…** | the main one. Adds new students, then builds and formats everything |
-| **Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up |
-| **Refresh everyone's progress** | re-reads the lab tabs into the dashboard |
-| **Tidy up** | rebuild anything missing and re-apply the formatting |
+| **🎓 Import students from Classroom…** | the main one. Adds new students, then builds and formats everything |
+| **🩺 Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up — and each optional part: the record card, the teacher page, homework, the morning email |
+| **📊 Refresh everyone's progress** | re-reads the lab tabs into the dashboard |
+| **🎨 Tidy up** | rebuild anything missing, write the **Labs** tab afresh from the script's list of labs, and re-apply the formatting |
+| **🔗 Add or remove links on the teacher page…** | the spreadsheets the teacher page lists — see *Teacher mode* above |
+| **🔎 Find new reflection and test spreadsheets** | adds to the teacher page every reflection or test spreadsheet that has labelled itself in Drive and is not listed yet |
+| **👥 Teacher page: teachers and addresses…** | the page's addresses (the page, the tracker, the hub), and who may open it |
+| **📬 Email me when homework falls due (every morning)** | at about 7:00 each teacher gets a summary of their homework that has just fallen due: who finished, who started, who did not |
 
-All but the import also sit as tick-box buttons on the **Setup** tab; the import opens a
-window, which a spreadsheet button is not allowed to do.
+*Refresh everyone's progress* and *Tidy up* also sit as tick-box buttons on the **Setup** tab.
+The import opens a window, which a spreadsheet button is not allowed to do.
 
 </details>
 
 <details>
-<summary><b>Reading a completion code</b></summary>
+<summary><b>What happened to completion codes</b></summary>
 
 <br>
 
-Every hand-in shows the student a **completion code** — `DL-3CL9-Q3MP`. It is a checksum of
-their name, class, score and the lab, and **nothing about it is stored anywhere**. Paste one
-into the *Check a completion code* cell on the **Setup** tab and tick the box beside it.
-
-Clear that cell and the answer clears with it, ready for the next one — an answer belongs to
-the code that produced it, and a stale one you cannot tell is stale is worse than none.
-
-Because nothing is stored, the only way to read a code is to try the possibilities against a
-bounded list of names — and the only such list is your **Students** tab. So:
-
-* a code from **one of your students** resolves to their name, their score, and whether their
-  hand-in actually arrived;
-* a code from **anyone else in the world** cannot be resolved at all. Their name could be
-  anything, so it says so rather than guessing.
-
-It looks the code up first — every hand-in that arrived wrote its code into the lab's tab, so
-there is nothing to guess at. Only if it is not there does it start trying possibilities, which
-is the case it exists for: the hand-in that **did not** arrive (they were offline, closed the
-tab, or could not sign in but still have their code), and telling a real code from an invented
-one.
-
-> ⚠️ &nbsp;**A code is made from the name on the GOOGLE account**, not the name on your
-> Students tab. For a student imported from Classroom those are the same, so this never comes
-> up. But if you type a name in by hand — `Daniel` where Google says `Daniel Mompel Riera` —
-> a code that never reached the Sheet cannot be reconstructed. Once that student has handed in
-> once, the Google name is remembered and it works from then on.
+Until September 2026 every hand-in showed the student a code (`DL-3CL9-Q3MP`) and the Setup
+tab could read one back. It was a checksum the page itself computed, so it proved nothing a
+student could not simply tell you, and now that a lab saves on its own the case it existed for
+— the hand-in that never arrived — no longer happens. There is nothing to check: look at the
+lab's tab. The *Code* column is kept, hidden, for rows that carry old ones.
 
 </details>
 
@@ -484,40 +501,21 @@ one.
 
 It has to be *Anyone*, because the labs are ordinary web pages with no login: the student's
 browser posts to the script as a stranger. *Anyone with a Google Account* makes the browser
-follow a sign-in redirect instead, and the hand-in never arrives.
+follow a sign-in redirect instead, and the work never arrives.
 
 It does **not** share your spreadsheet. Nobody gets access to the Sheet, to Classroom or to
-your Drive. The URL exposes exactly two things: a **GET** that says the endpoint is running,
-and a **POST** that can fill in one row — and only for a signed-in account on your Students
-tab. A stranger with the URL cannot write anything, and cannot read a single mark.
+your Drive. The URL answers a **GET** that says the endpoint is running (with `?page=…`, the
+teacher page, which opens only for a teacher on your list), and **POSTs** from the labs and Bio
+English Lab: a save, which fills in one row — only for a signed-in account on your Students tab —
+and a request for a signed-in student's own scores, record or test times, answered about them and
+nobody else. A stranger with the URL cannot write anything, and cannot read a single mark.
 
-A hand-in from one of your own students that does not add up — a completion code that does not
-recompute, a score above the total — goes to the **Rejected** tab with the reason, never into
-a lab's tab. And a forged row usually looks forged: 113/113 in 113 checks, 0 right first time,
+A save from one of your own students that does not add up — a score above the total, an
+impossible total — goes to the **Rejected** tab with the reason, never into a lab's tab. And a forged row usually looks forged: 113/113 in 113 checks, 0 right first time,
 "0 min" since starting. Sort by *Checks* and it stands out.
 
-To collect nothing at all, leave `submitUrl` or `googleClientId` empty: everyone gets a
-completion code on screen and nothing is posted anywhere.
-
-</details>
-
-<details>
-<summary><b>Pushing marks into Google Classroom</b></summary>
-
-<br>
-
-Classroom only lets a script grade work that **the same script created** — an assignment made
-by hand in the Classroom UI cannot be graded through the API. So either set an assignment
-asking for the completion code the lab shows (no setup), or let the script make it:
-
-```javascript
-createAssignmentFor('digestion-lab', 'YOUR_COURSE_ID')                 // once
-pushGradesFor('digestion-lab', 'YOUR_COURSE_ID', 'THE_COURSEWORK_ID')  // after a test
-```
-
-`pushGradesFor` takes each student's best score and matches it to the Classroom roster on
-school email. Anyone who has not handed in is skipped rather than given a zero; anyone it
-cannot match is left alone and named in the log.
+To collect nothing at all, leave `submitUrl` or `googleClientId` empty: every student's work
+stays in their own browser and nothing is posted anywhere.
 
 </details>
 
@@ -525,14 +523,17 @@ cannot match is left alone and named in the log.
 
 ---
 
-## The two files to paste
+## The four files to paste
 
-They are in this repository — open, select all, copy:
+They are in this repository — open, select all, copy. `Code.gs` goes into the script's own **Code** file; each of
+the other three goes into an HTML file with the same name.
 
 | File | What it is |
 |---|---|
-| **[`apps-script/Code.gs`](apps-script/Code.gs)** | the whole script: receiving a hand-in, the roster, the tabs, Classroom import, and giving a student their own scores back |
-| **[`apps-script/ClassroomImport.html`](apps-script/ClassroomImport.html)** | the little window that imports your classes |
+| **[`apps-script/Code.gs`](apps-script/Code.gs)** | the whole script: receiving each student's work, the roster, the tabs, Classroom import, and giving a student their own scores back |
+| **[`apps-script/ClassroomImport.html`](apps-script/ClassroomImport.html)** | HTML file `ClassroomImport`: the little window that imports your classes |
+| **[`apps-script/Teacher.html`](apps-script/Teacher.html)** | HTML file `Teacher`: the teacher page — Spreadsheets, Lab progress, Bio English, Students and Set homework |
+| **[`apps-script/TeacherPage.html`](apps-script/TeacherPage.html)** | HTML file `TeacherPage`: the window behind **🔗 Add or remove links on the teacher page** and **👥 Teacher page: teachers and addresses** |
 
 ---
 
@@ -546,8 +547,12 @@ this repository, so you can pull updates without losing your changes.
 
 ## For developers
 
-Static files. No build step beyond `node tools/stamp.mjs`, which rewrites every `?v=` stamp and
-`version.txt` from one value — never hand-edit `version.txt`, the stamps are the real cache key.
+Static files. No build step beyond `node tools/stamp.mjs`, which first copies in what the site
+shares with the labs, when it finds `labs-shared/` above this folder (the lab register as
+`js/data/labs.json` and `labs.js`, `js/progress.js`, `js/signin.js`, `js/data/stations.json` and the
+syllabus years), then rewrites
+every `?v=` stamp in `index.html` and `applications.html`, and `version.txt`, from one value —
+never hand-edit `version.txt`, the stamps are the real cache key.
 
 - **`js/shelves.js`** — the register: doors, year groups, what is open, image credits.
 - **`js/local.js`** — the school layer. Empty here; this is the file you edit.
@@ -555,8 +560,9 @@ Static files. No build step beyond `node tools/stamp.mjs`, which rewrites every 
 - `js/progress.js` — the only code that knows how to read a lab's progress record.
 - `apps-script/` — the marks system, above.
 
-`node tools/deploy.mjs` stamps this edition, syncs the shared files to the open one and stamps
-that too, so the two cannot drift.
+This repository is the open edition of [Mompel226/biology-hub](https://github.com/Mompel226/biology-hub):
+every file but `js/local.js`, this README and `docs/` is copied from there by its
+`tools/deploy.mjs`, which stamps both editions, so the two cannot drift.
 
 ## The pictures
 
