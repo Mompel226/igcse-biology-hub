@@ -415,6 +415,25 @@ ok &= run('a view already read is never read again — memory, then sessionStora
   stray.forEach(v => { if (!/ssPut\(/.test(h.slice(h.indexOf('cache[' + v + '] = r'), h.indexOf('cache[' + v + '] = r') + 120)))
     throw new Error('a payload is cached in memory but never persisted'); });
 });
+ok &= run('the other views are read at the same time once the first is drawn, not one after another (2 Oct 2026)', () => {
+  /* Daniel: the teacher page is slow to open. prefetch() read the other five views one at a time, so the last was
+     ready only after every wait added up (Homework habits last, most of a minute). Run prefetch() itself with a
+     server that never answers: every view still missing must be asked for at once, and none twice. */
+  const vm = require('vm');
+  const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  const a = h.indexOf('function prefetch()'), b = h.indexOf('\n  }\n', a) + 4;
+  if (a < 0 || b < a) throw new Error('prefetch() has moved — this test can no longer see it');
+  const asked = [];
+  const w = { ORDER: ['teachers', 'progress', 'english', 'students', 'homework', 'habits'], cur: 'teachers',
+              cache: { teachers: { ok: true }, english: { ok: true } }, prefetched: false,
+              ssGet: k => (k === 'students' ? { ok: true, from: 'session' } : null),
+              fetchTab: (k, cb) => { asked.push(k); } };
+  vm.createContext(w);
+  vm.runInContext(h.slice(a, b) + '\nprefetch(); prefetch();', w);
+  if (asked.join() !== 'progress,homework,habits')
+    throw new Error('asked before any answer came: ' + (asked.join() || 'nothing') + ' (want progress, homework and habits together)');
+  if (!w.cache.students || w.cache.students.from !== 'session') throw new Error('a view kept in sessionStorage was not taken from it');
+});
 ok &= run('help text never waits on the browser\u2019s own tooltip', () => {
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
   /* title= is the browser's tooltip: it waits about a second before it appears, never appears at
@@ -489,8 +508,9 @@ ok &= run('a reload draws Lab progress, Bio English and Set homework from the se
   /* found 1 Oct 2026: a view kept in sessionStorage is drawn at once, and those three views are defined by the SECOND
      script, so starting at the end of the first left them on "Loading" after any reload within ten minutes */
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-  const s1 = h.slice(h.indexOf('<script>'), h.indexOf('</script>'));
-  if (!/window\.vHomework = function/.test(h.slice(h.indexOf('</script>')))) throw new Error('Set homework has left the second script: look at this test again');
+  const end1 = h.indexOf('</script>', h.indexOf('<script>'));   /* the first plain <script>: the theme's <script data-theme-boot> in <head> is not it */
+  const s1 = h.slice(h.indexOf('<script>'), end1);
+  if (!/window\.vHomework = function/.test(h.slice(end1))) throw new Error('Set homework has left the second script: look at this test again');
   if (/\n  go\(BOOT\.tab \|\| 'teachers'\);\n\}\)\(\);/.test(s1)) throw new Error('the page starts before the second script has run');
   if (!/addEventListener\('DOMContentLoaded', function\(\)\{ go\(BOOT\.tab \|\| 'teachers'\); \}\)/.test(s1)) throw new Error('the page does not wait for both scripts');
 });
@@ -506,7 +526,7 @@ ok &= run('the tab bar wraps rather than run past a phone screen, and a computer
   if (!bar || !tab) throw new Error('the tab bar or its tabs have no rule of their own: look at this test again');
   if (!/flex-wrap:wrap/.test(bar) || !/max-width:100%/.test(bar))
     throw new Error('the tab bar cannot wrap: on a phone it runs past the screen edge and the whole page scrolls sideways');
-  if (!/display:inline-flex/.test(bar)) throw new Error('on a computer the tab bar no longer sits beside the address and Refresh');
+  if (!/display:inline-flex/.test(bar)) throw new Error('on a computer the tab bar stretches across the page: it should be only as wide as its tabs');
   if (!/border-radius:20px/.test(bar)) throw new Error('the bar corners changed: a 999 px corner on two rows makes a stadium that the end tabs poke out of');
   if (/\bflex:/.test(tab)) throw new Error('on a computer the tabs stretch: each should keep its own width');
   /* the phone rule: every @media (max-width:N px) block, read brace by brace */
@@ -2168,8 +2188,9 @@ ok &= run('lab-progress and students pages show data to a teacher, the door to e
 function teacherPage() {
   const vm = require('vm');
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-  const s1 = h.slice(h.indexOf('<script>') + 8, h.indexOf('</script>'));
-  const at2 = h.indexOf('<script>', h.indexOf('</script>'));
+  const end1 = h.indexOf('</script>', h.indexOf('<script>'));   /* the theme's <script data-theme-boot> in <head> is not the first script */
+  const s1 = h.slice(h.indexOf('<script>') + 8, end1);
+  const at2 = h.indexOf('<script>', end1);
   const s2 = h.slice(at2 + 8, h.indexOf('</script>', at2));
   const helpers = s1.slice(s1.indexOf('var $ = function(id)'), s1.indexOf('var VIEWS = {'));
   if (!helpers || at2 < 0 || !/window\.vHomework = function/.test(s2)) throw new Error('Teacher.html has changed shape: the stand-in page cannot find its scripts');
@@ -3605,6 +3626,24 @@ console.log('— ⏱️ homework habits —');
       const page = doGet({ parameter: { page: 'habits' } });
       if (!/"tab":"habits"/.test(page.html)) throw new Error('?page=habits does not open the view');
     });
+    ok &= run('habits and homework read the spreadsheet\u2019s time zone once per call, not once per pupil per homework (2 Oct 2026)', () => {
+      /* Daniel: the teacher page is slow to open. _tz_() asked the spreadsheet every time — about twice per pupil per
+         homework in ⏱️ Homework habits. Now once per execution, kept with the handle it was read from. */
+      const handle = _ss_(), real = handle.getSpreadsheetTimeZone;
+      let n = 0;
+      handle.getSpreadsheetTimeZone = function () { n++; return real.apply(this, arguments); };
+      try {
+        for (const view of ['habits', 'homework']) {
+          _TZ_MEMO = null; n = 0;                          /* a new execution */
+          const r = uiData(view);
+          if (!r.ok) throw new Error(view + ' was refused: ' + JSON.stringify(r).slice(0, 120));
+          if (n !== 1) throw new Error(view + ' read the time zone ' + n + ' times in one call');
+        }
+        _TZ_MEMO = { ss: {}, tz: 'Europe/London' };       /* kept from another handle: read again, not used */
+        n = 0;
+        if (_tz_() !== 'Asia/Seoul' || n !== 1) throw new Error('a time zone kept from another handle was used: ' + _tz_());
+      } finally { handle.getSpreadsheetTimeZone = real; _TZ_MEMO = null; }
+    });
     ok &= run('habits: no new public name — the view is a branch of uiData behind _hwCaller_ (ALLOWED unchanged), and every habits function ends in _', () => {
       const mine = [...SRC.matchAll(/^function\s+(_(?:st[A-Z]|hwHabit|hwBand|hwSpan|hwMoment|hwMedian|hwBaselines|hwTimesIndex|hwPartsWords|habitsData|scoreKind)\w*)\s*\(/gm)].map(m => m[1]);
       if (mine.length < 16) throw new Error('the habits code is not all here: ' + mine.join(', '));
@@ -3636,7 +3675,7 @@ console.log('— ⏱️ homework habits —');
       if (!/note:'Start here: pick a class\./.test(h)) throw new Error('the help note does not start with what to do');
       if (/homework analysis/i.test(h)) throw new Error('it is not called "homework analysis"');
       if (!/if \(cur==='habits'\) return window\.vHabits\(r\.data\);/.test(h)) throw new Error('the view is never drawn');
-      if (!/window\.vHabits = function/.test(h.slice(h.indexOf('<script>', h.indexOf('</script>'))))) throw new Error('the view is not in the second script');
+      if (!/window\.vHabits = function/.test(h.slice(h.indexOf('<script>', h.indexOf('</script>', h.indexOf('<script>')))))) throw new Error('the view is not in the second script');
       const spent = [...h.matchAll(/time spent/gi)].map(m => h.slice(m.index - 4, m.index));
       if (spent.some(x => x !== 'not ')) throw new Error('a time is called "time spent"');
     });
@@ -3723,16 +3762,49 @@ console.log('— ⏱️ homework habits —');
         if (/analysis/i.test((global.ALLOWED_NAMES || []).join(' ')) || !/^function _analysisLink_\(/m.test(SRC)) throw new Error('a new public name');
       } finally { HUB_URL = keepHub; SpreadsheetApp.openById = realOpen; props.delete('TRACKER_ID'); fresh(); }
     });
-    ok &= run('the header with six tabs: who is signed in, the age and Refresh wrap TOGETHER on the right on a computer, and flow as before on a phone', () => {
+    ok &= run('the header in two rows: the eyebrow with who is signed in, the age, Refresh and ☀/☾ (one group, on the right); then the tabs with 📊 Analysis ↗ at the far right; on a phone the group flows as before', () => {
+      /* Daniel, 1 Oct 2026 (night): with ⏱️ Homework habits and 📊 Analysis ↗ the header had grown to three ragged rows */
+      const h0 = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      const r1 = h0.indexOf('<div class="row1">'), r2 = h0.indexOf('<div class="row2">');
+      if (r1 < 0 || r2 < r1 || h0.indexOf('<div class="meta">') < r1 || h0.indexOf('<div class="meta">') > r2 || h0.indexOf('<nav class="tabs"') < r2) throw new Error('not two rows: the eyebrow and the group, then the tabs');
+      if (!/\n\.row2 \.ana\{margin-left:auto\}/.test(h0)) throw new Error('📊 Analysis ↗ is not at the right end of the tab row');
       /* found 1 Oct 2026 (late night) in headless Chrome: with six tabs, at 1280 px Refresh wrapped ALONE to the left of a second
          row; grouped, the three wrap as one, on the right; below 700 px the group dissolves (display:contents) */
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-      if (!/<div class="meta">\s*<span class="who" id="who"><\/span>\s*<span class="age" id="age"[^>]*><\/span>\s*<button class="rf" id="rf"[\s\S]*?Refresh<\/button>\s*<\/div>/.test(h))
-        throw new Error('who, age and Refresh are not one group');
+      if (!/<div class="meta">\s*<span class="who" id="who"><\/span>\s*<span class="age" id="age"[^>]*><\/span>\s*<button class="rf" id="rf"[\s\S]*?Refresh<\/button>\s*<button class="rf thm" id="thm" type="button">[^<]*<\/button>\s*<\/div>/.test(h))
+        throw new Error('who, age, Refresh and ☀/☾ are not one group');
       const css = h.slice(h.indexOf('<style>'), h.indexOf('</style>'));
       const meta = (css.match(/\n\.meta\{([^}]*)\}/) || ['', ''])[1];
       if (!/margin-left:auto/.test(meta) || !/flex-wrap:wrap/.test(meta) || !/justify-content:flex-end/.test(meta)) throw new Error('the group does not sit on the right: ' + meta);
       if (!/@media \(max-width:700px\)\{\.meta\{display:contents\}/.test(css)) throw new Error('on a phone the group does not dissolve');
+    });
+    ok &= run('a bright and a dark version: set before the page draws, the computer\'s own setting until ☀/☾, every colour a token with both values', () => {
+      /* Daniel, 1 Oct 2026: "have a bright version… all of the teacher tabs". The page was dark only. */
+      const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      const boot = h.indexOf('<script data-theme-boot>'), sty = h.indexOf('<style>');
+      if (boot < 0 || boot > sty) throw new Error('no theme script in <head> before the styles: the page would flash the wrong version');
+      const bs = h.slice(boot, h.indexOf('</script>', boot));
+      if (!/localStorage\.getItem\('biology\.theme'\)/.test(bs) || !/prefers-color-scheme: light/.test(bs) || !/setAttribute\('data-theme', t\)/.test(bs)) throw new Error('the early script does not read the saved choice, then the computer\'s own setting');
+      const css = h.slice(sty, h.indexOf('</style>'));
+      const block = re => (css.match(re) || ['', ''])[1];
+      const dark = block(/:root,:root\[data-theme="dark"\]\{([^}]*)\}/), lite = block(/:root\[data-theme="light"\]\{([^}]*)\}/);
+      const toks = b => [...b.matchAll(/(--[a-z0-9-]+):([^;]+);/g)].filter(m => /#|rgba?\(|%/.test(m[2])).map(m => m[1]);
+      const dT = toks(dark), lT = new Set(toks(lite));
+      const miss = dT.filter(k => !lT.has(k) && k !== '--accent');
+      if (dT.length < 40 || miss.length) throw new Error('colours with no bright value: ' + miss.join(', '));
+      /* below the tokens, no rule names a colour of its own, apart from the habit marks' own dark/bright pairs and the
+         \"done\" corner dot of a cell */
+      const rest = css.slice(css.indexOf('*{box-sizing')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?::root\[data-theme="light"\] )?\.hbm--[a-z]+\{[^}]*\}/g, '');
+      const stray = [...rest.matchAll(/#[0-9A-Fa-f]{3,8}\b|rgba?\(|hsl\(\d+ \d/g)].map(m => rest.slice(Math.max(0, m.index - 30), m.index + 12));
+      if (stray.length) throw new Error('colours outside the tokens: ' + stray.join(' | '));
+      for (const k of ['before', 'early', 'good', 'last', 'late', 'none', 'unknown'])
+        if (!new RegExp(':root\\[data-theme="light"\\] \\.hbm--' + k + '\\{').test(css)) throw new Error('the habit mark "' + k + '" has no bright version');
+      const views = [...h.matchAll(/\n    (\w+):\{ label:'[^']*', accent:'(#[0-9A-F]{6})'(, accentL:'(#[0-9A-F]{6})')?/g)];
+      if (views.length !== 6 || views.some(v => !v[4])) throw new Error('a view has no bright accent: ' + views.filter(v => !v[4]).map(v => v[1]).join(', '));
+      if (!/function heat\(p\)\{[^\n]*var\(--hb\)[^\n]*var\(--hd\)[^\n]*var\(--hf\)/.test(h)) throw new Error('the colour scale does not take its lightness from the version');
+      if (!/<button class="rf thm" id="thm" type="button">/.test(h) || !/\$\('thm'\)\.addEventListener\('click'/.test(h)) throw new Error('no ☀/☾ button');
+      if (!/localStorage\.setItem\('biology\.theme', t\)/.test(h)) throw new Error('the choice is not kept');
+      if ((h.match(/localStorage\.setItem\('biology\./g) || []).length !== 1) throw new Error('the page writes another biology.* key');
     });
     ok &= run('📊 Analysis ↗ on the page: a link out (new tab, rel=noopener), beside the tab list and never one of its tabs, hidden unless the server gave an address', () => {
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
