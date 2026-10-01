@@ -2,8 +2,8 @@
 
 Every image is either in the public domain, released under a Creative Commons licence that
 allows this use, or Dr Mompel's own. Each is credited on the page itself, in the colophon.
-The files here are resized copies (900, 1400 and 1800 px wide, JPEG and WebP); the sources
-below are the originals.
+The files here are resized copies (900, 1400 and 1800 px wide, JPEG and WebP; `sit-*` only 240
+and 480 px); the sources below are the originals.
 
 | Door | File | Source | Licence |
 |---|---|---|---|
@@ -13,5 +13,5 @@ below are the originals.
 | Life on Earth | `life-on-earth-*` | **The Champagne vent field at NW Eifuku seamount, venting droplets of liquid CO₂.** "Image courtesy of Submarine Ring of Fire 2014 – Ironman, NOAA/PMEL, NSF." [NOAA Ocean Exploration](https://archive.oceanexplorer.noaa.gov/explorations/14fire/background/missionplan/media/eifuku_champagne_vent.html). | Public domain (NOAA) — attribution appreciated and given |
 | Sit a test (banner) | `sit-*` | **A stoma on a tomato leaf** — scanning electron micrograph, [Dartmouth Electron Microscope Facility](http://remf.dartmouth.edu/images/botanicalLeafSEM/source/16.html), via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Tomato_leaf_stomate_1.jpg). The caption strip is cut away and the frame cropped to the pore; the micrograph is greyscale and is shown here as an amber duotone, at 240 and 480 px (it is only ever shown small). A pore that opens at its proper time, beside "Opens today at 09:00". Seen only by a signed-in student with a test that opens later or is open now. | Public domain |
 
-To swap an image, drop new files with the same names into this folder (all three widths,
+To swap an image, drop new files with the same names into this folder (every width it comes in, in
 both formats — `python3` with Pillow will make them from one original) and rewrite its row here.

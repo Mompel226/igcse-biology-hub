@@ -1,5 +1,7 @@
 /* Bump the cache stamp.  node tools/stamp.mjs
-   Rewrites every ?v= in index.html AND version.txt from one value.
+   First copies in from labs-shared: labs.json (as js/data/labs.json and labs.js), progress.js,
+   signin.js, stations.json and the syllabus years (js/data/syllabus-years.js). Then rewrites every
+   ?v= in index.html and applications.html, AND version.txt, from one value.
    version.txt on its own is a lie: the ?v= stamps are the real cache key. */
 import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

@@ -2,7 +2,7 @@
    Biology Hub — the front door
    Reads window.HUB, stands the doors up, and makes them answer
    the pointer. Changing what is behind a door means editing
-   shelves.js only.
+   js/shelves.js (both editions) or js/local.js (this school only).
    ============================================================ */
 (function () {
   'use strict';
@@ -27,11 +27,13 @@
   if (ENTRY) DOORS = DOORS.concat((ENTRY.doors || []).map(function (d) { d.kind = 'entry'; return d; }));
   function sectionOf(id) { return SECTIONS.filter(function (s) { return s.id === id; })[0] || null; }
 
-  /* Under the shelves stand the wide doors — the school's own clubs and societies, each
-     with a website of its own. js/local.js names them and tags each one with a kind; this
-     says which kinds there are, what each band is called, and the order they stand in.
-     A school with none of a kind simply gets no band. Adding a band is one line here;
-     adding a club or a society is one entry in js/local.js. */
+  /* The wide doors — the school's own clubs and societies, each with a website of its own.
+     js/local.js names them and tags each one with a kind. With `sections` (the NLCS edition),
+     each section is a band: a page of its own behind an entry door (#ccas, #societies, #bryant,
+     #enterprises), and a new kind is one more entry in `sections` in js/local.js. The two
+     bands written here are only the fallback for an edition without sections: then they stand
+     under the shelves, in this order. A school with none of a kind simply gets no band; adding
+     a club or a society is one entry in js/local.js `doors`. */
   var BANDS = SECTIONS.length
     ? SECTIONS.map(function (s) { return { kind:s.kind, label:s.label, section:s.id }; })
     : [ { kind:'cca',     label:'Co-curricular activities' },
@@ -355,13 +357,14 @@
   }
 
   /* the front of the building: the hero door across the top, the rest in a row beneath.
-     The hero shares its row with one door that only a signed-in student ever sees — their
-     own assessments — which is placed after the loop so the order it is declared in does
-     not matter, and starts hidden: the record check further down is what opens it. */
+     The hero shares the front row with any `top` doors (Bio English Lab, Write-Up Lab) and
+     with one personal door: My assessments for a signed-in student, or the Assessment system
+     for a teacher in teacher mode. The personal door is placed after the loop, so the order it
+     is declared in does not matter, and starts hidden: the record check further down opens it. */
   var entryEl = document.getElementById('entryDoors'), rowEl = null, topEl = null, mineEl = null, sysEl = null;
   if (ENTRY && entryEl) {
     (ENTRY.doors || []).forEach(function (d) {
-      if (d.personal && !d.teacher && !d.url && L.record) d.url = L.record.url;   /* one address, kept in `record` */
+      if (d.personal && !d.teacher && !d.url && L.record) d.url = L.record.url;   /* the fallback, kept in `record`; goMine() follows the newest copy */
       /* A teacher's door has no address anywhere in this site. The labs script hands it over only
          to a signed-in teacher on its list, and the page behind it checks again with the school's
          own Google sign-in before it shows a single link. Until then the door is not on the page. */
@@ -405,16 +408,12 @@
         var b = build(d, false); b.classList.add('door--below'); belowEl.appendChild(b);
       });
     }
-    /* The student's door is one door-width of the row beneath: the width each of those doors
-       has at rest. The stylesheet works it out from how many doors that row holds, so the
-       count is handed over here rather than written into the CSS. It deliberately follows
-       the row AT REST, not the lit door: the tour widens a door every few seconds, and a
-       door that followed it would drag the hero a third narrower every time Enterprises lit
-       up. The top row stands still and the row beneath moves, as the hero alone did. */
+    /* The personal door joins the front row as one more small door: like the `top` doors it
+       takes one share of the row, and the hero takes 2.4 (css/hub.css, .door--hero and
+       .door--top/.door--mine). restWidths() below sets the width the words are laid out at. */
     if ((mineEl || sysEl) && topEl) {
       if (mineEl) topEl.appendChild(mineEl);
       if (sysEl) topEl.appendChild(sysEl);       /* the same place: only one of the two is ever open */
-      if (rowEl) topEl.style.setProperty('--row-n', rowEl.children.length);
     }
   }
 
@@ -743,7 +742,6 @@
             '<span class="open__title">' + esc(o.title) + '</span>' +
             '<span class="open__sub">' + esc(o.sub) + (size ? ' · ' + size : '') +
               (o.ib ? ' <span class="ib-note">· ' + esc(o.ib) + '</span>' : '') + '</span>' +
-            (o.progress ? '<span class="open__prog" id="prog-' + esc(o.progress) + '"></span>' : '') +
           '</span>' +
           '<span class="open__go" aria-hidden="true">→</span>' +
         '</a>';
@@ -831,7 +829,9 @@
       if (!foot) return;
       var sp = foot.querySelector('.door__prog');
       if (!sp) { sp = document.createElement('span'); sp.className = 'door__prog'; foot.insertBefore(sp, foot.querySelector('.door__go')); }
-      sp.title = t.done + ' of ' + t.total + ' questions answered correctly';
+      /* no title= tooltip (house rule: instant tooltips or none); the count is said to a screen reader */
+      sp.setAttribute('role', 'img');
+      sp.setAttribute('aria-label', P.pct(t) + '%: ' + t.done + ' of ' + t.total + ' questions answered correctly');
       sp.innerHTML = bar(t.done, t.total, 'var(--accent)') + '<span>' + P.pct(t) + '%</span>';
     }
     Object.keys(res.byShelf).forEach(function (id) { onDoor(id, res.byShelf[id]); });
@@ -903,10 +903,11 @@
 
   /* ---------- 6. your record, top right ----------
      After every test the Assessment Reflection System builds each student a page of their
-     own. That page is at ONE address for the whole school, behind the school's own Google
-     gate, and it works out which student to show from whoever signed in to open it. So
-     there is no personal link to find, and nothing here that could hand one student's
-     address to another.
+     own. Every assessment copy has its own address, behind the school's own Google gate, and
+     each works out which student to show from whoever signed in to open it. The labs script's
+     record answer hands over the newest copy's address (`myAssessments`, §front-door below;
+     reflection spec §40.78); `record.url` in js/local.js is only the fallback. So there is no
+     personal link to find, and nothing here that could hand one student's address to another.
 
      What is left for this page to do is ask, before it offers: are you on the list, and is
      there anything there yet? A student who has never reflected is told that plainly rather
@@ -914,8 +915,8 @@
      public, and most people reading it are not at this one — is told who it is for before
      they sign in to anything.
 
-     Configured entirely from js/local.js. No `record` block, no Client ID, or no place to
-     ask: the rectangle never appears and the rest of the page is untouched. */
+     Configured from js/local.js, plus that record answer. No `record` block, no Client ID, or
+     no place to ask: the rectangle never appears and the rest of the page is untouched. */
 
   /* Signing in is one sign-in for the whole site, kept by js/signin.js: a student who signed in
      inside a lab is signed in here, and signing in here signs them in to every lab. It lasts
@@ -1237,16 +1238,7 @@
     }
     /* anything on My assessments to see: a reflection, finished or not, or practice */
     function worthOpening(t) { return !!(t.reflected || t.unfinished || t.practice); }
-    function plural(k, word) { return k + ' ' + word + (k === 1 ? '' : 's'); }
-    /* on the door, with room to spell it out: "7 assessments · 3 reflected · 1 unfinished" */
-    function doorLine(t) {
-      var bits = [];
-      if (t.assessments !== null) bits.push(plural(t.assessments, 'assessment'));
-      bits.push(t.reflected + ' reflected');
-      if (t.unfinished) bits.push(t.unfinished + ' unfinished');
-      return bits.join(' · ');
-    }
-    /* on the corner card, one line: "3 of 7 reflected · 1 unfinished", or "your practice" before any reflection */
+    /* on the corner card and the door, one line: "3 of 7 reflected · 1 unfinished", or "your practice" before any reflection */
     function cardLine(t) {
       if (!t.reflected && !t.unfinished && t.practice) return 'your practice';
       var bits = [t.assessments !== null ? t.reflected + ' of ' + t.assessments + ' reflected'
@@ -1426,7 +1418,7 @@
       if (!SI.fresh(v)) return;                        /* an hour-old token from another tab: nothing to show */
       if (acting && acting.email === v.email) { acting = v; watchExpiry(v); return; }   /* renewed */
       start(v, false);
-      serverProgress(false);                           /* their handed-in labs too, now we know who they are */
+      serverProgress(false);                           /* their saved labs too, now we know who they are */
     });
 
     /* Google's token lasts an hour. Five minutes before it runs out the page asks Google for a new

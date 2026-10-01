@@ -62,7 +62,8 @@
   <div id="panel" style="display:none">
 
     <p class="intro">Everything here is read live by the hub and the teacher page. Add or change it
-       and it takes effect at once — you never edit the code or redeploy again.</p>
+       and it takes effect at once on the teacher page, and on the hub within a minute — you never edit
+       the code or redeploy again.</p>
 
     <h2 id="sec-links">Links on the teacher page <small>tests, reflections, surveys</small></h2>
     <div class="findbox">
@@ -109,8 +110,8 @@
       </div>
       <div class="msg" id="lMsg"></div>
     </div>
-    <p class="intro">Your links, grouped by the cohort's <b>graduation year</b>: this year's Y10 is <b>2028</b>,
-       next year's Y10 is <b>2029</b> — so the same test for another cohort is another row, and the page always
+    <p class="intro">Your links, grouped by the cohort's <b>graduation year</b>: this year's Y10 is <b id="y10now">2028</b>,
+       next year's Y10 is <b id="y10next">2029</b> — so the same test for another cohort is another row, and the page always
        shows the right year group on its own. <b>Remove</b> takes a link off the page (and 🔎 Find will not add it
        back). Add a link by hand for anything Find cannot see: records, surveys, a colleague's spreadsheet.</p>
     <div class="list" id="linkList"></div>
@@ -147,9 +148,9 @@
 
     <h3>Open a student's tracker <span id="trackerState" class="pill off">off</span></h3>
     <p class="intro">Paste the <b>web app URL</b> of any one of your reflection deployments (they all
-       show the same tracker). The page then grows a <b>Students</b> tab where you pick a pupil and
-       open their own reflection tracker — scores, weak topics, what to revise. Leave it empty and
-       there is no Students tab.</p>
+       show the same tracker). The page's <b>Students</b> tab then opens each pupil's own reflection
+       tracker — scores, weak topics, what to revise. Leave it empty and the Students tab still lists
+       every pupil, but has no Copy or Open tracker buttons.</p>
     <div class="row">
       <label style="flex:1 1 320px"><span>Reflection web app URL (ends <code>/exec</code>)</span>
         <input id="trackerUrl" type="url" placeholder="https://script.google.com/…/exec"></label>
@@ -164,7 +165,8 @@
        address is wrong. It is read
        only to fetch the published list of each lab's stations — their names and how many questions
        each asks — which is what lets you pick parts of a lab to set as homework. No student data
-       goes near it. Leave it empty and the Set homework page explains that it needs this.</p>
+       goes near it. Leave it empty and the Set homework tab says it needs this (Bio English sets can
+       still be set).</p>
     <div class="row">
       <label style="flex:1 1 320px">Hub address
         <input id="hubUrl" type="url" placeholder="https://nlcsbiology.com/biology-hub"></label>
@@ -200,6 +202,8 @@
     $('loading').style.display='none';
     $('panel').style.display='';
     $('owner').textContent = d.owner || 'you';
+    // this school year's Y10, worked out by the script, so the example never goes out of date
+    if (d.y10 > 2000) { $('y10now').textContent = d.y10; $('y10next').textContent = d.y10 + 1; }
 
     var live = d.pageLive;
     $('pageState').textContent = live ? 'on' : 'off';
@@ -224,8 +228,8 @@
       wf.map(function(f){ return esc(f.name || 'a folder') + ' <button class="x" data-unwatch="'+esc(f.id)+'" aria-label="Stop looking in '+esc(f.name || 'this folder')+'">✕</button>'; }).join(' · ') : '';
 
     // "Set up once": a one-line state, opened by itself when something there is off
-    var off = [!live && 'the page address', !tLive && 'the Students tab', !hLive && 'Set homework'].filter(Boolean);
-    $('setupSum').textContent = off.length ? 'Not set yet: ' + off.join(', ') + '.' : 'All three are set: the page address, the Students tab and Set homework.';
+    var off = [!live && 'the page address', !tLive && 'the tracker address (Students tab)', !hLive && 'the hub address (Set homework)'].filter(Boolean);
+    $('setupSum').textContent = off.length ? 'Not set yet: ' + off.join(', ') + '.' : 'All three are set: the page address, the tracker address and the hub address.';
     if (!setupSeen) {
       setupSeen = true; openSetup(off.length > 0 || window.TP_START === 'setup');
       if (window.TP_START === 'setup') setTimeout(function(){ $('sec-teachers').scrollIntoView(); }, 0);   // once the lists below are drawn

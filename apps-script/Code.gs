@@ -25,10 +25,13 @@
  *   2. From that Sheet: Extensions ▸ Apps Script. Delete what is there, paste this file in.
  *      You do NOT need to paste any id: the script is inside the Sheet, so it works out
  *      which one it is the first time you run it, and remembers.
- *      Then + (next to Files) ▸ HTML ▸ name it exactly  ClassroomImport
- *      and paste apps-script/ClassroomImport.html into it. Save.
- *      (For the teacher page, add a second HTML file named exactly  TeacherPage
- *       with apps-script/TeacherPage.html — only needed if you use the teacher page.)
+ *   3. Three HTML files: + (next to Files) ▸ HTML, three times, each named exactly as below,
+ *      and paste in the file of the same name from apps-script/. Save.
+ *        ClassroomImport   the window that imports your classes (🎓 in the menu)
+ *        Teacher           the teacher page: Spreadsheets, Lab progress, Bio English,
+ *                          Students, Set homework
+ *        TeacherPage       the window behind 🔗 Add or remove links on the teacher page
+ *                          and 👥 Teacher page: teachers and addresses
  *   4. Services (+) ▸ Classroom ▸ Add.        (needed for the roster import)
  *   5. Run ▸ setup. Authorise when asked. It builds and styles every tab.
  *   6. Deploy ▸ New deployment ▸ Web app
@@ -36,9 +39,12 @@
  *        Who has access:  Anyone
  *      Deploy, copy the /exec URL, and paste it into each lab's js/config.js
  *      as submitUrl. One URL, all labs.
+ *      The teacher page is a SECOND deployment of the same code, with
+ *        Who has access:  Anyone within your school
+ *      — give its /exec address to 👥 Teacher page: teachers and addresses.
  *
  * AFTER ANY EDIT to this file: Deploy ▸ Manage deployments ▸ pencil ▸
- * Version: New version ▸ Deploy. Editing alone changes nothing.
+ * Version: New version ▸ Deploy, on each of the two deployments. Editing alone changes nothing.
  */
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -58,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '28 Sep 2026 — Your reflection on the hub';
+var SCRIPT_EDITION = '1 Oct 2026 (afternoon) — the set-up check names the reflection’s new 🔗 Rebuild 🔗 Links tab… item';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -81,10 +87,11 @@ var TEACHERS          = '';
 var TEACHER_PAGE_URL  = '';
 
 /* Open-a-student's-tracker — optional. TRACKER_APP_URL is the /exec address of ANY one of the
-   reflection deployments (they all show the same collated tracker). With it set, the teacher page
-   grows a "Students" tab: pick a pupil, click, and their own reflection tracker opens — the same
-   page they see, which only their teachers may open for them. You do not have to edit this by hand:
-   🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses manages it too. Empty = no Students tab. */
+   reflection deployments (they all show the same collated tracker). The teacher page's "Students"
+   tab uses it: pick a pupil, click, and their own reflection tracker opens — the same page they
+   see, which only their teachers may open for them. You do not have to edit this by hand:
+   🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses manages it too. Empty = the Students tab
+   still lists every pupil, but says the address is missing and has no Copy or Open tracker buttons. */
 var TRACKER_APP_URL   = '';
 
 /* Set homework — optional. HUB_URL is the address of your hub site — the address that serves its
@@ -93,7 +100,8 @@ var TRACKER_APP_URL   = '';
    <that address>/js/data/labs.json in a browser: if it does not load, the address is wrong.
    It is read ONLY to fetch the public station list
    (js/data/stations.json: station names and question counts, nothing personal), which is what lets
-   a teacher pick parts of a lab to set. Empty = the Set homework page explains it needs this. */
+   a teacher pick parts of a lab to set. Empty = the Set homework tab says it needs this (Bio English sets can
+   still be set). */
 var HUB_URL           = '';
 
 /* ---- The reflection record (optional) -------------------------------------
@@ -134,18 +142,27 @@ var HUB_URL           = '';
    -------------------------------------------------------------------------- */
 
 /* ---- The teacher page (optional) ------------------------------------------
-   A page for teachers only, holding the address of every spreadsheet in the Assessment
-   Reflection System — each assessment's own, the test copies, the tracker. On the Biology Hub a
-   teacher in teacher mode reaches it through the door where a student finds "My assessments".
+   A page for teachers only (Teacher.html), with five tabs:
+     Spreadsheets   the address of every assessment spreadsheet — reflections, tests, surveys, the
+                    tracker — from the "🔗 Teacher links" tab of this spreadsheet
+     Lab progress   every pupil's marks in every built lab
+     Bio English    every pupil's progress through the Bio English Lab sets
+     Students       the roster (names, classes, school addresses), with a way into each pupil's
+                    own reflection tracker
+     Set homework   the homework set, and how far each pupil has got with it
+   So it shows the roster and the marks, not only links. On the Biology Hub a teacher in teacher
+   mode reaches it through the door where a student finds "My assessments".
 
    It is guarded twice, and neither guard is anything in the public website:
-     1. Google. The page is served by a SECOND deployment of this script, whose access is
-        "Anyone within" your school, so Google signs the visitor in with their school account
-        before a line of this script runs. A sign-in copied out of a web page is no use there:
-        what opens it is Google's own sign-in, which no page can read.
-     2. This script. It asks Google who is visiting and shows the links only to an address on
-        TEACHERS below — and to you, the owner, always. Everybody else, pupils and other staff
-        alike, is told who the page is for and sees nothing more.
+     1. Google. The page is meant to be opened through a SECOND deployment of this script, whose
+        access is "Anyone within" your school, so Google signs the visitor in with their school
+        account before a line of this script runs. A sign-in copied out of a web page is no use
+        there: what opens it is Google's own sign-in, which no page can read. (doGet serves the page
+        on the public labs deployment too, and there this first guard does not apply.)
+     2. This script, on either deployment. It asks Google who is visiting and shows the page only to
+        a teacher on the list (👩‍🏫 Teachers, or TEACHERS below) — and to you, the owner, always.
+        Everybody else, pupils and other staff alike, is told who the page is for and sees nothing
+        more, and every read and write the page makes checks again (_hwCaller_).
    The links live in a tab of THIS spreadsheet, "🔗 Teacher links", so only the people you have
    shared this spreadsheet with can see or change them.
 
@@ -154,16 +171,17 @@ var HUB_URL           = '';
      TEACHER_PAGE_URL  the /exec address of that second deployment. The hub is handed it only when
                        a signed-in teacher on the list asks; it is never written into the website.
 
-   🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page makes the tab and walks through the rest. Like
-   TRACKER_ID, a value typed in SETTINGS at the top is kept in Script Properties, and neither belongs in the
-   public GitHub copy.
+   🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page makes the tabs, and 👥 Teacher page: teachers and
+   addresses sets the rest. Like TRACKER_ID, a value typed in SETTINGS at the top is kept in Script Properties,
+   and neither belongs in the public GitHub copy.
    -------------------------------------------------------------------------- */
 
-/* Every lab that saves here. `id` is what the site sends as `app`; `tab` is the
-   tab it is written to. Add a row here (or in the Labs tab) as each lab is built.
+/* Every lab that saves here, one per topic. `id` is what the site sends as `app`; `name` is the
+   tab it is written to. The Labs tab shows exactly these rows: every Tidy up writes it afresh from this list.
    `questions` MUST match what the lab actually asks — it flags a save as NOT ALL
-   QUESTIONS, so a number that is too low flags every save. The counts are
-   kept in labs-shared/labs.json, written by each lab's own build. */
+   QUESTIONS, so a number that is too low flags every save. 0 means the lab is not built yet: its
+   Students column is styled "not built yet", and 🩺 Check the set-up does not count it as built.
+   The counts are kept in labs-shared/labs.json, written by each lab's own build. */
 var LABS = [
   { id:'classification-lab',  name:'Classification',   topic:'1 · Characteristics and classification', questions:64 },
   { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:0 },
@@ -229,8 +247,8 @@ var LAB_FIRST = 19;
 var LAB_BEST  = 20;
 
 /* ---- Signing in ----------------------------------------------------------
-   The labs are public web pages: anyone in the world can open one, work through it and
-   work through it. That is the point — but their work must not land in your spreadsheet.
+   The labs are public web pages: anyone in the world can open one and work through it.
+   That is the point — but their work must not land in your spreadsheet.
    So work is kept only when the Google account that signed in is on your Students tab.
    Everyone else's stays in their own browser and nothing is written down.
 
@@ -249,7 +267,7 @@ var LAB_BEST  = 20;
        (no path, no trailing slash. Leave redirect URIs empty.)
      Create, then copy the Client ID (it ends .apps.googleusercontent.com) into BOTH
      places: SETTINGS at the top, and googleClientId in every lab's js/config.js.
-     The full version of this is in the README, under "Sign-in: what the Client ID is".
+     The full version of this is in the hub's README, under "Step 3 · Switch on sign-in".
 
    Leave it empty and nothing is recorded at all — the labs still work, and every
    student's work stays in their own browser.
@@ -563,7 +581,6 @@ function _plain_(v) {
   return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
 }
 
-/* Junk, and anything that does not verify, lands here instead of in a lab's tab. */
 /* Who is this? Google signed the token; we ask Google to check its own signature. The
    answer is cached briefly so two saves in a row do not ask twice. Anything we cannot
    stand behind comes back null. */
@@ -636,6 +653,9 @@ function _studentOf_(email) {
   return null;
 }
 
+/* A save from a pupil on the roster whose numbers do not add up (a score above the total, an impossible
+   total) lands here, with the reason, instead of in a lab's tab. A save that is not signed in, or from
+   somebody not on the roster, is not written anywhere. */
 function _reject_(lab, row) {
   var ss = _ss_(), sh = ss.getSheetByName(T_REJECTED);
   if (!sh) {
@@ -663,7 +683,7 @@ function _reject_(lab, row) {
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
   var page = e && e.parameter ? String(e.parameter.page || '') : '';
-  /* All four teacher views are ONE page now: the tabs swap in the browser instead of loading a
+  /* All five teacher views are ONE page now: the tabs swap in the browser instead of loading a
      new document, so nothing flickers, the header never moves, and no link ever tries to open
      script.google.com inside the sandbox frame. The old ?page= values still work — each simply
      decides which tab opens first, so every bookmark and the hub's own door keep working. */
@@ -701,7 +721,7 @@ function showClassroomImport() {
 }
 
 function getBatchImportData() {
-  if (!_isAdminCaller_()) return { courses: [], have: {} };   /* google.script.run reaches ANY function without a trailing underscore */
+  if (!_isAdminCaller_()) return { courses: [], have: {}, refused: true };   /* google.script.run reaches ANY function without a trailing underscore; the window says who may import */
   _needClassroom_();
   var courses = [], page = null;
   do {
@@ -829,69 +849,7 @@ function _guessClass_(s) {
   return '';
 }
 
-/* ============================================================
-   4. Marks into Google Classroom
-   Classroom only lets a script grade work that the same script created, so the
-   assignment has to be made from here. One per lab; the id is kept in Labs.
-   ============================================================ */
-function createAssignmentFor_(labId, courseId) {
-  _needClassroom_();
-  var lab = _labById_(labId);
-  if (!lab) throw new Error('Unknown lab: ' + labId);
-  var work = Classroom.Courses.CourseWork.create({
-    title: lab.name + ' Lab — Topic ' + lab.topic.split(' ')[0],
-    description: 'Work through every station in the lab. Signed in, your work is saved as you go.',
-    materials: [{ link: { url: 'https://nlcsbiology.com/' + lab.id + '/' } }],
-    workType: 'ASSIGNMENT', state: 'PUBLISHED',
-    maxPoints: lab.questions || 100
-  }, courseId);
-  Logger.log('Created "' + work.title + '" in course ' + courseId + ' — id ' + work.id);
-  return work.id;
-}
-
-function pushGradesFor_(labId, courseId, courseWorkId) {
-  _needClassroom_();
-  var lab = _labById_(labId);
-  if (!lab) throw new Error('Unknown lab: ' + labId);
-  var sh = _ss_().getSheetByName(lab.name);
-  if (!sh || sh.getLastRow() < 2) throw new Error('Nothing in the ' + lab.name + ' tab yet.');
-
-  /* Match on school email — the same thing the work was recorded against — and fall
-     back to the name only for anyone Classroom gives no email for. */
-  var byEmail = {}, byName = {}, page = null;
-  do {
-    var r = Classroom.Courses.Students.list(courseId, { pageSize: 100, pageToken: page });
-    (r.students || []).forEach(function (s) {
-      var em = _cleanEmail_((s.profile || {}).emailAddress);
-      if (em) byEmail[em] = s.userId;
-      byName[_tidy_(s.profile.name.fullName)] = s.userId;
-    });
-    page = r.nextPageToken;
-  } while (page);
-
-  var rows = _labRows_(sh, 2, sh.getLastRow() - 1);
-  var done = 0, missing = [], waiting = 0;
-  rows.forEach(function (row) {
-    var score = row[2];
-    if (score === '' || score === null) { waiting++; return; }   /* nothing saved yet */
-    var name = String(row[0] || ''), email = _cleanEmail_(row[LAB_EMAIL - 1]);
-    var uid = byEmail[email] || byName[_tidy_(name)];
-    if (!uid) { missing.push(name); return; }
-    var subs = Classroom.Courses.CourseWork.StudentSubmissions.list(courseId, courseWorkId, { userId: uid });
-    var sub = (subs.studentSubmissions || [])[0];
-    if (!sub) { missing.push(name + ' (no submission)'); return; }
-    Classroom.Courses.CourseWork.StudentSubmissions.patch(
-      { assignedGrade: Number(score), draftGrade: Number(score) },
-      courseId, courseWorkId, sub.id, { updateMask: 'assignedGrade,draftGrade' });
-    done++;
-  });
-  var said = 'Graded ' + done + '. Nothing saved yet: ' + waiting +
-             '. Not matched: ' + (missing.join(', ') || 'none');
-  Logger.log(said);
-  return said;
-}
-
-/* Tells you, in one box, which of the five set-up steps are done. */
+/* Tells you, in one box, which parts of the set-up are done, and what each optional part still needs. */
 function checkSetup() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
   var lines = [], id = '', src = '';
@@ -926,45 +884,44 @@ function checkSetup() {
                'none has been remembered, so NOTHING is being recorded, however green ' +
                'everything above is. Every save comes back “not recorded: sign-in is not ' +
                'set up”. Type it into the CLIENT_ID line once and run this again; from then ' +
-               'on pasting a fresh copy of the script cannot lose it. See “Sign-in: what the ' +
-               'Client ID is” in the README.');
+               'on pasting a fresh copy of the script cannot lose it. See “Step 3 · Switch on ' +
+               'sign-in” in the hub’s README.');
   } else if (!/\.apps\.googleusercontent\.com$/.test(cid)) {
     lines.push('❌  CLIENT_ID does not look like a Client ID — it should end ' +
                '.apps.googleusercontent.com. This looks like something else was pasted in.');
   } else {
     lines.push('✅  sign-in is set up (…' + cid.slice(-32) + ')' +
                (CLIENT_ID ? '' : ' — remembered from an earlier paste, the line above is empty'));
-    lines.push('•  the SAME id must also be googleClientId in every lab\'s js/config.js, or ' +
-               'that lab can never record anything.');
+    lines.push('•  the SAME id must also be googleClientId in every lab\'s js/config.js (Bio English Lab\'s too) ' +
+               'and in the hub\'s js/local.js, or that page can never record or read anything.');
   }
 
   if (openOk) {
     lines.push('•  students imported: ' + Math.max(0, _sheet_(T_STUDENTS).getLastRow() - 1));
-    var built = LABS.filter(function (l) { return _ss_().getSheetByName(l.name); }).length;
-    lines.push('•  lab tabs so far: ' + built + ' of ' + LABS.length);
+    /* built = live: its questions are counted in LABS. Every lab has a tab from the first Tidy up, so counting tabs
+       always said 20 of 20 (labs-script-025, 1 Oct 2026). */
+    var built = LABS.filter(function (l) { return (l.questions || 0) > 0; }).length;
+    lines.push('•  labs built so far: ' + built + ' of ' + LABS.length +
+               (built < LABS.length ? ' (the others already have a tab and a Students column, empty until the lab is built)' : ''));
   }
 
-  /* The record card on the hub. Optional, so silence here is not a fault — but if it IS
-     filled in, it is worth proving the workbook opens and the cohort tabs are there,
-     because the card's own way of failing is a quiet "could not check just now" that says
-     nothing about which of the two is wrong. */
   /* The two newer addresses. Both are typed by hand, both are easy to confuse with a spreadsheet
-     link, and both fail SILENTLY when wrong — the page simply does not appear — so say so here. */
+     link, and both fail quietly when wrong — the tab that needs one only says it is missing — so say so here. */
   var rawTracker = String(_keptSetting_(TRACKER_APP_URL, 'TRACKER_APP_URL') || '').trim();
   if (!rawTracker) {
-    lines.push('•  the Students tab is off. TRACKER_APP_URL is empty. It wants the /exec address of ' +
+    lines.push('•  the Students tab cannot open trackers yet: TRACKER_APP_URL is empty. It wants the /exec address of ' +
                'one of your REFLECTION deployments — not a spreadsheet link.');
   } else if (!_trackerAppUrl_()) {
-    lines.push('❌  TRACKER_APP_URL is not a web-app address, so the Students tab will not appear. ' +
+    lines.push('❌  TRACKER_APP_URL is not a web-app address, so the Students tab cannot open trackers. ' +
                'It must be the reflection system\u2019s /exec address (https://script.google.com/…/exec). ' +
                'What is there now starts "' + rawTracker.slice(0, 44) + '…" — that looks like a ' +
                'spreadsheet, which is TRACKER_ID\u2019s job, not this one.');
   } else {
-    lines.push('✅  the Students tab is on.');
+    lines.push('✅  the Students tab can open each pupil’s tracker.');
   }
   var rawHub = String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim();
   if (!rawHub) {
-    lines.push('•  Set homework is off. HUB_URL is empty; it wants your hub\u2019s address, usually a ' +
+    lines.push('•  Set homework cannot list the labs’ stations yet (Bio English sets still work): HUB_URL is empty; it wants your hub\u2019s address, usually a ' +
                'sub-folder such as https://…/biology-hub');
   } else {
     var manOk = false;
@@ -976,6 +933,10 @@ function checkSetup() {
         'site usually sits in a sub-folder), or the site has not been published since the list was built.');
   }
 
+  /* The record card on the hub. Optional, so silence here is not a fault — but if it IS
+     filled in, it is worth proving the workbook opens and the cohort tabs are there,
+     because the card's own way of failing is a quiet "could not check just now" that says
+     nothing about which of the two is wrong. */
   var tid = _trackerId_();
   if (!tid) {
     lines.push('•  the record card on the hub is off. To switch it on, type TRACKER_ID and ' +
@@ -1043,7 +1004,7 @@ function checkSetup() {
   lines.push(dailyOn ? '✅  the due-date email goes out every morning'
                      : '•  the due-date email is off. 📬 in this menu switches it on.');
   lines.push('');
-  lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy.');
+  lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy, on each of your deployments.');
 
   SpreadsheetApp.getUi().alert('Biology Labs — set-up', lines.join('\n\n'), SpreadsheetApp.getUi().ButtonSet.OK);
 }
@@ -1058,7 +1019,10 @@ function checkSetup() {
 function _buildAndStyle_() {
   var notes = [];
   _step_('Checking the Setup, Labs and Students tabs…');
-  _sheet_(T_SETUP); _sheet_(T_LABS); _sheet_(T_STUDENTS);
+  _sheet_(T_SETUP);
+  var labsSaid = _labsRows_(_sheet_(T_LABS));        /* written afresh from LABS every time (labs-script-019) */
+  if (labsSaid) notes.push(labsSaid);
+  _sheet_(T_STUDENTS);
   _step_('Repairing the Students tab: repeated, unused and untidy columns…');
   notes = notes.concat(_repairStudentSheet_());     /* repeated, stray and dirty columns first */
   var added = _repairStudentColumns_();             /* a lab added since this sheet was built gets its column */
@@ -1075,7 +1039,7 @@ function _buildAndStyle_() {
   /* Make the teacher-facing tabs exist, rather than waiting for somebody to open the window that
      happens to create them. Tidy up is where a teacher expects the workbook to be put right, and a
      tab that only appears the first time a page is opened looks like it is missing. */
-  _step_('Making the homework and teacher tabs…');
+  _step_('Making the homework, Bio English and teacher tabs…');
   try { _ensureHomeworkTab_(); } catch (e) {}
   try { _englishSheet_(); } catch (e) {}
   try { _ensureTeacherTabs_(); } catch (e) {}
@@ -1085,7 +1049,7 @@ function _buildAndStyle_() {
   _step_('Working out everyone\u2019s progress…');
   refreshDashboard();
   _step_('Putting the tabs in syllabus order…');
-  _orderTabs_();                     /* left to right, topic 1 to topic 21 */
+  _orderTabs_();                     /* the teacher tabs first, then the labs in LABS order */
   return notes;
 }
 
@@ -1110,10 +1074,9 @@ function restyleAll_() {
   /* The tabs added later were never in here, so they never got their date formats, their
      dropdown or their banding: _dress2_ only runs when a tab is FIRST made, and at that moment
      it has no rows to dress. */
-  _step_('Formatting the homework and teacher tabs…');
-  [[T_HOMEWORK, _hwColDefs_(), '#F59E0B'],
-   [T_TEACHERS, null, null],
-   [T_LINKS, null, null]].forEach(function (t) {
+  _step_('Formatting the homework and Bio English tabs…');
+  /* 👩‍🏫 Teachers and 🔗 Teacher links are dressed when they are made (_ensureTeacherTabs_), not here */
+  [[T_HOMEWORK, _hwColDefs_(), '#F59E0B']].forEach(function (t) {
     var sh = _ss_().getSheetByName(t[0]);
     if (!sh || !t[1]) return;
     _dress2_(sh, t[1], { tab: t[2] });
@@ -1139,7 +1102,7 @@ function restyleAll_() {
    (Dashboard convention: a muted base, high contrast reserved for the exception.) */
 var HDR_AUTO = '#14572B';     /* filled in for you */
 var HDR_EDIT = '#8A6A12';     /* yours to change  */
-var HDR_SOON = '#5C8A72';     /* a lab that does not exist yet */
+var HDR_SOON = '#5C8A72';     /* a lab not built yet (questions: 0 in LABS): its Students column waits, empty */
 var BAND_A   = '#FFFFFF';
 var BAND_B   = '#F4F8F5';     /* the faintest green, so banding guides the eye without shouting */
 var RULE     = '#D6E2DA';     /* the line between one group of columns and the next */
@@ -1308,7 +1271,7 @@ function _styleSetup_() {
     ['Biology Labs', 'one spreadsheet for every lab'],
     ['', ''],
     ['Students', 'every student, every lab, best score so far. Filter the Class column to see one class.'],
-    ['Labs', 'one row per lab: how many questions it has, and how many saves it has had.'],
+    ['Labs', 'one row for each lab in the script, written afresh by every Tidy up, with how many saves it has had.'],
     ['Digestion, Circulation, …', 'your class list again, one tab per lab. Every student has a row from the moment you import them; their first save fills it in. Every later save updates the same row and keeps the better score.'],
     ['Rejected', 'a save from one of your students whose numbers did not add up.'],
     ['', ''],
@@ -1326,7 +1289,7 @@ function _styleSetup_() {
     ['Tidy up — rebuild anything missing, re-apply the formatting', ''],
     ['', ''],
     ['If something looks wrong', '🧪 Biology Labs ▸ Check the set-up'],
-    ['After editing the script', 'Deploy ▸ Manage deployments ▸ pencil ▸ Version: New version ▸ Deploy']
+    ['After editing the script', 'Deploy ▸ Manage deployments ▸ pencil ▸ Version: New version ▸ Deploy, on each of your deployments']
   ];
   sh.getRange(1, 1, lines.length, 2).setValues(lines);
   sh.getRange('A1').setFontSize(17).setFontWeight('bold').setFontColor(INK);
@@ -1426,7 +1389,9 @@ function _btnSays_(row, text) {
 function _styleStudents_() {
   var sh = _sheet_(T_STUDENTS);
   var built = {};
-  LABS.forEach(function (l) { built[l.id] = !!_ss_().getSheetByName(l.name); });
+  /* built = live: its questions are counted in LABS, as Lab progress on the teacher page reads it. Every lab has a tab
+     from the first Tidy up, so a tab is no sign of a built lab (labs-script-025, 1 Oct 2026). */
+  LABS.forEach(function (l) { built[l.id] = (l.questions || 0) > 0; });
 
   var cols = [
     { h:'Name', w:210, edit:true,
@@ -1440,7 +1405,8 @@ function _styleStudents_() {
   /* In the order the sheet already has them, not the order LABS happens to be in. A sheet
      built before a lab existed has its own order, and relabelling a column would write one
      lab's heading over another lab's marks. Labs the sheet has never seen go on the end. */
-  _labOrderOnSheet_(sh).forEach(function (l, i) {
+  var order = _labOrderOnSheet_(sh);
+  order.forEach(function (l, i) {
     cols.push({ h:l.name, w:_wide_(l.name, 108), align:'center', fmt:'0%', group: i === 0,
                 head: built[l.id] ? HDR_AUTO : HDR_SOON,
                 note:'Topic ' + l.topic + '.\n\nTheir best score in this lab so far.' +
@@ -1453,8 +1419,8 @@ function _styleStudents_() {
   cols.push({ h:'School email', w:240, hide:true, note:'From Classroom. This is what stops a student being imported twice.' });
   cols.push({ h:'Classroom course', w:230, hide:true, note:'The course they were imported from.' });
   cols.push({ h:'Imported', w:110, fmt:'dd MMM yyyy', hide:true, note:'When they were first imported.' });
-  cols.push({ h:'Classroom user id', w:160, hide:true, note:'Needed to push marks back into Classroom.' });
-  cols.push({ h:'Course id', w:140, hide:true, note:'Needed to push marks back into Classroom.' });
+  cols.push({ h:'Classroom user id', w:160, hide:true, note:'Needed to post homework to Google Classroom (Set homework, on the teacher page).' });
+  cols.push({ h:'Course id', w:140, hide:true, note:'Needed to post homework to Google Classroom (Set homework, on the teacher page).' });
 
   var rows = _dress2_(sh, cols, { freezeCols: 2, tab:'#14572B' });
   if (!rows) return;
@@ -1467,7 +1433,9 @@ function _styleStudents_() {
       .setGradientMaxpointWithValue(HIGH, SpreadsheetApp.InterpolationType.NUMBER, '1')
       .setRanges([sh.getRange(2, first, rows, L), sh.getRange(2, first + L + 1, rows, 1)]).build()
   ];
-  LABS.forEach(function (l, i) {
+  /* the grey of a lab not built yet goes on THAT lab's column: the headings above are in the sheet's order, which can
+     differ from LABS' (labs-script-006) */
+  order.forEach(function (l, i) {
     if (built[l.id]) return;
     rules.push(SpreadsheetApp.newConditionalFormatRule().whenCellEmpty()
       .setBackground('#F2F2EF').setRanges([sh.getRange(2, first + i, rows, 1)]).build());
@@ -1475,12 +1443,9 @@ function _styleStudents_() {
   sh.setConditionalFormatRules(rules);
 }
 
-/* The dashboard: every student, every lab, best score so far. Written as values rather than
-   formulas, so nothing shows #REF for a lab that has no tab yet — the column is simply empty
-   until that lab is used. */
-/* The dashboard: every student, every lab, best score so far. Read straight out of each
-   lab's tab, which now holds one row per student — so a name is matched by email, not by
-   how it was typed. */
+/* The dashboard: every student, every lab, best score so far. Read straight out of each lab's tab, which
+   holds one row per student — so a name is matched by email, not by how it was typed — and written as
+   values rather than formulas, so a lab nobody has used simply leaves its column empty. */
 function refreshDashboard() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
   var sh = _sheet_(T_STUDENTS);
@@ -1492,7 +1457,7 @@ function refreshDashboard() {
   var rowOf = {};
   emails.forEach(function (r, i) { var e = _cleanEmail_(r[0]); if (e) rowOf[e] = i; });
 
-  var L = LABS.length, first = 3;
+  var L = LABS.length;
   var grid = emails.map(function () { var a = []; for (var i = 0; i < L + 2; i++) a.push(''); return a; });
 
   LABS.forEach(function (lab, c) {
@@ -1515,22 +1480,124 @@ function refreshDashboard() {
     row[L + 1] = done ? sum / done : '';
   });
 
-  sh.getRange(2, first, rows, L + 2).setValues(grid);
+  /* labs-script-006 (30 Sep 2026) — each figure goes under ITS OWN heading, found by name, never by where the lab sits
+     in LABS. The sheet keeps its lab columns in the order they were made (_labOrderOnSheet_), and a lab added to LABS
+     later gets a column at the END of the labs (_repairStudentColumns_), so the two orders can part: written by LABS
+     position, Plants (put in the middle of LABS on 8 Sep) showed under Inheritance, and every lab after it one heading
+     to the right. A lab with no column yet (Tidy up adds one) is left out, never written over its neighbour; its work
+     still counts in Labs started and Average. */
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+               .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); });
+  var put = [];                                     /* [sheet column, place in a grid row] */
+  LABS.map(function (l) { return l.name; }).concat(['Labs started', 'Average']).forEach(function (name, k) {
+    var at = head.indexOf(name);
+    if (at >= 0) put.push([at + 1, k]);
+  });
+  put.sort(function (a, b) { return a[0] - b[0]; });
+  /* one write per run of neighbouring columns: a single write on a sheet laid out as Tidy up lays it out */
+  for (var lo = 0; lo < put.length; ) {
+    var hi = lo;
+    while (hi + 1 < put.length && put[hi + 1][0] === put[hi][0] + 1) hi++;
+    var a0 = lo, a1 = hi;
+    sh.getRange(2, put[lo][0], rows, hi - lo + 1).setValues(grid.map(function (row) {
+      var out = []; for (var j = a0; j <= a1; j++) out.push(row[put[j][1]]); return out;
+    }));
+    lo = hi + 1;
+  }
   _styleStudents_();
   SpreadsheetApp.getActive().toast('Progress updated for ' + rows + ' students.', 'Biology Labs', 5);
 }
 
 
 function _styleLabs_() {
-  var sh = _sheet_(T_LABS);
-  _dress2_(sh, [
-    { h:'Lab id', w:170, note:'What the lab\'s own page sends. Do not change it — it has to match js/config.js in that lab.' },
+  _dress2_(_sheet_(T_LABS), [
+    { h:'Lab id', w:170, note:'What the lab\'s own page sends, from the script\'s own list of labs. Tidy up writes this tab afresh, so a change typed here does not last.' },
     { h:'Lab', w:130, note:'The name of this lab\'s tab in this spreadsheet.' },
     { h:'Topic', w:200, note:'Which IGCSE topic it covers.' },
-    { h:'Questions', w:100, align:'center', fmt:'0', edit:true,
-      note:'How many questions that lab has. Used to flag a save that does not cover them all. Fill it in when a lab is built.' },
     { h:'Saves', w:100, align:'center', fmt:'0', note:'How many saves that lab has had. Counted for you.' }
   ], { freezeCols: 2, tab:'#6E8F7C' });
+}
+
+/* "Saves" on the Labs tab (labs-script-007, 30 Sep 2026): each lab tab's own Saves column (J), added up. It used to
+   count the Class column, which every pupil has from the moment they are imported, so it showed the size of the
+   roster. The formula is the script's ("Counted for you"): _labsRows_ writes it into every lab's row. */
+function _labsSaves_(row) {
+  return '=IFERROR(SUM(INDIRECT("\'"&B' + row + '&"\'!J2:J")),0)';
+}
+/* The Labs tab, written afresh from LABS by every Tidy up (labs-script-019; Daniel's choice, 1 Oct 2026): one row
+   per lab, in LABS order, so a lab the script no longer has (Plant nutrition and Plant transport, before plants-lab)
+   goes, and a new lab gets its row. The old Questions column goes too: nothing read it (a save is checked against
+   LABS). A column of the teacher's own (any other heading, or notes typed under none) is kept, as _labColsReady_ keeps
+   one on a lab tab: it stays to the right of ours, and each of its cells stays with its lab (found by Lab id, else by
+   Lab). A row of a lab the script no longer has is kept only while the teacher's own columns hold something on it.
+   Returns a line for Tidy up's message, or ''. */
+var LABS_TAB_COLS = ['Lab id', 'Lab', 'Topic', 'Saves'];
+function _labsRows_(sh) {
+  /* a heading read as its letters only, so "✎ Questions" is still the old Questions column */
+  var norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/[^a-z]/g, ''); };
+  var typed = function (v) { return String(v == null ? '' : v).trim() !== ''; };
+  var ours = LABS_TAB_COLS.map(norm), said = [];
+  /* The Questions column goes as a whole column, so a column of the teacher's to its right moves left with its own
+     width, colours and notes. */
+  var lastC = sh.getLastColumn();
+  if (lastC > 0) {
+    var h0 = sh.getRange(1, 1, 1, lastC).getValues()[0];
+    for (var q = h0.length - 1; q >= 0; q--) {
+      if (norm(h0[q]) !== 'questions') continue;
+      sh.deleteColumn(q + 1);
+      if (!said.length) said.push('the Questions column went (nothing read it)');
+    }
+  }
+  var lastR = sh.getLastRow(), vals = [], forms = [];
+  lastC = sh.getLastColumn();
+  if (lastR > 0 && lastC > 0) {
+    var all = sh.getRange(1, 1, lastR, lastC);
+    vals = all.getValues();
+    forms = all.getFormulas();
+  }
+  /* a cell as the teacher left it: its formula if it has one, else its value (text that looks like a formula is
+     written back as text, through _plain_) */
+  var cell = function (r, c) {
+    if (forms[r] && forms[r][c]) return forms[r][c];
+    return typeof vals[r][c] === 'string' ? _plain_(vals[r][c]) : vals[r][c];
+  };
+  /* ours by heading (the first of each); any other column with something in it is the teacher's */
+  var at = {}, own = [];
+  (vals[0] || []).forEach(function (h, c) {
+    var k = norm(h);
+    if (ours.indexOf(k) >= 0 && at[k] === undefined) { at[k] = c; return; }
+    for (var r = 0; r < vals.length; r++) if (typed(cell(r, c))) { own.push(c); return; }
+  });
+  var text = function (r, k) { return at[k] === undefined ? '' : String(vals[r][at[k]] == null ? '' : vals[r][at[k]]).trim(); };
+  var theirs = function (r) { return own.map(function (c) { return r > 0 ? cell(r, c) : ''; }); };
+  var used = {};
+  var rows = LABS.map(function (l, i) {
+    var from = -1;
+    for (var r = 1; r < vals.length && from < 0; r++) {
+      if (used[r]) continue;
+      if (text(r, 'labid') === l.id || (text(r, 'lab') !== '' && text(r, 'lab') === l.name)) { used[r] = 1; from = r; }
+    }
+    return [l.id, l.name, l.topic, _labsSaves_(i + 2)].concat(theirs(from));
+  });
+  var gone = [], kept = [];
+  for (var r = 1; r < vals.length; r++) {
+    if (used[r]) continue;
+    var label = text(r, 'lab') || text(r, 'labid');
+    if (!own.some(function (c) { return typed(cell(r, c)); })) { if (label) gone.push(label); continue; }
+    kept.push(label || 'a row with no lab');
+    rows.push([text(r, 'labid'), text(r, 'lab'), text(r, 'topic'), ''].concat(theirs(r)));
+  }
+  if (gone.length) said.push('removed ' + gone.join(', ') + ', which the script no longer has');
+  if (kept.length) said.push('kept ' + kept.join(', ') + ', which the script no longer has, because you typed on ' +
+                             (kept.length === 1 ? 'its row: delete it' : 'their rows: delete them') + ' when you are done');
+  var out = [LABS_TAB_COLS.concat(own.map(function (c) { return cell(0, c); }))].concat(rows);
+  var width = out[0].length;
+  if (sh.getMaxColumns() < width) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
+  _room_(sh, out.length);
+  if (lastR > 0 && lastC > 0) sh.getRange(1, 1, lastR, lastC).clearContent();
+  sh.getRange(1, 1, out.length, width).setValues(out);
+  if (lastR > out.length) sh.deleteRows(out.length + 1, lastR - out.length);
+  return said.length ? 'Labs tab: ' + said.join('; ') + '.' : '';
 }
 
 function _styleLab_(sh) {
@@ -1594,12 +1661,7 @@ function _sheet_(name) {
   if (sh) return sh;
   sh = ss.insertSheet(name);
   if (name === T_LABS) {
-    sh.getRange(1, 1, 1, 5).setValues([['Lab id', 'Lab', 'Topic', 'Questions', 'Saves']]);
-    var rows = LABS.map(function (l, i) {
-      return [l.id, l.name, l.topic, l.questions || '',
-              '=IFERROR(COUNTA(INDIRECT("\'"&B' + (i + 2) + '&"\'!B2:B")),0)'];
-    });
-    sh.getRange(2, 1, rows.length, 5).setValues(rows);
+    _labsRows_(sh);                                  /* one row per lab in LABS: _labsRows_ is this tab's one writer */
   } else if (name === T_STUDENTS) {
     var head = ['Name', 'Class'].concat(LABS.map(function (l) { return l.name; }))
                .concat(['Labs started', 'Average', 'School email', 'Classroom course',
@@ -1681,7 +1743,7 @@ function _repairStudentSheet_() {
   if (strays.length) dropEmpty(strays, 'unrecognised');
 
   /* 3. an address carries whatever was pasted with it, and a save is matched on the address.
-        A trailing space is invisible and loses every mark that student ever hands in. */
+        A trailing space is invisible and loses every mark that student ever saves. */
   head = heads();
   var ec = head.indexOf('School email') + 1, rows = rowCount(), fixed = 0;
   if (ec > 0 && rows > 0) {
@@ -1749,14 +1811,6 @@ function _repairLabEmails_() {
           (tabs === 1 ? '' : 's') + ' had spaces or hidden characters around them. Cleaned.'];
 }
 
-/* Where the school email actually is on the Students tab.
-   It used to be worked out as 3 + LABS.length + 2 — Name, Class, one column per lab, then
-   Labs started and Average. That is right for a sheet built by THIS version of the script,
-   and wrong for one built before a lab was added: the sheet still has the old number of lab
-   columns, so the count points a column too far and nobody is found on the roster. Every
-   save then comes back "not on this class list", with nothing to say why.
-   So: read the heading row and find it. Falls back to the old arithmetic only if the sheet
-   has no heading yet. */
 /* The labs in the order this sheet already lists them, then any it has not seen. */
 function _labOrderOnSheet_(sh) {
   var out = [], seen = {}, n = sh.getLastColumn();
@@ -1781,6 +1835,14 @@ function _room_(sh, needRow) {
   return sh;
 }
 
+/* Where the school email actually is on the Students tab.
+   It used to be worked out as 3 + LABS.length + 2 — Name, Class, one column per lab, then
+   Labs started and Average. That is right for a sheet built by THIS version of the script,
+   and wrong for one built before a lab was added: the sheet still has the old number of lab
+   columns, so the count points a column too far and nobody is found on the roster. Every
+   save then comes back "not on this class list", with nothing to say why.
+   So: read the heading row and find it. Falls back to the old arithmetic only if the sheet
+   has no heading yet. */
 function _emailCol_(sh) {
   var n = sh.getLastColumn();
   if (n > 0) {
@@ -1792,9 +1854,9 @@ function _emailCol_(sh) {
   return 3 + LABS.length + 2;
 }
 
-/* A lab added since the Students tab was built has no column there. Insert one in its proper
-   place so the existing data moves with it, instead of relabelling columns over the top of
-   values that belong to something else. */
+/* A lab added since the Students tab was built has no column there. Insert one at the end of the
+   labs already there, so no existing column moves and no heading is written over values that
+   belong to something else. */
 function _repairStudentColumns_() {
   var sh = _sheet_(T_STUDENTS);
   var n = sh.getLastColumn();
@@ -1803,8 +1865,9 @@ function _repairStudentColumns_() {
                .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); });
   if (head.indexOf('Labs started') < 0 && head.indexOf('School email') < 0) return 0;
   var added = 0;
-  /* In LABS order, so the columns end up in the order the styling expects. Anything else and
-     Tidy up would relabel a lab's column with a different lab's name, over its figures. */
+  /* In LABS order among themselves. The sheet's lab columns can then stand in another order than
+     LABS', and that is fine: _styleStudents_ follows the sheet (_labOrderOnSheet_) and refreshDashboard
+     finds each lab by its heading (labs-script-006). */
   for (var i = 0; i < LABS.length; i++) {
     if (head.indexOf(LABS[i].name) >= 0) continue;
     var at = head.indexOf('Labs started');      /* on the end of the labs already there, so no
@@ -1818,11 +1881,12 @@ function _repairStudentColumns_() {
   return added;
 }
 
-/* Put the tabs in the order of the syllabus: Setup, Labs, Students, then topic 1 to topic 21,
-   then Rejected. A tab is only ever created when a lab is added, so it lands on the end and the
-   order becomes the order labs happened to be built in. This moves them instead of rebuilding
-   anything, so no data is touched. Any tab of your own that is not in this list is left where
-   it is, after the ones that are. */
+/* Put the tabs in order: Setup, Labs, Students, ✍️ Bio English, 📚 Homework, 👩‍🏫 Teachers,
+   🔗 Teacher links, then one tab per lab in LABS order (the syllabus order, except that Plants,
+   topic 6, comes after Reproduction), then Rejected. A new tab lands on the end, so without this
+   the order would be the order the tabs happened to be made in. This moves them instead of
+   rebuilding anything, so no data is touched. Any tab of your own that is not in this list is
+   left where it is, after the ones that are. */
 function _orderTabs_() {
   var ss = _ss_();
   /* the tabs a teacher actually opens sit at the front; the twenty lab tabs are data behind them */
@@ -1893,7 +1957,7 @@ function _colsReady_(sh, cols, from, tag) {
 }
 /* The rows of a lab tab, LAB_COLS wide, whatever the tab's own width: a read past the last column throws,
    and a column the tab does not have yet reads as blank. For the readers that must never write (the pull a
-   student's page makes, grade sync). */
+   student's page makes). */
 function _labRows_(sh, from, n) {
   var w = Math.min(LAB_COLS.length, sh.getMaxColumns());
   return sh.getRange(from, 1, n, w).getValues().map(function (r) {
@@ -1984,7 +2048,6 @@ function _seedLab_(lab, notes) {
   }
   return sh;
 }
-/** "mouth 9/9 in 14 · stomach 8/9 in 21" — readable in one cell. */
 /* Where this student's row is, adding one if they arrived after the last import. */
 function _rowFor_(sh, email, student) {
   var last = sh.getLastRow();
@@ -2001,6 +2064,7 @@ function _rowFor_(sh, email, student) {
   return last + 1;
 }
 
+/** "mouth 9/9 in 14 · stomach 8/9 in 21" — readable in one cell. */
 function _stations_(o) {
   if (!o || typeof o !== 'object') return '';
   var out = [], n = 0;
@@ -2024,8 +2088,6 @@ function _since_(iso) {
   if (mins < 60 * 36) return Math.round(mins / 60) + ' h';
   return Math.round(mins / 1440) + ' days';
 }
-/** Must stay identical to completionCode() in each lab's js/app.js. The lab's own id
-    is part of the recipe, so a code from one lab cannot be pasted into another. */
 /* ============================================================
    5b. Completion codes — retired, September 2026
    ------------------------------------------------------------
@@ -2035,7 +2097,6 @@ function _since_(iso) {
    that a lab saves on its own, the "hand-in that never arrived" it existed for no longer
    happens. The Code column stays, hidden, for the rows that carry old ones.
    ============================================================ */
-function _tidy_(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim(); }
 /* ============================================================
    Giving a student their own scores back
    ------------------------------------------------------------
@@ -2056,7 +2117,8 @@ function _ownProgress_(d) {
   var out = {}, ss;
   try { ss = _ss_(); } catch (err) { return _json_({ ok: false, why: 'no spreadsheet' }); }
   /* answer nothing to anyone who is not on the roster, BEFORE reading a single lab tab */
-  if (!_studentOf_(who.email)) return _json_({ ok: true, labs: {} });
+  var me = _studentOf_(who.email);
+  if (!me) return _json_({ ok: true, labs: {} });
 
   for (var i = 0; i < LABS.length; i++) {
     var lab = LABS[i];
@@ -2093,7 +2155,54 @@ function _ownProgress_(d) {
       break;
     }
   }
-  return _json_({ ok: true, name: who.name || '', labs: out });
+  /* their own homework in the labs, scored as the teacher's page scores it (29 Sep 2026); a page from before ignores it */
+  return _json_({ ok: true, name: who.name || '', labs: out, homework: _ownHomework_(who.email, me.cls) });
+}
+
+/* A pupil's own open homework in the labs, for the lab pages to colour each homework station and say what is left.
+   Each station is scored ON ITS OWN by the teacher's rule, _hwScoreOne_ on the same tabs and manifest the Set homework
+   page reads (so the pupil and the teacher never disagree): done when every question has been answered right, part
+   done when some have, not started when none have. Lab stations only (Bio English Lab lists its own homework, through
+   english.mine); a station the lab no longer has is left out; homework stays until a month past its due date, as on
+   the English site. Read only. Never throws: [] when anything is missing, so homework can never cost a pupil their
+   progress. */
+function _ownHomework_(email, cls) {
+  var out = [];
+  try {
+    if (!email || !_ss_().getSheetByName(T_HOMEWORK)) return out;   /* no tab: nothing set (and none is made here) */
+    var now = Date.now(), MONTH = 28 * 24 * 3600 * 1000, mine = [];
+    _homeworkRows_().forEach(function (hw) {
+      if (!_hwIsFor_(hw, email, cls)) return;
+      var dms = hw.due ? new Date(hw.due).getTime() : 0;
+      if (dms && now - dms > MONTH) return;                         /* a month past its date: off their list */
+      var tasks = hw.tasks.filter(function (t) { return t.labId !== ENGLISH_ID && (t.stationIds || []).length; });
+      if (tasks.length) mine.push({ hw: hw, tasks: tasks });
+    });
+    if (!mine.length) return out;
+    /* the labs' station list only: these are lab stations, so the English list is not needed (its entries are not read) */
+    var m0 = _manifest_(), man = { labs: (m0 && m0.labs) || {} }, ids = [], need = {};
+    need[email] = 1;
+    mine.forEach(function (m) { m.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); }); });
+    var index = _hwLabIndex_(ids, need);
+    mine.forEach(function (m) {
+      var stations = [];
+      m.tasks.forEach(function (t) {
+        var lm = man && man.labs ? man.labs[t.labId] : null, nameOf = {};
+        if (lm) (lm.stations || []).forEach(function (x) { nameOf[x.id] = x.name; });
+        t.stationIds.forEach(function (sid) {
+          var s = _hwScoreOne_({ tasks: [{ labId: t.labId, stationIds: [sid] }] }, email, index, man);
+          if (s.missing.length || !s.total) return;
+          stations.push({ lab: t.labId, id: sid, name: String(nameOf[sid] || sid), done: s.done, total: s.total, state: s.state });
+        });
+      });
+      if (!stations.length) return;
+      var all = _hwScoreOne_({ tasks: m.tasks }, email, index, man);
+      out.push({ id: m.hw.id, title: m.hw.title, due: m.hw.dueText, dueAt: m.hw.due || '', overdue: m.hw.overdue, soon: m.hw.soon,
+                 state: all.state, done: all.done, total: all.total, stations: stations });
+    });
+    out.sort(function (a, b) { return String(a.dueAt || '9').localeCompare(String(b.dueAt || '9')); });
+  } catch (e) { out = []; }
+  return out;
 }
 
 /* ============================================================
@@ -2352,6 +2461,9 @@ function _frontDoorHealth_() {
        done?            TestResponses says submitted, marking, marked or failed
    Each rule below is a copy of the test system's, named after the one it copies. They are
    copies because the hub cannot call across; if the test system changes a rule, change it here.
+   One rule is left out on purpose: the test's §tick-list (its v4.07) keeps a pupil the teacher
+   has not ticked waiting, while this banner still shows them their class's times. Copying it
+   would publish pupils' emails in the ⏰ Hub schedule tab (Daniel's decision, 29 Sep 2026).
 
    Which spreadsheets: every "Test" row of 🔗 Teacher links whose Link is a Google Sheet, for a
    cohort still in school (or no cohort). A sheet without the tab is simply not a test system.
@@ -2508,22 +2620,33 @@ function _readTestSnapshot_(id) {
   var ids = {};
   Object.keys(mirror.versions).forEach(function (k) { if (mirror.versions[k] && mirror.versions[k].id) ids[String(mirror.versions[k].id)] = 1; });
 
-  /* seats — copies getStudentContext: every Marks tab, the ACTIVE test's column positions for all
-     of them; the first class tab that has you wins, and beats "Marks · Test" (where the last hit
-     stands). Class is the cell, or the tab's class when the cell is blank. */
-  var seats = {}, width = Math.max(M.email, M.cls, M.extraTime > 0 ? M.extraTime : 0);
+  /* seats — copies getStudentContext: every Marks tab, each read with ITS OWN version's columns (the test's
+     §version-tabs: a "Marks · 9A · B" tab is laid out for Version B, and T3T4's versions differ in Section B, so
+     Extra time sits in another column on a B or C tab); the first class tab that has you wins, and beats
+     "Marks · Test" (where the last hit stands). Class is the cell, or the tab's class when the cell is blank.
+     The columns come from the ⏰ Hub schedule: `marks.byVersion` gives each version's own (test-169: the Test System
+     publishes it since 30 Sep 2026); a Test System from before then gives only the active test's, and those are
+     used for every tab, exactly as before.
+     §narrow-tab — each tab is read no wider than it is. A class tab left by ANOTHER test can be narrower than this
+     test's Extra time column; reading past it threw, and no pupil of that spreadsheet got the banner or the
+     feedback card (labs-script-004). A column the tab does not have counts as blank: no extra time. */
+  var seats = {}, BV = (M.byVersion && typeof M.byVersion === 'object') ? M.byVersion : {};
   wb.getSheets().forEach(function (sh) {
     var info = _marksTabInfo_(sh.getName(), String(M.prefix || 'Marks · '));
     if (!info) return;
     var last = sh.getLastRow();
     if (last < M.dataStart) return;
+    var own = info.version ? BV[info.version] : null;
+    var C = (own && own.email > 0 && own.cls > 0) ? own : M;
+    var xt = C.extraTime > 0 ? C.extraTime : 0;
+    var width = Math.min(Math.max(C.email, C.cls, xt), sh.getMaxColumns());
     sh.getRange(M.dataStart, 1, last - M.dataStart + 1, width).getValues().forEach(function (r) {
-      var em = String(r[M.email - 1] || '').toLowerCase();
+      var em = String(r[C.email - 1] || '').toLowerCase();
       if (!em) return;
       var prev = seats[em];
       if (prev && !prev.t) return;                                /* a class tab already has them */
-      seats[em] = { c: String(r[M.cls - 1] || '') || info.className, v: info.version,
-                    x: M.extraTime > 0 ? _extraTimePct_(r[M.extraTime - 1]) : 0, t: info.isTest ? 1 : 0 };
+      seats[em] = { c: String(r[C.cls - 1] || '') || info.className, v: info.version,
+                    x: (xt && r.length >= xt) ? _extraTimePct_(r[xt - 1]) : 0, t: info.isTest ? 1 : 0 };
     });
   });
 
@@ -2691,7 +2814,7 @@ function _ms_(s) {
    Daniel: the reflection's link on the hub, "only for the students that are in the different tabs", and a card that
    "should not disappear until they have made a complete submission". A reflection spreadsheet switches itself on in
    ONE tab of the Student Progress Tracker, "📣 Reflections on the hub" (its 🧰 ToolBox ▸ 👥 Classes & rostering ▸
-   Show form link on the Biology Hub…): one row per spreadsheet — its id, the assessment's name, the form's address,
+   📣 Share the form link… → 2, the Biology Hub; until 1 Oct 2026: Show form link on the Biology Hub…): one row per spreadsheet — its id, the assessment's name, the form's address,
    the time zone its script writes times in, and "Showing". For each one showing, this reads that spreadsheet (by
    id, as it reads the tracker) and works out what its FORM would do for this one person, by the form's own rules,
    copied:
@@ -2823,8 +2946,9 @@ function _reflRetryUntil_(val, tz) {
 }
 
 /* copies _parseSheetTimestampMs_ for LiveProgress "Started", read in the reflection script's time zone: a date or a
-   number as it is; text the way V8 reads it — "5/3/2026, 14:23:45" as 3 May, month first when it can be — else
-   day first, as the reflection's fallback does */
+   number as it is; "dd/mm/yyyy, hh:mm:ss" text DAY first, as the reflection reads it since its §40.90 (29 Sep 2026 —
+   it used to take V8's month-first reading, "5/3/2026, 14:23:45" as 3 May, which timed a stuck row wrongly on many
+   days); other text as Date.parse reads it */
 function _reflLooseMs_(v, tz) {
   if (v === null || v === undefined || v === '') return 0;
   if (v instanceof Date) { var t = v.getTime(); return (t && !isNaN(t)) ? t : 0; }
@@ -2833,9 +2957,8 @@ function _reflLooseMs_(v, tz) {
   if (!s) return 0;
   var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (m) {
-    var a = +m[1], b = +m[2];
-    if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return _reflWallMs_(+m[3], a, b, +m[4], +m[5], +(m[6] || 0), tz);
-    return _reflWallMs_(+m[3], b, a, +m[4], +m[5], +(m[6] || 0), tz);
+    var w = _reflWallMs_(+m[3], +m[2], +m[1], +m[4], +m[5], +(m[6] || 0), tz);
+    if (w) return w;
   }
   var n = Date.parse(s);
   return isNaN(n) ? 0 : n;
@@ -2907,10 +3030,12 @@ function _ownReflectCard_(email, teacher, now) {
 /* ============================================================
    The teacher page
    ------------------------------------------------------------
-   What it is and why it is safe is at the top, under "The teacher page". In short: it is served
-   by a deployment Google itself restricts to the school, it shows its links only to a teacher on
-   the list, and all it holds is the rows of the "🔗 Teacher links" tab. A link on it opens only
-   for people that file is shared with: the page lists the spreadsheets, it does not share them.
+   What it is and why it is safe is at the top, under "The teacher page". In short: it is meant for
+   a deployment Google itself restricts to the school, and on any deployment it opens only for a
+   teacher on the list. Besides the rows of the "🔗 Teacher links" tab, its tabs hold the roster
+   (names, classes, school addresses), the lab and Bio English marks, and the homework. A link on
+   it opens only for people that file is shared with: the page lists the spreadsheets, it does not
+   share them.
    ============================================================ */
 var T_LINKS = '🔗 Teacher links';
 var T_TEACHERS = '👩‍🏫 Teachers';
@@ -2996,7 +3121,7 @@ function _setKept_(key, value) {
   catch (e) {}
 }
 
-/* The two tabs the dialog manages. Made on demand, so the dialog works the first time it opens. */
+/* The two tabs the dialog manages. Made on demand, so the dialog works the first time it opens (Tidy up makes them too). */
 function _ensureTeacherTabs_() {
   var ss = _ss_();
   if (!ss.getSheetByName(T_TEACHERS)) {
@@ -3031,7 +3156,7 @@ function _linkColDefs_() {
   return [
     { h:'Type',            w:130, edit:true, note:'What kind of thing this is — Reflection, Test, Survey, Records … Anything you like; the page groups by it.' },
     { h:'Assessment',      w:230, edit:true, note:'What the test, topic or survey is — for example “Topic 7 · Human Nutrition”.' },
-    { h:'Graduation year', w:130, edit:true, note:'The cohort, by the year it graduates — this year’s Y10 is 2028, next year’s Y10 is 2029. The same test for another cohort is another row. Leave blank for something that is not tied to one cohort (a tracker, say).' },
+    { h:'Graduation year', w:130, edit:true, note:'The cohort, by the year it graduates — in 2026–27, Y11 is 2027, Y10 is 2028 and Y9 is 2029. The same test for another cohort is another row. Leave blank for something that is not tied to one cohort (a tracker, say).' },
     { h:'Name',            w:210, edit:true, note:'What the link is called on the page. Left blank, the Assessment is used.' },
     { h:'Link',            w:420, edit:true, note:'The full address, starting https:// — from the spreadsheet or form’s address bar, or Share ▸ Copy link.' },
     { h:'Note',            w:280, edit:true, note:'One line under the name. Optional.' },
@@ -3346,10 +3471,13 @@ function _sheetIdOf_(url) {
    the check, it's added, and that's it, but not constantly" — nothing searches Drive on its own, and a row, once added,
    is never checked again: it is yours to edit or remove. A spreadsheet removed in the window is left out of the next
    Finds (Script Property FIND_SKIP_SHEETS) until "Add back". Records and surveys (Forms run none of this code) are
-   still added by hand. Only a spreadsheet OWNED by the account this script runs as, sitting in a folder of that
-   account's, counts: a look-alike somebody else made and handed over stays in THEIR folder, so a pupil cannot plant a
-   card whose dashboard is their own page (and a dashboard must be an Apps Script address). A copy carries its
-   original's label until it writes its own, so the same card twice is one spreadsheet — the older file. */
+   still added by hand. A labelled spreadsheet counts when it belongs to the account this script runs as or to a
+   teacher on the list AND sits in a folder that belongs to that account, a listed teacher or someone at the school's
+   own domain (_findTrusts_: never a pupil, whose address sits UNDER the domain), or when it sits in a shared-drive
+   folder a teacher chose to watch (FIND_FOLDERS, below). A look-alike a pupil made and handed over stays in THEIR
+   folder, so a pupil cannot plant a card whose dashboard is their own page (and a dashboard must be an Apps Script
+   address). A copy carries its original's label until it writes its own, so the same card twice is one spreadsheet —
+   the older file. */
 var FOUND_KINDS = [{ phrase: 'Biology reflection spreadsheet', type: 'Reflection' },
                    { phrase: 'Biology Test System spreadsheet', type: 'Test' }];
 var FIND_SKIP = 'FIND_SKIP_SHEETS';   /* Script Property: [{id, name}] removed in the window; Find leaves them out */
@@ -3514,6 +3642,14 @@ function teacherFindAgain(id) {
   _setFindSkip_(_findSkip_().filter(function (x) { return x.id !== String(id); }));
   return teacherFindSpreadsheets();
 }
+/* What gives a copied spreadsheet a web app of its own, said for the system it belongs to (labs-script-008, 30 Sep
+   2026: a copied reflection was sent to the Test System's menu). A reflection writes its label from the address that
+   ⚙️ 🔗 Rebuild 🔗 Links tab… → Yes (until 1 Oct 2026: Update deployment URL) stores, each time its form opens, at most every six hours. */
+function _ownWebAppFix_(type) {
+  if (type === 'Reflection')
+    return 'Give it a web app of its own: in that spreadsheet, Deploy ▸ New deployment, then 🧰 ToolBox ▸ ⚙️ Setup & config ▸ 🔗 Rebuild 🔗 Links tab… (answer Yes) with the new address. Its label is rewritten the next time its form opens (at most once every six hours); then check again.';
+  return 'Give it a web app of its own (Deploy ▸ New deployment, both deployments), paste the new addresses in 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab, then check again.';
+}
 /* "Missing one? Check its address" (26 Sep 2026: Daniel's new test was not found and nothing said why). ONE address,
    opened directly — so it does not wait for Google's search to catch up with a new label — and every reason Find
    would or would not add it, in plain words. "Add it" then adds it from its label even when Find would not (it is a
@@ -3570,7 +3706,7 @@ function _checkSpreadsheet_(url) {
   if (rowTwin) {
     out.verdict = 'copy'; out.canAdd = false;
     out.say.push('Its label names the same dashboard as “' + rowTwin.name + '”, which is already in the list — so it looks like a copy of that spreadsheet, and the page would open the wrong dashboard.',
-                 'Give it a web app of its own (Deploy ▸ New deployment, both deployments), paste the new addresses in 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab, then check again.');
+                 _ownWebAppFix_(card.type));
     return out;
   }
   if (skipped) { out.verdict = 'removed'; out.say.push('You removed it from the list before, so Find leaves it out. “Add it” puts it back.'); return out; }
@@ -3596,7 +3732,7 @@ function _checkSpreadsheet_(url) {
   if (twin) {
     out.verdict = 'copy'; out.canAdd = false;
     out.say.push('An older spreadsheet carries the same label' + (card.dash ? ' (the same dashboard)' : '') + ' — so Find takes this one for a copy of it: ' + twin.url,
-                 'Give it a web app of its own (Deploy ▸ New deployment), paste the new addresses in 🔗 Rebuild Links / readiness tab, then check again.');
+                 _ownWebAppFix_(card.type));
     return out;
   }
   out.verdict = 'unindexed';
@@ -3671,11 +3807,11 @@ function _typedAddress_(v) {
 }
 
 /* The cohort a spreadsheet belongs to, named by the year it graduates — the stable handle, because
-   a year group rolls forward every September (this year's Y10 is next year's Y11). From the
+   a year group rolls forward every 1 August (this year's Y10 is next year's Y11). From the
    graduation year and today's date the CURRENT year group is worked out and shown alongside, so a
    teacher sees both "Class of 2028" and "Y10 this year", and it stays right on its own next year.
-   The rule matches the school's: this year (Sept 2026) Y10 graduates 2028, Y11 2027, Y9 2029 — so
-   year group = 12 − graduation + the September the current year began. `now` is passed for testing. */
+   The rule matches the school's: in 2026–27 Y10 graduates 2028, Y11 2027, Y9 2029 — so year group =
+   12 − graduation + the year the current school year began (on 1 August). `now` is passed for testing. */
 function _cohortLabel_(grad, now) {
   var m = String(grad == null ? '' : grad).match(/\d{4}/);
   if (!m) return null;
@@ -3740,7 +3876,7 @@ function _typeRank_(t) {
 
 
 /* ── Lab progress, for teachers ─────────────────────────────────────────────
-   A second teacher-only page (?page=progress) that reads the marks in THIS spreadsheet — every
+   The Lab progress tab of the one teacher page (?page=progress opens on it). It reads the marks in THIS spreadsheet — every
    built lab's tab — and shows a class how it is doing: who has done what, where they are
    struggling, and how hard they are working at it. It reads only; it changes nothing.
 
@@ -3757,8 +3893,6 @@ function _parseStations_(str) {
   });
   return out;
 }
-/* The cohort a class belongs to, from the year group in its name (10A → Y10 → Class of 2028 this
-   year). Same rule as the teacher page, so a class and its assessment spreadsheets line up. */
 /* Classes in YEAR order, not alphabetical order. Sorted as plain text, "10A" and "11A" both come
    before "9A" because "1" precedes "9" — so every dropdown in the estate listed Y10 and Y11 ahead
    of Y9. Compare the year group as a NUMBER first, then the letter after it. */
@@ -3767,6 +3901,8 @@ function _byClass_(a, b) {
   var na = ma ? +ma[0] : 999, nb = mb ? +mb[0] : 999;
   return na - nb || String(a == null ? '' : a).localeCompare(String(b == null ? '' : b));
 }
+/* The cohort a class belongs to, from the year group in its name (10A → Y10 → Class of 2028 in
+   2026–27). Same rule as the teacher page, so a class and its assessment spreadsheets line up. */
 function _classCohort_(cls, now) {
   var m = String(cls || '').match(/\d+/);
   if (!m) return null;
@@ -3823,9 +3959,9 @@ function _labProgressData_(now) {
            classes: Object.keys(cset).sort(_byClass_), stationNames: names };
 }
 
-/* The page itself. Gated exactly like the teacher page: Google has signed the visitor in (school-
-   only deployment), and only a teacher on the list sees anything. The data is read once, on the
-   server, and dropped into the page; the Refresh button just reloads, which reads it again. */
+/* Every HTML page doGet serves goes out through here — the teacher page, and the page that says who it is
+   for: its title, and the viewport tag (Apps Script ignores a page's own meta viewport, so without
+   addMetaTag a phone shows the page zoomed out). */
 function _htmlOut_(html, title) {
   return HtmlService.createHtmlOutput(html).setTitle(title)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -3846,7 +3982,7 @@ function _studentDirectory_(now) {
   return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort(_byClass_) };
 }
 /* ── Set homework, for teachers ─────────────────────────────────────────────
-   A fourth teacher-only page (?page=homework). A teacher picks parts of labs — not whole labs —
+   The Set homework tab of the one teacher page (?page=homework opens on it). A teacher picks parts of labs — not whole labs —
    says who they are for and when they are due, and afterwards sees who has done them.
 
    WHY STATIONS RATHER THAN WHOLE LABS. The evidence on homework at secondary level is that SHORT,
@@ -3872,20 +4008,20 @@ var _HW_HEADERS_ = ['ID', 'Created', 'Teacher', 'Title', 'Who', 'What', 'Due', '
 
 function _hwColDefs_() {
   return [
-    { h:'ID',         w:104, note:'The code for this homework. It appears in the summary email.' },
+    { h:'ID',         w:104, note:'The code for this homework. The page finds it by this, and a Bio English link in a Classroom post carries it. Do not change it.' },
     { h:'Created',    w:132, fmt:'dd MMM, HH:mm', note:'When it was set.' },
     { h:'Teacher',    w:210, note:'Who set it. The summary goes to them.' },
     { h:'Title',      w:230, edit:true, note:'What the students see.' },
     { h:'Who',        w:150, note:'The class it was set for, or how many students.' },
     { h:'What',       w:330, note:'The parts of the labs that were set. Written out so you can read this tab on its own.' },
-    { h:'Due',        w:132, fmt:'dd MMM, HH:mm', edit:true, note:'When it is due. Change it here and the summary waits for the new date.' },
+    { h:'Due',        w:132, fmt:'dd MMM, HH:mm', edit:true, note:'When it is due. Change it here and the summary waits for the new date. Type a date: anything else counts as no date, and the page says so.' },
     { h:'Spec',       w:300, hide:true, note:'What the page reads: which labs and stations, and who for. Do not edit.' },
     { h:'Course',     w:150, hide:true, note:'The Google Classroom course, once it has been posted there.' },
     { h:'CourseWork', w:150, hide:true, note:'The Google Classroom assignment, once it has been posted there.' },
     { h:'Status',     w:100, align:'center', list:['set', 'reported'], note:'set — still waiting.\nreported — the summary has been emailed.' },
     { h:'Reported',   w:132, fmt:'dd MMM, HH:mm', note:'When the summary was emailed.' },
     { h:'Group',      w:110, hide:true, note:'The same code on several rows means they were set in one go — the same practice for more than one class, each with its own date.' },
-    { h:'Cohort',     w:90, align:'center', fmt:'0', note:'The graduation year this was set for. Written once, so it still says who it belonged to long after they have left — which is what lets old homework be tidied away safely.' }
+    { h:'Cohort',     w:90, align:'center', fmt:'0', note:'The graduation year this was set for. Written once, so it still says who it belonged to long after they have left — so old homework can be tidied away safely later. Nothing removes a row on its own.' }
   ];
 }
 function _ensureHomeworkTab_() {
@@ -3933,16 +4069,15 @@ function _manifest_() {
   return m;
 }
 
-/* Who is asking. The homework page is on the school-only deployment, so Google has already proved
-   the visitor's identity; google.script.run calls from it arrive with the same active user. */
+/* Who is asking: the active user, if they are a teacher on the list, else ''. On the school-only deployment
+   Google has already proved who they are, and google.script.run calls from the page arrive with the same
+   active user. Every read and write the teacher page makes checks this (uiData, homeworkCreate, homeworkDelete). */
 function _hwCaller_() {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
   return email && _isTeacher_(email) ? email : '';
 }
 
-/* The cohort a piece of homework belongs to, decided when it is set and never recomputed: by the
-   time it is old enough to tidy away, the pupils have left and the roster can no longer say. */
 /* The school's clock. "Due the 25th" must mean the end of the 25th HERE — not in whatever zone the
    script project sits in, nor the teacher's browser. Before this, the page sent a naive
    "…T23:59:00", the server parsed it in the PROJECT's zone, and the browser rendered it back in its
@@ -3953,11 +4088,39 @@ function _tz_() {
   try { return _ss_().getSpreadsheetTimeZone() || Session.getScriptTimeZone(); }
   catch (e) { try { return Session.getScriptTimeZone(); } catch (e2) { return 'Etc/UTC'; } }
 }
-function _dueFrom_(v) {
+function _dueFrom_(v, t) {
   var d = String(v == null ? '' : v).trim().slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
-  try { return Utilities.parseDate(d + ' 23:59:59', _tz_(), 'yyyy-MM-dd HH:mm:ss'); } catch (e) { return null; }
+  /* A time, when the teacher gave one (29 Sep 2026: "you cannot set the due time"), is that time on that day HERE.
+     No time keeps the meaning it always had: the end of the day. */
+  var hms = _hwTime_(t) || '23:59:59';
+  try { return Utilities.parseDate(d + ' ' + hms, _tz_(), 'yyyy-MM-dd HH:mm:ss'); } catch (e) { return null; }
 }
+/* "8:05" or "08:05" (what a time box sends) as "08:05:00"; '' for anything else, blank included. */
+function _hwTime_(t) {
+  var m = String(t == null ? '' : t).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m || +m[1] > 23 || +m[2] > 59) return '';
+  return ('0' + m[1]).slice(-2) + ':' + m[2] + ':00';
+}
+/* A due date in words, in the school's zone: "3 Oct", or "3 Oct, 08:00" when a time was set. The end of the day
+   (23:59, the meaning of a date with no time) is written as the day alone, as it always was. */
+function _hwDueText_(ms) {
+  var d = new Date(ms), tz = _tz_(), day = Utilities.formatDate(d, tz, 'd MMM'), hm = '';
+  try { hm = String(Utilities.formatDate(d, tz, 'HH:mm')); } catch (e) { hm = ''; }
+  return /^\d\d:\d\d$/.test(hm) && hm !== '23:59' ? day + ', ' + hm : day;
+}
+/* A cell's instant in ms, or 0 when it holds nothing that reads as a date. Due is the teacher's to edit in the tab,
+   and text such as "next Friday" made new Date(…).toISOString() throw: one such cell broke the homework page, every
+   rostered pupil's Bio English list and the morning email (labs-script-003, 30 Sep 2026). */
+function _hwMs_(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  var t = 0;
+  try { t = new Date(v).getTime(); } catch (e) { t = 0; }
+  return (t && !isNaN(t)) ? t : 0;
+}
+function _hwIso_(v) { var t = _hwMs_(v); return t ? new Date(t).toISOString() : null; }
+/* The cohort a piece of homework belongs to, decided when it is set and never recomputed: by the
+   time it is old enough to tidy away, the pupils have left and the roster can no longer say. */
 function _hwCohortOf_(cls, emails, roster, now) {
   if (cls) { var c = _classCohort_(cls, now); return c ? c.grad : ''; }
   var grads = {}, byEmail = {};
@@ -3967,7 +4130,7 @@ function _hwCohortOf_(cls, emails, roster, now) {
     if (p && p.cohort) grads[p.cohort.grad] = 1;
   });
   var ks = Object.keys(grads);
-  return ks.length === 1 ? Number(ks[0]) : '';    /* mixed or unknown: left blank, aged out instead */
+  return ks.length === 1 ? Number(ks[0]) : '';    /* mixed or unknown: left blank (nothing tidies old homework away yet) */
 }
 function _hwId_(taken) {
   var s = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';                  /* no I/O/0/1 — these get read aloud */
@@ -3995,28 +4158,29 @@ function _homeworkRows_() {
     if (!id) continue;
     var spec = {};
     try { spec = JSON.parse(String(r[c.Spec - 1] || '{}')) || {}; } catch (e) { spec = {}; }
-    var due = r[c.Due - 1], dms = 0;
-    try { if (due) dms = new Date(due).getTime() || 0; } catch (e) {}
+    var due = r[c.Due - 1], dms = _hwMs_(due);
     out.push({
       row: i + 2, id: id,
       group: String(r[c.Group - 1] || '').trim(),
       cohort: Number(r[c.Cohort - 1]) || '',
       setFor: spec.setFor || null,
-      created: r[c.Created - 1] ? new Date(r[c.Created - 1]).toISOString() : null,
+      created: _hwIso_(r[c.Created - 1]),
       teacher: _cleanEmail_(r[c.Teacher - 1]),
       title: String(r[c.Title - 1] || '').trim(),
       who: String(r[c.Who - 1] || '').trim(),
       what: String(r[c.What - 1] || '').trim(),
-      due: due ? new Date(due).toISOString() : null,
+      due: dms ? new Date(dms).toISOString() : null,
+      /* something typed in Due that is not a date: no date at all (never overdue, never emailed), and the page says so */
+      dueBad: !dms && String(due == null ? '' : due).trim() !== '',
       /* worded and judged here, in the school's zone, so the browser never re-reads a timestamp */
-      dueText: dms ? Utilities.formatDate(new Date(dms), _tz_(), 'd MMM') : '',
+      dueText: dms ? _hwDueText_(dms) : '',
       overdue: !!dms && dms < _nowMs_,
       soon: !!dms && dms >= _nowMs_ && (dms - _nowMs_) < 3 * 24 * 3600 * 1000,
       targets: spec.targets || {}, tasks: spec.tasks || [],
       course: String(r[c.Course - 1] || '').trim(),
       courseWork: String(r[c.CourseWork - 1] || '').trim(),
       status: String(r[c.Status - 1] || 'set').trim(),
-      reported: r[c.Reported - 1] ? new Date(r[c.Reported - 1]).toISOString() : null
+      reported: _hwIso_(r[c.Reported - 1])
     });
   }
   return out;
@@ -4151,6 +4315,8 @@ function _homeworkData_(now) {
       id: hw.id, group: hw.group, title: hw.title, who: hw.who, what: hw.what, teacher: hw.teacher,
       setCount: setCount, gone: gone, joined: joined, cohort: hw.cohort || '',
       created: hw.created, due: hw.due, status: hw.status, reported: hw.reported,
+      /* worded and judged by _homeworkRows_ in the school's zone; without them the list showed "— due" (labs-script-001) */
+      dueText: hw.dueText, overdue: hw.overdue, soon: hw.soon, dueBad: hw.dueBad,
       tasks: hw.tasks, targets: hw.targets,
       pupils: rows, tally: tally, missing: Object.keys(miss)
     };
@@ -4180,7 +4346,7 @@ function _homeworkData_(now) {
    case when the same lesson lands on different days. It writes ONE ROW PER CLASS rather than one
    clever row, because that is also the shape Google Classroom needs: a piece of coursework belongs
    to exactly one course, so three classes is three posts however it is stored. The rows share a
-   Group code so the page can show them as the one thing the teacher set. */
+   Group code, so the 📚 Homework tab shows they were set in one go (the page lists each class on its own). */
 function homeworkCreate(d) {
   var who = _hwCaller_();
   if (!who) return { ok:false, why:'Not allowed.' };
@@ -4206,11 +4372,16 @@ function homeworkCreate(d) {
     var cls = String(w.cls || '').trim().toUpperCase();
     var emails = (w.emails || []).map(_cleanEmail_).filter(function (e) { return !!e; });
     if (!cls && !emails.length) return { ok:false, why:'Choose a class, or some students.' };
+    /* the time is optional and comes on its own (a page from before sends none): no time = the end of that day */
+    var time = String(w.time == null ? '' : w.time).trim();
+    if (time && !_hwTime_(time)) return { ok:false, why: (cls ? cls + ': the' : 'The') + ' due time is not a time. Type it as hh:mm, or leave it empty.' };
     var due = null;
-    if (w.due) due = _dueFrom_(w.due);          /* a plain yyyy-mm-dd, read in the school's zone */
+    if (w.due) due = _dueFrom_(w.due, time);    /* a plain yyyy-mm-dd, read in the school's zone */
     if (!due) return { ok:false, why: cls ? ('Give ' + cls + ' a due date.') : 'Give it a due date.' };
     jobs.push({ cls: cls, emails: emails, due: due });
   }
+  /* the Classroom topic the post goes under: an existing one of the course's, or a new name, made there (_hwTopicId_) */
+  var topic = String(d.topic == null ? '' : d.topic).replace(/\s+/g, ' ').trim().slice(0, 100);
 
   /* readable columns, so the tab means something opened on its own */
   var man = _hwManifest_();
@@ -4260,14 +4431,16 @@ function homeworkCreate(d) {
   /* Posted only once the rows are safely written and the lock is let go: Classroom can take
      seconds per class, and pupils saving their work must not queue behind it. The ids come back
      under the lock again, each row found by its homework id — never by a row number read earlier. */
-  var posted = [], notPosted = [];
+  var posted = [], notPosted = [], topicMissed = [];
   if (d.post && made.length) {
     var cids = _classroomIds_(), res = [];
     jobs.forEach(function (job, j) {
-      var p = _hwPost_(made[j], title, what, tasks, job, cids);
+      var p = _hwPost_(made[j], title, what, tasks, job, cids, { man: man, topic: topic });
       res.push(p);
       if (p.ok) posted.push(job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's')));
       else notPosted.push((job.cls || 'the students') + ': ' + p.why);
+      /* posted, but not under the topic: said, never a failure (29 Sep 2026) */
+      if (p.ok && topic && !p.topic) topicMissed.push((job.cls || 'the students') + ': ' + (p.topicWhy || 'the topic could not be used'));
     });
     if (res.some(function (p) { return p.ok; })) {
       var lk = null;
@@ -4284,7 +4457,7 @@ function homeworkCreate(d) {
       } finally { if (lk) { try { lk.releaseLock(); } catch (e) {} } }
     }
   }
-  return { ok:true, made: made, group: group, posted: posted, notPosted: notPosted, data:_homeworkData_() };
+  return { ok:true, made: made, group: group, posted: posted, notPosted: notPosted, topic: topic, topicMissed: topicMissed, data:_homeworkData_() };
 }
 
 function homeworkDelete(id) {
@@ -4311,27 +4484,21 @@ function homeworkDelete(id) {
   } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
   return { ok:true, data:_homeworkData_() };
 }
-/* the page asks for a refresh without writing anything */
-function homeworkRefresh() {
-  var who = _hwCaller_();
-  if (!who) return { ok:false, why:'Not allowed.' };
-  return { ok:true, data:_homeworkData_() };
-}
 
-/* The one page, and the one endpoint behind it. Each view's data is fetched only when its tab is
-   first opened: Lab progress alone is half a megabyte, so loading all four up front would make the
-   page slow to open — which is exactly the sluggishness the single page is meant to remove. */
+/* The one page, and the one endpoint behind it (uiData). The page is served with no data in it: the tab it opens
+   on is fetched at once, then the other four in the background, one at a time, each kept in the browser's
+   sessionStorage for ten minutes (Teacher.html). Lab progress alone is half a megabyte, so baking all five into
+   the page would make it slow to open. Nobody signed in, or somebody not on the list, gets only the page's name
+   and who it is for (_teacherHtml_) — not a single link, name or mark. */
 function _teacherAppPage_(startTab) {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
   var dom = _schoolDomain_();
   if (!email) return _htmlOut_(_teacherHtml_({ state:'nobody', dom:dom }), 'Teachers');
   if (!_isTeacher_(email)) return _htmlOut_(_teacherHtml_({ state:'refused', email:email, dom:dom }), 'Teachers');
-  var boot = {
+  var boot = {                           /* all the page reads from it (Students and Set homework get theirs from uiData) */
     email: email,
-    tab: startTab || 'teachers',
-    trackerBase: _trackerAppUrl_(),
-    hubSet: !!_hubUrl_()
+    tab: startTab || 'teachers'
   };
   var json = JSON.stringify(boot).replace(/</g, '\\u003c');
   var html = HtmlService.createHtmlOutputFromFile('Teacher').getContent()
@@ -4405,7 +4572,9 @@ function teacherPanelData() {
       return l;
     }),
     types: ['Reflection', 'Test', 'Survey', 'Records'],
-    findFolders: _findFolders_()
+    findFolders: _findFolders_(),
+    /* the graduation year of this school year's Y10 (a school year starts on 1 August), for the window's example */
+    y10: (function (d) { return (d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1) + 2; })(new Date())
   };
 }
 
@@ -4496,24 +4665,13 @@ function teacherSetTrackerUrl(url) {
   return teacherPanelData();
 }
 
-/* The page. Google has already signed the visitor in — this deployment is restricted to the
-   school — so Session.getActiveUser() is who they really are. Nobody, or somebody not on the
-   list, gets the page's name and who it is for, and not a single link. */
-function _pageUrl_(which) {
-  var u = _teacherPageUrl_();
-  if (!u) return '';
-  return u.replace(/([?&])page=teachers\b/, '$1page=' + which);
-}
-/* Any reflection deployment's /exec, kept the way TEACHER_PAGE_URL is. Empty ⇒ no Students tab. */
+/* Any reflection deployment's /exec, kept the way TEACHER_PAGE_URL is. The Students tab builds each pupil's link
+   from it (Teacher.html link(): ?page=student&email=…; the reflection's serveDashboard shows a teacher that pupil's
+   own page, and anybody else only their own). Empty: the Students tab still lists every pupil, but cannot open
+   their trackers. */
 function _trackerAppUrl_() {
   var u = String(_keptSetting_(TRACKER_APP_URL, 'TRACKER_APP_URL') || '').trim();
   return _isExecUrl_(u) ? u.replace(/\?.*$/, '') : '';
-}
-/* The link that opens ONE pupil's tracker. serveDashboard in the reflection app reads ?email and,
-   for a teacher, shows that pupil's own page; for anyone else it shows only their own. */
-function _studentTrackerUrl_(email) {
-  var b = _trackerAppUrl_();
-  return b ? b + '?page=student&email=' + encodeURIComponent(String(email || '').toLowerCase().trim()) : '';
 }
 
 function _esc_(s) {
@@ -4531,119 +4689,27 @@ function _typeClass_(t) {
   return 'other';
 }
 
+/* The page a visitor gets when the teacher page will not open for them: signed out ('nobody'), or signed in with an
+   address that is not on the list ('refused'). It says who the page is for, and holds no link, name or mark. The
+   teacher page itself is Teacher.html (_teacherAppPage_). Until 30 Sep 2026 this also held the old one-list page,
+   which nothing had reached since Teacher.html replaced it on 17 Sep. */
 function _teacherHtml_(o) {
-  var e = _esc_, main = '';
-  function card(l, cohortStr, kind) {
-    var s = ((l.name || '') + ' ' + (l.detail || '') + ' ' + (l.type || '') + ' ' + (l.assessment || '') + ' ' + (cohortStr || '')).toLowerCase();
-    return '<div class="card" data-type="' + e(kind) + '" data-s="' + e(s) + '">' +
-      '<div class="card__main"><a class="card__name" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' + e(l.name) + '</a>' +
-      (l.detail ? '<div class="card__detail">' + e(l.detail) + '</div>' : '') + '</div>' +
-      '<div class="card__act">' +
-        '<button type="button" class="card__copy" data-url="' + e(l.url) + '">Copy link</button>' +
-        /* A row that names a dashboard offers both ways in, and the spreadsheet button then says
-           which one it is: "Open" beside "Dashboard" would leave a teacher guessing which opens
-           what. A row without one is left exactly as it was. */
-        (l.dash ? '<a class="card__dash" href="' + e(l.dash) + '" target="_blank" rel="noopener noreferrer">Dashboard <span class="arw" aria-hidden="true">→</span></a>' : '') +
-        '<a class="card__open" href="' + e(l.url) + '" target="_blank" rel="noopener noreferrer">' +
-          (l.dash ? 'Spreadsheet' : 'Open') + ' <span class="arw" aria-hidden="true">→</span></a>' +
-      '</div></div>';
-  }
-  if (o.state === 'nobody') {
-    main = '<p class="say">Open this page signed in with your school Google account' +
-           (o.dom ? ' (…@' + e(o.dom) + ')' : '') + '.</p>';
-  } else if (o.state === 'refused') {
+  var e = _esc_, main;
+  if (o.state === 'refused') {
     main = '<p class="say">This page is for Biology teachers. You are signed in as <b>' + e(o.email) +
            '</b>, which is not on its list.</p>' +
            '<p class="fine">If you teach Biology here, ask the teacher who runs this page to add your address.</p>';
-  } else if (o.trouble || !o.g) {
-    main = '<p class="say">The list could not be read just now. Reload the page in a minute.</p>';
-  } else if (!o.g.records.length && !o.g.cohorts.length && !o.g.loose.length) {
-    main = '<p class="say">No links yet.</p><p class="fine">Add them from the labs spreadsheet: ' +
-           '🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</p>';
   } else {
-    var total = 0, body = '', present = {};
-    if (o.g.records.length) {
-      total += o.g.records.length;
-      body += '<section class="grp" data-current="1"><h2 class="grp__h"><span class="co">Records</span>' +
-        '<span class="n">' + o.g.records.length + '</span></h2>' +
-        '<div class="cards">' + o.g.records.map(function (l) { return card(l, 'records', 'records'); }).join('') + '</div></section>';
-    }
-    o.g.cohorts.forEach(function (c) {
-      var n = 0; c.types.forEach(function (t) { n += t.links.length; });
-      total += n;
-      var cohortStr = c.title + ' ' + c.yearGroup;
-      body += '<section class="grp cohort" data-current="' + (c.current ? '1' : '0') + '"><h2 class="coh">' +
-        '<span class="coh__t">' + e(c.title) + '</span>' +
-        (c.yearGroup ? '<span class="chip chip--yg">' + e(c.yearGroup) + ' this year</span>'
-                     : '<span class="chip chip--past">not in school</span>') +
-        (c.academic && c.yearGroup ? '<span class="coh__ay">' + e(c.academic) + '</span>' : '') +
-        '<span class="n">' + n + '</span></h2>' +
-        c.types.map(function (t) {
-          var cls = _typeClass_(t.type); present[cls] = 1;
-          return '<div class="tb tb--' + cls + '">' +
-            '<h3 class="tl">' + e(t.type) + '<span class="tn">' + t.links.length + '</span></h3>' +
-            '<div class="cards">' + t.links.map(function (l) { return card(l, cohortStr, cls); }).join('') + '</div></div>';
-        }).join('') + '</section>';
-    });
-    if (o.g.loose.length) {
-      total += o.g.loose.length;
-      body += '<section class="grp" data-current="1"><h2 class="grp__h"><span class="co">No graduation year set</span>' +
-        '<span class="n">' + o.g.loose.length + '</span></h2>' +
-        '<div class="cards">' + o.g.loose.map(function (l) { var cls = _typeClass_(l.type); present[cls] = 1; return card(l, '', cls); }).join('') + '</div></section>';
-    }
-    /* the toolbar: search, filter by type, and hide cohorts who are not in school this year */
-    var chips = '<button type="button" class="fchip is-on" data-f="all">All</button>';
-    [['reflection', 'Reflection'], ['test', 'Test'], ['survey', 'Survey'], ['other', 'Other']].forEach(function (p) {
-      if (present[p[0]]) chips += '<button type="button" class="fchip" data-f="' + p[0] + '">' + p[1] + '</button>';
-    });
-    var ty = o.g.thisYear;
-    var legend = ty ? '<p class="legend"><span class="legend__k">This year · ' + e(ty.academic) + '</span>' +
-      ty.list.map(function (x) { return '<span class="legend__y"><b>' + e(x.yg) + '</b> Class of ' + x.grad + '</span>'; }).join('') + '</p>' : '';
-    var bar = '<div class="bar">' +
-      '<div class="search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.2-3.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
-      '<input id="q" type="search" placeholder="Find a spreadsheet…" aria-label="Find a spreadsheet" autocomplete="off"></div>' +
-      '<div class="fchips">' + chips + '</div>' +
-      '<label class="curtog"><input id="cur" type="checkbox" checked><span>Only current cohorts</span></label>' +
-      '</div>';
-    main = legend + bar + '<div id="list">' + body + '</div>' +
-      '<p class="none" id="none" hidden>Nothing matches that. <button type="button" id="clear" class="linkbtn">Clear</button></p>' +
-      '<p class="foot">Each link opens only for the people its spreadsheet is shared with — this page lists them, ' +
-      'it does not share them. To add, remove or change anything: in the labs spreadsheet, ' +
-      '🧪&nbsp;Biology&nbsp;Labs ▸ 🔗&nbsp;Teacher&nbsp;page.</p>';
-    o.total = total;
+    main = '<p class="say">Open this page signed in with your school Google account' +
+           (o.dom ? ' (…@' + e(o.dom) + ')' : '') + '.</p>';
   }
   var who = o.email
     ? '<span class="who"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">' +
       '<circle cx="12" cy="8.2" r="4" fill="currentColor"/><path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>' +
-      'Signed in as <b>' + e(o.email) + '</b>' +
-      (o.state === 'ok' && o.total ? '<span class="who__dot">·</span>' + o.total + ' spreadsheet' + (o.total === 1 ? '' : 's') : '') +
-      '</span>'
+      'Signed in as <b>' + e(o.email) + '</b></span>'
     : '';
-  var nav = (o.state === 'ok' && o.progressUrl)
-    ? '<nav class="tabs" aria-label="Teacher pages"><span class="tab is-on" aria-current="page">Spreadsheets</span>' +
-      '<a class="tab" href="' + e(o.progressUrl) + '">Lab progress</a>' +
-      (o.studentsUrl ? '<a class="tab" href="' + e(o.studentsUrl) + '">Students</a>' : '') +
-      (o.homeworkUrl ? '<a class="tab" href="' + e(o.homeworkUrl) + '">Set homework</a>' : '') + '</nav>'
-    : '';
-  var js = o.state === 'ok' ? '<script>(function(){' +
-    'var q=document.getElementById("q"),cur=document.getElementById("cur"),none=document.getElementById("none"),' +
-    'chips=[].slice.call(document.querySelectorAll(".fchip")),cards=[].slice.call(document.querySelectorAll(".card")),f="all";' +
-    'function apply(){var term=(q.value||"").trim().toLowerCase(),only=cur.checked,shown=0;' +
-    'cards.forEach(function(c){var ok=(f==="all"||c.getAttribute("data-type")===f)&&(!term||c.getAttribute("data-s").indexOf(term)>=0);c.hidden=!ok;if(ok)shown++;});' +
-    'document.querySelectorAll(".tb").forEach(function(b){b.hidden=!b.querySelector(".card:not([hidden])");});' +
-    'document.querySelectorAll(".grp").forEach(function(g){var vis=g.querySelector(".card:not([hidden])");var hideCur=only&&g.getAttribute("data-current")==="0";g.hidden=!vis||hideCur;});' +
-    'none.hidden=shown>0;}' +
-    'q.addEventListener("input",apply);cur.addEventListener("change",apply);' +
-    'chips.forEach(function(b){b.addEventListener("click",function(){chips.forEach(function(x){x.classList.remove("is-on");x.setAttribute("aria-pressed","false");});b.classList.add("is-on");b.setAttribute("aria-pressed","true");f=b.getAttribute("data-f");apply();});});' +
-    'var cl=document.getElementById("clear");if(cl)cl.addEventListener("click",function(){q.value="";cur.checked=false;chips.forEach(function(x){x.classList.toggle("is-on",x.getAttribute("data-f")==="all");});f="all";apply();q.focus();});' +
-    'q.addEventListener("keydown",function(ev){if(ev.key==="Escape"){q.value="";apply();}});' +
-    'document.addEventListener("click",function(ev){var b=ev.target.closest&&ev.target.closest(".card__copy");if(!b)return;ev.preventDefault();var u=b.getAttribute("data-url"),done=function(){var t=b.textContent;b.textContent="Copied \\u2713";b.classList.add("ok");setTimeout(function(){b.textContent=t;b.classList.remove("ok");},1400);};' +
-    'if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(done,function(){fallback(u,done);});}else{fallback(u,done);}});' +
-    'function fallback(u,done){try{var ta=document.createElement("textarea");ta.value=u;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);done();}catch(e){}}' +
-    'apply();' +
-    '})();</script>' : '';
   return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8">' +
-    /* Apps Script serves this inside a sandbox iframe. Without this every tab link tries to load
+    /* Apps Script serves this inside a sandbox iframe. Without this every link tries to load
        script.google.com INSIDE that frame, and Google refuses to be framed — the browser then says
        "refused to connect". An explicit target= on a link still wins over this. */
     '<base target="_top">' +
@@ -4651,104 +4717,31 @@ function _teacherHtml_(o) {
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">' +
     '<style>' +
-    ':root{--ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);' +
-    '--chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--accent:#E879F9;' +
-    '--reflection:#E879F9;--test:#F5A623;--survey:#2DD4BF;--other:#9AB0BE;' +
+    ':root{--ink:#0A141C;--line2:rgba(150,190,215,.32);--chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--accent:#E879F9;' +
     '--serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}' +
-    '*{box-sizing:border-box}[hidden]{display:none!important}' +
+    '*{box-sizing:border-box}' +
     'html,body{margin:0;background:radial-gradient(1100px 460px at 82% -12%,rgba(232,121,249,.07),transparent 62%),var(--ink);' +
     'color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}' +
     '.wrap{max-width:860px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 56px}' +
     '.eye{font:600 10.5px/1.3 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}.eye b{color:var(--accent)}' +
     'h1{font:400 clamp(36px,5.4vw,56px)/1.02 var(--serif);letter-spacing:-.02em;margin:10px 0 12px}h1 em{font-style:italic;color:var(--accent)}' +
     '.lede{color:#C5D4DD;max-width:58ch;margin:0 0 18px;font-size:15.5px}' +
+    '.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:4px}' +
     '.who{display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border:1px solid var(--line2);border-radius:999px;' +
     'background:rgba(120,200,230,.06);font-size:13px;color:var(--dim)}.who svg{color:var(--cyan);opacity:.85;flex:none}' +
-    '.who b{color:var(--chalk);font-weight:500}.who__dot{margin:0 7px;color:var(--mute)}' +
-    /* the two-page switch (Spreadsheets · Lab progress) */
-    '.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:4px}' +
-    '.tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line2);border-radius:999px;background:var(--card);vertical-align:middle}' +
-    '.tab{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-decoration:none;padding:9px 15px;border-radius:999px;transition:color .15s,background .15s}' +
-    '.tab.is-on{color:var(--ink);background:var(--chalk)}.tab:not(.is-on):hover{color:var(--chalk)}.tab__a{opacity:.7}' +
-    /* the "this year" key */
-    '.legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:20px 0 0;padding:11px 15px;border:1px solid var(--line);' +
-    'border-radius:10px;background:rgba(120,200,230,.03);font-size:12.5px;color:var(--dim)}' +
-    '.legend__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}' +
-    '.legend__y b{color:var(--accent);font-weight:600;font-family:var(--mono);font-size:11px;margin-right:5px}' +
-    /* the toolbar */
-    '.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:16px 0 6px}' +
-    '.search{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-width:0;padding:9px 14px;border:1px solid var(--line2);' +
-    'border-radius:999px;background:var(--card)}.search svg{color:var(--mute);flex:none}' +
-    '.search input{flex:1;min-width:0;border:0;background:none;color:var(--chalk);font:15px/1 var(--sans);outline:none}' +
-    '.search input::placeholder{color:var(--mute)}' +
-    '.fchips{display:flex;flex-wrap:wrap;gap:6px}' +
-    '.fchip{font:600 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:8px 13px;' +
-    'border:1px solid var(--line2);border-radius:999px;background:transparent;cursor:pointer;transition:color .15s,background .15s,border-color .15s}' +
-    '.fchip:hover{color:var(--chalk)}.fchip.is-on{color:var(--ink);background:var(--chalk);border-color:var(--chalk)}' +
-    '.curtog{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);cursor:pointer;user-select:none}' +
-    '.curtog input{accent-color:var(--accent);width:15px;height:15px}' +
-    '.grp{margin:30px 0 0}' +
-    '.grp__h{display:flex;align-items:center;gap:11px;font:600 10.5px/1.3 var(--mono);letter-spacing:.17em;text-transform:uppercase;' +
-    'color:var(--dim);margin:0 0 12px}.grp__h .co{color:var(--chalk)}.grp__h .n{color:var(--mute);font-weight:500}' +
-    '.grp__h::after{content:"";flex:1;height:1px;background:var(--line)}' +
-    '.coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line2)}' +
-    '.coh__t{font:400 22px/1 var(--serif);letter-spacing:-.01em;color:var(--chalk)}' +
-    '.chip--yg{font:600 10px/1 var(--mono);letter-spacing:.06em;color:#F1CFFB;background:rgba(232,121,249,.13);' +
-    'border:1px solid rgba(232,121,249,.32);padding:5px 9px;border-radius:999px;text-transform:none}' +
-    '.chip--past{font:600 10px/1 var(--mono);letter-spacing:.06em;color:var(--mute);background:rgba(150,190,215,.08);' +
-    'border:1px solid var(--line2);padding:5px 9px;border-radius:999px;text-transform:none}' +
-    '.coh__ay{font:500 11px/1 var(--mono);letter-spacing:.08em;color:var(--mute)}' +
-    '.coh .n{margin-left:auto;font:600 10.5px/1 var(--mono);letter-spacing:.14em;color:var(--mute)}' +
-    '.tb{margin:16px 0 0}.tb .tl{display:flex;align-items:center;gap:8px;font:600 10px/1.3 var(--mono);letter-spacing:.15em;' +
-    'text-transform:uppercase;color:var(--tc);margin:0 0 8px}.tb .tn{color:var(--mute);font-weight:500}' +
-    '.tb--reflection{--tc:var(--reflection)}.tb--test{--tc:var(--test)}.tb--survey{--tc:var(--survey)}.tb--other{--tc:var(--other)}' +
-    '.cards{display:grid;gap:8px}' +
-    '.card{position:relative;display:flex;align-items:center;gap:14px;padding:13px 16px 13px 18px;border-radius:11px;' +
-    'background:var(--card);border:1px solid var(--line);transition:border-color .18s,background .18s}' +
-    '.card::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:var(--tc,var(--accent));opacity:0;transition:opacity .18s}' +
-    '.card:hover,.card:focus-within{border-color:var(--line2);background:var(--cardhi)}' +
-    '.card:hover::before,.card:focus-within::before{opacity:.9}' +
-    '.card__main{flex:1 1 auto;min-width:0}' +
-    '.card__name{font-weight:600;font-size:15px;color:var(--chalk);text-decoration:none;overflow-wrap:anywhere}' +
-    '.card__name:hover,.card__name:focus-visible{color:var(--tc,var(--accent))}' +
-    '.card__detail{color:var(--dim);font-size:13px;margin-top:2px;overflow-wrap:anywhere}' +
-    '.card__act{flex:none;display:flex;align-items:center;gap:6px}' +
-    '.card__copy{font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:transparent;' +
-    'border:1px solid var(--line2);border-radius:999px;padding:7px 11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}' +
-    '.card__copy:hover{color:var(--chalk);border-color:var(--chalk)}.card__copy.ok{color:#0A141C;background:var(--survey);border-color:var(--survey)}' +
-    '.card__open{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;' +
-    'color:var(--tc,var(--accent));text-decoration:none;padding:7px 11px;border:1px solid transparent;border-radius:999px}' +
-    '.card__open:hover{background:color-mix(in srgb,var(--tc,var(--accent)) 12%,transparent)}' +
-    '.card__open .arw{transition:transform .18s}.card:hover .card__open .arw{transform:translateX(3px)}' +
-    /* The dashboard is the live thing behind the spreadsheet, so it carries the type colour as a
-       filled pill rather than the plain text button beside it. */
-    '.card__dash{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;' +
-    'color:var(--tc,var(--accent));text-decoration:none;padding:7px 11px;border-radius:999px;white-space:nowrap;' +
-    'border:1px solid color-mix(in srgb,var(--tc,var(--accent)) 45%,transparent);' +
-    'background:color-mix(in srgb,var(--tc,var(--accent)) 10%,transparent);transition:background .15s,border-color .15s}' +
-    '.card__dash:hover{background:color-mix(in srgb,var(--tc,var(--accent)) 22%,transparent);border-color:var(--tc,var(--accent))}' +
-    '.card__dash .arw{transition:transform .18s}.card:hover .card__dash .arw{transform:translateX(3px)}' +
-    '.card__name:focus-visible,.card__copy:focus-visible,.card__open:focus-visible,.card__dash:focus-visible,.fchip:focus-visible{outline:2px solid var(--tc,var(--accent));outline-offset:2px}' +
-    '.none{color:var(--dim);font-size:14px;margin:24px 0}.linkbtn{color:var(--accent);background:none;border:0;font:inherit;cursor:pointer;text-decoration:underline;padding:0}' +
-    '.foot{margin-top:34px;color:var(--mute);font-size:12.5px;max-width:66ch;border-top:1px solid var(--line);padding-top:15px}' +
+    '.who b{color:var(--chalk);font-weight:500}' +
     '.say{font:400 20px/1.45 var(--serif);max-width:52ch;margin:22px 0 10px}.say b{font-family:var(--sans);font-size:16px;font-weight:500;color:var(--chalk)}' +
     '.fine{color:var(--mute);font-size:13.5px;max-width:62ch}' +
-    '@media (max-width:560px){.card{flex-wrap:wrap}.card__act{width:100%;margin-top:4px}.coh .n{margin-left:0}}' +
-    '@media (prefers-reduced-motion:reduce){.card,.card__open .arw,.fchip{transition:none}}' +
     '</style></head><body><div class="wrap">' +
     '<p class="eye">Biology Hub · <b>Teachers only</b></p>' +
     '<h1>Assessment <em>system</em></h1>' +
-    '<p class="lede">Every spreadsheet in the Assessment Reflection System, in one place — grouped by the cohort it belongs to, by the year they graduate.</p>' +
-    '<div class="topbar">' + who + nav + '</div>' + main + '</div>' + js + '</body></html>';
+    '<p class="lede">The teachers’ side of the Biology Hub: assessment spreadsheets, lab progress, Bio English, students and homework.</p>' +
+    '<div class="topbar">' + who + '</div>' + main + '</div></body></html>';
 }
 
-/* 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page (and 👥 Teacher page: teachers and addresses): makes the tab (with the two records it can fill
-   in itself) and says, in order, what is still to do. Safe to run again: it never touches a row
-   that is already there. */
-function setUpTeacherPage_() { showTeacherPanel(); }  /* kept: the panel superseded the old setup */
-
-/* The tracker workbook and the school's domain, remembered the same way SHEET_ID is so
-   that pasting a fresh copy of this file over the top never wipes what was typed in. */
+/* Every setting typed at the top (TRACKER_ID, SCHOOL_DOMAIN, TEACHERS, TEACHER_PAGE_URL, TRACKER_APP_URL,
+   HUB_URL), remembered the same way SHEET_ID is, so that pasting a fresh copy of this file over the top never
+   wipes what was typed in. */
 function _keptSetting_(literal, key) {
   var props;
   try { props = PropertiesService.getScriptProperties(); } catch (e) { return literal; }
@@ -4970,8 +4963,10 @@ function _enRowFor_(sh, email, student) {
   return last + 1;
 }
 
-/* english.save — { token, sets: { <setId>: { done, first, total, snap, v } } }, sent a few
-   seconds after a pupil answers, and again as they leave the page. */
+/* english.save — { token, sets: { <setId>: { done, first, total, snap, v, go, snap1, best } }, at }, sent a few
+   seconds after a pupil answers, and again as they leave the page. go, snap1 and best are the round, the first
+   round and the best ever (goes, Sept 2026); a set that sends none of the three comes from a page from before
+   them (oldPage). `at` is sent but not read. */
 function _englishSave_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
   var who = _whoIs_(d.token);
@@ -5124,7 +5119,8 @@ function _classroomIds_() {
   });
   return out;
 }
-function _hwPost_(id, title, what, tasks, job, ids) {
+function _hwPost_(id, title, what, tasks, job, ids, opt) {
+  opt = opt || {};
   try { _needClassroom_(); } catch (e) { return { ok:false, why:'Google Classroom is not switched on in the script' }; }
   var courses = {};
   (job.setFor || []).forEach(function (e) { var c = ids[e] && ids[e].courseId; if (c) courses[c] = (courses[c] || 0) + 1; });
@@ -5132,14 +5128,17 @@ function _hwPost_(id, title, what, tasks, job, ids) {
   if (!cids.length) return { ok:false, why:'nobody in it was imported from Classroom, so there is no course to post to' };
   if (cids.length > 1 && !job.cls) return { ok:false, why:'those students are in different Classroom courses — set it for each class instead' };
   var courseId = cids.sort(function (a, b) { return courses[b] - courses[a]; })[0];
+  /* One link per station, straight to it (a lab opens the station named after its #), so the post says exactly which
+     parts are the homework (Daniel, 29 Sep 2026: it linked only each lab's front page). Classroom takes 20 at most;
+     the words list every one. Bio English Lab's sets keep their one homework link, which lists them. */
   var links = [];
   tasks.forEach(function (t) {
     if (t.labId === ENGLISH_ID) links.push({ link: { url: ENGLISH_URL + '/#/hw/' + encodeURIComponent(id) } });
-    else if (/^[a-z0-9-]+$/.test(t.labId)) links.push({ link: { url: 'https://nlcsbiology.com/' + t.labId + '/' } });
+    else if (/^[a-z0-9-]+$/.test(t.labId)) (t.stationIds || []).forEach(function (sid) { links.push({ link: { url: _hwStationUrl_(t.labId, sid) } }); });
   });
   var due = job.due, body = {
     title: title,
-    description: what + '\n\nSign in with your school Google account, so that your work is recorded.',
+    description: opt.man ? _hwPostText_(id, tasks, opt.man) : what + '\n\nSign in with your school Google account, so that your work is recorded.',
     materials: links.slice(0, 20), workType: 'ASSIGNMENT', state: 'PUBLISHED',
     dueDate: { year: due.getUTCFullYear(), month: due.getUTCMonth() + 1, day: due.getUTCDate() },
     dueTime: { hours: due.getUTCHours(), minutes: due.getUTCMinutes() }
@@ -5150,12 +5149,96 @@ function _hwPost_(id, title, what, tasks, job, ids) {
     body.assigneeMode = 'INDIVIDUAL_STUDENTS';
     body.individualStudentsOptions = { studentIds: uids };
   }
+  /* the topic, when one was asked for: found or made in this course. If that fails the post still goes, without it. */
+  var topicName = '', topicWhy = '';
+  if (opt.topic) {
+    var tp = _hwTopicId_(courseId, opt.topic);
+    if (tp.id) { body.topicId = tp.id; topicName = tp.name; } else topicWhy = tp.why;
+  }
   try {
     var w = Classroom.Courses.CourseWork.create(body, courseId);
-    return { ok:true, courseId: courseId, courseWorkId: String(w.id) };
+    return { ok:true, courseId: courseId, courseWorkId: String(w.id), topic: topicName, topicWhy: topicWhy };
   } catch (e) {
     return { ok:false, why: String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) };
   }
+}
+/* A station's own address: the lab opens the station named after its # (each lab's fromHash). */
+function _hwStationUrl_(labId, sid) { return 'https://nlcsbiology.com/' + labId + '/#' + encodeURIComponent(sid); }
+/* The words of the Classroom post: every station by the name the pupils see in the lab, one line each with its own link,
+   then how the lab shows them. A lab or station the manifest cannot name is written by its id, as the "What" column is. */
+function _hwPostText_(id, tasks, man) {
+  var out = ['Your homework:', ''], labs = false;
+  tasks.forEach(function (t) {
+    var lm = man && man.labs ? man.labs[t.labId] : null, nameOf = {}, sids = t.stationIds || [];
+    if (lm) (lm.stations || []).forEach(function (x) { nameOf[x.id] = x.name; });
+    if (t.labId === ENGLISH_ID) {
+      out.push('Bio English Lab (one link for all the sets: ' + ENGLISH_URL + '/#/hw/' + encodeURIComponent(id) + ')');
+      sids.forEach(function (s) { out.push('• ' + (nameOf[s] || s)); });
+    } else {
+      labs = true;
+      out.push(lm && lm.name ? String(lm.name) : t.labId);
+      sids.forEach(function (s) { out.push('• ' + (nameOf[s] || s) + ': ' + _hwStationUrl_(t.labId, s)); });
+    }
+    out.push('');
+  });
+  if (labs) out.push('In the labs, your homework stations are coloured: red, not started; orange, part done; green, done.');
+  out.push('Sign in with your school Google account, so that your work is recorded.');
+  return out.join('\n');
+}
+/* The Classroom topic called `name` in this course, made there if it is not there yet: { id, name } or { why }. Never
+   throws. A topic that cannot be listed or made (the classroom.topics permission not yet allowed after a paste, or
+   Classroom not answering) never stops the homework: it is posted without the topic, and the page says so. */
+function _hwTopicId_(courseId, name) {
+  var clean = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().slice(0, 100), want = clean.toLowerCase();
+  if (!want) return { why: 'no topic was given' };
+  try {
+    var tok = '';
+    for (var page = 0; page < 5; page++) {
+      var r = Classroom.Courses.Topics.list(courseId, tok ? { pageSize: 100, pageToken: tok } : { pageSize: 100 }) || {}, hit = null;
+      (r.topic || []).forEach(function (t) { if (!hit && String(t.name || '').replace(/\s+/g, ' ').trim().toLowerCase() === want) hit = t; });
+      if (hit) return { id: String(hit.topicId), name: String(hit.name) };
+      tok = r.nextPageToken || '';
+      if (!tok) break;
+    }
+    var made = Classroom.Courses.Topics.create({ name: clean }, courseId);
+    return { id: String(made.topicId), name: String(made.name || clean), made: true };
+  } catch (e) {
+    return { why: 'the topic could not be used (' + String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 120) + ')' };
+  }
+}
+/* The Set homework page's topic box: the topics already in the Classroom course(s) the homework would go to, newest
+   first, so a teacher can pick one or type a new one (homeworkCreate makes it). Gated like every teacher call; read only;
+   asked only when the box is used. { ok, topics, courses } or { ok:false, why }. */
+function homeworkTopics(d) {
+  if (!_hwCaller_()) return { ok:false, why:'Not allowed.' };
+  try { _needClassroom_(); } catch (e) { return { ok:false, why:'Google Classroom is not switched on in the script.' }; }
+  d = d || {};
+  var roster = _studentDirectory_().students, ids = _classroomIds_(), courses = {}, names = [], seen = {};
+  (d.classes && d.classes.length ? d.classes : []).forEach(function (w) {
+    w = w || {};
+    var cls = String(w.cls || '').trim().toUpperCase(), emails = (w.emails || []).map(_cleanEmail_).filter(function (e) { return !!e; });
+    if (!cls && !emails.length) return;
+    var count = {};
+    _hwPupils_({ targets: { cls: cls, emails: emails }, setFor: null }, roster).forEach(function (p) {
+      var c = ids[p.email] && ids[p.email].courseId; if (c) count[c] = (count[c] || 0) + 1;
+    });
+    var top = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; })[0];   /* the course _hwPost_ picks */
+    if (top) courses[top] = 1;
+  });
+  var cids = Object.keys(courses);
+  if (!cids.length) return { ok:false, why:'Nobody in it was imported from Google Classroom, so there is no course to ask.' };
+  try {
+    cids.forEach(function (cid) {
+      var r = Classroom.Courses.Topics.list(cid, { pageSize: 100 }) || {};
+      (r.topic || []).forEach(function (t) {
+        var n = String(t.name || '').replace(/\s+/g, ' ').trim(), k = n.toLowerCase();
+        if (n && !seen[k]) { seen[k] = 1; names.push(n); }
+      });
+    });
+  } catch (e) {
+    return { ok:false, why:'The Classroom topics could not be read (' + String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 120) + '). You can still type a topic: if it cannot be used, the homework is posted without it.' };
+  }
+  return { ok:true, topics: names, courses: cids.length };
 }
 /* The homework tab's columns by heading, as _homeworkRows_ finds them. */
 function _hwHeadCols_(sh) {

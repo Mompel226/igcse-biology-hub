@@ -37,12 +37,12 @@
 window.HUB_LOCAL = {
 
   /* ── PUT YOUR OWN ADDRESS HERE ────────────────────────────
-     Leave it empty and everything still works: students get a completion code to hand in
-     however you like, and this page shows the progress their own browser remembers.
+     Leave it empty and everything still works: the labs and this page work from what each
+     student's own browser remembers, and nothing is sent anywhere.
 
-     Fill it in and, for students on your class list who sign in, their handed-in scores are
-     also kept in YOUR spreadsheet — and come back to them here after a cleared browser or on
-     another device.
+     Fill it in and, for students on your class list who sign in, the labs save their work on
+     their own to YOUR spreadsheet (there is nothing to hand in) — and it comes back to them
+     here after a cleared browser or on another device.
 
      What goes here is the /exec address of your own deployed Apps Script, which looks like
        https://script.google.com/macros/s/AKfy…long…/exec
@@ -72,7 +72,9 @@ window.HUB_LOCAL = {
                 told that rather than shown an empty record
        url      the address of the student page, with ?page=student on the end. If your
                 system deploys one per assessment, any of them will do — they are all
-                windows onto the same collated workbook.
+                windows onto the same collated workbook. It is the fallback: when the
+                script's record answer names a newer student page (`myAssessments`), the
+                card opens that one instead.
 
      Leave it null and no card appears.                                                    */
   record: null,

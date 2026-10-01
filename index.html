@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1790589877">
+<link rel="stylesheet" href="css/hub.css?v=1790836784">
 </head>
 <body>
 
@@ -83,8 +83,7 @@
         <!-- Staff only, and hidden until the sign-in says so. Nothing is protected by this: the
              page and both repositories are public. It is here so a student is not offered a
              seating-plan app they have no use for. -->
-        <a class="tools" href="applications.html" hidden
-           title="Free apps teachers have made: a seating plan and a birthday reminder">
+        <a class="tools" href="applications.html" hidden>
           <span class="tools__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6" fill="currentColor"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6" fill="currentColor" opacity=".72"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6" fill="currentColor" opacity=".72"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6" fill="currentColor" opacity=".45"/></svg></span>Apps</a>
         <div class="acct__gsi" id="acctGsi" hidden></div>
         <!-- Everything else is one of our two cards. The figure says "an account" before a
@@ -138,7 +137,7 @@
   <section class="beyond" id="beyond" aria-label="Clubs and societies"></section>
 
   <section class="prog" id="prog" hidden aria-labelledby="progH">
-    <div class="band"><span class="eyebrow" id="progH">Your progress</span><span class="count" id="progCount"></span><button type="button" class="syncbtn" id="btnSync" hidden title="Sign in to bring back work you did on another computer">Sync my work</button></div>
+    <div class="band"><span class="eyebrow" id="progH">Your progress</span><span class="count" id="progCount"></span><button type="button" class="syncbtn" id="btnSync" hidden>Sync my work</button></div>
     <div class="prog__grid" id="progGrid"></div>
     <p class="prog__note" id="progNote"></p>
   </section>
@@ -160,24 +159,30 @@
     <p>This page needs JavaScript to stand the doors up. The apps themselves:
        <a href="https://nlcsbiology.com/human-body-hub/">Human Body Hub</a> ·
        <a href="https://nlcsbiology.com/life-on-earth-hub/">Life on Earth Hub</a> ·
+       <a href="https://nlcsbiology.com/plants-hub/">Plants Hub</a> ·
+       <a href="https://nlcsbiology.com/classification-lab/">Classification Lab</a> ·
        <a href="https://nlcsbiology.com/digestion-lab/">Digestion Lab</a> ·
-       <a href="https://nlcsbiology.com/protein-enzyme-sim/">Protein &amp; Enzyme Sim</a></p>
+       <a href="https://nlcsbiology.com/circulation-lab/">Circulation Lab</a> ·
+       <a href="https://nlcsbiology.com/plants-lab/">Plants Lab</a> ·
+       <a href="https://nlcsbiology.com/protein-enzyme-sim/">Protein &amp; Enzyme Sim</a> ·
+       <a href="https://nlcsbiology.com/B11-starch-calibration-curve-pract/">Starch calibration curve (IB)</a></p>
   </noscript>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<!-- Google's sign-in, for the one control on this page that needs to know who you are.
+<!-- Google's sign-in: the account corner, Sync my work, your own door, the test, feedback and
+     reflection cards, and teacher mode all wait for it.
      `async defer` means the page never waits for it, and a school network that blocks it
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://accounts.google.com/gsi/client?hl=en-GB" async defer></script>
 
-<script src="js/data/labs.js?v=1790589877"></script>
-<script src="js/data/syllabus-years.js?v=1790589877"></script>
-<script src="js/progress.js?v=1790589877"></script>
-<script src="js/signin.js?v=1790589877"></script>
-<script src="js/shelves.js?v=1790589877"></script>
-<script src="js/local.js?v=1790589877"></script>
-<script src="js/hub.js?v=1790589877"></script>
+<script src="js/data/labs.js?v=1790836784"></script>
+<script src="js/data/syllabus-years.js?v=1790836784"></script>
+<script src="js/progress.js?v=1790836784"></script>
+<script src="js/signin.js?v=1790836784"></script>
+<script src="js/shelves.js?v=1790836784"></script>
+<script src="js/local.js?v=1790836784"></script>
+<script src="js/hub.js?v=1790836784"></script>
 </body>
 </html>

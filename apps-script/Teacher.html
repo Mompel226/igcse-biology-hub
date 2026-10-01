@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
 <style>
-/* ONE palette and ONE shell for all four views. Each view tints --accent, nothing else moves. */
+/* ONE palette and ONE shell for all five views. Each view tints --accent, nothing else moves. */
 :root{
   --ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);
   --chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;
@@ -67,7 +67,7 @@ h1 em{font-style:italic;color:var(--accent);transition:color .3s}
 .fld{display:flex;flex-direction:column;gap:5px;min-width:0}
 .fld>label:not(.ck){font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
 .fld--grow{flex:1 1 200px}
-input[type=text],input[type=date],input[type=search],select{appearance:none;-webkit-appearance:none;font:500 13.5px/1 var(--sans);
+input[type=text],input[type=date],input[type=time],input[type=search],select{appearance:none;-webkit-appearance:none;font:500 13.5px/1 var(--sans);
   color:var(--chalk);background:var(--cardhi);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;width:100%}
 select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'><path d='M6 9l6 6 6-6' fill='none' stroke='%237E93A1' stroke-width='2.4' stroke-linecap='round'/></svg>");
   background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;cursor:pointer}
@@ -87,6 +87,7 @@ input::placeholder{color:var(--mute)}
   border:1px solid var(--accent);border-radius:999px;padding:12px 20px;cursor:pointer}
 .go:disabled{opacity:.45;cursor:not-allowed}
 .msg{margin-top:10px;font-size:13px;min-height:1.2em}.msg.bad{color:#F3B4B4}.msg.ok{color:var(--good)}
+.tmsg{font-size:12px;line-height:1.45;color:var(--dim)}
 /* cards used by Spreadsheets + Students */
 .grp{margin:26px 0 0}
 .coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line2)}
@@ -319,17 +320,17 @@ var BOOT = __BOOT__;
 
   var VIEWS = {
     teachers:{ label:'Spreadsheets', accent:'#E879F9', h1:'Assessment <em>system</em>',
-      lede:'Every spreadsheet in the Assessment Reflection System, grouped by the cohort it belongs to.',
+      lede:'Every assessment spreadsheet on the page — reflections, tests, surveys and records — grouped by the cohort it belongs to.',
       note:'Each link opens only for the people its spreadsheet is shared with — this page lists them, it does not share them. To change anything: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.' },
     progress:{ label:'Lab progress', accent:'#4FC3F7', h1:'Lab <em>progress</em>',
       lede:'How each class is getting on — who has done what, and where they are getting stuck.',
-      note:'Scores are averaged over the labs a student has actually saved work in. A lab not started is a blank in the grid, never a zero. “Reviewed” ticks are kept in this browser only.' },
+      note:'Scores are averaged over the labs a student has actually saved work in. A lab not started shows a faint ·, never a zero. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
       note:'Opening a tracker signs you in as yourself; it shows that pupil’s page because you are their teacher.' },
     homework:{ label:'Set homework', accent:'#F5A623', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets or both — say who it is for and when it is due.',
-      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab, every time this page opens.' },
+      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again.' },
     english:{ label:'Bio English', accent:'#62D38A', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
       note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' }
@@ -373,8 +374,8 @@ var BOOT = __BOOT__;
         cbs.forEach(function(f){ f({ ok:false, why:'Could not reach the spreadsheet: '+((e&&e.message)||e) }); }); })
       .uiData(tab);
   }
-  /* Once the first view is up, quietly read the other three while the teacher is still looking at
-     this one. Every later tab click is then instant rather than another wait. */
+  /* Once the first view is up, quietly read the others, one at a time, while the teacher is still looking
+     at this one. Every later tab click is then instant rather than another wait. */
   function prefetch(){
     if (prefetched) return; prefetched = true;
     var rest = ORDER.filter(function(k){ return k!==cur; });
@@ -657,8 +658,9 @@ var BOOT = __BOOT__;
   /* ─────────── boot ─────────── */
   $('rf').addEventListener('click', function(){
     var b=$('rf'); b.classList.add('spin'); setTimeout(function(){ b.classList.remove('spin'); },700);
-    /* re-read THIS view now, and drop the others so they re-read when next opened — after a
-       refresh the teacher expects fresh numbers everywhere, not just where they happen to stand */
+    /* re-read THIS view now, then the others in the background (go() runs prefetch again, and it finds
+       nothing kept) — after a refresh the teacher expects fresh numbers everywhere, not just where they
+       happen to stand */
     ORDER.forEach(function(k){ if (k!==cur) { delete cache[k]; ssDel(k); } });
     prefetched = false;
     go(cur, true);
@@ -747,7 +749,7 @@ var BOOT = __BOOT__;
 })();
 </script>
 <script>
-/* Lab progress and Set homework live here so the shell above stays readable. They take their
+/* Lab progress, Bio English and Set homework live here so the shell above stays readable. They take their
    helpers from window.__view rather than repeating them. */
 (function(){
   "use strict";
@@ -845,7 +847,7 @@ var BOOT = __BOOT__;
             if(!e) return '<td class="cell"><div class="cbox none" data-tip="'+esc(l.name)+': nothing saved yet.">·</div></td>';
             var h=heat(e.pct);
             return '<td class="cell"><div class="cbox'+(e.complete?' done':'')+'" style="background:'+h.bg+';border-color:'+h.bd+';color:'+h.fg+'" data-tip="'+esc(l.name+': '+e.done+'/'+e.total+' · '+e.checks+' checks')+'">'+r0(e.pct)+'</div></td>'; }).join('')+'</tr>'; }).join('');
-      out += sec('Every student, every lab','Colour and number are the score so far; a dot means finished, a dash means not started. Click a name for the full picture.',
+      out += sec('Every student, every lab','Colour and number are the score so far; a small dot in the corner means finished, and a faint · means nothing saved yet. Click a name for the full picture.',
         '<div class="panel"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
         '<div class="hmleg"><span>Lower</span><span class="hmgrad"></span><span>Higher</span></div></div>', arr.length+' shown');
       /* lab by lab */
@@ -1050,8 +1052,8 @@ var BOOT = __BOOT__;
   };
 
   /* ─────────────────────── Set homework ─────────────────────── */
-  var hState = { title:'', rows:[{cls:'',due:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
-                 post:true, enYr:'' };
+  var hState = { title:'', rows:[{cls:'',due:'',time:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
+                 post:true, enYr:'', topic:'', topics:{}, topicMsg:'' };
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   window.vHomework = function(D){
     var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
@@ -1100,17 +1102,45 @@ var BOOT = __BOOT__;
     function oneClass(){ return hState.rows.length===1?hState.rows[0].cls:''; }
     function classPupils(){ var c=oneClass(); return c?STUD.filter(function(s){return s.cls===c;}):[]; }
     function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due;}); }
+    /* The Classroom topic: one of the course's own, or a new name (it is made in the course when the homework is posted).
+       The course's topics are asked for only when the box is used, once for each set of classes. */
+    function topicKey(){ return hState.rows.map(function(r){ return r.cls; }).filter(Boolean).join(',')+(oneClass()&&!hState.whole?'|'+Object.keys(hState.pick).sort().join(','):''); }
+    function topicBox(){ var have=hState.topics[topicKey()]||[];
+      return '<div class="fld" style="margin-top:12px;max-width:420px"><label for="htopic">Classroom topic (optional)</label>'+
+        '<input id="htopic" type="text" list="htopics" maxlength="100" autocomplete="off" placeholder="Choose a topic, or type a new one" value="'+esc(hState.topic||'')+'">'+
+        '<datalist id="htopics">'+have.map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('')+'</datalist>'+
+        '<div class="tmsg" id="htopicmsg">'+esc(hState.topicMsg||'A new name is made in the course. Leave it empty to post with no topic.')+'</div></div>'; }
+    function loadTopics(){
+      var key=topicKey();
+      if(!key){ hState.topicMsg='Choose the class first: then its Classroom topics are listed here.'; var m0=$('htopicmsg'); if(m0) m0.textContent=hState.topicMsg; return; }
+      if(hState.topics[key]) return;
+      hState.topics[key]=[]; hState.topicMsg='Looking for the course’s topics…';
+      var m=$('htopicmsg'); if(m) m.textContent=hState.topicMsg;
+      var ind=oneClass()&&!hState.whole, emails=ind?Object.keys(hState.pick):[];
+      google.script.run
+        .withSuccessHandler(function(r){
+          if(r&&r.ok){ hState.topics[key]=r.topics||[];
+            hState.topicMsg=(r.topics&&r.topics.length)?('Choose one of the course’s '+r.topics.length+' topic'+(r.topics.length===1?'':'s')+', or type a new one to make it.'):'The course has no topics yet. Type one to make it.'; }
+          else { delete hState.topics[key]; hState.topicMsg=(r&&r.why)||'The Classroom topics could not be read. You can still type one.'; }
+          var dl=$('htopics'); if(dl&&key===topicKey()) dl.innerHTML=(hState.topics[key]||[]).map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('');
+          var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
+        .withFailureHandler(function(){ delete hState.topics[key]; hState.topicMsg='The Classroom topics could not be read. You can still type one: if it cannot be used, the homework is posted without it.';
+          var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
+        .homeworkTopics({ classes:hState.rows.map(function(r){ return ind?{cls:'',emails:emails}:{cls:r.cls,emails:[]}; }) });
+    }
     /* The server words the date and decides overdue/soon in the SCHOOL's timezone, so the browser
        does no date arithmetic at all — it cannot disagree about which day it is. */
     function fmtD(h){ return h.dueText || '—'; }
     function dueCls(h){ return h.overdue ? 'over' : (h.soon ? 'soon' : ''); }
+    /* The roster's classes, in year order. The class picker lists them, and "Set again" keeps the old class only if it
+       is still one of them — so both ask here: "Set again" once used paint()'s own list and threw (labs-script-002). */
+    function classNames(){ var cl={}; STUD.forEach(function(s){ if(s.cls)cl[s.cls]=1; }); return Object.keys(cl).sort(cmpClass); }
 
     function paint(){
       var warn='';
       if (!D.hubSet) warn='<div class="warn">The hub address is not set, so the parts of each lab cannot be listed. Set it in 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses.</div>';
-      else if (!D.manifestOk) warn='<div class="warn">The station list could not be read from the hub. Run tools/stations-manifest.mjs, publish the site, then Refresh.</div>';
-      var classes={}; STUD.forEach(function(s){ if(s.cls)classes[s.cls]=1; });
-      var names=Object.keys(classes).sort(cmpClass);
+      else if (!D.manifestOk) warn='<div class="warn">The station list could not be read from the hub, so the parts of each lab cannot be listed. 🧪 Biology Labs ▸ 🩺 Check the set-up says why; then press Refresh.</div>';
+      var names=classNames();
       function opts(sel){ return '<option value="">Choose a class…</option>'+names.map(function(c){return '<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+esc(c)+'</option>';}).join(''); }
       var crows=hState.rows.map(function(r,i){
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
@@ -1118,6 +1148,9 @@ var BOOT = __BOOT__;
             '<select id="hc'+i+'" data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
           '<div class="fld" style="flex:0 0 180px"><label for="hd'+i+'">Due</label>'+
             '<input id="hd'+i+'" type="date" data-due="'+i+'" value="'+esc(r.due||'')+'"></div>'+
+          /* optional: empty keeps the end of that day, in the school's zone */
+          '<div class="fld" style="flex:0 0 130px"><label for="htm'+i+'">Time (optional)</label>'+
+            '<input id="htm'+i+'" type="time" data-time="'+i+'" value="'+esc(r.time||'')+'"></div>'+
           (hState.rows.length>1?'<button class="act" data-rmrow="'+i+'">Remove</button>':'')+'</div>'; }).join('');
       var pupils=classPupils();
       var pbox = (oneClass()&&pupils.length)
@@ -1155,12 +1188,14 @@ var BOOT = __BOOT__;
           '<span class="size__n">'+p.questions+'</span><span class="size__k">questions</span><span class="size__h">'+esc(hint)+'</span></div>'+
           '<label class="ck" style="margin-top:14px"><input type="checkbox" id="hpost"'+(hState.post&&D.classroomOk?' checked':'')+(D.classroomOk?'':' disabled')+'>'+
           '<span>Post it in Google Classroom too'+(D.classroomOk?'':' — Google Classroom is not switched on in the script')+'</span></label>'+
+          (hState.post&&D.classroomOk?topicBox():'')+
           '<div style="margin-top:14px"><button class="go" id="hset"'+(p.any&&ready()?'':' disabled')+'>'+
           (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
       var list = !HW.length ? '<div class="empty">Nothing set yet.</div>' : HW.map(function(h){
         var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id];
         var w=n||1;   /* nobody left is "nobody left", not "0 of 1 done" */
-        var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+(h.joined?'<span class="churn">'+h.joined+' joined since</span>':'');
+        var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+(h.joined?'<span class="churn">'+h.joined+' joined since</span>':'')+
+          (h.dueBad?'<span class="churn">the due date cannot be read</span>':'');
         return '<div class="hw"><div class="hw__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-hw="'+esc(h.id)+'">'+
           '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
           (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div></div>'+
@@ -1173,6 +1208,7 @@ var BOOT = __BOOT__;
               '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
               '<div><span class="st-pill '+esc(x.state)+'">'+(x.state==='none'?'not started':x.state)+'</span></div></div>'; }).join('')
             ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
+            (h.dueBad?'<div class="gone">The Due cell for this homework in the 📚 Homework tab is not a date, so it has no due date: it is never shown as overdue, and no summary is emailed. Type the date into that cell, then press Refresh.</div>':'')+
             (h.missing&&h.missing.length?'<div class="gone">Not scored: '+esc(h.missing.join(', '))+' — that part is no longer in the lab, so it is left out rather than counted as nothing done.</div>':'')+
             '<div class="acts"><button class="act" data-again="'+esc(h.id)+'">Set again</button>'+
             (hState.confirmDel===h.id
@@ -1194,7 +1230,11 @@ var BOOT = __BOOT__;
       document.querySelectorAll('[data-due]').forEach(function(i){ i.addEventListener('input', function(){
         hState.rows[+i.getAttribute('data-due')].due=i.value;
         var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
-      var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){ hState.rows.push({cls:'',due:''}); hState.whole=true; hState.pick={}; paint(); });
+      document.querySelectorAll('[data-time]').forEach(function(i){ i.addEventListener('input', function(){
+        hState.rows[+i.getAttribute('data-time')].time=i.value; }); });
+      var tp=$('htopic'); if(tp){ tp.addEventListener('input', function(){ hState.topic=tp.value; });
+        tp.addEventListener('focus', loadTopics); }
+      var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){ hState.rows.push({cls:'',due:'',time:''}); hState.whole=true; hState.pick={}; paint(); });
       document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1); paint(); }); });
       var w=$('whole'); if(w) w.addEventListener('change', function(){ hState.whole=w.checked; paint(); });
       document.querySelectorAll('[data-pup]').forEach(function(b){ b.addEventListener('change', function(){
@@ -1223,7 +1263,7 @@ var BOOT = __BOOT__;
         var was=(h.targets&&h.targets.cls)||'';
         /* only carry the class over if it still exists, or the box shows "Choose a class…" while
            the state still holds the old one and Set would write homework nobody is in */
-        hState.title=h.title; hState.rows=[{cls:(names.indexOf(was)>=0?was:''),due:''}]; hState.whole=true; hState.pick={};
+        hState.title=h.title; hState.rows=[{cls:(classNames().indexOf(was)>=0?was:''),due:'',time:''}]; hState.whole=true; hState.pick={};
         paint(); var t=$('ht'); if(t){ t.focus(); t.scrollIntoView({behavior:'smooth',block:'center'}); } }); });
       document.querySelectorAll('[data-ask]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         hState.confirmDel=b.getAttribute('data-ask'); paint(); }); });
@@ -1246,7 +1286,7 @@ var BOOT = __BOOT__;
       document.querySelectorAll('[data-enpick]').forEach(function(b){ b.addEventListener('change', function(){
         var mine=hState.picked[ENID]=hState.picked[ENID]||{}, id=b.getAttribute('data-enpick');
         if(b.checked) mine[id]=1; else delete mine[id]; paint(); }); });
-      var hp=$('hpost'); if(hp) hp.addEventListener('change', function(){ hState.post=hp.checked; });
+      var hp=$('hpost'); if(hp) hp.addEventListener('change', function(){ hState.post=hp.checked; paint(); });
       var g=$('hset'); if(g) g.addEventListener('click', submit);
     }
     function send(fn, arg){
@@ -1270,16 +1310,18 @@ var BOOT = __BOOT__;
         .withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
-            hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:''}];
+            hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:'',time:''}]; hState.topic=''; hState.topicMsg='';
             var m=r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.';
-            if(r.posted&&r.posted.length) m+=' Posted in Google Classroom for '+r.posted.join(', ')+'.';
+            if(r.posted&&r.posted.length) m+=' Posted in Google Classroom for '+r.posted.join(', ')+(r.topic&&!(r.topicMissed&&r.topicMissed.length)?', under the topic “'+r.topic+'”':'')+'.';
+            if(r.topicMissed&&r.topicMissed.length) m+=' Posted without the topic — '+r.topicMissed.join('; ')+'.';
             if(r.notPosted&&r.notPosted.length) m+=' Not posted in Classroom — '+r.notPosted.join('; ')+'.';
-            paint(); say(m, !!(r.notPosted&&r.notPosted.length)); }
+            paint(); say(m, !!((r.notPosted&&r.notPosted.length)||(r.topicMissed&&r.topicMissed.length))); }
           else say((r&&r.why)||'Could not set it.', true); })
         .withFailureHandler(function(){ hState.busy=false; say('Could not set it.', true); })
         .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks, post:!!(hState.post&&D.classroomOk),
-          /* send the plain date; the server pins it to the end of that day in the school's zone */
-          classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,emails:emails}:{cls:r.cls,due:r.due,emails:[]}; }) });
+          topic:(hState.post&&D.classroomOk)?String(hState.topic||'').trim():'',
+          /* the plain date, and the time when one was typed: the server reads both in the school's zone (no time = the end of that day) */
+          classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]}; }) });
     }
     paint();
   };
