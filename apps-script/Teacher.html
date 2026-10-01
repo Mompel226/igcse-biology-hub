@@ -1261,28 +1261,51 @@ var BOOT = __BOOT__;
     /* The Classroom topic: one of the course's own, or a new name (it is made in the course when the homework is posted).
        The course's topics are asked for only when the box is used, once for each set of classes. */
     function topicKey(){ return hState.rows.map(function(r){ return r.cls; }).filter(Boolean).join(',')+(oneClass()&&!hState.whole?'|'+Object.keys(hState.pick).sort().join(','):''); }
-    function topicBox(){ var have=hState.topics[topicKey()]||[];
+    /* Since 2 Oct 2026 the answer is kept as { loaded, all, by }: `all` for the one box of a single class, `by[CLASS]`
+       for each class's own box when several classes are set (Daniel: "what happens if different classes have different
+       section names?" — one name for all made a new topic of that name in every class that did not have it). */
+    function topicsGot(){ return hState.topics[topicKey()]||null; }
+    function rowTopics(r){ var g=topicsGot(), by=g&&g.by?g.by[String(r.cls||'').toUpperCase()]:null; return by||[]; }
+    function rowNote(r){ var g=topicsGot(), t=String(r.topic||'').replace(/\s+/g,' ').trim();
+      if(!t||!r.cls||!g||!g.loaded||!g.by) return '';
+      var by=g.by[String(r.cls).toUpperCase()]; if(!by) return '';
+      return by.some(function(n){ return n.toLowerCase()===t.toLowerCase(); }) ? ''
+        : '“'+t+'” is not a topic in '+r.cls+'’s Classroom yet: it is made there when you set the homework.'; }
+    var TOPIC_ONE='A new name is made in the course. Leave it empty to post with no topic.';
+    var TOPIC_MANY='Each class has its own topic box, with that class’s own Classroom topics. A new name is made in that class only. Leave a box empty to post with no topic.';
+    function topicBox(){ var g=topicsGot(), have=g?g.all:[];
       return '<div class="fld" style="margin-top:12px;max-width:420px"><label for="htopic">Classroom topic (optional)</label>'+
         '<input id="htopic" type="text" list="htopics" maxlength="100" autocomplete="off" placeholder="Choose a topic, or type a new one" value="'+esc(hState.topic||'')+'">'+
         '<datalist id="htopics">'+have.map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('')+'</datalist>'+
-        '<div class="tmsg" id="htopicmsg">'+esc(hState.topicMsg||'A new name is made in the course. Leave it empty to post with no topic.')+'</div></div>'; }
+        '<div class="tmsg" id="htopicmsg">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_MANY?hState.topicMsg:TOPIC_ONE)+'</div></div>'; }
     function loadTopics(){
       var key=topicKey();
       if(!key){ hState.topicMsg='Choose the class first: then its Classroom topics are listed here.'; var m0=$('htopicmsg'); if(m0) m0.textContent=hState.topicMsg; return; }
       if(hState.topics[key]) return;
-      hState.topics[key]=[]; hState.topicMsg='Looking for the course’s topics…';
+      var many=hState.rows.length>1;
+      hState.topics[key]={loaded:false,all:[],by:{}}; hState.topicMsg='Looking for the course’s topics…';
       var m=$('htopicmsg'); if(m) m.textContent=hState.topicMsg;
       var ind=oneClass()&&!hState.whole, emails=ind?Object.keys(hState.pick):[];
       google.script.run
         .withSuccessHandler(function(r){
-          if(r&&r.ok){ hState.topics[key]=r.topics||[];
-            hState.topicMsg=(r.topics&&r.topics.length)?('Choose one of the course’s '+r.topics.length+' topic'+(r.topics.length===1?'':'s')+', or type a new one to make it.'):'The course has no topics yet. Type one to make it.'; }
+          if(r&&r.ok){ var by={}; (r.byClass||[]).forEach(function(c){ if(c&&c.cls&&c.known) by[String(c.cls).toUpperCase()]=c.topics||[]; });
+            hState.topics[key]={loaded:true,all:r.topics||[],by:by};
+            hState.topicMsg=many?TOPIC_MANY:(r.topics&&r.topics.length)?('Choose one of the course’s '+r.topics.length+' topic'+(r.topics.length===1?'':'s')+', or type a new one to make it.'):'The course has no topics yet. Type one to make it.'; }
           else { delete hState.topics[key]; hState.topicMsg=(r&&r.why)||'The Classroom topics could not be read. You can still type one.'; }
-          var dl=$('htopics'); if(dl&&key===topicKey()) dl.innerHTML=(hState.topics[key]||[]).map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('');
+          if(key===topicKey()) fillTopics();
           var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
         .withFailureHandler(function(){ delete hState.topics[key]; hState.topicMsg='The Classroom topics could not be read. You can still type one: if it cannot be used, the homework is posted without it.';
           var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
         .homeworkTopics({ classes:hState.rows.map(function(r){ return ind?{cls:'',emails:emails}:{cls:r.cls,emails:[]}; }) });
+    }
+    /* The lists and notes of the topic boxes on the page, filled in place (no redraw: the box being typed in keeps its
+       cursor). One class: the one box's list. Several: each class's own list, and its "new here" note. */
+    function fillTopics(){
+      var opt=function(n){ return '<option value="'+esc(n)+'"></option>'; }, g=topicsGot();
+      var dl=$('htopics'); if(dl) dl.innerHTML=(g?g.all:[]).map(opt).join('');
+      hState.rows.forEach(function(r,i){
+        var d=$('htopics'+i); if(d) d.innerHTML=rowTopics(r).map(opt).join('');
+        var n=$('htn'+i); if(n){ var w=rowNote(r); n.textContent=w; n.hidden=!w; } });
     }
     /* The server words the date and decides overdue/soon in the SCHOOL's timezone, so the browser
        does no date arithmetic at all — it cannot disagree about which day it is. */
@@ -1298,7 +1321,10 @@ var BOOT = __BOOT__;
       else if (!D.manifestOk) warn='<div class="warn">The station list could not be read from the hub, so the parts of each lab cannot be listed. 🧪 Biology Labs ▸ 🩺 Check the set-up says why; then press Refresh.</div>';
       var names=classNames();
       function opts(sel){ return '<option value="">Choose a class…</option>'+names.map(function(c){return '<option value="'+esc(c)+'"'+(c===sel?' selected':'')+'>'+esc(c)+'</option>';}).join(''); }
+      /* several classes posted in Classroom: a topic box per class, in its row (the one box below is for one class) */
+      var many=hState.rows.length>1, tpc=many&&hState.post&&D.classroomOk;
       var crows=hState.rows.map(function(r,i){
+        var note=tpc?rowNote(r):'';
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
           '<div class="fld" style="flex:0 0 180px"><label for="hc'+i+'">Class</label>'+
             '<select id="hc'+i+'" data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
@@ -1307,7 +1333,16 @@ var BOOT = __BOOT__;
           /* optional: empty keeps the end of that day, in the school's zone */
           '<div class="fld" style="flex:0 0 130px"><label for="htm'+i+'">Time (optional)</label>'+
             '<input id="htm'+i+'" type="time" data-time="'+i+'" value="'+esc(r.time||'')+'"></div>'+
-          (hState.rows.length>1?'<button class="act" data-rmrow="'+i+'">Remove</button>':'')+'</div>'; }).join('');
+          (tpc?'<div class="fld" style="flex:1 1 200px;min-width:160px"><label for="htp'+i+'">Classroom topic (optional)</label>'+
+            '<input id="htp'+i+'" type="text" data-topic="'+i+'" list="htopics'+i+'" maxlength="100" autocomplete="off" placeholder="Choose a topic, or type a new one" value="'+esc(r.topic||'')+'">'+
+            '<datalist id="htopics'+i+'">'+rowTopics(r).map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('')+'</datalist></div>':'')+
+          /* Daniel, 2 Oct 2026: "a little button… so that the same information is set for the next class" */
+          (i>0?'<button class="act" data-same="'+i+'" data-tip="Copy the date and the time from the class above">↑ Same date and time</button>':'')+
+          (many?'<button class="act" data-rmrow="'+i+'">Remove</button>':'')+
+          /* Daniel, 2 Oct 2026: with no time "it's not clear what time is set". Said in the row, until a time is typed. */
+          '<div class="tmsg" id="hth'+i+'" style="flex:1 1 100%"'+(r.time?' hidden':'')+'>No time typed: due at 23:59, the end of that day.</div>'+
+          (tpc?'<div class="tmsg" id="htn'+i+'" style="flex:1 1 100%"'+(note?'':' hidden')+'>'+esc(note)+'</div>':'')+
+          '</div>'; }).join('');
       var pupils=classPupils();
       var pbox = (oneClass()&&pupils.length)
         ? '<label class="ck" style="margin:2px 0 8px"><input type="checkbox" id="whole"'+(hState.whole?' checked':'')+'><span>Everyone in '+esc(oneClass())+'</span></label>'+
@@ -1337,6 +1372,7 @@ var BOOT = __BOOT__;
           '<div class="fld"><label>Who, and by when</label></div>'+crows+
           '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap"><button class="act" id="addrow">+ Another class</button>'+
           (hState.rows.length>1?'<span class="size__k">each class gets its own date, and its own Classroom post</span>':'')+'</div>'+
+          (tpc?'<div class="tmsg" id="htopicmsg" style="margin-top:6px">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_ONE?hState.topicMsg:TOPIC_MANY)+'</div>':'')+
           pbox+
           '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+
           '<div class="size"><span class="size__n">'+p.stations+'</span><span class="size__k">lab station'+(p.stations===1?'':'s')+'</span>'+
@@ -1347,7 +1383,7 @@ var BOOT = __BOOT__;
           (hState.post&&D.classroomOk?'<label class="ck" style="margin-top:10px;display:flex"><input type="checkbox" id="hremind"'+(hState.remind?' checked':'')+'>'+
             '<span>Remind pupils who have not finished (2 reminders before the due time)</span></label>'+
             '<div class="tmsg" style="margin:3px 0 0 22px">Only they see them, in Google Classroom: when 70% and 85% of the time to the due time has passed. None between 22:00 and 07:00.</div>':'')+
-          (hState.post&&D.classroomOk?topicBox():'')+
+          (hState.post&&D.classroomOk&&!many?topicBox():'')+
           '<div style="margin-top:14px"><button class="go" id="hset"'+(p.any&&ready()?'':' disabled')+'>'+
           (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
       function card(h){
@@ -1362,7 +1398,7 @@ var BOOT = __BOOT__;
           '<div class="bars" data-tip="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
           '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
           '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
-          '<div class="hw__due '+dueCls(h)+'"><b>'+esc(fmtD(h))+'</b>due</div></div>'+
+          '<div class="hw__due '+dueCls(h)+'"><b>'+esc(fmtD(h))+'</b>'+(h.dueText&&!/, \d\d:\d\d$/.test(h.dueText)?'due at 23:59':'due')+'</div></div>'+
           (op?'<div class="hw__b">'+(h.pupils.map(function(x){
             return '<div class="prow"><div class="prow__n">'+esc(x.name||'(no name)')+'<span>'+esc(x.cls||'')+'</span></div>'+
               '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
@@ -1415,11 +1451,24 @@ var BOOT = __BOOT__;
         hState.rows[+i.getAttribute('data-due')].due=i.value;
         var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
       document.querySelectorAll('[data-time]').forEach(function(i){ i.addEventListener('input', function(){
-        hState.rows[+i.getAttribute('data-time')].time=i.value; }); });
+        var k=+i.getAttribute('data-time'); hState.rows[k].time=i.value;
+        var th=$('hth'+k); if(th) th.hidden=!!i.value; }); });
+      /* "↑ Same date and time": the class above's date and time, copied into this row */
+      document.querySelectorAll('[data-same]').forEach(function(b){ b.addEventListener('click', function(){
+        var k=+b.getAttribute('data-same'), up=hState.rows[k-1]; if(!up) return;
+        hState.rows[k].due=up.due||''; hState.rows[k].time=up.time||''; paint(); }); });
+      /* a class's own topic box (several classes) */
+      document.querySelectorAll('[data-topic]').forEach(function(i){
+        i.addEventListener('input', function(){ var k=+i.getAttribute('data-topic'), r=hState.rows[k]; r.topic=i.value;
+          var n=$('htn'+k); if(n){ var w=rowNote(r); n.textContent=w; n.hidden=!w; } });
+        i.addEventListener('focus', loadTopics); });
       var tp=$('htopic'); if(tp){ tp.addEventListener('input', function(){ hState.topic=tp.value; });
         tp.addEventListener('focus', loadTopics); }
-      var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){ hState.rows.push({cls:'',due:'',time:''}); hState.whole=true; hState.pick={}; paint(); });
-      document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1); paint(); }); });
+      var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){
+        if(hState.rows.length===1) hState.rows[0].topic=hState.topic||'';   /* the one box's topic goes with its class */
+        hState.rows.push({cls:'',due:'',time:'',topic:''}); hState.whole=true; hState.pick={}; hState.topicMsg=''; paint(); });
+      document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1);
+        if(hState.rows.length===1){ hState.topic=hState.rows[0].topic||''; hState.topicMsg=''; } paint(); }); });
       var w=$('whole'); if(w) w.addEventListener('change', function(){ hState.whole=w.checked; paint(); });
       document.querySelectorAll('[data-pup]').forEach(function(b){ b.addEventListener('change', function(){
         if(b.checked) hState.pick[b.getAttribute('data-pup')]=1; else delete hState.pick[b.getAttribute('data-pup')];
@@ -1504,7 +1553,10 @@ var BOOT = __BOOT__;
             V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
             hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:'',time:''}]; hState.topic=''; hState.topicMsg='';
             var m=r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.';
+            var tps=r.topics||[], newIn=tps.filter(function(t){ return t.made; }).map(function(t){ return t.cls; }).filter(Boolean);
             if(r.posted&&r.posted.length) m+=' Posted in Google Classroom for '+r.posted.join(', ')+(r.topic&&!(r.topicMissed&&r.topicMissed.length)?', under the topic “'+r.topic+'”':'')+'.';
+            if(!r.topic&&tps.length) m+=' Topics: '+tps.map(function(t){ return (t.cls?t.cls+' ':'')+'“'+t.name+'”'; }).join(', ')+'.';
+            if(newIn.length) m+=' The topic was made new in '+newIn.join(', ')+'.';
             if(r.topicMissed&&r.topicMissed.length) m+=' Posted without the topic — '+r.topicMissed.join('; ')+'.';
             if(r.notPosted&&r.notPosted.length) m+=' Not posted in Classroom — '+r.notPosted.join('; ')+'.';
             if(r.remind==='on') m+=' Pupils who have not finished get 2 reminders in Google Classroom before the due time.';
@@ -1514,9 +1566,13 @@ var BOOT = __BOOT__;
         .withFailureHandler(function(){ hState.busy=false; say('Could not set it.', true); })
         .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks, post:!!(hState.post&&D.classroomOk),
           remind:!!(hState.post&&D.classroomOk&&hState.remind),
-          topic:(hState.post&&D.classroomOk)?String(hState.topic||'').trim():'',
-          /* the plain date, and the time when one was typed: the server reads both in the school's zone (no time = the end of that day) */
-          classes:hState.rows.map(function(r){ return ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]}; }) });
+          topic:(hState.post&&D.classroomOk&&hState.rows.length===1)?String(hState.topic||'').trim():'',
+          /* the plain date, and the time when one was typed: the server reads both in the school's zone (no time = the end of that day).
+             Several classes posted in Classroom: each brings its own topic ('' = none). */
+          classes:hState.rows.map(function(r){
+            var o=ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]};
+            if(hState.rows.length>1&&hState.post&&D.classroomOk) o.topic=String(r.topic||'').trim();
+            return o; }) });
     }
     paint();
   };
