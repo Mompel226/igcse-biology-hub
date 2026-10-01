@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '1 Oct 2026 (late night) — Set homework: the list sorts by due date or class, one link per lab in the Classroom post, two reminders to the pupils who have not finished; the teacher page tabs fit a phone screen; Homework habits (when each pupil finishes); the Analysis link for its viewers';
+var SCRIPT_EDITION = '2 Oct 2026 — the teacher page reads its other views at the same time, not one by one, and asks the spreadsheet for its time zone once per call; before that, 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -4144,9 +4144,19 @@ function _hwCaller_() {
    "…T23:59:00", the server parsed it in the PROJECT's zone, and the browser rendered it back in its
    OWN: a date could show a day early or late and be called overdue on the wrong day. Now every
    decision about a due date is made in this one zone, and the page is sent the words and the
-   verdict rather than a timestamp to re-interpret. */
+   verdict rather than a timestamp to re-interpret.
+   Read ONCE per execution, like the handle it comes from (_ss_): ⏱️ Homework habits asked it about twice per
+   pupil per homework, each a call to the spreadsheet (2 Oct 2026, Daniel: the teacher pages are slow to open).
+   It is kept with the handle it was read from, so a new handle reads it again. */
+var _TZ_MEMO = null;
 function _tz_() {
-  try { return _ss_().getSpreadsheetTimeZone() || Session.getScriptTimeZone(); }
+  try {
+    var ss = _ss_();
+    if (_TZ_MEMO && _TZ_MEMO.ss === ss) return _TZ_MEMO.tz;
+    var tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+    _TZ_MEMO = { ss: ss, tz: tz };
+    return tz;
+  }
   catch (e) { try { return Session.getScriptTimeZone(); } catch (e2) { return 'Etc/UTC'; } }
 }
 function _dueFrom_(v, t) {
