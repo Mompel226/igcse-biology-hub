@@ -479,6 +479,7 @@ stays in the browser and is sent the moment the student signs in.
 | **🔗 Add or remove links on the teacher page…** | the spreadsheets the teacher page lists — see *Teacher mode* above |
 | **🔎 Find new reflection and test spreadsheets** | adds to the teacher page every reflection or test spreadsheet that has labelled itself in Drive and is not listed yet |
 | **👥 Teacher page: teachers and addresses…** | the page's addresses (the page, the tracker, the hub), and who may open it |
+| **🤝 Let the teachers on the list edit this spreadsheet…** | gives each teacher on the list edit access to this Sheet, after one question that names them. Only addresses at the school's own domain; nobody is ever removed. An editor can change any cell and open the script |
 | **📬 Email me when homework falls due (every morning)** | at about 7:00 each teacher gets a summary of their homework that has just fallen due: who finished, who started, who did not |
 
 *Refresh everyone's progress* and *Tidy up* also sit as tick-box buttons on the **Setup** tab.

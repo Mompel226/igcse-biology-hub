@@ -459,7 +459,7 @@ var BOOT = __BOOT__;
       note:'Opening a tracker signs you in as yourself; it shows that pupil’s page because you are their teacher.' },
     homework:{ label:'Set homework', accent:'#F5A623', accentL:'#B45309', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets or both — say who it is for and when it is due.',
-      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again. Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
+      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again. Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00. Homework set for a later date (🗓) stays hidden from pupils until its start, in Google Classroom and in the labs, and its reminders count from that start.' },
     english:{ label:'Bio English', accent:'#62D38A', accentL:'#15803D', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
       note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' },
@@ -1206,13 +1206,15 @@ var BOOT = __BOOT__;
   };
 
   /* ─────────────────────── Set homework ─────────────────────── */
+  /* `later` (2 Oct 2026): the homework is set for a later date; each class row then has its own start date and time */
   var hState = { title:'', rows:[{cls:'',due:'',time:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
-                 post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'' };
+                 post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'' };
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   window.vHomework = function(D){
     var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
     /* "Sort by: Due date · Class" (Daniel, 1 Oct 2026), remembered in this browser */
     if(!hState.sort){ var s0=''; try { s0=localStorage.getItem('homework.sort')||''; } catch(e){} hState.sort=(s0==='class')?'class':'due'; }
+    if(!hState.whose){ var w0=''; try { w0=localStorage.getItem('homework.whose')||''; } catch(e){} hState.whose=(w0==='all')?'all':'mine'; }
     function useEn(){ EN=D.english||null; ENS={}; if(EN)(EN.sets||[]).forEach(function(s){ ENS[s.id]=s; }); }
     useEn();
     function picked(){ var tasks=[],st=0,q=0,es=[];
@@ -1271,6 +1273,9 @@ var BOOT = __BOOT__;
       var by=g.by[String(r.cls).toUpperCase()]; if(!by) return '';
       return by.some(function(n){ return n.toLowerCase()===t.toLowerCase(); }) ? ''
         : '“'+t+'” is not a topic in '+r.cls+'’s Classroom yet: it is made there when you set the homework.'; }
+    function startNote(r){ if(!hState.later) return '';
+      if(!r.start) return r.startTime?'A start time needs a start date.':'No start date: this class gets it at once, when you press Set homework.';
+      return r.startTime?'':'No start time typed: pupils get it at 08:00 that day.'; }
     var TOPIC_ONE='A new name is made in the course. Leave it empty to post with no topic.';
     var TOPIC_MANY='Each class has its own topic box, with that class’s own Classroom topics. A new name is made in that class only. Leave a box empty to post with no topic.';
     function topicBox(){ var g=topicsGot(), have=g?g.all:[];
@@ -1324,10 +1329,15 @@ var BOOT = __BOOT__;
       /* several classes posted in Classroom: a topic box per class, in its row (the one box below is for one class) */
       var many=hState.rows.length>1, tpc=many&&hState.post&&D.classroomOk;
       var crows=hState.rows.map(function(r,i){
-        var note=tpc?rowNote(r):'';
+        var note=tpc?rowNote(r):'', sn=startNote(r);
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
           '<div class="fld" style="flex:0 0 180px"><label for="hc'+i+'">Class</label>'+
             '<select id="hc'+i+'" data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
+          /* set for a later date (Daniel, 2 Oct 2026): when this class gets it; empty = now; no time = 08:00 */
+          (hState.later?'<div class="fld" style="flex:0 0 180px"><label for="hs'+i+'">Starts</label>'+
+            '<input id="hs'+i+'" type="date" data-start="'+i+'" value="'+esc(r.start||'')+'"></div>'+
+            '<div class="fld" style="flex:0 0 172px"><label for="hst'+i+'">Start time (optional)</label>'+
+            '<input id="hst'+i+'" type="time" data-stime="'+i+'" value="'+esc(r.startTime||'')+'"></div>':'')+
           '<div class="fld" style="flex:0 0 180px"><label for="hd'+i+'">Due</label>'+
             '<input id="hd'+i+'" type="date" data-due="'+i+'" value="'+esc(r.due||'')+'"></div>'+
           /* optional: empty keeps the end of that day, in the school's zone */
@@ -1337,8 +1347,9 @@ var BOOT = __BOOT__;
             '<input id="htp'+i+'" type="text" data-topic="'+i+'" list="htopics'+i+'" maxlength="100" autocomplete="off" placeholder="Choose a topic, or type a new one" value="'+esc(r.topic||'')+'">'+
             '<datalist id="htopics'+i+'">'+rowTopics(r).map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('')+'</datalist></div>':'')+
           /* Daniel, 2 Oct 2026: "a little button… so that the same information is set for the next class" */
-          (i>0?'<button class="act" data-same="'+i+'" data-tip="Copy the date and the time from the class above">↑ Same date and time</button>':'')+
+          (i>0?'<button class="act" data-same="'+i+'" data-tip="'+(hState.later?'Copy the start and the due date and time from the class above':'Copy the date and the time from the class above')+'">↑ Same date and time</button>':'')+
           (many?'<button class="act" data-rmrow="'+i+'">Remove</button>':'')+
+          (hState.later?'<div class="tmsg" id="hsn'+i+'" style="flex:1 1 100%"'+(sn?'':' hidden')+'>'+esc(sn)+'</div>':'')+
           /* Daniel, 2 Oct 2026: with no time "it's not clear what time is set". Said in the row, until a time is typed. */
           '<div class="tmsg" id="hth'+i+'" style="flex:1 1 100%"'+(r.time?' hidden':'')+'>No time typed: due at 23:59, the end of that day.</div>'+
           (tpc?'<div class="tmsg" id="htn'+i+'" style="flex:1 1 100%"'+(note?'':' hidden')+'>'+esc(note)+'</div>':'')+
@@ -1372,6 +1383,12 @@ var BOOT = __BOOT__;
           '<div class="fld"><label>Who, and by when</label></div>'+crows+
           '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap"><button class="act" id="addrow">+ Another class</button>'+
           (hState.rows.length>1?'<span class="size__k">each class gets its own date, and its own Classroom post</span>':'')+'</div>'+
+          '<label class="ck" style="margin-top:10px;display:flex"><input type="checkbox" id="hlater"'+(hState.later?' checked':'')+'>'+
+            '<span>Set it for a later date: choose when pupils get it</span></label>'+
+          /* Daniel, 2 Oct 2026: "if no start date is set, does it start immediately — is that clear?" Said in both states. */
+          '<div class="tmsg" id="hlatersay" style="margin:3px 0 0 22px">'+(hState.later
+            ?'Until its start, pupils see nothing: Google Classroom holds the post, and the labs do not show the homework. The reminders count from the start. A class with no start date gets it at once.'
+            :'Not ticked: pupils get it at once, when you press Set homework.')+'</div>'+
           (tpc?'<div class="tmsg" id="htopicmsg" style="margin-top:6px">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_ONE?hState.topicMsg:TOPIC_MANY)+'</div>':'')+
           pbox+
           '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+
@@ -1394,6 +1411,7 @@ var BOOT = __BOOT__;
         return '<div class="hw"><div class="hw__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-hw="'+esc(h.id)+'">'+
           '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
           (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div>'+
+          (h.waiting?'<div class="hw__r">🗓 Starts '+esc(h.startText)+': pupils do not see it yet</div>':'')+
           (rm&&rm.says?'<div class="hw__r'+(rm.bad?' bad':'')+'">🔔 '+esc(rm.says)+'</div>':'')+'</div>'+
           '<div class="bars" data-tip="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
           '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
@@ -1406,6 +1424,8 @@ var BOOT = __BOOT__;
             ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
             (h.dueBad?'<div class="gone">The Due cell for this homework in the 📚 Homework tab is not a date, so it has no due date: it is never shown as overdue, and no summary is emailed. Type the date into that cell, then press Refresh.</div>':'')+
             (h.missing&&h.missing.length?'<div class="gone">Not scored: '+esc(h.missing.join(', '))+' — that part is no longer in the lab, so it is left out rather than counted as nothing done.</div>':'')+
+            (h.start?'<div class="hwrem">🗓 '+(h.waiting?'Pupils get it on '+esc(h.startText)+'. Until then they see nothing, in Google Classroom or in the labs. If you remove it here before then, its scheduled Classroom post is removed too.'
+              :'Pupils got it on '+esc(h.startText)+' (it was set for a later date).')+'</div>':'')+
             (rm&&rm.plan?'<div class="hwrem">🔔 '+esc(rm.plan)+'</div>':'')+
             '<div class="acts"><button class="act" data-again="'+esc(h.id)+'">Set again</button>'+
             (rm&&rm.can?'<button class="act" data-remind="'+esc(h.id)+'" data-on="'+(rm.on?'0':'1')+'">'+(rm.on?'Switch reminders off':'Switch reminders on')+'</button>':'')+
@@ -1420,23 +1440,31 @@ var BOOT = __BOOT__;
         var ta=a.due?Date.parse(a.due):0, tb=b.due?Date.parse(b.due):0;
         return (ra===0 ? ta-tb : ra===1 ? tb-ta : String(b.created||'').localeCompare(String(a.created||''))) ||
           cmpClass((a.targets&&a.targets.cls)||'~',(b.targets&&b.targets.cls)||'~') || String(a.title||'').localeCompare(String(b.title||'')); }
+      /* Whose homework (Daniel, 2 Oct 2026: a colleague saw every teacher's, "that makes no sense"). A teacher is sent
+         only their own. The owner is sent everyone's (only the owner can remove a colleague's), sees their own, and
+         has "All teachers" beside the sort; the choice is kept in this browser. */
+      var all=D.whose==='all', showAll=all&&hState.whose==='all';
+      var L=all&&!showAll?HW.filter(function(h){ return h.mine; }):HW, others=all?HW.length-HW.filter(function(h){ return h.mine; }).length:0;
       var list;
-      if (!HW.length) list='<div class="empty">Nothing set yet.</div>';
+      if (!L.length) list='<div class="empty">'+(all&&!showAll&&others?'You have set nothing yet. Other teachers have set '+others+': choose “All teachers” to see '+(others===1?'it':'them')+'.':'You have set nothing yet.')+'</div>';
       else if (hState.sort==='class') {
-        var grp={}; HW.forEach(function(h){ var k=(h.targets&&h.targets.cls)||''; (grp[k]=grp[k]||[]).push(h); });
+        var grp={}; L.forEach(function(h){ var k=(h.targets&&h.targets.cls)||''; (grp[k]=grp[k]||[]).push(h); });
         var keys=Object.keys(grp).filter(function(k){ return k; }).sort(cmpClass); if(grp['']) keys.push('');
         list=keys.map(function(k){ return '<div class="hwgrp"><div class="coh"><span class="coh__t">'+esc(k||'Chosen pupils')+'</span>'+
           '<span class="n">'+grp[k].length+'</span></div>'+grp[k].slice().sort(byDue).map(card).join('')+'</div>'; }).join('');
       }
-      else list=HW.slice().sort(byDue).map(card).join('');
-      var sortBar = HW.length>1 ? '<div class="hsort" role="group" aria-label="Sort the homework"><span class="hsort__k">Sort by</span>'+
+      else list=L.slice().sort(byDue).map(card).join('');
+      var sortBar = L.length>1 ? '<div class="hsort" role="group" aria-label="Sort the homework"><span class="hsort__k">Sort by</span>'+
         [['due','Due date'],['class','Class']].map(function(o){ var on=hState.sort===o[0];
           return '<button class="chip'+(on?' on':'')+'" data-hsort="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+'</div>' : '';
+      var whoseBar = all&&others ? '<div class="hsort" role="group" aria-label="Whose homework is listed"'+(sortBar?' style="margin-left:0"':'')+'><span class="hsort__k">Show</span>'+
+        [['mine','Mine'],['all','All teachers']].map(function(o){ var on=(showAll?'all':'mine')===o[0];
+          return '<button class="chip'+(on?' on':'')+'" data-hwhose="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+'</div>' : '';
       $('view').innerHTML = warn+
         '<section class="sec"><div class="sec__h"><span class="sec__t">New homework</span></div>'+
         '<p class="sec__d">Practice works best on something already taught. Tick only the stations you have covered.</p>'+builder+'</section>'+
-        '<section class="sec"><div class="sec__h"><span class="sec__t">What you have set</span>'+sortBar+'</div>'+
-        '<p class="sec__d">Open one to see each student. “Set again” refills the form above.</p>'+
+        '<section class="sec"><div class="sec__h"><span class="sec__t">'+(showAll?'What every teacher has set':'What you have set')+'</span>'+sortBar+whoseBar+'</div>'+
+        '<p class="sec__d">'+(showAll?'':'Only the homework you set is listed here. ')+'Open one to see each student. “Set again” refills the form above.</p>'+
         (D.remindAllowed===false?'<div class="warn">The reminders cannot be posted: Google has not been allowed to post Classroom announcements for this script. 🧪 Biology Labs ▸ 🩺 Check the set-up says what to do.</div>':'')+
         '<div class="hwlist">'+list+'</div></section>';
       wireH();
@@ -1453,10 +1481,18 @@ var BOOT = __BOOT__;
       document.querySelectorAll('[data-time]').forEach(function(i){ i.addEventListener('input', function(){
         var k=+i.getAttribute('data-time'); hState.rows[k].time=i.value;
         var th=$('hth'+k); if(th) th.hidden=!!i.value; }); });
-      /* "↑ Same date and time": the class above's date and time, copied into this row */
+      /* "↑ Same date and time": the class above's date and time (and its start, when the homework is for later), copied into this row */
       document.querySelectorAll('[data-same]').forEach(function(b){ b.addEventListener('click', function(){
         var k=+b.getAttribute('data-same'), up=hState.rows[k-1]; if(!up) return;
-        hState.rows[k].due=up.due||''; hState.rows[k].time=up.time||''; paint(); }); });
+        hState.rows[k].due=up.due||''; hState.rows[k].time=up.time||'';
+        if(hState.later){ hState.rows[k].start=up.start||''; hState.rows[k].startTime=up.startTime||''; } paint(); }); });
+      /* set for a later date: the switch, and each class's start */
+      var hl=$('hlater'); if(hl) hl.addEventListener('change', function(){ hState.later=hl.checked; paint(); });
+      var startSay=function(k){ var n=$('hsn'+k); if(n){ var w=startNote(hState.rows[k]); n.textContent=w; n.hidden=!w; } };
+      document.querySelectorAll('[data-start]').forEach(function(i){ i.addEventListener('input', function(){
+        var k=+i.getAttribute('data-start'); hState.rows[k].start=i.value; startSay(k); }); });
+      document.querySelectorAll('[data-stime]').forEach(function(i){ i.addEventListener('input', function(){
+        var k=+i.getAttribute('data-stime'); hState.rows[k].startTime=i.value; startSay(k); }); });
       /* a class's own topic box (several classes) */
       document.querySelectorAll('[data-topic]').forEach(function(i){
         i.addEventListener('input', function(){ var k=+i.getAttribute('data-topic'), r=hState.rows[k]; r.topic=i.value;
@@ -1521,6 +1557,9 @@ var BOOT = __BOOT__;
         if(b.checked) mine[id]=1; else delete mine[id]; paint(); }); });
       var hp=$('hpost'); if(hp) hp.addEventListener('change', function(){ hState.post=hp.checked; paint(); });
       var hr=$('hremind'); if(hr) hr.addEventListener('change', function(){ hState.remind=hr.checked; });
+      document.querySelectorAll('[data-hwhose]').forEach(function(b){ b.addEventListener('click', function(){
+        var v=b.getAttribute('data-hwhose')==='all'?'all':'mine'; if(v===(hState.whose==='all'?'all':'mine')) return;
+        hState.whose=v; try { localStorage.setItem('homework.whose', v); } catch(e){} paint(); }); });
       document.querySelectorAll('[data-hsort]').forEach(function(b){ b.addEventListener('click', function(){
         var v=b.getAttribute('data-hsort')==='class'?'class':'due'; if(v===hState.sort) return;
         hState.sort=v; try { localStorage.setItem('homework.sort', v); } catch(e){} paint(); }); });
@@ -1534,7 +1573,7 @@ var BOOT = __BOOT__;
       if (hState.busy) return; hState.busy=true;
       google.script.run.withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
-            V.put('homework', {ok:true, data:D}); paint(); }
+            V.put('homework', {ok:true, data:D}); paint(); if(r.note) say(r.note, true); }
           else { paint(); say((r&&r.why)||'That did not work.', true); } })
         .withFailureHandler(function(){ hState.busy=false; paint(); say('That did not work.', true); })[fn](arg);
     }
@@ -1551,8 +1590,9 @@ var BOOT = __BOOT__;
         .withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
-            hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:'',time:''}]; hState.topic=''; hState.topicMsg='';
+            hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:'',time:''}]; hState.topic=''; hState.topicMsg=''; hState.later=false;
             var m=r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.';
+            (r.later||[]).forEach(function(x){ m+=' '+x.who+' gets it on '+x.when+(x.classroom?' (Google Classroom posts it then)':'')+'.'; });
             var tps=r.topics||[], newIn=tps.filter(function(t){ return t.made; }).map(function(t){ return t.cls; }).filter(Boolean);
             if(r.posted&&r.posted.length) m+=' Posted in Google Classroom for '+r.posted.join(', ')+(r.topic&&!(r.topicMissed&&r.topicMissed.length)?', under the topic “'+r.topic+'”':'')+'.';
             if(!r.topic&&tps.length) m+=' Topics: '+tps.map(function(t){ return (t.cls?t.cls+' ':'')+'“'+t.name+'”'; }).join(', ')+'.';
@@ -1572,6 +1612,7 @@ var BOOT = __BOOT__;
           classes:hState.rows.map(function(r){
             var o=ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]};
             if(hState.rows.length>1&&hState.post&&D.classroomOk) o.topic=String(r.topic||'').trim();
+            if(hState.later&&(r.start||r.startTime)){ o.start=r.start||''; o.startTime=r.startTime||''; }   /* set for a later date */
             return o; }) });
     }
     paint();
