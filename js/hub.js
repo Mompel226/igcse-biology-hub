@@ -355,6 +355,10 @@
        rail    the steps, each at its depth. A step with `from` (a second of the film) lights while
                the film is in that part, so the line follows the film down.
        stills  a still with `at` is a button: it plays the film from that second.
+       why     one coloured box of two or three short points, each with a small sign. On a wide
+               screen it stands under the film, and it is what makes the two columns the same
+               height: the box grows, or the steps of the rail spread, so that no empty water
+               is left under the film (css/hub.css, .feat__a and .feat__b).
 
      Nothing here moves for a reader who has asked for less movement: the stylesheet's own rule
      stops the water, and the film only ever plays when asked. */
@@ -365,6 +369,13 @@
       '<img class="' + cls + '" src="' + b + '-' + widths[widths.length - 1] + '.jpg" srcset="' + set('jpg') + '" sizes="' + sizes + '"' +
       ' alt="' + esc(alt || '') + '" loading="lazy" decoding="async" draggable="false"></picture>';
   }
+  /* the small signs in a feature's `why` box, named by `icon` in js/local.js: a current, two fish that
+     meet, a shield. Signs, not drawings of anything: each is a few strokes. */
+  var WHY_ICON = {
+    current: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5c2.4-2 4.6-2 7 0s4.6 2 7 0"/><path d="M2.5 15.5c2.4-2 4.6-2 7 0s4.6 2 7 0"/><path d="M17.5 5.5l3.5 3-3.5 3"/><path d="M17.5 12.5l3.5 3-3.5 3"/></svg>',
+    meet: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8c2-2.6 5.5-2.6 7.5 0-2 2.6-5.5 2.6-7.5 0z"/><path d="M10 8l2.5-2v4z"/><path d="M21.5 16c-2-2.6-5.5-2.6-7.5 0 2 2.6 5.5 2.6 7.5 0z"/><path d="M14 16l-2.5-2v4z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 2.8v5.4c0 4.5-3 8-7.5 9.8-4.5-1.8-7.5-5.3-7.5-9.8V5.8z"/><path d="M8.6 12.2l2.4 2.4 4.6-4.9"/></svg>'
+  };
   function clock(sec) { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
   function buildFeature(d) {
     var el = document.createElement('article');
@@ -380,6 +391,7 @@
     el.innerHTML =
       '<div class="feat__water" aria-hidden="true">' + bubbles + '</div>' +
       '<div class="feat__main">' +
+        '<div class="feat__b">' +
         '<header class="feat__head">' +
           '<span class="feat__no">' + esc(d.eyebrow) + '</span>' +
           '<h2 class="feat__title">' + d.title + '</h2>' +
@@ -387,6 +399,14 @@
           (d.blurb ? '<p class="feat__lede">' + esc(d.blurb) + '</p>' : '') +
           chips(d) +
         '</header>' +
+        (steps.length ? '<div class="feat__rail">' +
+          (d.rail.label ? '<h3 class="feat__label">' + esc(d.rail.label) + '</h3>' : '') +
+          '<ol class="rail">' + steps.map(function (s) {
+            return '<li class="rail__step"><span class="rail__mark">' + esc(s.mark) + '</span><span class="rail__dot" aria-hidden="true"></span>' +
+              '<span class="rail__txt"><b class="rail__t">' + esc(s.t) + '</b> <span class="rail__text">' + esc(s.text) + '</span></span></li>';
+          }).join('') + '</ol></div>' : '') +
+        '</div>' +
+        '<div class="feat__a">' +
         (f ? '<figure class="feat__film">' +
           '<div class="film" data-state="idle">' +
             '<video class="film__video" playsinline preload="none" poster="assets/doors/' + esc(f.poster) + '-1280.jpg"' +
@@ -399,12 +419,16 @@
           '</div>' +
           (f.credit ? '<figcaption class="film__credit">' + esc(f.credit) + '</figcaption>' : '') +
         '</figure>' : '') +
-        (steps.length ? '<div class="feat__rail">' +
-          (d.rail.label ? '<h3 class="feat__label">' + esc(d.rail.label) + '</h3>' : '') +
-          '<ol class="rail">' + steps.map(function (s) {
-            return '<li class="rail__step"><span class="rail__mark">' + esc(s.mark) + '</span><span class="rail__dot" aria-hidden="true"></span>' +
-              '<span class="rail__txt"><b class="rail__t">' + esc(s.t) + '</b> <span class="rail__text">' + esc(s.text) + '</span></span></li>';
-          }).join('') + '</ol></div>' : '') +
+        (d.why ? '<aside class="why"' + (d.why.k ? ' aria-label="' + esc(d.why.k) + '"' : '') + '>' +
+          (d.why.k ? '<h3 class="why__k">' + esc(d.why.k) + '</h3>' : '') +
+          (d.why.points && d.why.points.length ? '<ul class="why__list">' + d.why.points.map(function (x) {
+            return '<li class="why__i"><span class="why__top">' +
+              (WHY_ICON[x.icon] ? '<span class="why__ico" aria-hidden="true">' + WHY_ICON[x.icon] + '</span>' : '') +
+              '<b class="why__t">' + esc(x.t) + '</b></span><span class="why__text">' + esc(x.text) + '</span></li>';
+          }).join('') + '</ul>' : '') +
+          (d.why.text ? '<p class="why__p">' + esc(d.why.text) + '</p>' : '') +
+        '</aside>' : '') +
+        '</div>' +
       '</div>' +
       (list.length ? '<section class="feat__stills">' +
         '<div class="feat__h"><h3>' + esc(st.title || '') + '</h3>' + (f && st.hint ? '<p class="feat__hint">' + esc(st.hint) + '</p>' : '') + '</div>' +
@@ -419,7 +443,6 @@
             ? '<button type="button" class="still still--go" data-i="' + i + '" aria-label="' + esc(x.t + '. ' + x.text + ' Play the film from ' + clock(x.at) + '.') + '">' + inner + '</button>'
             : '<div class="still">' + inner + '</div>') + '</li>';
         }).join('') + '</ul>' +
-        (d.why ? '<p class="feat__why"><b>' + esc(d.why.k) + '</b> ' + esc(d.why.text) + '</p>' : '') +
       '</section>' : '') +
       (d.facts && d.facts.length ? '<dl class="facts">' + d.facts.map(function (x) {
         return '<div class="fact"><dt>' + esc(x.k) + '</dt><dd>' + esc(x.v) +
