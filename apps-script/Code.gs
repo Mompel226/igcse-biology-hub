@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '2 Oct 2026 (08:00) — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
+var SCRIPT_EDITION = '2 Oct 2026 (11:20) — each teacher sees only the homework they set (the owner can see all); 🤝 Let the teachers on the list edit this spreadsheet; before that, 10:50 — Set homework for a later date: each class can have a start date and time; until then pupils see nothing (Google Classroom holds the post, the labs hide it), and the reminders count from the start; before that, 08:00 — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -312,6 +312,7 @@ function onOpen() {
     .addItem('🔗  Add or remove links on the teacher page (tests, reflections, surveys)…', 'showTeacherPanel')
     .addItem('🔎  Find new reflection and test spreadsheets', 'findSpreadsheetsMENU_')
     .addItem('👥  Teacher page: teachers and addresses…', 'showTeacherSetup_')
+    .addItem('🤝  Let the teachers on the list edit this spreadsheet…', 'shareWithTeachersMENU_')
     .addItem('📬  Email me when homework falls due (every morning)', 'installDailySummary')
     .addToUi();
 }
@@ -1007,6 +1008,15 @@ function checkSetup() {
                      : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 👥 Teacher page: teachers and addresses');
     lines.push('•  teachers who can open it: you (' + (_owner_() || 'the owner') + ')' +
                (_teacherEmails_().length ? ' and ' + _teacherEmails_().length + ' more' : ' only'));
+    /* which of them can also open THIS spreadsheet to edit it (2 Oct 2026): the page needs no such access, the menu does */
+    if (openOk && _teacherEmails_().length) {
+      try {
+        var ta = _teacherAccess_(), tn = ta.can.length + ta.cannot.length;
+        if (ta.known && tn) lines.push(ta.cannot.length
+          ? '•  ' + ta.can.length + ' of the ' + tn + ' teachers on the list can edit this spreadsheet. 🧪 Biology Labs ▸ 🤝 Let the teachers on the list edit this spreadsheet… gives it to the other ' + ta.cannot.length + '.'
+          : '✅  ' + (tn === 1 ? 'the teacher on the list can' : 'all ' + tn + ' teachers on the list can') + ' edit this spreadsheet');
+      } catch (e) {}
+    }
     var tpLinks = 0;
     try { tpLinks = _teacherLinksRaw_().length; } catch (e) {}
     lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Add or remove links on the teacher page makes it');
@@ -2227,7 +2237,7 @@ function _ownHomework_(email, cls) {
     if (!email || !_ss_().getSheetByName(T_HOMEWORK)) return out;   /* no tab: nothing set (and none is made here) */
     var now = Date.now(), MONTH = 28 * 24 * 3600 * 1000, mine = [];
     _homeworkRows_().forEach(function (hw) {
-      if (!_hwIsFor_(hw, email, cls)) return;
+      if (hw.waiting || !_hwIsFor_(hw, email, cls)) return;         /* set for a later date: not theirs yet */
       var dms = hw.due ? new Date(hw.due).getTime() : 0;
       if (dms && now - dms > MONTH) return;                         /* a month past its date: off their list */
       var tasks = hw.tasks.filter(function (t) { return t.labId !== ENGLISH_ID && (t.stationIds || []).length; });
@@ -3842,6 +3852,49 @@ function teacherUnwatchFolder(id) {
 }
 
 /* Menu: 🔎 Find new reflection and test spreadsheets — the same press, answered in a box. */
+/* 🤝 Let the teachers on the list edit this spreadsheet (Daniel, 2 Oct 2026: "the Student data spreadsheet has no editor
+   access for the teachers… every teacher that is already in the list, give them access").
+   Who: the teachers of the "👩‍🏫 Teachers" tab (and the older TEACHERS line), by the rule _isTeacher_ uses: an address at
+   the school's own domain, never under it, so a pupil's address typed there by mistake is never given the roster.
+   What: each one who cannot edit yet is added as an editor, after ONE question that names them and says what an editor
+   can do. Nobody is ever removed here. One address failing does not stop the others. From the menu only (the name ends
+   in _, so no page can call it), and gated like the other menu items. */
+function _teacherAccess_() {
+  var ss = _ss_(), dom = _schoolDomain_(), have = {}, out = { can: [], cannot: [], skipped: [], known: true };
+  try {
+    ss.getEditors().forEach(function (u) { have[_cleanEmail_(u.getEmail())] = 1; });
+    try { var ow = ss.getOwner(); if (ow) have[_cleanEmail_(ow.getEmail())] = 1; } catch (e) {}
+  } catch (e) { out.known = false; }
+  _teacherEmails_().forEach(function (e) {
+    if (dom && e.split('@').pop() !== dom) out.skipped.push(e);
+    else if (have[e]) out.can.push(e);
+    else out.cannot.push(e);
+  });
+  return out;
+}
+function shareWithTeachersMENU_() {
+  if (!_isAdminCaller_()) return;
+  var ui = SpreadsheetApp.getUi(), ss = _ss_(), name = '', T = '🤝 Let the teachers edit this spreadsheet';
+  try { name = ss.getName(); } catch (e) {}
+  var a = _teacherAccess_();
+  var skip = a.skipped.length ? '\n\nLeft out, because the address is not at the school’s own domain: ' + a.skipped.join(', ') + '.' : '';
+  if (!a.known) { ui.alert(T, 'The list of people who can edit this spreadsheet could not be read, so nothing was changed. Only its owner, or an editor who may share it, can run this.', ui.ButtonSet.OK); return; }
+  if (!a.can.length && !a.cannot.length) { ui.alert(T, 'There are no teachers on the list yet. Add them first: 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses…' + skip, ui.ButtonSet.OK); return; }
+  if (!a.cannot.length) { ui.alert(T, 'Nothing to do: ' + (a.can.length === 1 ? 'the 1 teacher on the list can' : 'all ' + a.can.length + ' teachers on the list can') + ' already edit this spreadsheet.' + skip, ui.ButtonSet.OK); return; }
+  var ask = ui.alert(T, 'Give ' + (a.cannot.length === 1 ? 'this teacher' : 'these ' + a.cannot.length + ' teachers') + ' edit access to “' + (name || 'this spreadsheet') + '”?\n\n' + a.cannot.join('\n') +
+    '\n\nAn editor can change any cell in it (the roster and the pupils’ lab results included), use the 🧪 Biology Labs menu, and open its script. Google may send each of them its usual “shared with you” email.' +
+    (a.can.length ? '\n\nAlready able to edit: ' + a.can.length + '.' : '') + skip, ui.ButtonSet.YES_NO);
+  if (ask !== ui.Button.YES) return;
+  var done = [], failed = [];
+  a.cannot.forEach(function (e) {
+    try { ss.addEditor(e); done.push(e); }
+    catch (err) { failed.push(e + ' (' + String((err && err.message) || err).slice(0, 80) + ')'); }
+  });
+  ui.alert(T, (done.length ? 'Done. ' + (done.length === 1 ? '1 teacher can' : done.length + ' teachers can') + ' now edit this spreadsheet:\n' + done.join('\n') : 'Nobody was added.') +
+    (failed.length ? '\n\nCould not be added:\n' + failed.join('\n') + '\n\nShare the spreadsheet with them by hand: the Share button, top right.' : '') +
+    '\n\nA teacher you add to the list later is not given access by itself: run this again.', ui.ButtonSet.OK);
+}
+
 function findSpreadsheetsMENU_() {
   if (!_isAdminCaller_()) return;
   var ui = SpreadsheetApp.getUi();
@@ -4062,7 +4115,8 @@ var T_HOMEWORK = '📚 Homework';
 /* The reminder columns (1 Oct 2026) are at the END: Tidy up writes these headings by position and homeworkCreate appends
    a row by position, so a new column anywhere else would shift every column after it. */
 var _HW_HEADERS_ = ['ID', 'Created', 'Teacher', 'Title', 'Who', 'What', 'Due', 'Spec', 'Course', 'CourseWork', 'Status', 'Reported', 'Group', 'Cohort',
-                    'Remind', 'Reminder 1', 'Reminder 1 students', 'Reminder 2', 'Reminder 2 students'];
+                    'Remind', 'Reminder 1', 'Reminder 1 students', 'Reminder 2', 'Reminder 2 students',
+                    'Starts'];                 /* 2 Oct 2026: homework set for a later date; at the END, as the reminder columns are */
 
 function _hwColDefs_() {
   return [
@@ -4084,7 +4138,8 @@ function _hwColDefs_() {
     { h:'Reminder 1', w:132, fmt:'dd MMM, HH:mm', note:'When the first reminder went, or was tried or skipped. A reminder is never posted twice.' },
     { h:'Reminder 1 students', w:150, note:'How many students the first reminder went to (no names are kept), or why it was not posted.' },
     { h:'Reminder 2', w:132, fmt:'dd MMM, HH:mm', note:'When the second reminder went, or was tried or skipped.' },
-    { h:'Reminder 2 students', w:150, note:'How many students the second reminder went to (no names are kept), or why it was not posted.' }
+    { h:'Reminder 2 students', w:150, note:'How many students the second reminder went to (no names are kept), or why it was not posted.' },
+    { h:'Starts',     w:132, fmt:'dd MMM, HH:mm', note:'When the students get it, for homework set for a later date. Empty — they got it when it was set.\nBefore this time they see nothing: Google Classroom holds its post until then, and the labs do not show it. Do not change it here: the post in Google Classroom keeps the time it was given.' }
   ];
 }
 function _ensureHomeworkTab_() {
@@ -4184,6 +4239,15 @@ function _dueFrom_(v, t) {
   var hms = _hwTime_(t) || '23:59:59';
   try { return Utilities.parseDate(d + ' ' + hms, _tz_(), 'yyyy-MM-dd HH:mm:ss'); } catch (e) { return null; }
 }
+/* Homework set for a later date (Daniel, 2 Oct 2026: "when you set homework, you can schedule it for a specific date"):
+   the start, a plain yyyy-mm-dd and a time when one was typed, read HERE as the due date is. No time = 08:00, the
+   start of the school day (never the night: the reminders keep quiet from 22:00 to 07:00 for the same reason). */
+var HW_START_TIME = '08:00:00';
+function _startFrom_(v, t) {
+  var d = String(v == null ? '' : v).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  try { return Utilities.parseDate(d + ' ' + (_hwTime_(t) || HW_START_TIME), _tz_(), 'yyyy-MM-dd HH:mm:ss'); } catch (e) { return null; }
+}
 /* "8:05" or "08:05" (what a time box sends) as "08:05:00"; '' for anything else, blank included. */
 function _hwTime_(t) {
   var m = String(t == null ? '' : t).trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -4247,7 +4311,14 @@ function _homeworkRows_() {
     var spec = {};
     try { spec = JSON.parse(String(r[c.Spec - 1] || '{}')) || {}; } catch (e) { spec = {}; }
     var due = r[c.Due - 1], dms = _hwMs_(due);
+    /* set for a later date (2 Oct 2026): `from` is when the students got or get it (the start, else when it was set),
+       which the reminders and Homework habits count from; `waiting` while that moment has not come: no student sees it */
+    var cms = _hwMs_(r[c.Created - 1]), sms = c.Starts <= r.length ? _hwMs_(r[c.Starts - 1]) : 0;
     out.push({
+      start: sms ? new Date(sms).toISOString() : null,
+      startText: sms ? _hwWhen_(sms) : '',
+      waiting: !!sms && sms > _nowMs_,
+      from: (sms || cms) ? new Date(sms || cms).toISOString() : null,
       row: i + 2, id: id,
       group: String(r[c.Group - 1] || '').trim(),
       cohort: Number(r[c.Cohort - 1]) || '',
@@ -4371,11 +4442,18 @@ function _hwScoreOne_(hw, email, index, man) {
 }
 
 /* The page's whole payload: what can be set, what has been set, and how it is going. */
-function _homeworkData_(now) {
+/* `who` (2 Oct 2026, Daniel: a colleague signed in saw the homework of every teacher, "that makes no sense"): the
+   teacher the list is for. They get the homework THEY set, and nobody else's is read or scored for them. The owner
+   gets every row, each marked `mine`, because only the owner can remove a colleague's homework: the page shows the
+   owner their own and offers "All teachers". No `who` (the morning email, which writes to each homework's own
+   teacher): every row, as before. */
+function _homeworkData_(now, who) {
   var man = _hwManifest_();
   var dir = _studentDirectory_(now);
   var roster = dir.students;
   var list = _homeworkRows_(), nowMs = Date.now(), anyRemind = false;
+  var seesAll = !who || who === _owner_();
+  if (!seesAll) list = list.filter(function (hw) { return hw.teacher === who; });
 
   var ids = [];
   list.forEach(function (hw) { hw.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); }); });
@@ -4408,10 +4486,13 @@ function _homeworkData_(now) {
     }
     return {
       id: hw.id, group: hw.group, title: hw.title, who: hw.who, what: hw.what, teacher: hw.teacher,
+      mine: !!who && hw.teacher === who,
       setCount: setCount, gone: gone, joined: joined, cohort: hw.cohort || '',
       created: hw.created, due: hw.due, status: hw.status, reported: hw.reported,
       /* worded and judged by _homeworkRows_ in the school's zone; without them the list showed "— due" (labs-script-001) */
       dueText: hw.dueText, overdue: hw.overdue, soon: hw.soon, dueBad: hw.dueBad,
+      /* set for a later date (2 Oct 2026): when it starts, in words, and whether the students are still waiting for it */
+      start: hw.start, startText: hw.startText, waiting: hw.waiting,
       tasks: hw.tasks, targets: hw.targets,
       pupils: rows, tally: tally, missing: Object.keys(miss),
       /* the reminders, worded here in the school's zone (1 Oct 2026) */
@@ -4433,6 +4514,8 @@ function _homeworkData_(now) {
     generatedAt: new Date().toISOString(),
     labs: labs, students: roster, classes: dir.classes,
     homework: out,
+    /* 'mine': only this teacher's homework is in the list; 'all': every teacher's (the owner), each marked `mine` */
+    whose: !who ? '' : (seesAll ? 'all' : 'mine'),
     manifestOk: !!man.labsOk, hubSet: !!_hubUrl_(),
     english: man.en ? { years: man.en.years || [], units: man.en.units || {}, sets: man.en.sets || [] } : null,
     classroomOk: typeof Classroom !== 'undefined' && !!Classroom && !!Classroom.Courses,
@@ -4478,7 +4561,20 @@ function homeworkCreate(d) {
     var due = null;
     if (w.due) due = _dueFrom_(w.due, time);    /* a plain yyyy-mm-dd, read in the school's zone */
     if (!due) return { ok:false, why: cls ? ('Give ' + cls + ' a due date.') : 'Give it a due date.' };
-    jobs.push({ cls: cls, emails: emails, due: due, topic: w.topic });
+    /* a later start (2 Oct 2026): optional, per class. A start time needs its date; the start must still be to come, and
+       before the due time. Refused in words rather than quietly set at once: a homework that pupils get NOW by mistake
+       cannot be taken back. */
+    var st = String(w.start == null ? '' : w.start).trim(), stt = String(w.startTime == null ? '' : w.startTime).trim(), start = null;
+    var whoSays = cls ? cls + ': ' : '';
+    if (stt && !_hwTime_(stt)) return { ok:false, why: whoSays + 'the start time is not a time. Type it as hh:mm, or leave it empty.' };
+    if (stt && !st) return { ok:false, why: whoSays + 'a start time needs a start date. Give the date, or clear the start time.' };
+    if (st) {
+      start = _startFrom_(st, stt);
+      if (!start) return { ok:false, why: whoSays + 'the start date cannot be read.' };
+      if (start.getTime() <= Date.now()) return { ok:false, why: whoSays + 'the start (' + _hwWhen_(start.getTime()) + ') has passed. Choose a later time, or leave the start empty to set it now.' };
+      if (start.getTime() >= due.getTime()) return { ok:false, why: whoSays + 'it must start before it is due (' + _hwWhen_(due.getTime()) + ').' };
+    }
+    jobs.push({ cls: cls, emails: emails, due: due, topic: w.topic, start: start });
   }
   /* the Classroom topic the post goes under: an existing one of the course's, or a new name, made there (_hwTopicId_).
      Since 2 Oct 2026 each class may bring its own (Daniel: "what happens if different classes have different section
@@ -4530,7 +4626,8 @@ function homeworkCreate(d) {
         JSON.stringify({ targets: { cls: job.cls || undefined, emails: job.emails.length ? job.emails : undefined },
                          setFor: job.setFor, tasks: tasks }),
         '', '', 'set', '', group, job.cohort || '',
-        remind ? 'on' : 'off', '', '', '', ''
+        remind ? 'on' : 'off', '', '', '', '',
+        job.start || ''
       ]);
       made.push(id);
       _dressRows_(sh, _hwColDefs_(), sh.getLastRow(), 1);   /* so a row set between tidy-ups still reads properly */
@@ -4541,14 +4638,16 @@ function homeworkCreate(d) {
   /* Posted only once the rows are safely written and the lock is let go: Classroom can take
      seconds per class, and pupils saving their work must not queue behind it. The ids come back
      under the lock again, each row found by its homework id — never by a row number read earlier. */
-  var posted = [], notPosted = [], topicMissed = [], topicsUsed = [], remindOk = false;
+  var posted = [], notPosted = [], topicMissed = [], topicsUsed = [], remindOk = false, inClassroom = {};
   if (d.post && made.length) {
     var cids = _classroomIds_(), res = [];
     jobs.forEach(function (job, j) {
       var p = _hwPost_(made[j], title, what, tasks, job, cids, { man: man, topic: job.topic });
       res.push(p);
-      if (p.ok) posted.push(job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's')));
-      else notPosted.push((job.cls || 'the students') + ': ' + p.why);
+      var whoP = job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's'));
+      if (p.ok && !job.start) posted.push(whoP);
+      if (p.ok) inClassroom[j] = true;
+      if (!p.ok) notPosted.push((job.cls || 'the students') + ': ' + p.why);
       /* posted, but not under the topic: said, never a failure (29 Sep 2026) */
       if (p.ok && job.topic && !p.topic) topicMissed.push((job.cls || 'the students') + ': ' + (p.topicWhy || 'the topic could not be used'));
       if (p.ok && p.topic) topicsUsed.push({ cls: job.cls || '', name: p.topic, made: !!p.topicMade });
@@ -4573,10 +4672,17 @@ function homeworkCreate(d) {
   /* `topic`: the one name when every post went under the same one (as before); `topics`: each class's own, and whether
      it was made new there, for the page to say */
   var oneTopic = topicsUsed.length && topicsUsed.every(function (t) { return t.name.toLowerCase() === topicsUsed[0].name.toLowerCase(); }) ? topicsUsed[0].name : '';
-  return { ok:true, made: made, group: group, posted: posted, notPosted: notPosted, topic: oneTopic || (topicsUsed.length ? '' : topic), topics: topicsUsed, topicMissed: topicMissed,
-           remind: !remind ? 'off' : (posted.length ? 'on' : 'no post'),
-           remindWhy: remind && posted.length && !remindOk ? 'The reminders could not be started: 🧪 Biology Labs ▸ 🩺 Check the set-up says why.' : '',
-           data:_homeworkData_() };
+  /* `later`: the classes that get it on a later date, in words, and whether Google Classroom holds a post for them
+     (`posted` names only the classes whose post is out now) */
+  var later = [];
+  jobs.forEach(function (job, j) {
+    if (job.start) later.push({ who: job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's')), when: _hwWhen_(job.start.getTime()), classroom: !!inClassroom[j] });
+  });
+  var anyPost = posted.length || later.some(function (x) { return x.classroom; });
+  return { ok:true, made: made, group: group, posted: posted, later: later, notPosted: notPosted, topic: oneTopic || (topicsUsed.length ? '' : topic), topics: topicsUsed, topicMissed: topicMissed,
+           remind: !remind ? 'off' : (anyPost ? 'on' : 'no post'),
+           remindWhy: remind && anyPost && !remindOk ? 'The reminders could not be started: 🧪 Biology Labs ▸ 🩺 Check the set-up says why.' : '',
+           data:_homeworkData_(undefined, who) };
 }
 
 function homeworkDelete(id) {
@@ -4601,7 +4707,15 @@ function homeworkDelete(id) {
   } catch (e) {
     return { ok:false, why:'Could not remove it.' };
   } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
-  return { ok:true, data:_homeworkData_() };
+  /* Removed before its start (2 Oct 2026): the post Google Classroom is holding must not come out later for homework that
+     is no longer set. Outside the lock (Classroom can take seconds). A post already out is left, as before: students
+     have seen it. If the held post cannot be removed, the page says so, and the teacher removes it in Classroom. */
+  var note = '';
+  if (hit.waiting && hit.course && hit.courseWork) {
+    try { _needClassroom_(); Classroom.Courses.CourseWork.remove(hit.course, hit.courseWork); }
+    catch (e) { note = 'Removed here. Its post in Google Classroom, set for ' + hit.startText + ', could not be removed: open Classroom ▸ Classwork and delete the scheduled post “' + hit.title + '” by hand.'; }
+  }
+  return { ok:true, note: note, data:_homeworkData_(undefined, who) };
 }
 
 /* The 🔔 switch on the list (1 Oct 2026): reminders off, or on again, for homework already set. Gated like every teacher
@@ -4631,7 +4745,7 @@ function homeworkRemind(d) {
   if (on && !_hwReminderTrigger_()) {
     return { ok:false, why:'The reminders are on, but the 15-minute check could not be started. 🧪 Biology Labs ▸ 🩺 Check the set-up says why.' };
   }
-  return { ok:true, data:_homeworkData_() };
+  return { ok:true, data:_homeworkData_(undefined, who) };
 }
 
 /* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
@@ -4692,7 +4806,7 @@ function uiData(which) {
     if (which === 'teachers')  return { ok:true, data:_teacherPageGroups_() };
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
-    if (which === 'homework')  return { ok:true, data:_homeworkData_() };
+    if (which === 'homework')  return { ok:true, data:_homeworkData_(undefined, who) };   /* their own homework (the owner: everyone's) */
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
     if (which === 'habits')    return { ok:true, data:_habitsData_() };      /* ⏱️ Homework habits (1 Oct 2026): read only */
   } catch (err) { return { ok:false, why:String(err) }; }
@@ -5234,7 +5348,7 @@ function _englishMine_(d) {
   _homeworkRows_().forEach(function (hw) {
     var sets = [];
     hw.tasks.forEach(function (t) { if (t.labId === ENGLISH_ID) sets = sets.concat(t.stationIds || []); });
-    if (!sets.length || !_hwIsFor_(hw, who.email, student.cls)) return;
+    if (!sets.length || hw.waiting || !_hwIsFor_(hw, who.email, student.cls)) return;   /* waiting: set for a later date */
     var dms = hw.due ? new Date(hw.due).getTime() : 0;
     if (dms && now - dms > MONTH) return;              /* a month past its date: off their list */
     out.homework.push({ id: hw.id, title: hw.title, due: hw.dueText, overdue: hw.overdue, dueAt: hw.due || '', sets: sets });
@@ -5330,6 +5444,9 @@ function _hwPost_(id, title, what, tasks, job, ids, opt) {
     dueDate: { year: due.getUTCFullYear(), month: due.getUTCMonth() + 1, day: due.getUTCDate() },
     dueTime: { hours: due.getUTCHours(), minutes: due.getUTCMinutes() }
   };
+  /* set for a later date: Classroom keeps the post as a draft and publishes it itself at that time (scheduledTime).
+     Until then only the course's teachers see it, under Classwork, as "Scheduled". */
+  if (job.start && job.start.getTime() > Date.now()) { body.state = 'DRAFT'; body.scheduledTime = job.start.toISOString(); }
   if (!job.cls) {
     var uids = (job.setFor || []).map(function (e) { return ids[e] && ids[e].userId; }).filter(function (x) { return !!x; });
     if (!uids.length) return { ok:false, why:'those students have no Classroom id — import them from Classroom first' };
@@ -5567,7 +5684,8 @@ function _hwRemindTime_(setMs, dueMs, k) {
 /* What to do for this homework at `now`: { k: the reminder to post now (0: none), skip: [{ k, why }] to write down }, or
    null. A skip is written only once its moment has come, so a Due changed in the tab before then still counts. */
 function _hwRemindDue_(hw, now) {
-  var setMs = _hwMs_(hw.created), dueMs = _hwMs_(hw.due), go = 0, skip = [];
+  /* from when the students got it: its start, for homework set for a later date (so nothing goes before the start) */
+  var setMs = _hwMs_(hw.from || hw.created), dueMs = _hwMs_(hw.due), go = 0, skip = [];
   if (!setMs || !dueMs || dueMs <= setMs) return null;
   for (var k = 1; k <= 2; k++) {
     if (hw.rem[k - 1].at) continue;                                            /* written already: never twice */
@@ -5741,7 +5859,7 @@ function _hwWhen_(ms) {
    posted in Classroom and not yet due), says (the short line), bad (something went wrong), plan (the longer words shown
    when the homework is opened) }. "says" is '' for homework never posted and never switched on: nothing to show. */
 function _hwRemindSays_(hw, now) {
-  var posted = !!(hw.course && hw.courseWork), setMs = _hwMs_(hw.created), dueMs = _hwMs_(hw.due);
+  var posted = !!(hw.course && hw.courseWork), setMs = _hwMs_(hw.from || hw.created), dueMs = _hwMs_(hw.due);
   var out = { on: !!hw.remindOn, can: posted && dueMs > now, says: '', bad: false, plan: '' };
   var word = function (k) {
     var r = hw.rem[k - 1], at = _hwMs_(r.at), said = r.said;
@@ -6146,7 +6264,8 @@ function _habitsData_(now) {
   var man = _hwManifest_(), roster = _studentDirectory_().students, since = now - HW_HABIT_DAYS * 864e5, left = 0, list = [];
   /* no Homework tab: nothing set yet (and none is made here: this view only reads) */
   (_ss_().getSheetByName(T_HOMEWORK) ? _homeworkRows_() : []).forEach(function (hw) {
-    var S = _hwMs_(hw.created), D = _hwMs_(hw.due);
+    if (hw.start && _hwMs_(hw.start) > now) return;                        /* set for a later date: no student has it yet */
+    var S = _hwMs_(hw.from || hw.created), D = _hwMs_(hw.due);
     if (!S || !D || D <= S) { left++; return; }                            /* no due time to measure against */
     if (D < since) return;
     hw.S = S; hw.D = D; list.push(hw);

@@ -1613,6 +1613,54 @@ ok &= run('a teacher is the owner, or on TEACHERS at the school\'s own domain �
   TEACHERS = ''; SCHOOL_DOMAIN = '';
   props.delete('TEACHERS'); props.delete('SCHOOL_DOMAIN');
 });
+ok &= run('🤝 Let the teachers on the list edit this spreadsheet: one question that names them; only those at the school’s own domain who cannot edit yet are added; one failure does not stop the rest; 🩺 says how many can', () => {
+  /* Daniel, 2 Oct 2026: "the Student data spreadsheet has no editor access for the teachers" */
+  const handle = _ss_(), keepUi = SpreadsheetApp.getUi, ED = [OWNER, 'has@x.kr'], ADDED = [], said = [];
+  let answer = 'NO', failFor = '';
+  handle.getEditors = () => ED.map(e => ({ getEmail: () => e }));
+  handle.getOwner = () => ({ getEmail: () => OWNER });
+  handle.addEditor = e => { if (e === failFor) throw new Error('Invalid argument: ' + e); ADDED.push(e); ED.push(e); };
+  SpreadsheetApp.getUi = () => Object.assign(keepUi(), { ButtonSet: { OK: 1, YES_NO: 2 }, Button: { YES: 'YES', NO: 'NO' },
+    alert: (a, b, c) => { said.push(String(b)); return c === 2 ? answer : 'OK'; } });
+  try {
+    SCHOOL_DOMAIN = 'x.kr'; TEACHERS = 'none';
+    if (_teacherEmails_().length) throw new Error('the Teachers tab is not empty here: this case counts the list');
+    shareWithTeachersMENU_();
+    if (ADDED.length || !/There are no teachers on the list yet/.test(said.pop())) throw new Error('with no teachers on the list');
+    TEACHERS = 'has@x.kr, new1@x.kr, new2@x.kr, pupil@pupils.x.kr, outsider@gmail.com';
+    /* the question names who will be added and what an editor can do; "No" changes nothing */
+    shareWithTeachersMENU_();
+    const q = said.pop();
+    if (ADDED.length) throw new Error('"No" still added ' + ADDED);
+    if (!q.includes('Give these 2 teachers edit access to “Test sheet”?\n\nnew1@x.kr\nnew2@x.kr\n') || !/change any cell/.test(q) || !/open its script/.test(q) || !q.includes('Already able to edit: 1.') ||
+        !q.includes('Left out, because the address is not at the school’s own domain: pupil@pupils.x.kr, outsider@gmail.com.')) throw new Error('the question: ' + q);
+    /* "Yes": each is added; one that Google refuses is named, and the other still goes */
+    answer = 'YES'; failFor = 'new2@x.kr'; said.length = 0;
+    shareWithTeachersMENU_();
+    if (ADDED.join() !== 'new1@x.kr' || !said[1].includes('Done. 1 teacher can now edit this spreadsheet:\nnew1@x.kr') || !said[1].includes('Could not be added:\nnew2@x.kr (Invalid argument: new2@x.kr)') || !/run this again/.test(said[1]))
+      throw new Error('one refused: ' + JSON.stringify([ADDED, said[1]]));
+    /* 🩺 counts them (the pupil and the outsider are not teachers, so they are not counted) */
+    TEACHER_PAGE_URL = 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec';
+    said.length = 0; checkSetup();
+    if (!said[0].includes('•  2 of the 3 teachers on the list can edit this spreadsheet. 🧪 Biology Labs ▸ 🤝 Let the teachers on the list edit this spreadsheet… gives it to the other 1.')) throw new Error('🩺 with one left: ' + said[0].slice(-900));
+    failFor = ''; said.length = 0; shareWithTeachersMENU_();
+    if (ADDED.join() !== 'new1@x.kr,new2@x.kr' || !said[0].includes('Give this teacher edit access')) throw new Error('the second run: ' + JSON.stringify([ADDED, said[0]]));
+    said.length = 0; shareWithTeachersMENU_();
+    if (ADDED.length !== 2 || !said[0].includes('Nothing to do: all 3 teachers on the list can already edit this spreadsheet.')) throw new Error('a third run: ' + said[0]);
+    said.length = 0; checkSetup();
+    if (!said[0].includes('✅  all 3 teachers on the list can edit this spreadsheet')) throw new Error('🩺 with all in: ' + said[0].slice(-900));
+    /* nobody is ever removed, and a pupil or a pupil's address is never given the roster */
+    if (ED.indexOf('has@x.kr') < 0 || ED.some(e => /pupils|gmail/.test(e))) throw new Error('the editors: ' + ED);
+    /* somebody who is not a teacher cannot run it (and no page can call it: its name ends in _) */
+    const n = ADDED.length; TEACHERS = 'has@x.kr, late@x.kr'; VISITOR = 'pupil@pupils.x.kr'; said.length = 0;
+    shareWithTeachersMENU_();
+    if (ADDED.length !== n || said.length) throw new Error('a pupil ran it');
+    if (!/_$/.test(shareWithTeachersMENU_.name)) throw new Error('its name no longer ends in _: a page could call it');
+  } finally {
+    SpreadsheetApp.getUi = keepUi; VISITOR = OWNER; delete handle.getEditors; delete handle.getOwner; delete handle.addEditor;
+    TEACHERS = ''; SCHOOL_DOMAIN = ''; TEACHER_PAGE_URL = ''; props.delete('TEACHERS'); props.delete('SCHOOL_DOMAIN'); props.delete('TEACHER_PAGE_URL');
+  }
+});
 ok &= run('the teacher page address must be a web app, and points at the page', () => {
   TEACHER_PAGE_URL = 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec';
   if (_teacherPageUrl_() !== 'https://script.google.com/a/macros/x.kr/s/AKfyTEST/exec?page=teachers') throw new Error(_teacherPageUrl_());
@@ -3005,6 +3053,61 @@ ok &= run('the Set homework form: "No time typed: due at 23:59"; with several cl
   if (!/id="htopic"[^>]*value="Kept"/.test(p2.html()) || /data-topic=/.test(p2.html())) throw new Error('back to one class: the topic box did not keep the class’s topic');
   /* a homework with a time shows it; one without says "due at 23:59" (the list) */
 });
+ok &= run('each teacher is sent only the homework they set, and nobody else’s is scored for them; the owner is sent everyone’s, each marked mine or not; the morning email still reads them all (Daniel, 2 Oct 2026)', () => {
+  /* Daniel signed in as a colleague and saw the homework of every teacher: "that makes no sense" */
+  const keepT = TEACHERS, keepD = SCHOOL_DOMAIN, made = [], task = [{ labId:'digestion-lab', stationIds:['mouth'] }];
+  const ids = r => r.data.homework.map(h => h.id).sort().join();
+  try {
+    SCHOOL_DOMAIN = 'x.kr'; TEACHERS = 'colleague@x.kr, second@x.kr';
+    VISITOR = OWNER;
+    const o = homeworkCreate({ title:'By the owner', classes:[{ cls: enA.cls, due:'2027-07-01' }], tasks:task }); made.push(o.made[0]);
+    VISITOR = 'colleague@x.kr';
+    const c = homeworkCreate({ title:'By a colleague', classes:[{ cls: enA.cls, due:'2027-07-02' }], tasks:task }); made.push(c.made[0]);
+    if (!c.ok || c.data.whose !== 'mine' || ids(c) !== c.made[0] || !c.data.homework[0].mine) throw new Error('the answer to setting it shows more than their own: ' + JSON.stringify([c.data.whose, ids(c)]));
+    const page = uiData('homework');
+    if (!page.ok || page.data.whose !== 'mine' || ids(page) !== c.made[0]) throw new Error('the colleague’s list: ' + JSON.stringify([page.data.whose, ids(page)]));
+    if (!page.data.students.length || !page.data.labs) throw new Error('the colleague lost the roster or the labs: the form needs them');
+    if (JSON.stringify(page.data).indexOf('By the owner') >= 0) throw new Error('the owner’s homework is somewhere in what the colleague was sent');
+    /* the 🔔 switch and Remove answer with their own list too */
+    const sw = homeworkRemind({ id: c.made[0], on: false });
+    if (sw.data && ids(sw) !== c.made[0]) throw new Error('the 🔔 switch answered with ' + ids(sw));
+    /* another teacher, who has set nothing: an empty list, and still no way to remove a colleague's */
+    VISITOR = 'second@x.kr';
+    const s = uiData('homework');
+    if (s.data.whose !== 'mine' || s.data.homework.length) throw new Error('a teacher who set nothing sees ' + ids(s));
+    if (homeworkDelete(c.made[0]).ok !== false) throw new Error('a teacher removed a colleague’s homework');
+    /* the owner: everyone's, each marked */
+    VISITOR = OWNER;
+    const all = uiData('homework').data, mine = all.homework.filter(h => h.id === o.made[0])[0], theirs = all.homework.filter(h => h.id === c.made[0])[0];
+    if (all.whose !== 'all' || !mine || !theirs || mine.mine !== true || theirs.mine !== false) throw new Error('the owner’s list: ' + JSON.stringify([all.whose, mine && mine.mine, theirs && theirs.mine]));
+    /* the morning email reads with no teacher: all of them, as before */
+    const em = _homeworkData_();
+    if (em.whose !== '' || !em.homework.some(h => h.id === c.made[0]) || !em.homework.some(h => h.id === o.made[0])) throw new Error('the morning email no longer reads every homework');
+  } finally { VISITOR = OWNER; made.forEach(id => homeworkDelete(id)); TEACHERS = keepT; SCHOOL_DOMAIN = keepD; if (!keepT) props.delete('TEACHERS'); if (!keepD) props.delete('SCHOOL_DOMAIN'); }
+});
+ok &= run('the Set homework list on the page: a teacher sees "Only the homework you set"; the owner sees their own, with "Mine · All teachers" to see every teacher’s', () => {
+  const D0 = JSON.parse(JSON.stringify(uiData('homework').data));
+  const hw = (id, title, mine, teacher) => ({ id, title, who:'9A', what:'Digestion: Mouth', teacher, mine, pupils:[], tally:{ done:0, partly:0, none:0 }, dueText:'10 Jun', due:'2027-06-10T14:59:59.000Z',
+    overdue:false, soon:false, tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }], targets:{ cls:'9A' }, remind:null });
+  /* a teacher: only their own came, no switch, and the page says so */
+  let D = Object.assign({}, D0, { whose:'mine', homework:[hw('HW-M1', 'My one', true, OWNER)] }), page = teacherPage();
+  page.win.vHomework(D);
+  let html = page.html();
+  if (/data-hwhose=/.test(html) || !html.includes('Only the homework you set is listed here.') || !html.includes('My one')) throw new Error('a teacher’s list: a switch, or no note');
+  /* the owner: their own first; the switch shows every teacher's, and says who set it */
+  D = Object.assign({}, D0, { whose:'all', homework:[hw('HW-M1', 'My one', true, OWNER), hw('HW-C1', 'A colleague’s', false, 'colleague@x.kr')] }); page = teacherPage();
+  page.win.vHomework(D);
+  html = page.html();
+  if (!html.includes('My one') || html.includes('A colleague’s') || !/data-hwhose="mine" aria-pressed="true">Mine</.test(html) || !/data-hwhose="all" aria-pressed="false">All teachers</.test(html)) throw new Error('the owner does not start on their own');
+  page.press('data-hwhose', 'all');
+  html = page.html();
+  if (!html.includes('A colleague’s') || !html.includes('set by colleague@x.kr') || !html.includes('What every teacher has set') || !/data-hwhose="all" aria-pressed="true"/.test(html)) throw new Error('"All teachers" does not show the colleague’s homework');
+  page.press('data-hwhose', 'mine');
+  if (page.html().includes('A colleague’s')) throw new Error('"Mine" still shows the colleague’s');
+  /* the owner with nothing of their own: told that others have set some */
+  D = Object.assign({}, D0, { whose:'all', homework:[hw('HW-C1', 'A colleague’s', false, 'colleague@x.kr')] }); page = teacherPage(); page.win.vHomework(D);
+  if (!page.html().includes('You have set nothing yet. Other teachers have set 1: choose “All teachers” to see it.')) throw new Error('the owner with nothing of their own is not told');
+});
 ok &= run('the Set homework page sends the time and the topic, and asks for the course’s topics only when the box is used', () => {
   const cls = enA.cls;
   const r = homeworkCreate({ title:'Refill me', classes:[{ cls, due:'2027-03-05' }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
@@ -3307,6 +3410,157 @@ console.log('— reminders to the pupils who have not finished —');
       handle.getSpreadsheetTimeZone = real; Session.getScriptTimeZone = () => { throw new Error('no'); };
       if (_tzLine_() !== '✅  times are read in Asia/Seoul (the spreadsheet’s time zone)') throw new Error('script zone unreadable: ' + _tzLine_());
     } finally { handle.getSpreadsheetTimeZone = real; if (keep) Session.getScriptTimeZone = keep; else delete Session.getScriptTimeZone; _TZ_MEMO = null; }
+  });
+  /* ── Homework set for a later date (Daniel, 2 Oct 2026: "when you set homework, you can schedule it for a specific date") ── */
+  const CW = [], GONE = [];
+  let rmFail = '';
+  const schedClassroom = () => ({ Courses: {
+    CourseWork: { create: (body, courseId) => { CW.push({ body, courseId }); return { id: 'cw' + CW.length }; },
+                  remove: (courseId, id) => { if (rmFail) throw new Error(rmFail); GONE.push(courseId + '/' + id); } },
+    Announcements: { create: (body, courseId) => { RA.push({ body, courseId }); return { id: 'an' + RA.length }; } } } });
+  const withSched = fn => { global.Classroom = schedClassroom(); try { return fn(); } finally { global.Classroom = undefined; } };
+  const TASK = [{ labId:'digestion-lab', stationIds:['mouth'] }];
+  const cellOfHw = (id, name, v) => { const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh); sh.getRange(rowOf(id).row, hc[name]).setValue(v); };
+  ok &= run('set for a later date: the start is kept (no time = 08:00), the row is waiting, and Google Classroom holds the post as a draft with that time', () => {
+    const made = [];
+    try {
+      CW.length = 0;
+      let r = withSched(() => homeworkCreate({ title:'Later', post:true, remind:true, classes:[{ cls, due:'2027-06-10', start:'2027-06-03' }], tasks:TASK })); made.push(r);
+      if (!r.ok) throw new Error(r.why);
+      const row = rowOf(r.made[0]);
+      if (row.start !== '2027-06-02T23:00:00.000Z' || row.startText !== '3 Jun, 08:00' || row.waiting !== true || row.from !== row.start) throw new Error('the row: ' + JSON.stringify([row.start, row.startText, row.waiting, row.from]));
+      const head = ss.getSheetByName(T_HOMEWORK).getRange(1, 1, 1, 20).getValues()[0].map(h => String(h).replace(/^✎\s*/, ''));
+      if (head[19] !== 'Starts' || head[18] !== 'Reminder 2 students') throw new Error('"Starts" is not the last heading: ' + head.slice(17).join('|'));
+      const b = CW[0].body;
+      if (b.state !== 'DRAFT' || b.scheduledTime !== '2027-06-02T23:00:00.000Z') throw new Error('Classroom was not asked to hold it: ' + JSON.stringify([b.state, b.scheduledTime]));
+      if (r.posted.length || JSON.stringify(r.later) !== JSON.stringify([{ who: String(cls).toUpperCase(), when:'3 Jun, 08:00', classroom:true }]) || r.remind !== 'on') throw new Error('the answer: ' + JSON.stringify([r.posted, r.later, r.remind]));
+      if (!rowOf(r.made[0]).courseWork) throw new Error('the held post’s id was not kept (Remove and the reminders need it)');
+      const card = uiData('homework').data.homework.filter(h => h.id === r.made[0])[0];
+      if (card.waiting !== true || card.startText !== '3 Jun, 08:00') throw new Error('the list is not told: ' + JSON.stringify([card.waiting, card.startText]));
+      /* a start time, in the school's zone */
+      r = withSched(() => homeworkCreate({ title:'Later, 14:30', post:true, classes:[{ cls, due:'2027-06-10', time:'09:00', start:'2027-06-03', startTime:'14:30' }], tasks:TASK })); made.push(r);
+      if (rowOf(r.made[0]).start !== '2027-06-03T05:30:00.000Z' || CW[1].body.scheduledTime !== '2027-06-03T05:30:00.000Z') throw new Error('14:30 here: ' + rowOf(r.made[0]).start);
+      /* no start: out at once, exactly as before */
+      r = withSched(() => homeworkCreate({ title:'Now', post:true, classes:[{ cls, due:'2027-06-10' }], tasks:TASK })); made.push(r);
+      const now = rowOf(r.made[0]);
+      if (CW[2].body.state !== 'PUBLISHED' || 'scheduledTime' in CW[2].body || now.start !== null || now.waiting || now.from !== now.created || r.later.length || r.posted.length !== 1)
+        throw new Error('with no start: ' + JSON.stringify([CW[2].body.state, now.start, now.waiting, r.later, r.posted]));
+      /* not posted in Classroom: still set for later, in the labs alone */
+      r = homeworkCreate({ title:'Later, labs only', classes:[{ cls, due:'2027-06-10', start:'2027-06-03' }], tasks:TASK }); made.push(r);
+      if (!r.ok || r.later.length !== 1 || r.later[0].classroom !== false || !rowOf(r.made[0]).waiting) throw new Error('labs only: ' + JSON.stringify(r.later));
+    } finally { made.forEach(r => r && r.ok && r.made.forEach(id => homeworkDelete(id))); }
+  });
+  ok &= run('a start that cannot be is refused in words and nothing is set: a time with no date, not a time, already passed, not before the due time', () => {
+    const n0 = _homeworkRows_().length, tryIt = c => homeworkCreate({ title:'Bad start', classes:[Object.assign({ cls, due:'2027-06-10' }, c)], tasks:TASK });
+    const cases = [[{ startTime:'08:00' }, /a start time needs a start date/], [{ start:'2027-06-03', startTime:'25:00' }, /the start time is not a time/],
+                   [{ start:'soon' }, /the start date cannot be read/], [{ start:'2020-01-01' }, /has passed\. Choose a later time, or leave the start empty to set it now\./],
+                   [{ start:'2027-06-11' }, /it must start before it is due \(10 Jun, 23:59\)/], [{ start:'2027-06-10', startTime:'09:00', time:'09:00' }, /it must start before it is due/]];
+    cases.forEach(([c, why]) => { const r = tryIt(c); if (r.ok !== false || !why.test(r.why) || r.why.indexOf(String(cls).toUpperCase() + ': ') !== 0) throw new Error(JSON.stringify(c) + ' → ' + JSON.stringify(r).slice(0, 200)); });
+    if (_homeworkRows_().length !== n0) throw new Error('a refused homework left a row');
+  });
+  ok &= run('until its start no pupil sees it, in the labs or in Bio English Lab; from its start they do', () => {
+    const r = homeworkCreate({ title:'Not yet', classes:[{ cls, due:'2027-06-10', start:'2027-06-03' }],
+      tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }, { labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
+    if (!r.ok) throw new Error(r.why);
+    const id = r.made[0];
+    try {
+      const inLabs = () => (enPost({ action:'progress' }, enA.email).homework || []).some(h => h.id === id);
+      const inEnglish = () => (enPost({ action:'english.mine' }, enA.email).homework || []).some(h => h.id === id);
+      if (inLabs() || inEnglish()) throw new Error('a pupil sees homework that has not started: labs ' + inLabs() + ', Bio English ' + inEnglish());
+      cellOfHw(id, 'Starts', new Date(Date.now() - 60e3));          /* its start has come */
+      if (!inLabs() || !inEnglish()) throw new Error('after its start a pupil still does not see it: labs ' + inLabs() + ', Bio English ' + inEnglish());
+      /* and Homework habits lists it only from its start, and counts from there */
+      const s = Date.parse(rowOf(id).start);
+      if (_habitsData_(s - 1000).homework.some(h => h.id === id)) throw new Error('Homework habits lists it before its start');
+      const hb = _habitsData_(s + 1000).homework.filter(h => h.id === id)[0];
+      if (!hb || hb.set !== _hwWhen_(s)) throw new Error('Homework habits does not count from the start: ' + JSON.stringify(hb));
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('the reminders count from the start, not from when it was set: nothing before the start, reminder 1 at 70% of start to due', () => {
+    const s0 = KST(2027, 4, 16, 15, 0), s = KST(2027, 4, 19, 15, 0), d = s + W;       /* set on the 16th, for the 19th, due the 26th */
+    notDone(); RA.length = 0;
+    const r = withSched(() => homeworkCreate({ title:'Counted from the start', post:true, remind:true, classes:[{ cls, due:'2027-06-10', start:'2027-06-03' }], tasks:TASK }));
+    if (!r.ok) throw new Error(r.why);
+    const id = r.made[0];
+    try {
+      cellOfHw(id, 'Created', new Date(s0)); cellOfHw(id, 'Starts', new Date(s)); cellOfHw(id, 'Due', new Date(d));
+      const run = ms => withSched(() => _hwRemindRun_(ms));
+      if (run(s - 3600e3) || RA.length || rowOf(id).rem[0].at) throw new Error('a reminder, or a mark, before the start');
+      /* 70% of set→due is the 23rd at 15:00: from the start it is too early */
+      if (run(s0 + Math.round(0.7 * (d - s0)) + 60e3) || RA.length) throw new Error('reminder 1 was counted from when it was set');
+      const t1 = s + Math.round(0.7 * W);
+      if (_hwRemindTime_(s, d, 1).at !== t1) throw new Error('the 70% moment fell in the night: choose other times for this case');
+      if (run(t1 - 60e3) || RA.length) throw new Error('reminder 1 a minute early');
+      if (run(t1 + 60e3) !== 1 || RA.length !== 1) throw new Error('reminder 1 did not go at 70% of start to due');
+      if (!new RegExp('Reminder 2: about ' + _hwWhen_(_hwRemindTime_(s, d, 2).at).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(_hwRemindSays_(rowOf(id), t1 + 120e3).plan))
+        throw new Error('the list’s plan does not count from the start: ' + _hwRemindSays_(rowOf(id), t1 + 120e3).plan);
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('Remove before the start also removes the post Google Classroom is holding; if Classroom refuses, the page is told what to do; a post already out is left', () => {
+    GONE.length = 0; rmFail = '';
+    const mk = start => { const r = withSched(() => homeworkCreate({ title:'To remove', post:true, classes:[Object.assign({ cls, due:'2027-06-10' }, start ? { start } : {})], tasks:TASK }));
+      if (!r.ok) throw new Error(r.why); return r.made[0]; };
+    try {
+      let id = mk('2027-06-03'), row = rowOf(id), out = withSched(() => homeworkDelete(id));
+      if (!out.ok || out.note || GONE.join() !== row.course + '/' + row.courseWork || rowOf(id)) throw new Error('waiting: ' + JSON.stringify([out.ok, out.note, GONE]));
+      /* Classroom refuses: the homework is still removed here, and the page says where the post is */
+      id = mk('2027-06-03'); rmFail = 'The caller does not have permission';
+      out = withSched(() => homeworkDelete(id));
+      if (!out.ok || rowOf(id) || !/^Removed here\. Its post in Google Classroom, set for 3 Jun, 08:00, could not be removed: open Classroom ▸ Classwork and delete the scheduled post “To remove” by hand\.$/.test(out.note)) throw new Error('refused by Classroom: ' + JSON.stringify(out.note));
+      /* Classroom switched off altogether: said the same way, never a throw */
+      rmFail = ''; id = mk('2027-06-03'); out = homeworkDelete(id);
+      if (!out.ok || !/could not be removed/.test(out.note)) throw new Error('Classroom off: ' + JSON.stringify(out.note));
+      /* started, or never set for later: the post is out, and it is left (as before) */
+      GONE.length = 0;
+      id = mk('2027-06-03'); cellOfHw(id, 'Starts', new Date(Date.now() - 60e3)); out = withSched(() => homeworkDelete(id));
+      const id2 = mk(''); const out2 = withSched(() => homeworkDelete(id2));
+      if (GONE.length || out.note || out2.note) throw new Error('a post already out was removed: ' + JSON.stringify([GONE, out.note, out2.note]));
+    } finally { rmFail = ''; }
+  });
+  ok &= run('the Set homework form, set for a later date: the switch shows a start date and time per class; an empty one says what it means; they are sent; the list says "Starts …"', () => {
+    const D = JSON.parse(JSON.stringify(uiData('homework').data)); D.classroomOk = true;
+    D.homework = [Object.assign({}, D.homework[0] || {}, { id:'HW-WAIT1', title:'Waiting', who:'9A', what:'Digestion: Mouth', pupils:[], tally:{ done:0, partly:0, none:0 }, dueText:'10 Jun', due:'2027-06-10T14:59:59.000Z',
+      overdue:false, soon:false, tasks:TASK, targets:{ cls:'9A' }, remind:null, start:'2027-06-02T23:00:00.000Z', startText:'3 Jun, 08:00', waiting:true, teacher: OWNER })];
+    const page = teacherPage(), CALLS = [], A = enA.cls, B = enB.cls;
+    let okFn = null;
+    const run = new Proxy({}, { get: (t, k) => k === 'withSuccessHandler' ? (f => { okFn = f; return run; }) : k === 'withFailureHandler' ? (() => run)
+      : (...args) => { CALLS.push([k, args]); if (okFn) okFn({ ok:true, made:['HW-T1', 'HW-T2'], posted:[], later:[{ who:A, when:'3 Jun, 08:00', classroom:true }, { who:B, when:'3 Jun, 08:00', classroom:true }], notPosted:[], topic:'', topics:[], topicMissed:[], data:D }); } });
+    page.win.google = { script: { run } };
+    page.win.vHomework(D);
+    let html = page.html();
+    if (!html.includes('<input type="checkbox" id="hlater"><span>Set it for a later date: choose when pupils get it</span>') || /data-start=|data-stime=/.test(html)) throw new Error('the switch is missing, or the start boxes show before it is ticked');
+    /* Daniel, 2 Oct 2026: "if no start date is set, does it start immediately — is that clear?" */
+    if (!html.includes('<div class="tmsg" id="hlatersay" style="margin:3px 0 0 22px">Not ticked: pupils get it at once, when you press Set homework.</div>')) throw new Error('with the switch off the form does not say pupils get it at once');
+    if (!html.includes('<div class="hw__r">🗓 Starts 3 Jun, 08:00: pupils do not see it yet</div>')) throw new Error('the list does not say a waiting homework starts later');
+    page.fire('change', 'id', 'hlater', true);
+    html = page.html();
+    if (!/<label for="hs0">Starts<\/label><input id="hs0" type="date" data-start="0" value="">/.test(html) || !/<label for="hst0">Start time \(optional\)<\/label><input id="hst0" type="time" data-stime="0" value="">/.test(html)) throw new Error('no start date and time for the class');
+    if (!html.includes('<div class="tmsg" id="hsn0" style="flex:1 1 100%">No start date: this class gets it at once, when you press Set homework.</div>') || !html.includes('Until its start, pupils see nothing') || !html.includes('A class with no start date gets it at once.'))
+      throw new Error('an empty start does not say what it means');
+    page.fire('change', 'data-cls', '0', A);
+    page.fire('input', 'data-start', '0', '2027-06-03'); page.fire('input', 'data-due', '0', '2027-06-10');
+    page.press('id', 'addrow');
+    html = page.html();
+    if (!html.includes('<div class="tmsg" id="hsn0" style="flex:1 1 100%">No start time typed: pupils get it at 08:00 that day.</div>')) throw new Error('a start with no time does not say 08:00');
+    page.fire('change', 'data-cls', '1', B);
+    page.press('data-same', '1');
+    html = page.html();
+    if (!/id="hs1" type="date" data-start="1" value="2027-06-03"/.test(html) || !/id="hd1" type="date" data-due="1" value="2027-06-10"/.test(html)) throw new Error('"↑ Same date and time" did not copy the start with the due date');
+    page.fire('input', 'data-stime', '1', '14:30');
+    page.fire('input', 'id', 'ht', 'Later, two classes');
+    page.press('data-all', 'digestion-lab');
+    if (!page.html().includes('id="hsn1" style="flex:1 1 100%" hidden>')) throw new Error('a class with a start date and time still shows a note');
+    page.press('id', 'hset');
+    const a = CALLS.filter(c => c[0] === 'homeworkCreate')[0][1][0];
+    if (a.classes[0].start !== '2027-06-03' || a.classes[0].startTime !== '' || a.classes[1].start !== '2027-06-03' || a.classes[1].startTime !== '14:30') throw new Error('sent ' + JSON.stringify(a.classes));
+    /* the switch off: nothing about a start is sent, even if one was typed before */
+    const p2 = teacherPage(), C2 = [];
+    const run2 = new Proxy({}, { get: (t, k) => k === 'withSuccessHandler' ? (() => run2) : k === 'withFailureHandler' ? (() => run2) : (...args) => { C2.push([k, args]); } });
+    p2.win.google = { script: { run: run2 } }; p2.win.vHomework(D);
+    p2.fire('change', 'id', 'hlater', true); p2.fire('change', 'data-cls', '0', A); p2.fire('input', 'data-start', '0', '2027-06-03'); p2.fire('input', 'data-due', '0', '2027-06-10');
+    p2.fire('change', 'id', 'hlater', false); p2.fire('input', 'id', 'ht', 'Now after all'); p2.press('data-all', 'digestion-lab'); p2.press('id', 'hset');
+    const a2 = C2.filter(c => c[0] === 'homeworkCreate')[0][1][0];
+    if ('start' in a2.classes[0] || 'startTime' in a2.classes[0]) throw new Error('a start was sent with the switch off: ' + JSON.stringify(a2.classes));
   });
   ok &= run('a failed announcement breaks nothing: written down (no long ids), logged, shown on the list, never tried again', () => {
     const s = KST(2027, 4, 19, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
