@@ -785,3 +785,201 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
   .door--hero .door__body{padding-top:clamp(150px,40vw,220px)}
   .door--hero .door__title{font-size:clamp(26px,7vw,36px)}
 }
+
+/* ============ a note in the masthead ============
+   A section may say one thing about itself that is not its subject (js/local.js, `note`): who
+   Bryant is named after. One small card between the heading and the account corner. On a wide
+   screen it has a column of its own; on a small tablet held sideways it stands under the lede; on a phone it is one
+   more row. The masthead's own columns are only changed at the widths where it has columns. */
+.mnote{
+  display:flex;align-items:center;gap:12px;align-self:center;min-width:0;max-width:380px;
+  padding:10px 14px 10px 10px;border-radius:12px;color:var(--chalk);
+  border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.035);
+  transition:border-color .18s,background .18s
+}
+.mnote[href]:hover,.mnote[href]:focus-visible{border-color:rgba(230,200,103,.6);background:rgba(230,200,103,.08)}
+.mnote picture{flex:none}
+.mnote__img{display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.mnote__txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mnote__eye{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--chalk-dim);line-height:1.3}
+.mnote__name{font-family:var(--serif);font-size:16px;line-height:1.2;color:#fff}
+.mnote__text{font-size:12.5px;line-height:1.4;color:#C5D4DD}
+.mnote__go{margin-top:2px;font-size:12px;color:#E6C867}
+.mnote__go::after{content:" \2197";font:500 10px/1 var(--mono);opacity:.8}
+@media (min-width:1024px){
+  .masthead--note{grid-template-columns:minmax(0,1fr) minmax(240px,min(380px,30vw)) auto;align-items:center}
+  body:not([data-view="revision"])[data-view]:not([data-acct]) .masthead--note{grid-template-columns:minmax(0,1fr) minmax(240px,min(380px,30vw))}
+}
+@media (min-width:901px) and (max-width:1023px){
+  .masthead--note .masthead__l{grid-column:1;grid-row:1}
+  .masthead--note .mnote{grid-column:1;grid-row:2;justify-self:start;max-width:520px}
+  .masthead--note .masthead__r{grid-column:2;grid-row:1 / span 2}
+}
+@media (max-width:900px){
+  .mnote{align-self:start;max-width:520px;width:100%}
+}
+
+/* ============ a feature: the thing itself, on the page ============
+   An activity with no website of its own is shown in full where a door would stand (js/hub.js,
+   buildFeature). The block is a column of water: light at the top, dark at the foot, so reading
+   down the page is going down. The film stands beside the words on a wide screen and between the
+   heading and the depth line on a narrow one. */
+.feat{
+  position:relative;isolation:isolate;overflow:hidden;flex:none;border-radius:10px;
+  padding:clamp(16px,2.2vw,34px);color:var(--chalk);
+  background:linear-gradient(180deg,#0C6480 0%,#0A4D6B 20%,#083855 48%,#06253E 76%,#04172B 100%)
+}
+.feat::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.09)}
+.feat__water{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+/* the light that comes down from the surface */
+.feat__water::before{
+  content:"";position:absolute;left:-10%;right:-10%;top:-30%;height:90%;
+  background:
+    radial-gradient(60% 70% at 32% 0%,rgba(150,240,255,.34),transparent 70%),
+    conic-gradient(from 150deg at 34% -6%,transparent 0deg,rgba(255,255,255,.085) 7deg,transparent 15deg,
+      rgba(255,255,255,.06) 24deg,transparent 31deg,rgba(255,255,255,.075) 41deg,transparent 50deg,transparent 360deg);
+  animation:featLight 9s ease-in-out infinite alternate
+}
+@keyframes featLight{from{opacity:.75;transform:translateX(-1.2%)}to{opacity:1;transform:translateX(1.2%)}}
+.feat__water i{
+  position:absolute;top:104%;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;opacity:0;
+  border:1px solid rgba(255,255,255,.4);background:radial-gradient(circle at 32% 30%,rgba(255,255,255,.55),rgba(255,255,255,.04) 62%);
+  animation:featRise var(--d) linear var(--w) infinite
+}
+@keyframes featRise{
+  0%{top:104%;opacity:0;transform:translateX(0)}
+  10%{opacity:.55}
+  50%{transform:translateX(9px)}
+  85%{opacity:.4}
+  100%{top:-4%;opacity:0;transform:translateX(-5px)}
+}
+.feat__main{
+  display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);
+  grid-template-areas:"film head" "film rail";grid-template-rows:auto 1fr;
+  gap:clamp(14px,1.6vw,22px) clamp(18px,2.6vw,40px);align-items:start
+}
+.feat__head{grid-area:head;min-width:0}
+.feat__film{grid-area:film;margin:0;min-width:0}
+.feat__rail{grid-area:rail;min-width:0}
+.feat__no{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+.feat__title{font-family:var(--serif);font-size:clamp(30px,3.3vw,50px);letter-spacing:-.018em;margin-top:6px;color:#fff}
+.feat__title em{font-style:italic;color:var(--accent)}
+.feat__sub{font-family:var(--serif);font-style:italic;font-size:clamp(17px,1.5vw,23px);line-height:1.25;color:#C9F1F6;margin-top:4px}
+.feat__lede{margin-top:12px;font-size:15px;color:#DCEAF1}
+.feat .door__chips{max-height:none;opacity:1;margin-top:14px}
+.feat .chip{color:#EAF6FA;border-color:rgba(255,255,255,.3);background:rgba(4,23,43,.35)}
+
+/* the film: nothing is fetched until the press */
+.film{
+  position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#02101C;
+  box-shadow:0 0 0 1px rgba(255,255,255,.16),0 22px 60px rgba(0,8,22,.55)
+}
+.film__video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;background:#02101C}
+.film__play{
+  position:absolute;inset:0;width:100%;display:grid;place-content:center;justify-items:center;gap:10px;
+  color:#fff;text-align:center;padding:16px;
+  background:linear-gradient(to top,rgba(2,16,28,.78),rgba(2,16,28,.12) 60%,rgba(2,16,28,.2))
+}
+.film[data-state="on"] .film__play{display:none}
+.film__ico{
+  position:relative;display:grid;place-items:center;width:clamp(60px,7vw,84px);height:clamp(60px,7vw,84px);border-radius:50%;
+  padding-left:4px;color:#04172B;background:#fff;box-shadow:0 8px 30px rgba(0,8,22,.5);transition:transform .25s var(--ease)
+}
+/* a ring that spreads from the button, as a ring spreads on water */
+.film__ico::before,.film__ico::after{
+  content:"";position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(255,255,255,.7);
+  animation:filmRing 3.2s ease-out infinite
+}
+.film__ico::after{animation-delay:1.6s}
+@keyframes filmRing{from{transform:scale(1);opacity:.7}to{transform:scale(2.3);opacity:0}}
+.film__play:hover .film__ico,.film__play:focus-visible .film__ico{transform:scale(1.07)}
+.film__play:focus-visible{outline-offset:-4px}
+.film__lbl{font-family:var(--serif);font-size:clamp(20px,2.1vw,30px);line-height:1.15;text-shadow:0 2px 14px rgba(0,8,22,.7)}
+.film__len{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#D5EEF5}
+.film__credit{margin-top:9px;font-size:12.5px;color:#B9D3DE}
+
+/* the depth line: each step of the course at its depth. The step the film is in is lit. */
+.feat__label,.feat__h h3{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:#A9DCE8}
+.rail{position:relative;margin-top:8px}
+.rail::before{content:"";position:absolute;left:66px;top:16px;bottom:16px;width:1px;background:linear-gradient(rgba(190,236,246,.9),rgba(190,236,246,.2))}
+.rail__step{position:relative;display:grid;grid-template-columns:48px 20px minmax(0,1fr);column-gap:8px;padding:7px 0;align-items:start}
+.rail__mark{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-align:right;color:#A9DCE8;padding-top:3px;white-space:nowrap;transition:color .3s}
+.rail__dot{justify-self:center;width:11px;height:11px;margin-top:5px;border-radius:50%;background:#0A4D6B;border:1.5px solid #BEECF6;position:relative;z-index:1;transition:background .3s,box-shadow .3s,border-color .3s}
+.rail__t{font-weight:500;font-size:14.5px;color:#fff}
+.rail__t::after{content:".";}
+.rail__text{font-size:14px;line-height:1.5;color:#D3E4EC}
+.rail__step.is-live .rail__mark{color:#fff}
+.rail__step.is-live .rail__dot{background:var(--accent);border-color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 32%,transparent)}
+
+/* the stills */
+.feat__stills{margin-top:clamp(20px,2.6vw,34px)}
+.feat__h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin-bottom:10px}
+.feat__hint{font-size:13px;color:#C3D9E3}
+.stills{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.stills__i{display:flex;min-width:0}
+.still{
+  display:flex;flex-direction:column;width:100%;min-width:0;text-align:left;border-radius:10px;overflow:hidden;
+  background:rgba(2,16,28,.5);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);transition:transform .25s var(--ease),box-shadow .25s
+}
+.still--go{cursor:pointer}
+.still--go:hover,.still--go:focus-visible{transform:translateY(-3px);box-shadow:inset 0 0 0 1px var(--accent),0 12px 30px rgba(0,8,22,.45)}
+.still__pic{position:relative;display:block}
+.still__img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.still__at{
+  position:absolute;right:7px;bottom:7px;display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 6px;border-radius:999px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:#04172B;background:rgba(255,255,255,.92)
+}
+.still__cap{display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}
+.still__t{font-family:var(--serif);font-weight:400;font-size:17px;line-height:1.2;color:#fff}
+.still__sci{font-family:var(--serif);font-style:italic;font-size:13.5px;line-height:1.2;color:#A9DCE8}
+.still__text{font-size:13px;line-height:1.45;color:#CFE0E8}
+.feat__why{margin-top:14px;font-size:14px;line-height:1.55;color:#D3E4EC}
+.feat__why b{font-weight:500;color:#fff;margin-right:4px}
+
+/* the facts */
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:clamp(16px,2vw,24px) 0 0}
+.fact{padding:10px 14px;border-radius:0 8px 8px 0;border-left:2px solid var(--accent);background:rgba(2,16,28,.42)}
+.fact dt{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#A9DCE8}
+.fact dd{margin:3px 0 0;font-size:14.5px;line-height:1.45;color:#fff}
+/* an address is one long word: it goes on a line of its own, and may break, before it pushes a phone's page wide */
+.fact__mail{display:block;width:max-content;max-width:100%;overflow-wrap:anywhere;color:var(--accent);border-bottom:1px solid color-mix(in srgb,var(--accent) 45%,transparent)}
+.fact__mail:hover,.fact__mail:focus-visible{color:#fff;border-bottom-color:#fff}
+
+@media (max-width:1279px){
+  .stills{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .stills__i{grid-column:span 2}
+  .stills__i:nth-child(-n+2){grid-column:span 3}
+}
+/* On a small laptop or a tablet held sideways the right-hand column is narrow, so the heading and
+   the depth line together stood far taller than the film and left a third of a screen of empty
+   water under it. There the depth line lies along the foot instead, its steps side by side. */
+@media (min-width:901px) and (max-width:1279px){
+  .feat__main{grid-template-areas:"film head" "rail rail";grid-template-rows:auto auto;align-items:center}
+  .rail{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);column-gap:22px}
+  .rail::before{left:0;right:0;top:30px;bottom:auto;width:auto;height:1px;background:linear-gradient(to right,rgba(190,236,246,.9),rgba(190,236,246,.2))}
+  .rail__step{display:block;padding:0}
+  .rail__mark{display:block;text-align:left;padding:0;line-height:20px}
+  .rail__dot{display:block;justify-self:start;margin:4px 0 9px}
+  .rail__txt{display:block}
+}
+@media (max-width:900px){
+  .feat__main{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "film" "rail";grid-template-rows:auto}
+  .feat .chip{font-size:10px;padding:4px 9px}
+}
+@media (max-width:560px){
+  .feat{padding:16px 14px 18px}
+  .stills{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stills__i,.stills__i:nth-child(-n+2){grid-column:auto}
+  .stills__i:last-child{grid-column:1 / -1}
+  /* the last still stands alone on its row: its picture beside its words, not above them */
+  .stills__i:last-child .still{flex-direction:row;align-items:center}
+  .stills__i:last-child .still{align-items:stretch}
+  .stills__i:last-child .still__pic{flex:0 0 42%}
+  .stills__i:last-child .still__pic picture{display:block;height:100%}
+  .stills__i:last-child .still__img{height:100%;aspect-ratio:auto}
+  .stills__i:last-child .still__cap{align-self:center}
+  /* on a phone the card keeps the name and the link; the line between them is the first thing to go */
+  .mnote__text{display:none}
+  .rail::before{left:60px}
+  .rail__step{grid-template-columns:42px 20px minmax(0,1fr)}
+}

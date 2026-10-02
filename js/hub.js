@@ -344,6 +344,131 @@
   function on(id)  { restWidths(); Object.keys(doorEls).forEach(function (k) { doorEls[k].classList.toggle('is-on', k === id); }); }   /* rest widths first: a door lit before its width was known would re-wrap */
   function off(id) { if (doorEls[id]) doorEls[id].classList.remove('is-on'); }
 
+  /* ---------- a feature: the thing itself, on the page ----------
+     A door leads somewhere else. Some activities have nowhere else to be: no website, only a film,
+     a few facts and a teacher to ask. A band entry marked `feature` (js/local.js) is drawn here in
+     full instead of as a door: a film, the steps of the activity down a depth line, the pictures
+     taken from the film, and the facts.
+
+       film    fetched only when somebody presses play, so a visitor who does not watch it pays
+               nothing for it. It has no download button and no menu on a right click.
+       rail    the steps, each at its depth. A step with `from` (a second of the film) lights while
+               the film is in that part, so the line follows the film down.
+       stills  a still with `at` is a button: it plays the film from that second.
+
+     Nothing here moves for a reader who has asked for less movement: the stylesheet's own rule
+     stops the water, and the film only ever plays when asked. */
+  function pic(base, widths, sizes, alt, cls) {
+    var b = 'assets/doors/' + base;
+    var set = function (ext) { return widths.map(function (w) { return b + '-' + w + '.' + ext + ' ' + w + 'w'; }).join(', '); };
+    return '<picture><source type="image/webp" srcset="' + set('webp') + '" sizes="' + sizes + '">' +
+      '<img class="' + cls + '" src="' + b + '-' + widths[widths.length - 1] + '.jpg" srcset="' + set('jpg') + '" sizes="' + sizes + '"' +
+      ' alt="' + esc(alt || '') + '" loading="lazy" decoding="async" draggable="false"></picture>';
+  }
+  function clock(sec) { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
+  function buildFeature(d) {
+    var el = document.createElement('article');
+    var f = d.film || null, steps = (d.rail && d.rail.steps) || [], st = d.stills || null, list = (st && st.list) || [];
+    el.className = 'feat feat--' + d.id;
+    el.dataset.id = d.id;
+    el.style.setProperty('--accent', d.accent || '#4FC3F7');
+    el.setAttribute('aria-label', plain(d.title));
+    var bubbles = [[6, 7, 13, 0], [14, 4, 17, 6], [23, 9, 15, 3], [37, 5, 19, 9], [48, 8, 14, 1], [61, 4, 18, 11],
+                   [70, 10, 16, 5], [82, 6, 13, 8], [91, 5, 20, 2]].map(function (b) {
+      return '<i style="--x:' + b[0] + '%;--s:' + b[1] + 'px;--d:' + b[2] + 's;--w:-' + b[3] + 's"></i>';
+    }).join('');
+    el.innerHTML =
+      '<div class="feat__water" aria-hidden="true">' + bubbles + '</div>' +
+      '<div class="feat__main">' +
+        '<header class="feat__head">' +
+          '<span class="feat__no">' + esc(d.eyebrow) + '</span>' +
+          '<h2 class="feat__title">' + d.title + '</h2>' +
+          (d.sub ? '<p class="feat__sub">' + esc(d.sub) + '</p>' : '') +
+          (d.blurb ? '<p class="feat__lede">' + esc(d.blurb) + '</p>' : '') +
+          chips(d) +
+        '</header>' +
+        (f ? '<figure class="feat__film">' +
+          '<div class="film" data-state="idle">' +
+            '<video class="film__video" playsinline preload="none" poster="assets/doors/' + esc(f.poster) + '-1280.jpg"' +
+              ' controlslist="nodownload noremoteplayback" disableremoteplayback aria-label="' + esc(f.alt || plain(d.title)) + '"></video>' +
+            '<button type="button" class="film__play">' +
+              '<span class="film__ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M8 5.2v13.6L19 12z" fill="currentColor"/></svg></span>' +
+              '<span class="film__lbl">' + esc(f.play || 'Watch the film') + '</span>' +
+              (f.note ? '<span class="film__len">' + esc(f.note) + '</span>' : '') +
+            '</button>' +
+          '</div>' +
+          (f.credit ? '<figcaption class="film__credit">' + esc(f.credit) + '</figcaption>' : '') +
+        '</figure>' : '') +
+        (steps.length ? '<div class="feat__rail">' +
+          (d.rail.label ? '<h3 class="feat__label">' + esc(d.rail.label) + '</h3>' : '') +
+          '<ol class="rail">' + steps.map(function (s) {
+            return '<li class="rail__step"><span class="rail__mark">' + esc(s.mark) + '</span><span class="rail__dot" aria-hidden="true"></span>' +
+              '<span class="rail__txt"><b class="rail__t">' + esc(s.t) + '</b> <span class="rail__text">' + esc(s.text) + '</span></span></li>';
+          }).join('') + '</ol></div>' : '') +
+      '</div>' +
+      (list.length ? '<section class="feat__stills">' +
+        '<div class="feat__h"><h3>' + esc(st.title || '') + '</h3>' + (f && st.hint ? '<p class="feat__hint">' + esc(st.hint) + '</p>' : '') + '</div>' +
+        '<ul class="stills">' + list.map(function (x, i) {
+          var can = f && x.at != null;
+          var inner = '<span class="still__pic">' + pic(x.img, [480, 960], '(max-width:560px) 50vw, (max-width:900px) 33vw, 20vw', x.alt, 'still__img') +
+              (can ? '<span class="still__at" aria-hidden="true"><svg viewBox="0 0 24 24" width="11" height="11"><path d="M8 5.2v13.6L19 12z" fill="currentColor"/></svg>' + clock(x.at) + '</span>' : '') +
+            '</span><span class="still__cap"><b class="still__t">' + esc(x.t) + '</b>' +
+              (x.sci ? '<i class="still__sci">' + esc(x.sci) + '</i>' : '') +
+              '<span class="still__text">' + esc(x.text) + '</span></span>';
+          return '<li class="stills__i">' + (can
+            ? '<button type="button" class="still still--go" data-i="' + i + '" aria-label="' + esc(x.t + '. ' + x.text + ' Play the film from ' + clock(x.at) + '.') + '">' + inner + '</button>'
+            : '<div class="still">' + inner + '</div>') + '</li>';
+        }).join('') + '</ul>' +
+        (d.why ? '<p class="feat__why"><b>' + esc(d.why.k) + '</b> ' + esc(d.why.text) + '</p>' : '') +
+      '</section>' : '') +
+      (d.facts && d.facts.length ? '<dl class="facts">' + d.facts.map(function (x) {
+        return '<div class="fact"><dt>' + esc(x.k) + '</dt><dd>' + esc(x.v) +
+          (x.mail ? ' <a class="fact__mail" href="mailto:' + esc(x.mail) + '">' + esc(x.mail) + '</a>' : '') + '</dd></div>';
+      }).join('') + '</dl>' : '');
+
+    var v = el.querySelector('.film__video'), box = el.querySelector('.film');
+    if (!v) return el;
+    var playBtn = el.querySelector('.film__play'), lbl = el.querySelector('.film__lbl');
+    var stepEls = el.querySelectorAll('.rail__step');
+    function live(k) { Array.prototype.forEach.call(stepEls, function (li, i) { li.classList.toggle('is-live', i === k); }); }
+    function follow() {
+      var t = v.currentTime, k = -1;
+      /* only while the film is showing: going back to the poster also sets the time, to 0 */
+      if (box.dataset.state === 'on') steps.forEach(function (s, i) { if (s.from != null && t >= s.from) k = i; });
+      live(k);
+    }
+    /* play() is called inside the press itself, which is what a phone asks for before it will play
+       anything with sound; the jump to `at` waits until the film knows its own length */
+    function start(at) {
+      if (!v.getAttribute('src')) v.src = f.src;
+      v.controls = true; box.dataset.state = 'on';
+      if (at != null) {
+        if (v.readyState >= 1) v.currentTime = at;
+        else v.addEventListener('loadedmetadata', function () { v.currentTime = at; }, { once:true });
+      }
+      var p = v.play();
+      if (p && p.catch) p.catch(function () {});
+    }
+    playBtn.addEventListener('click', function () { start(null); });
+    Array.prototype.forEach.call(el.querySelectorAll('.still--go'), function (b) {
+      b.addEventListener('click', function () {
+        start(list[+b.dataset.i].at);
+        var r = box.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > window.innerHeight) box.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block:'center' });
+      });
+    });
+    v.addEventListener('timeupdate', follow);
+    v.addEventListener('seeked', follow);
+    /* at the end the picture goes back to its poster, with the way to watch it again */
+    v.addEventListener('ended', function () {
+      v.controls = false; box.dataset.state = 'idle'; live(-1);
+      if (lbl && f.again) lbl.textContent = f.again;
+      v.load();
+    });
+    v.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    return el;
+  }
+
   DOORS.filter(isShelf).forEach(function (d, i) { doorsEl.appendChild(build(d, i < 2)); });
 
   /* On a narrow screen the picture is fitted whole and top-aligned rather than cropped, so
@@ -477,7 +602,7 @@
     band.innerHTML = '<h2 class="eyebrow">' + esc(b.label) + '</h2>';
     if (b.section) band.hidden = true;       /* a section names itself in the masthead */
     wideEl.appendChild(band);
-    mine.forEach(function (d) { var a = build(d, false); a.dataset.section = b.section || ''; wideEl.appendChild(a); });
+    mine.forEach(function (d) { var a = d.feature ? buildFeature(d) : build(d, false); a.dataset.section = b.section || ''; wideEl.appendChild(a); });
   });
   fitOverlays();
   requestAnimationFrame(restWidths);
@@ -534,6 +659,30 @@
     if (doc) document.title = doc;
     if (mastEl.desc && desc) mastEl.desc.setAttribute('content', plain(desc));
   }
+  /* A section may carry a `note` (js/local.js): one small card in the masthead, between the heading
+     and the account corner. It says something about the page that is worth knowing and is not the
+     page's subject: who the section is named after. With a `url` the whole card is the link. */
+  var noteEl = null;
+  function setNote(n) {
+    var mast = document.querySelector('.masthead');
+    if (!mast || (!n && !noteEl)) return;
+    if (!noteEl) {
+      noteEl = document.createElement('a'); noteEl.className = 'mnote';
+      mast.insertBefore(noteEl, mast.querySelector('.masthead__r'));
+    }
+    mast.classList.toggle('masthead--note', !!n);
+    noteEl.hidden = !n;
+    if (!n) return;
+    if (n.url) { noteEl.href = n.url; noteEl.target = '_blank'; noteEl.rel = 'noopener'; }
+    else { noteEl.removeAttribute('href'); noteEl.removeAttribute('target'); noteEl.removeAttribute('rel'); }
+    noteEl.innerHTML = (n.img ? pic(n.img, [128, 256], '56px', n.alt, 'mnote__img') : '') +
+      '<span class="mnote__txt">' +
+        (n.eyebrow ? '<span class="mnote__eye">' + esc(n.eyebrow) + '</span>' : '') +
+        (n.name ? '<span class="mnote__name">' + esc(n.name) + '</span>' : '') +
+        (n.text ? '<span class="mnote__text">' + esc(n.text) + '</span>' : '') +
+        (n.url && n.go ? '<span class="mnote__go">' + esc(n.go) + '</span>' : '') +
+      '</span>';
+  }
   /* the page a door lives on: a section's page for a door that carries its kind, else the hub */
   function pageOf(id) {
     var d = DOORS.filter(function (x) { return x.id === id; })[0];
@@ -557,6 +706,9 @@
     VIEW = view;
     document.body.setAttribute('data-view', view);
     var sec = sectionOf(view), atEntry = view === 'entry', atHub = view === 'revision';
+    setNote(sec && sec.note);
+    /* a film must not play on behind a page that is no longer showing */
+    if (wideEl) Array.prototype.forEach.call(wideEl.querySelectorAll('video'), function (v) { if (!v.paused) v.pause(); });
     if (entryEl) entryEl.hidden = !atEntry;
     doorsEl.hidden = !atHub;
     if (wideEl) {
