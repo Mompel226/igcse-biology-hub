@@ -824,7 +824,12 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
    buildFeature). The block is a column of water: light at the top, dark at the foot, so reading
    down the page is going down. The film stands beside the words on a wide screen and between the
    heading and the depth line on a narrow one. */
+/* --k is the block's unit of type: 12.8px up to a 1280px screen, then 1% of the screen's width up to
+   1600px. Every size in the block is a multiple of it, so from 1280px the words grow at the rate the
+   film grows and the two columns keep one height. Past 1600px the block's contents stop growing
+   (max-width below) and stand in the middle of the water. */
 .feat{
+  --k:clamp(12.8px,1vw,16px);
   position:relative;isolation:isolate;overflow:hidden;flex:none;border-radius:10px;
   padding:clamp(16px,2.2vw,34px);color:var(--chalk);
   background:linear-gradient(180deg,#0C6480 0%,#0A4D6B 20%,#083855 48%,#06253E 76%,#04172B 100%)
@@ -855,19 +860,28 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
 }
 .feat__main{
   display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,1fr);
-  grid-template-areas:"film head" "film rail";grid-template-rows:auto 1fr;
-  gap:clamp(14px,1.6vw,22px) clamp(18px,2.6vw,40px);align-items:start
+  gap:clamp(14px,1.6vw,22px) clamp(18px,2.6vw,40px);align-items:stretch
 }
+.feat__main,.feat__stills,.facts{max-width:1476px;margin-left:auto;margin-right:auto}
+/* Two columns of one height. The film and the "why" box stand in one, the heading and the depth line
+   in the other, and the slack goes where it is not seen as a hole: the box grows, or the steps of the
+   line spread. (With the film alone in its column, the taller words left empty water under it.) Below
+   1280px the two wrappers stand aside (`display:contents`) and the four parts are laid out by area. */
+.feat__a,.feat__b{display:flex;flex-direction:column;min-width:0;gap:clamp(12px,1.4vw,18px)}
+.feat__a{grid-column:1;grid-row:1}
+.feat__b{grid-column:2;grid-row:1}
 .feat__head{grid-area:head;min-width:0}
 .feat__film{grid-area:film;margin:0;min-width:0}
-.feat__rail{grid-area:rail;min-width:0}
-.feat__no{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
-.feat__title{font-family:var(--serif);font-size:clamp(30px,3.3vw,50px);letter-spacing:-.018em;margin-top:6px;color:#fff}
+.feat__rail{grid-area:rail;min-width:0;flex:1 1 auto;display:flex;flex-direction:column}
+.feat__rail .rail{flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-between}
+.why{grid-area:why;flex:1 1 auto}
+.feat__no{font-family:var(--mono);font-size:calc(var(--k) * .82);font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+.feat__title{font-family:var(--serif);font-size:clamp(30px,3.3vw,53px);letter-spacing:-.018em;margin-top:6px;color:#fff}
 .feat__title em{font-style:italic;color:var(--accent)}
-.feat__sub{font-family:var(--serif);font-style:italic;font-size:clamp(17px,1.5vw,23px);line-height:1.25;color:#C9F1F6;margin-top:4px}
-.feat__lede{margin-top:12px;font-size:15px;color:#DCEAF1}
+.feat__sub{font-family:var(--serif);font-style:italic;font-size:clamp(17px,1.5vw,24px);line-height:1.25;color:#C9F1F6;margin-top:4px}
+.feat__lede{margin-top:12px;font-size:calc(var(--k) * 1.172);color:#DCEAF1}
 .feat .door__chips{max-height:none;opacity:1;margin-top:14px}
-.feat .chip{color:#EAF6FA;border-color:rgba(255,255,255,.3);background:rgba(4,23,43,.35)}
+.feat .chip{font-size:calc(var(--k) * .78);color:#EAF6FA;border-color:rgba(255,255,255,.3);background:rgba(4,23,43,.35)}
 
 /* the film: nothing is fetched until the press */
 .film{
@@ -896,25 +910,41 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
 .film__play:focus-visible{outline-offset:-4px}
 .film__lbl{font-family:var(--serif);font-size:clamp(20px,2.1vw,30px);line-height:1.15;text-shadow:0 2px 14px rgba(0,8,22,.7)}
 .film__len{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#D5EEF5}
-.film__credit{margin-top:9px;font-size:12.5px;color:#B9D3DE}
+.film__credit{margin-top:9px;font-size:calc(var(--k) * .977);color:#B9D3DE}
 
 /* the depth line: each step of the course at its depth. The step the film is in is lit. */
-.feat__label,.feat__h h3{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:#A9DCE8}
+.feat__label,.feat__h h3{font-family:var(--mono);font-size:calc(var(--k) * .82);font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:#A9DCE8}
 .rail{position:relative;margin-top:8px}
 .rail::before{content:"";position:absolute;left:66px;top:16px;bottom:16px;width:1px;background:linear-gradient(rgba(190,236,246,.9),rgba(190,236,246,.2))}
 .rail__step{position:relative;display:grid;grid-template-columns:48px 20px minmax(0,1fr);column-gap:8px;padding:7px 0;align-items:start}
-.rail__mark{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-align:right;color:#A9DCE8;padding-top:3px;white-space:nowrap;transition:color .3s}
+.rail__mark{font-family:var(--mono);font-size:calc(var(--k) * .86);letter-spacing:.04em;text-align:right;color:#A9DCE8;padding-top:3px;white-space:nowrap;transition:color .3s}
 .rail__dot{justify-self:center;width:11px;height:11px;margin-top:5px;border-radius:50%;background:#0A4D6B;border:1.5px solid #BEECF6;position:relative;z-index:1;transition:background .3s,box-shadow .3s,border-color .3s}
-.rail__t{font-weight:500;font-size:14.5px;color:#fff}
+.rail__t{font-weight:500;font-size:calc(var(--k) * 1.2);color:#fff}
 .rail__t::after{content:".";}
-.rail__text{font-size:14px;line-height:1.5;color:#D3E4EC}
+.rail__text{font-size:calc(var(--k) * 1.172);line-height:1.5;color:#D3E4EC}
 .rail__step.is-live .rail__mark{color:#fff}
 .rail__step.is-live .rail__dot{background:var(--accent);border-color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 32%,transparent)}
+
+/* the "why" box: the colour of a Jeju tangerine on the cold water, so it is seen (Daniel, 2 Oct 2026:
+   "right now you don't really see it"). Dark words on it. A heading and two or three short points. */
+.why{
+  display:flex;flex-direction:column;justify-content:center;gap:10px;border-radius:12px;
+  padding:clamp(12px,1.2vw,16px) clamp(14px,1.5vw,20px);color:#2B1608;
+  background:linear-gradient(115deg,#FF9A63 0%,#FFB45E 55%,#FFC873 100%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35),0 12px 34px rgba(0,8,22,.4)
+}
+.why__k{font-family:var(--serif);font-size:clamp(18px,1.45vw,24px);line-height:1.15;color:#1A0F08}
+.why__list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px clamp(12px,1.4vw,22px)}
+.why__i{display:flex;flex-direction:column;gap:5px;min-width:0}
+.why__top{display:flex;align-items:center;gap:8px;min-width:0}
+.why__ico{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;color:#FFC873;background:#0A3350}
+.why__t{font-weight:600;font-size:calc(var(--k) * 1.055);line-height:1.25;color:#1A0F08}
+.why__text,.why__p{font-size:calc(var(--k) * 1.016);line-height:1.45;color:#3A2110}
 
 /* the stills */
 .feat__stills{margin-top:clamp(20px,2.6vw,34px)}
 .feat__h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin-bottom:10px}
-.feat__hint{font-size:13px;color:#C3D9E3}
+.feat__hint{font-size:calc(var(--k) * 1.016);color:#C3D9E3}
 .stills{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .stills__i{display:flex;min-width:0}
 .still{
@@ -930,17 +960,15 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
   font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:#04172B;background:rgba(255,255,255,.92)
 }
 .still__cap{display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}
-.still__t{font-family:var(--serif);font-weight:400;font-size:17px;line-height:1.2;color:#fff}
-.still__sci{font-family:var(--serif);font-style:italic;font-size:13.5px;line-height:1.2;color:#A9DCE8}
-.still__text{font-size:13px;line-height:1.45;color:#CFE0E8}
-.feat__why{margin-top:14px;font-size:14px;line-height:1.55;color:#D3E4EC}
-.feat__why b{font-weight:500;color:#fff;margin-right:4px}
+.still__t{font-family:var(--serif);font-weight:400;font-size:calc(var(--k) * 1.33);line-height:1.2;color:#fff}
+.still__sci{font-family:var(--serif);font-style:italic;font-size:calc(var(--k) * 1.055);line-height:1.2;color:#A9DCE8}
+.still__text{font-size:calc(var(--k) * 1.016);line-height:1.45;color:#CFE0E8}
 
 /* the facts */
-.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:clamp(16px,2vw,24px) 0 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:clamp(16px,2vw,24px) auto 0}
 .fact{padding:10px 14px;border-radius:0 8px 8px 0;border-left:2px solid var(--accent);background:rgba(2,16,28,.42)}
 .fact dt{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#A9DCE8}
-.fact dd{margin:3px 0 0;font-size:14.5px;line-height:1.45;color:#fff}
+.fact dd{margin:3px 0 0;font-size:calc(var(--k) * 1.133);line-height:1.45;color:#fff}
 /* an address is one long word: it goes on a line of its own, and may break, before it pushes a phone's page wide */
 .fact__mail{display:block;width:max-content;max-width:100%;overflow-wrap:anywhere;color:var(--accent);border-bottom:1px solid color-mix(in srgb,var(--accent) 45%,transparent)}
 .fact__mail:hover,.fact__mail:focus-visible{color:#fff;border-bottom-color:#fff}
@@ -954,8 +982,10 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
    the depth line together stood far taller than the film and left a third of a screen of empty
    water under it. There the depth line lies along the foot instead, its steps side by side. */
 @media (min-width:901px) and (max-width:1279px){
-  .feat__main{grid-template-areas:"film head" "rail rail";grid-template-rows:auto auto;align-items:center}
-  .rail{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);column-gap:22px}
+  .feat__a,.feat__b{display:contents}
+  .feat__main{grid-template-areas:"film head" "rail rail" "why why";grid-template-rows:auto auto auto;align-items:center}
+  .feat__rail{display:block}
+  .feat__rail .rail{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);column-gap:22px}
   .rail::before{left:0;right:0;top:30px;bottom:auto;width:auto;height:1px;background:linear-gradient(to right,rgba(190,236,246,.9),rgba(190,236,246,.2))}
   .rail__step{display:block;padding:0}
   .rail__mark{display:block;text-align:left;padding:0;line-height:20px}
@@ -963,7 +993,9 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
   .rail__txt{display:block}
 }
 @media (max-width:900px){
-  .feat__main{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "film" "rail";grid-template-rows:auto}
+  .feat__a,.feat__b{display:contents}
+  .feat__main{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "film" "rail" "why";grid-template-rows:auto}
+  .feat__rail,.feat__rail .rail{display:block}
   .feat .chip{font-size:10px;padding:4px 9px}
 }
 @media (max-width:560px){
@@ -980,6 +1012,7 @@ body[data-view]:not([data-view="revision"]) .beyond{margin-top:4px}
   .stills__i:last-child .still__cap{align-self:center}
   /* on a phone the card keeps the name and the link; the line between them is the first thing to go */
   .mnote__text{display:none}
+  .why__list{grid-template-columns:minmax(0,1fr)}
   .rail::before{left:60px}
   .rail__step{grid-template-columns:42px 20px minmax(0,1fr)}
 }
