@@ -46,8 +46,7 @@ window.HUB = {
       blurb:'Here you do not move across a body — you move down into one. Start with a whole organism and step inside: an organ, then a tissue, then a cell, then an organelle, and finally the molecules that do the work. Topics 2 to 5 sit at each step on the way down.',
       topics:[ {no:2,t:'Organisation of the organism'}, {no:3,t:'Movement in and out of cells'},
                {no:4,t:'Biological molecules'}, {no:5,t:'Enzymes'} ],
-      status:'build', url:null,
-      note:'Foundations is being built. Until it opens, the Protein & Enzyme Sim below covers topics 4 and 5.',
+      status:'live', url:'https://nlcsbiology.com/foundations-hub/', detail:'The zoom is open · 1 sim open · labs being built',
       accent:'#E879F9', tone:'dark', focus:'50% 50%',
       alt:'HeLa cells under a multiphoton microscope: microtubules in magenta, DNA in cyan' },
 
