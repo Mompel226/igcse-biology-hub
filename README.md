@@ -31,7 +31,7 @@ PC, and progress is saved in the student's own browser.
 
 | Door | Topics (0610) | Behind it |
 |---|---|---|
-| **Foundations** | 2 · 3 · 4 · 5 | being built |
+| **Foundations** | 2 · 3 · 4 · 5 | [Foundations Hub](https://nlcsbiology.com/foundations-hub/) 🟢 (its labs are being built) · [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/) 🟢 |
 | **The human body** | 7 · 9–16 | [Human Body Hub](https://nlcsbiology.com/human-body-hub/) 🟢 · [Digestion Lab](https://nlcsbiology.com/digestion-lab/) 🟢 · [Circulation Lab](https://nlcsbiology.com/circulation-lab/) 🟢 |
 | **Plants** | 6 · 8 · 14.5 · 16.3 · 18.2 | [Plants Hub](https://nlcsbiology.com/plants-hub/) 🟢 · [Plants Lab](https://nlcsbiology.com/plants-lab/) 🟢 |
 | **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
