@@ -333,6 +333,9 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .hmcard{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;margin-top:14px}
 .hm thead th.en{width:84px;min-width:84px}
 .enkinds{display:flex;gap:6px;flex-wrap:wrap;padding:8px 13px 2px}
+/* Write-Up Lab parts in Set homework (3 Oct 2026): the stage of a report above its parts; IB-only parts tagged */
+.wustage{padding:10px 13px 2px;font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.wuib{font:600 9.5px/1 var(--mono);letter-spacing:.06em;padding:2px 5px;border-radius:4px;border:1px solid currentColor;color:var(--mute);margin-left:4px;vertical-align:1px}
 .hm thead th.en .lt{font:500 9px/1.2 var(--mono);color:var(--mute);display:block;margin-top:3px;text-transform:uppercase}
 .hm thead th.sum{color:var(--chalk);background:color-mix(in srgb,var(--accent) 12%,var(--cardhi))}
 /* ⏱️ Homework habits (1 Oct 2026): one mark per pupil per homework, the habit line under each name */
@@ -382,7 +385,11 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hbwhen{font:500 11px/1.4 var(--mono);color:var(--mute);margin-top:4px}
 .hbflagw{margin-top:9px;padding:9px 11px;border:1px solid var(--mag-edge);border-radius:9px;background:var(--mag-bg);color:var(--mag-ink);font-size:12.5px;line-height:1.45}
 @media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal}}
-/* 📊 Analysis ↗ (1 Oct 2026): a link OUT to the analysis website, in its own colour, for the people on that website's
+/* ← Biology Hub: the way back, where the page's name stood (the hub opens this page in the same tab since 2 Oct 2026). */
+.backhub{color:inherit;text-decoration:none;border-bottom:1px solid transparent}.backhub:hover{color:var(--chalk);border-bottom-color:currentColor}
+.backhub:focus-visible{outline:2px solid var(--ana-ring);outline-offset:3px}.backhub:not([hidden])::after{content:' · '}
+/* 📊 Analysis (1 Oct 2026; opens in THIS tab since 2 Oct 2026 — Daniel: "I have three tabs open instead of one"; the browser's
+   Back comes back here): a link to the analysis website, in its own colour, for the people on that website's
    👥 list only. Not a view: never class "tab", never inside the tab list (markTabs and the phone rule act on .tab). */
 .ana{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
   color:var(--ana-ink);background:var(--ana-bg);border:1px solid var(--ana-edge);border-radius:999px;padding:9px 13px;
@@ -400,7 +407,9 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 <header class="top">
   <div class="top__in">
     <div class="row1">
-    <p class="eye">Biology Hub · <b>Teachers only</b></p>
+    <!-- ← Biology Hub (Daniel, 2 Oct 2026: the hub opens this page in the SAME tab, so it needs a way back). Shown only
+         when the server gave the hub's address (BOOT.hub = the labs script's HUB_URL). -->
+    <p class="eye"><a class="backhub" id="backHub" href="#" hidden>← Biology Hub</a><span id="eyeHub">Biology Hub · </span><b>Teachers only</b></p>
     <div class="meta">
     <span class="who" id="who"></span>
     <span class="age" id="age" aria-live="polite"></span>
@@ -411,7 +420,7 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
     </div>
     <div class="row2">
     <nav class="tabs" id="tabs" role="tablist" aria-label="Teacher views"></nav>
-    <a class="ana" id="ana" href="#" target="_blank" rel="noopener" hidden>📊 Analysis ↗</a>
+    <a class="ana" id="ana" href="#" hidden>📊 Analysis</a>
     </div>
   </div>
 </header>
@@ -447,25 +456,29 @@ var BOOT = __BOOT__;
   }
   function short(n){ return String(n).replace(/\s*lab\s*$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}).trim(); }
 
+  /* The note under each view (Daniel, 2 Oct 2026: "any text that you add at the bottom needs to be useful … put things that
+     you know they don't know about the system", not what the page already shows or what follows from its name). A note
+     says how a number is worked out, a rule the page applies that cannot be seen, or where something is kept. No note
+     is better than an obvious one: an empty note is not drawn. */
   var VIEWS = {
     teachers:{ label:'Spreadsheets', accent:'#E879F9', accentL:'#A21CAF', h1:'Assessment <em>system</em>',
       lede:'Every assessment spreadsheet on the page — reflections, tests, surveys and records — grouped by the cohort it belongs to.',
       note:'Each link opens only for the people its spreadsheet is shared with — this page lists them, it does not share them. To change anything: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.' },
     progress:{ label:'Lab progress', accent:'#4FC3F7', accentL:'#0369A1', h1:'Lab <em>progress</em>',
       lede:'How each class is getting on — who has done what, and where they are getting stuck.',
-      note:'Scores are averaged over the labs a student has actually saved work in. A lab not started shows a faint ·, never a zero. “Reviewed” ticks are kept in this browser only.' },
+      note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
-      note:'Opening a tracker signs you in as yourself; it shows that pupil’s page because you are their teacher.' },
+      note:'A copied link opens that pupil’s tracker only for a teacher and for the pupil: anyone else is refused.' },
     homework:{ label:'Set homework', accent:'#F5A623', accentL:'#B45309', h1:'Set <em>homework</em>',
-      lede:'Pick what you have taught — lab stations, Bio English sets or both — say who it is for and when it is due.',
-      note:'Nothing here changes a mark. Completion is worked out from what the students have done in the labs and in Bio English Lab each time the data is read: the time beside Refresh says when, and Refresh reads it again. Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00. Homework set for a later date (🗓) stays hidden from pupils until its start, in Google Classroom and in the labs, and its reminders count from that start.' },
+      lede:'Pick what you have taught — lab stations, Bio English sets, Write-Up Lab parts — say who it is for and when it is due.',
+      note:'Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
     english:{ label:'Bio English', accent:'#62D38A', accentL:'#15803D', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
-      note:'Each cell is the share of a set answered; hover or tap it for how much was right first time. A set not opened is a dot, never a zero.' },
+      note:'Each cell is the share of a set answered, not the share right: hover over or tap it for how much was right first time.' },
     habits:{ label:'⏱️ Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'⏱️ Homework <em>habits</em>',
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
-      note:'Start here: pick a class. Each row is a pupil and each column a homework, oldest on the left; hover over or tap a mark for when they finished, and click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working. Times are kept per station from the first save after this was pasted, so a station set again that a pupil had already finished shows “done before it was set”.' }
+      note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
   var ORDER = ['teachers','progress','english','students','homework','habits'];
   var cache = {}, stamp = {}, cur = null, inflight = {}, prefetched = false;
@@ -574,7 +587,8 @@ var BOOT = __BOOT__;
     $('view').setAttribute('aria-labelledby', 'tab-'+cur);
     $('h1').innerHTML = VIEWS[cur].h1;
     $('lede').textContent = VIEWS[cur].lede;
-    $('note').textContent = VIEWS[cur].note;
+    $('note').textContent = VIEWS[cur].note || '';
+    $('note').hidden = !VIEWS[cur].note;
     $('who').innerHTML = BOOT.email
       ? '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4" fill="currentColor"/>'+
         '<path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>'+esc(BOOT.email) : '';
@@ -894,6 +908,9 @@ var BOOT = __BOOT__;
      website's 👥 list). The page is given the address or nothing, never the list. */
   (function(){ var a=$('ana'), u=String(BOOT.analysis||'');
     if (a && /^https:\/\/[^\s"'<>]+\/analysis\.html$/.test(u)) { a.setAttribute('href', u); a.hidden=false; } })();
+  /* ← Biology Hub: only an https address the server gave; then the plain words "Biology Hub ·" make way for the link */
+  (function(){ var b=$('backHub'), h=String(BOOT.hub||''), w=$('eyeHub');
+    if (b && /^https:\/\/[^\s"'<>]+$/.test(h)) { b.setAttribute('href', h.replace(/\/+$/, '') + '/'); b.hidden=false; if (w) w.hidden=true; } })();
   setInterval(showAge, 30000);               /* the label must age by itself, or it lies */
   /* Start once BOTH scripts have run. A view kept in this tab's sessionStorage is drawn at once, and Lab progress, Bio
      English, Set homework and ⏱️ Homework habits are defined by the second script: started here, a reload within ten minutes of a read threw
@@ -1210,6 +1227,7 @@ var BOOT = __BOOT__;
   var hState = { title:'', rows:[{cls:'',due:'',time:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
                  post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'' };
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
+  var WUID = 'write-up-lab';      /* and the Write-Up Lab (3 Oct 2026): its parts are the stations */
   window.vHomework = function(D){
     var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
     /* "Sort by: Due date · Class" (Daniel, 1 Oct 2026), remembered in this browser */
@@ -1217,13 +1235,39 @@ var BOOT = __BOOT__;
     if(!hState.whose){ var w0=''; try { w0=localStorage.getItem('homework.whose')||''; } catch(e){} hState.whose=(w0==='all')?'all':'mine'; }
     function useEn(){ EN=D.english||null; ENS={}; if(EN)(EN.sets||[]).forEach(function(s){ ENS[s.id]=s; }); }
     useEn();
+    var WU=(D.writeup&&(D.writeup.parts||[]).length)?D.writeup:null;
     function picked(){ var tasks=[],st=0,q=0,es=[];
       LABS.forEach(function(l){ var got=[]; (l.stations||[]).forEach(function(x){ if(hState.picked[l.id]&&hState.picked[l.id][x.id]){got.push(x.id);q+=x.questions;} });
         if(got.length){ tasks.push({labId:l.id,stationIds:got}); st+=got.length; } });
       var mine=hState.picked[ENID]||{};
       if(EN)(EN.sets||[]).forEach(function(s){ if(mine[s.id]){ es.push(s.id); q+=s.total; } });
       if(es.length) tasks.push({labId:ENID,stationIds:es});
-      return {tasks:tasks,stations:st,sets:es.length,questions:q,any:st+es.length}; }
+      var mw=hState.picked[WUID]||{}, wp=[];
+      if(WU) WU.parts.forEach(function(x){ if(mw[x.id]){ wp.push(x.id); q+=x.units; } });
+      if(wp.length) tasks.push({labId:WUID,stationIds:wp});
+      return {tasks:tasks,stations:st,sets:es.length,parts:wp.length,questions:q,any:st+es.length+wp.length}; }
+    /* The Write-Up Lab (Daniel, 3 Oct 2026): whole parts, in the order of a report, grouped by stage. One standard for
+       everyone: a part is finished when every red pen in it is done (each level's version) and every question is
+       answered, IB ones too. The number beside a part is what finishing it takes: its red-pen mistakes and its questions. */
+    function wuBlock(){
+      if(!WU) return '';
+      var mine=hState.picked[WUID]||{}, n=0, q=0, op=!!hState.open[WUID];
+      WU.parts.forEach(function(x){ if(mine[x.id]){ n++; q+=x.units; } });
+      var all=n===WU.parts.length;
+      var body=op?(WU.stages||[]).map(function(g){
+        var ps=WU.parts.filter(function(x){ return x.stage===g.id; }); if(!ps.length) return '';
+        return '<div class="wustage">'+esc(g.name)+'</div><div class="stn">'+ps.map(function(x){ var on=!!mine[x.id], ib=String(x.levels||'').indexOf('g')<0;
+          return '<label class="st'+(on?' on':'')+'" data-tip="'+esc(x.marks+' red-pen mistake'+(x.marks===1?'':'s')+' + '+x.questions+' question'+(x.questions===1?'':'s')+(ib?' · a part of the IB report only':''))+'">'+
+            '<input type="checkbox" data-wupick="'+esc(x.id)+'"'+(on?' checked':'')+'>'+
+            '<span>'+esc(x.title)+(ib?' <span class="wuib">IB</span>':'')+'</span><span class="st__q">'+x.units+'</span></label>'; }).join('')+'</div>'; }).join('')+
+        '<div class="tmsg" style="margin:8px 2px 2px">A part is finished when every red pen in it is done (each version: IGCSE, IB IA, IB EE) and every question is answered, IB ones too. The number is its red-pen mistakes plus its questions. Learn, Mistakes to avoid and Go further are recorded, not needed.</div>':'';
+      return '<div class="fld" style="margin-top:16px"><label>Write-Up Lab — lab reports, one part at a time</label><div class="labs">'+
+        '<div class="lab'+(op?' is-open':'')+'"><div class="lab__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-wu="1">'+
+          '<svg class="car" width="12" height="12" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'+
+          '<span class="lab__n">Write-Up Lab</span><span class="lab__t">the parts of a report</span>'+
+          '<span class="lab__c'+(n?' on':'')+'">'+(n?n+' of '+WU.parts.length+' · '+q:WU.parts.length+' parts')+'</span>'+
+          '<button class="act" data-wuall="1">'+(all?'None':'All')+'</button></div>'+body+'</div></div></div>';
+    }
     function enIds(key){ if(!EN) return [];
       if(key==='how') return (EN.sets||[]).filter(function(s){ return !s.unit; }).map(function(s){ return s.id; });
       var U=EN.units[key]; return U?(U.sets||[]).filter(function(id){ return ENS[id]; }):[]; }
@@ -1376,7 +1420,7 @@ var BOOT = __BOOT__;
       var hint=p.questions?('About '+Math.max(5,r0(p.questions*0.8))+' minutes of practice'+
         (nP?' for '+nP+' student'+(nP===1?'':'s'):(nC>1?' for '+nC+' classes':''))+'. Short, focused tasks beat long ones.')
         :(EN?'Open a lab or a Bio English topic and tick what you have taught.':'Open a lab and tick the stations you have taught.');
-      var builder = !LABS.length && !EN
+      var builder = !LABS.length && !EN && !WU
         ? '<div class="empty">No labs are ready to set yet.</div>'
         : '<div class="bar2" style="display:block"><div class="fld" style="margin-bottom:12px"><label for="ht">Title</label>'+
           '<input id="ht" type="text" maxlength="120" placeholder="e.g. Digestion — the gut, before Friday" value="'+esc(hState.title)+'"></div>'+
@@ -1391,9 +1435,10 @@ var BOOT = __BOOT__;
             :'Not ticked: pupils get it at once, when you press Set homework.')+'</div>'+
           (tpc?'<div class="tmsg" id="htopicmsg" style="margin-top:6px">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_ONE?hState.topicMsg:TOPIC_MANY)+'</div>':'')+
           pbox+
-          '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+
+          '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+wuBlock()+
           '<div class="size"><span class="size__n">'+p.stations+'</span><span class="size__k">lab station'+(p.stations===1?'':'s')+'</span>'+
           (EN?'<span class="size__n">'+p.sets+'</span><span class="size__k">English set'+(p.sets===1?'':'s')+'</span>':'')+
+          (WU?'<span class="size__n">'+p.parts+'</span><span class="size__k">Write-Up part'+(p.parts===1?'':'s')+'</span>':'')+
           '<span class="size__n">'+p.questions+'</span><span class="size__k">questions</span><span class="size__h">'+esc(hint)+'</span></div>'+
           '<label class="ck" style="margin-top:14px"><input type="checkbox" id="hpost"'+(hState.post&&D.classroomOk?' checked':'')+(D.classroomOk?'':' disabled')+'>'+
           '<span>Post it in Google Classroom too'+(D.classroomOk?'':' — Google Classroom is not switched on in the script')+'</span></label>'+
@@ -1554,6 +1599,16 @@ var BOOT = __BOOT__;
         ids.forEach(function(id){ if(all) delete mine[id]; else mine[id]=1; }); paint(); }); });
       document.querySelectorAll('[data-enpick]').forEach(function(b){ b.addEventListener('change', function(){
         var mine=hState.picked[ENID]=hState.picked[ENID]||{}, id=b.getAttribute('data-enpick');
+        if(b.checked) mine[id]=1; else delete mine[id]; paint(); }); });
+      document.querySelectorAll('.lab__h[data-wu]').forEach(function(h){ h.addEventListener('click', function(ev){
+        if(ev.target.closest('[data-wuall]')) return;
+        hState.open[WUID]=!hState.open[WUID]; paint(); }); });
+      document.querySelectorAll('[data-wuall]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(!WU) return; var mine=hState.picked[WUID]=hState.picked[WUID]||{};
+        var all=WU.parts.every(function(x){ return mine[x.id]; });
+        hState.picked[WUID]={}; if(!all) WU.parts.forEach(function(x){ hState.picked[WUID][x.id]=1; }); paint(); }); });
+      document.querySelectorAll('[data-wupick]').forEach(function(b){ b.addEventListener('change', function(){
+        var mine=hState.picked[WUID]=hState.picked[WUID]||{}, id=b.getAttribute('data-wupick');
         if(b.checked) mine[id]=1; else delete mine[id]; paint(); }); });
       var hp=$('hpost'); if(hp) hp.addEventListener('change', function(){ hState.post=hp.checked; paint(); });
       var hr=$('hremind'); if(hr) hr.addEventListener('change', function(){ hState.remind=hr.checked; });

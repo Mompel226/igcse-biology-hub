@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '2 Oct 2026 (11:20) — each teacher sees only the homework they set (the owner can see all); 🤝 Let the teachers on the list edit this spreadsheet; before that, 10:50 — Set homework for a later date: each class can have a start date and time; until then pupils see nothing (Google Classroom holds the post, the labs hide it), and the reminders count from the start; before that, 08:00 — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
+var SCRIPT_EDITION = '3 Oct 2026 — the Write-Up Lab in Set homework: its parts, saved for each signed-in pupil in a 📝 Write-Up Lab tab; the teacher page opens in the hub’s own tab with ← Biology Hub; before that, 2 Oct 2026 (11:20) — each teacher sees only the homework they set (the owner can see all); 🤝 Let the teachers on the list edit this spreadsheet; before that, 10:50 — Set homework for a later date: each class can have a start date and time; until then pupils see nothing (Google Classroom holds the post, the labs hide it), and the reminders count from the start; before that, 08:00 — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -339,6 +339,10 @@ function doPost(e) {
        Neither is lab work, so both are answered here, before anything treats this as a lab. */
     if (String(d.action || '') === 'english.save') return _englishSave_(d);
     if (String(d.action || '') === 'english.mine') return _englishMine_(d);
+
+    /* The Write-Up Lab the same way (3 Oct 2026): its parts saved as a pupil works, and asked for back. */
+    if (String(d.action || '') === 'writeup.save') return _writeupSave_(d);
+    if (String(d.action || '') === 'writeup.mine') return _writeupMine_(d);
 
     var lab = _labById_(String(d.app || ''));
     if (!lab) return _text_('unknown lab');
@@ -1027,6 +1031,11 @@ function checkSetup() {
   try { enMan = _englishManifest_(); } catch (e) {}
   lines.push(enMan ? '✅  Bio English Lab: its ' + (enMan.sets || []).length + ' sets can be read'
                    : '❌  Bio English Lab: ' + ENGLISH_URL + '/data/sets.json could not be read, so English homework cannot be scored just now');
+  /* the Write-Up Lab the same way (3 Oct 2026) */
+  var wuMan = null;
+  try { wuMan = _writeupManifest_(); } catch (e) {}
+  lines.push(wuMan ? '✅  Write-Up Lab: its ' + (wuMan.parts || []).length + ' parts can be read'
+                   : '❌  Write-Up Lab: ' + WRITEUP_URL + '/data/parts.json could not be read, so Write-Up homework cannot be scored just now');
   var dailyOn = false;
   try { dailyOn = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sendDueSummaries'; }); } catch (e) {}
   lines.push(dailyOn ? '✅  the due-date email goes out every morning'
@@ -1139,7 +1148,7 @@ function restyleAll_() {
   /* The tabs added later were never in here, so they never got their date formats, their
      dropdown or their banding: _dress2_ only runs when a tab is FIRST made, and at that moment
      it has no rows to dress. */
-  _step_('Formatting the homework and Bio English tabs…');
+  _step_('Formatting the homework, Bio English and Write-Up Lab tabs…');
   /* 👩‍🏫 Teachers and 🔗 Teacher links are dressed when they are made (_ensureTeacherTabs_), not here */
   [[T_HOMEWORK, _hwColDefs_(), '#F59E0B']].forEach(function (t) {
     var sh = _ss_().getSheetByName(t[0]);
@@ -1148,6 +1157,8 @@ function restyleAll_() {
   });
   var en = _ss_().getSheetByName(T_ENGLISH);
   if (en) _dress2_(en, ENGLISH_COLS, { tab: EN_TAB, freezeCols: 2 });
+  var wu = _ss_().getSheetByName(T_WRITEUP);
+  if (wu) _dress2_(wu, WRITEUP_COLS, { tab: WU_TAB, freezeCols: 2 });
 }
 
 /* ------------------------------------------------------------
@@ -1955,8 +1966,8 @@ function _repairStudentColumns_() {
 function _orderTabs_() {
   var ss = _ss_();
   /* the tabs a teacher actually opens sit at the front; the twenty lab tabs are data behind them */
-  /* Bio English sits with the people, after Students and before the homework, not among the labs */
-  var want = [T_SETUP, T_LABS, T_STUDENTS, T_ENGLISH, T_HOMEWORK, T_TEACHERS, T_LINKS]
+  /* Bio English and the Write-Up Lab sit with the people, after Students and before the homework, not among the labs */
+  var want = [T_SETUP, T_LABS, T_STUDENTS, T_ENGLISH, T_WRITEUP, T_HOMEWORK, T_TEACHERS, T_LINKS]
              .concat(LABS.map(function (l) { return l.name; }))
              .concat([T_REJECTED]);
   var looking = null;
@@ -2240,7 +2251,7 @@ function _ownHomework_(email, cls) {
       if (hw.waiting || !_hwIsFor_(hw, email, cls)) return;         /* set for a later date: not theirs yet */
       var dms = hw.due ? new Date(hw.due).getTime() : 0;
       if (dms && now - dms > MONTH) return;                         /* a month past its date: off their list */
-      var tasks = hw.tasks.filter(function (t) { return t.labId !== ENGLISH_ID && (t.stationIds || []).length; });
+      var tasks = hw.tasks.filter(function (t) { return t.labId !== ENGLISH_ID && t.labId !== WRITEUP_ID && (t.stationIds || []).length; });
       if (tasks.length) mine.push({ hw: hw, tasks: tasks });
     });
     if (!mine.length) return out;
@@ -4381,6 +4392,7 @@ function _hwLabIndex_(labIds, need) {
   labIds.forEach(function (id) {
     if (id in out) return;
     if (id === ENGLISH_ID) { out[id] = _englishIndex_(need); return; }
+    if (id === WRITEUP_ID) { out[id] = _writeupIndex_(need); return; }
     var lab = null;
     LABS.forEach(function (l) { if (l.id === id) lab = l; });
     var sh = lab ? ss.getSheetByName(lab.name) : null;
@@ -4518,6 +4530,10 @@ function _homeworkData_(now, who) {
     whose: !who ? '' : (seesAll ? 'all' : 'mine'),
     manifestOk: !!man.labsOk, hubSet: !!_hubUrl_(),
     english: man.en ? { years: man.en.years || [], units: man.en.units || {}, sets: man.en.sets || [] } : null,
+    /* the Write-Up Lab's parts, in the order of a report (3 Oct 2026): what a teacher ticks in Set homework */
+    writeup: man.wu ? { stages: man.wu.stages || [], parts: (man.wu.parts || []).map(function (p) {
+      return { id: p.id, title: p.title, stage: p.stage, levels: p.levels, units: p.units, questions: p.questions,
+               marks: (p.redpens || []).reduce(function (a, y) { return a + (Number(y.n) || 0); }, 0) }; }) } : null,
     classroomOk: typeof Classroom !== 'undefined' && !!Classroom && !!Classroom.Courses,
     /* false: some homework wants reminders and Google has not been allowed to post Classroom announcements */
     remindAllowed: anyRemind ? _hwAnnounceAllowed_() : null
@@ -4790,7 +4806,8 @@ function _teacherAppPage_(startTab) {
   var boot = {                           /* all the page reads from it (the views get theirs from uiData) */
     email: email,
     tab: startTab || 'teachers',
-    analysis: _analysisLink_(email)      /* 📊 Analysis ↗: the website's address for a viewer on its 👥 list, else '' */
+    analysis: _analysisLink_(email),     /* 📊 Analysis: the website's address for a viewer on its 👥 list, else '' */
+    hub: _hubUrl_()                      /* ← Biology Hub (2 Oct 2026): the hub opens this page in the same tab; HUB_URL, or '' */
   };
   var json = JSON.stringify(boot).replace(/</g, '\\u003c');
   var html = HtmlService.createHtmlOutputFromFile('Teacher').getContent()
@@ -5140,12 +5157,16 @@ function _englishManifest_() {
   return m;
 }
 
-/* What homework is scored against: the labs' stations, and Bio English Lab's sets as one lab
-   more. Either half can be missing without the other failing, and each says so for itself. */
+/* What homework is scored against: the labs' stations, Bio English Lab's sets as one lab more, and the Write-Up
+   Lab's parts as one more again (3 Oct 2026). Any of them can be missing without the others failing, and each says
+   so for itself. */
 function _hwManifest_() {
-  var labs = _manifest_(), en = _englishManifest_(), out = { labs: {}, labsOk: !!labs, en: en };
+  var labs = _manifest_(), en = _englishManifest_(), wu = null;
+  try { wu = _writeupManifest_(); } catch (e) { wu = null; }
+  var out = { labs: {}, labsOk: !!labs, en: en, wu: wu };
   if (labs && labs.labs) Object.keys(labs.labs).forEach(function (k) { out.labs[k] = labs.labs[k]; });
   if (en) out.labs[ENGLISH_ID] = _englishAsLab_(en);
+  if (wu) out.labs[WRITEUP_ID] = _writeupAsLab_(wu);
   return out;
 }
 function _englishAsLab_(en) {
@@ -5406,6 +5427,297 @@ function _englishProgressData_(now) {
   };
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   WRITE-UP LAB (3 Oct 2026, Daniel: "when I set homework, this is also something I can set and that is
+   tracked in the spreadsheet")
+   ═══════════════════════════════════════════════════════════════════════════
+   nlcsbiology.com/write-up-lab teaches a lab report one part at a time (Variables, Hypothesis, Apparatus…). Each
+   part has Learn steps, a Red pen (one per level that has its own: IGCSE, IB IA, IB EE), Mistakes to avoid, Test
+   yourself, Keywords and Go further. It is recorded here, beside Bio English, for the same reason: one roster, one
+   teacher page, one homework list.
+
+   Daniel's rules for it: homework is WHOLE parts; one standard for everyone, with no level to choose ("they have to
+   do all of the questions, even the IB"). A part is finished when every red-pen mistake of every version is found
+   and every question is answered: the "questions" the homework scorer counts for a part are its red-pen marks
+   plus its questions (`units` in the site's data/parts.json). Learn steps, Mistakes to avoid and Go further are
+   kept and shown, never needed. Keyword cards are not kept at all ("swapping the cards might be very misguiding").
+   No time is measured.
+
+   What it adds — and nothing the labs or Bio English do changes:
+     • the tab "📝 Write-Up Lab": one row per pupil, made at their first save;
+     • two POST actions, writeup.save and writeup.mine — the signed-in pupil's own row, no one else's;
+     • homework: the Write-Up Lab is scored as one lab more, id 'write-up-lab', whose "stations" are its parts,
+       named and counted by the site's public data/parts.json (written by its tools/check.mjs --stamp).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+var T_WRITEUP   = '📝 Write-Up Lab';
+var WRITEUP_ID  = 'write-up-lab';
+var WRITEUP_URL = 'https://nlcsbiology.com/write-up-lab';   /* read for part names and counts only */
+var WU_TAB      = '#1E4FA8';
+var WRITEUP_COLS = [
+  { h:'Name', w:200, note:'From the Students tab. A student appears here the first time the site saves their work.' },
+  { h:'Class', w:80, align:'center', note:'From the Students tab, as it was at their last save.' },
+  { h:'Parts finished', w:116, align:'center', fmt:'0', group:true, note:'Parts with every red-pen mistake found (in every version the part has: IGCSE, IB IA, IB EE) and every Test yourself question answered, IB ones too. That is what homework counts.' },
+  { h:'Red-pen mistakes found', w:170, align:'center', fmt:'0', group:true, note:'Mistakes found in the red pens, in every part they have opened.' },
+  { h:'Questions answered', w:150, align:'center', fmt:'0', group:true, note:'Test yourself questions answered, in every part they have opened. An answer shown after three tries counts as answered.' },
+  { h:'Right first time', w:130, align:'center', fmt:'0%', note:'Of those questions, the share they got right at their first attempt.' },
+  { h:'Learn steps opened', w:150, align:'center', fmt:'0', group:true, note:'Learn steps they opened, in every part. Opening a step does not show that it was read. Not needed to finish a part.' },
+  { h:'Last saved', w:132, fmt:'dd MMM, HH:mm', note:'When the site last saved their work.' },
+  { h:'Per part', w:560, note:'Every part they have opened, in the order of a report: red-pen mistakes found / mistakes in all its red pens; questions answered / questions, and how many were right first time; Learn steps opened; whether Mistakes to avoid and Go further were opened. ✓ = the part is finished.' },
+  { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
+  { h:'Carried between devices', w:200, hide:true, note:'What they have done, part by part, so signing in on another computer brings their work back. Written by the site. Do not edit.' },
+  { h:'Part times', w:200, hide:true,
+    note:'When each part was first tried, and when it was first finished, as the site’s saves arrived. A first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' }
+];
+var WU_LAST = 8, WU_EMAIL = 10, WU_SNAP = 11, WU_TIMES = 12;
+var WU_SID = /^[a-z0-9-]{1,40}$/;
+
+function _writeupSheet_() {
+  var ss = _ss_(), sh = ss.getSheetByName(T_WRITEUP);
+  if (!sh) {
+    sh = ss.insertSheet(T_WRITEUP);
+    sh.getRange(1, 1, 1, WRITEUP_COLS.length).setValues([WRITEUP_COLS.map(function (c) { return c.h; })]);
+    _dress2_(sh, WRITEUP_COLS, { tab: WU_TAB, freezeCols: 2 });
+  }
+  return _colsReady_(sh, WRITEUP_COLS, WU_TIMES, 'WUCOLS');
+}
+
+/* The site's own list of parts: ids, titles, and what finishing each takes. Public, nothing personal. Cached on the
+   site's publish stamp, as the labs' station list and Bio English's sets are. */
+function _writeupManifest_() {
+  var base = WRITEUP_URL.replace(/\/+$/, ''), cache = null;
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  var stamp = cache ? (cache.get('WU_STAMP') || '') : '';
+  if (!stamp) {
+    try {
+      var vr = UrlFetchApp.fetch(base + '/version.txt', { muteHttpExceptions:true, followRedirects:true });
+      if (vr.getResponseCode() === 200) stamp = String(vr.getContentText()).trim().slice(0, 20);
+    } catch (e) {}
+    if (cache && stamp) { try { cache.put('WU_STAMP', stamp, 600); } catch (e) {} }
+  }
+  var KEY = 'WU_PARTS_' + (stamp || 'none');
+  if (cache) { var hit = cache.get(KEY); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(base + '/data/parts.json', { muteHttpExceptions:true, followRedirects:true });
+    if (res.getResponseCode() !== 200) return null;
+    txt = res.getContentText();
+  } catch (e) { return null; }
+  var m = null; try { m = JSON.parse(txt); } catch (e) { return null; }
+  if (!m || !m.parts || !m.parts.length) return null;
+  if (cache && txt.length < 95000) { try { cache.put(KEY, txt, 21600); } catch (e) {} }
+  return m;
+}
+/* The parts as the homework scorer counts them: a part's "questions" are its red-pen marks and its questions. */
+function _writeupAsLab_(wm) {
+  var q = 0;
+  var st = (wm.parts || []).map(function (p) { q += Number(p.units) || 0; return { id: p.id, name: p.title, questions: Number(p.units) || 0 }; });
+  return { name: 'Write-Up Lab', questions: q, stations: st };
+}
+function _wuPartsById_(wm) { var by = {}; if (wm) (wm.parts || []).forEach(function (p) { by[p.id] = p; }); return by; }
+
+/* "{…}" in, an object out, and never a throw. One record per part: { v, l, r: { g, i, e }, m, q, f } — the site's
+   track.js says what each letter means (l Learn steps, r red-pen marks found per version, m Mistakes to avoid
+   opened, q one letter per question 0 t s 1 f, f Go further panels). */
+function _wuClean_(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+  var r = {};
+  if (x.r && typeof x.r === 'object' && !Array.isArray(x.r)) ['g', 'i', 'e'].forEach(function (l) { if (l in x.r) r[l] = String(x.r[l] || '').replace(/[^01]/g, '').slice(0, 100); });
+  return { v: String(x.v || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
+           l: String(x.l || '').replace(/[^01]/g, '').slice(0, 200), r: r, m: x.m ? 1 : 0,
+           q: String(x.q || '').replace(/[^0tsf1]/g, '').slice(0, 200),
+           f: String(x.f || '').replace(/[^01]/g, '').slice(0, 50) };
+}
+function _wuParse_(v) {
+  var o = null, out = {};
+  try { o = JSON.parse(String(v || '') || '{}'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  Object.keys(o).forEach(function (k) { var c = WU_SID.test(k) ? _wuClean_(o[k]) : null; if (c) out[k] = c; });
+  return out;
+}
+/* A record cut or padded to the part's shape in the site's list (p), or null when it belongs to an older version of
+   the part (a page left open from before the part was rewritten). No list: kept as it came. */
+function _wuFit_(x, p) {
+  if (!x) return null;
+  if (!p) return x;
+  if (x.v !== String(p.v)) return null;
+  function pad(s, n) { s = String(s || '').slice(0, n); while (s.length < n) s += '0'; return s; }
+  var r = {};
+  (p.redpens || []).forEach(function (y) { r[y.l] = pad((x.r || {})[y.l], Number(y.n) || 0); });
+  return { v: x.v, l: pad(x.l, Number(p.steps) || 0), r: r, m: x.m ? 1 : 0, q: pad(x.q, Number(p.questions) || 0), f: pad(x.f, Number(p.further) || 0) };
+}
+/* Two computers, one pupil: letter by letter, the better (EN_RANK: 0 < t < s < 1 < f, and 0 < 1 for the rest). A part
+   rewritten since (a new v) starts again: the newer version's record wins outright. */
+function _wuMerge_(old, inc) {
+  if (!old || old.v !== inc.v) return inc;
+  var r = {};
+  Object.keys(inc.r).forEach(function (l) { r[l] = _enMax_(old.r[l], inc.r[l]); });
+  Object.keys(old.r).forEach(function (l) { if (!(l in r)) r[l] = old.r[l]; });
+  return { v: inc.v, l: _enMax_(old.l, inc.l), r: r, m: old.m || inc.m ? 1 : 0, q: _enMax_(old.q, inc.q), f: _enMax_(old.f, inc.f) };
+}
+/* What one part's record adds up to, against the site's list when it can be read (else the record's own lengths). */
+function _wuCount_(x, p) {
+  function n(s, re) { return (String(s || '').match(re) || []).length; }
+  var marks = 0, found = 0;
+  if (p) (p.redpens || []).forEach(function (y) { marks += Number(y.n) || 0; found += Math.min(n(String((x.r || {})[y.l] || '').slice(0, Number(y.n) || 0), /1/g), Number(y.n) || 0); });
+  else Object.keys(x.r || {}).forEach(function (l) { marks += x.r[l].length; found += n(x.r[l], /1/g); });
+  var total = p ? Number(p.questions) || 0 : x.q.length, q = String(x.q || '').slice(0, total);
+  var answered = n(q, /[s1f]/g), first = n(q, /f/g);
+  var units = p ? Number(p.units) || (marks + total) : marks + total;
+  return { marks: marks, found: found, total: total, answered: answered, first: first, units: units, done: Math.min(units, found + answered),
+           learn: n(x.l, /1/g), steps: p ? Number(p.steps) || 0 : String(x.l || '').length, traps: !!x.m,
+           further: n(x.f, /1/g), panels: p ? Number(p.further) || 0 : String(x.f || '').length };
+}
+/* The columns a teacher reads, worked out from the stored parts. */
+function _wuSummary_(kept, wm) {
+  var by = _wuPartsById_(wm), order = {}, fin = 0, found = 0, answered = 0, first = 0, learn = 0;
+  if (wm) (wm.parts || []).forEach(function (p, i) { order[p.id] = i; });
+  function at(k) { return order[k] == null ? 1e6 : order[k]; }
+  var bits = Object.keys(kept).sort(function (a, b) { return at(a) - at(b) || (a < b ? -1 : 1); }).map(function (id) {
+    var p = by[id] || null, c = _wuCount_(kept[id], p), done = c.units && c.done >= c.units;
+    if (done) fin++;
+    found += c.found; answered += c.answered; first += c.first; learn += c.learn;
+    return (p ? p.title : id) + (done ? ' ✓' : '') + ' (red pen ' + c.found + '/' + c.marks + ', questions ' + c.answered + '/' + c.total +
+      ', ' + c.first + ' first time, Learn ' + c.learn + '/' + c.steps + ', Mistakes to avoid ' + (c.traps ? 'opened' : 'not opened') +
+      (c.panels ? ', Go further ' + c.further + '/' + c.panels : '') + ')';
+  });
+  return { finished: fin, found: found, answered: answered, firstShare: answered ? first / answered : '', learn: learn,
+           perPart: bits.join(' · ').slice(0, 45000) };
+}
+function _wuRowFor_(sh, email, student) {
+  var last = sh.getLastRow();
+  if (last > 1) {
+    var col = sh.getRange(2, WU_EMAIL, last - 1, 1).getValues();
+    for (var i = 0; i < col.length; i++) if (_cleanEmail_(col[i][0]) === email) return i + 2;
+  }
+  var row = new Array(WRITEUP_COLS.length).fill('');
+  row[0] = student.name; row[1] = student.cls; row[WU_EMAIL - 1] = email; row[WU_SNAP - 1] = '{}';
+  _room_(sh, last + 1);
+  sh.getRange(last + 1, 1, 1, WRITEUP_COLS.length).setValues([row]);
+  return last + 1;
+}
+
+/* writeup.save — { token, parts: { <partId>: { v, l, r, m, q, f } } }, sent two minutes after a change, at once when a
+   homework part is finished, at sign-in, and as the pupil leaves the page. */
+function _writeupSave_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoIs_(d.token);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var student = _studentOf_(who.email);
+  /* the rule every save follows: somebody not on the roster leaves no trace here at all */
+  if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
+  var parts = d.parts && typeof d.parts === 'object' && !Array.isArray(d.parts) ? d.parts : {};
+  var ids = Object.keys(parts).filter(function (k) { return WU_SID.test(k); });
+  if (!ids.length) return _json_({ ok:true, saved:0 });
+  if (ids.length > 60) return _json_({ ok:false, why:'too much at once' });
+  var wm = _writeupManifest_(), by = _wuPartsById_(wm);
+  /* ⏱️ Homework habits: the parts as the homework scorer counts them (_hwManifest_'s shape; no sheet is read) */
+  var stMan = { labs: {} };
+  try { if (wm) stMan.labs[WRITEUP_ID] = _writeupAsLab_(wm); } catch (eM) {}
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
+  try {
+    var sh = _writeupSheet_(), r = _wuRowFor_(sh, who.email, student);
+    /* the parts and Part times in ONE read */
+    var cells = sh.getRange(r, WU_SNAP, 1, WU_TIMES - WU_SNAP + 1).getValues()[0];
+    var kept = _wuParse_(cells[0]), saved = 0, stBefore = null;
+    try { stBefore = _stWuState_(kept, ids, who.email, stMan, wm); } catch (eT) { stBefore = null; }
+    ids.forEach(function (id) {
+      var p = by[id] || null;
+      if (wm && !p) return;                                /* a part the site does not have */
+      var inc = _wuFit_(_wuClean_(parts[id]), p);
+      if (!inc) return;                                    /* a page from before the part was rewritten */
+      kept[id] = _wuMerge_(p ? _wuFit_(kept[id], p) : kept[id], inc);
+      saved++;
+    });
+    var sum = _wuSummary_(kept, wm), at = new Date(), times = cells[WU_TIMES - WU_SNAP];
+    /* ⏱️ Homework habits: when each part was first tried and first finished, in this same write; never a reason to fail */
+    try { if (stBefore) times = _stNext_(times, stBefore, _stWuState_(kept, ids, who.email, stMan, wm), +at); } catch (eT) {}
+    var txt = JSON.stringify(kept);
+    if (txt.length > 45000) return _json_({ ok:false, why:'too much at once' });
+    sh.getRange(r, 1, 1, WU_TIMES).setValues([[
+      student.name, student.cls, sum.finished, sum.found, sum.answered, sum.firstShare, sum.learn,
+      at, _plain_(sum.perPart), who.email, txt, times
+    ]]);
+    _dressRows_(sh, WRITEUP_COLS, r, 1);      /* so a row written between tidy-ups still reads properly */
+    SpreadsheetApp.flush();
+    return _json_({ ok:true, saved:saved });
+  } finally { lock.releaseLock(); }
+}
+
+/* writeup.mine — their own work back (another computer, a cleared browser), the homework set for them that has
+   Write-Up parts in it, and, for a teacher, the way to the teacher page. Read only. */
+function _writeupMine_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoIs_(d.token);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var out = { ok:true, name: who.name || '', onList:false, cls:'', parts:{}, homework:[] };
+  if (_isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _writeupTeacherUrl_(); }
+  var student = _studentOf_(who.email);
+  if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
+  out.onList = true; out.cls = student.cls;
+  var sh = _ss_().getSheetByName(T_WRITEUP);
+  if (sh && sh.getLastRow() >= 2) {
+    var n = sh.getLastRow() - 1, v = sh.getRange(2, WU_EMAIL, n, 2).getValues();
+    for (var i = 0; i < n; i++) {
+      if (_cleanEmail_(v[i][0]) !== who.email) continue;
+      out.parts = _wuParse_(v[i][1]);
+      break;
+    }
+  }
+  var now = Date.now(), MONTH = 28 * 24 * 3600 * 1000;
+  if (_ss_().getSheetByName(T_HOMEWORK)) _homeworkRows_().forEach(function (hw) {
+    var ps = [];
+    hw.tasks.forEach(function (t) { if (t.labId === WRITEUP_ID) ps = ps.concat(t.stationIds || []); });
+    if (!ps.length || hw.waiting || !_hwIsFor_(hw, who.email, student.cls)) return;   /* waiting: set for a later date */
+    var dms = hw.due ? new Date(hw.due).getTime() : 0;
+    if (dms && now - dms > MONTH) return;              /* a month past its date: off their list */
+    out.homework.push({ id: hw.id, title: hw.title, due: hw.dueText, overdue: hw.overdue, dueAt: hw.due || '', parts: ps });
+  });
+  out.homework.sort(function (a, b) { return String(a.dueAt).localeCompare(String(b.dueAt)); });
+  return _json_(out);
+}
+function _writeupTeacherUrl_() {
+  var u = _teacherPageUrl_();
+  return u ? u.replace(/\?page=teachers$/, '?page=homework') : '';
+}
+
+/* The Write-Up tab read once, in the shape _hwScoreOne_ reads a lab's tab: per part, the units done (red-pen marks
+   found + questions answered) against the site's list. No tab yet is NOT a vanished lab — nobody has saved
+   anything — so it is {} (nothing done), never null (unmarkable). */
+function _writeupIndex_(need) {
+  var sh = _ss_().getSheetByName(T_WRITEUP), out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  var by = _wuPartsById_(_writeupManifest_());
+  var n = sh.getLastRow() - 1, v = sh.getRange(2, 1, n, WU_SNAP).getValues();
+  for (var i = 0; i < n; i++) {
+    var em = _cleanEmail_(v[i][WU_EMAIL - 1]);
+    if (!em || (need && !need[em])) continue;
+    var kept = _wuParse_(v[i][WU_SNAP - 1]), byId = {};
+    Object.keys(kept).forEach(function (id) {
+      var p = by[id] || null, x = p ? _wuFit_(kept[id], p) : kept[id];
+      byId[id] = { done: x ? _wuCount_(x, p).done : 0 };       /* a record of an older version of the part counts nothing */
+    });
+    out[em] = { byId: byId, at: v[i][WU_LAST - 1] ? new Date(v[i][WU_LAST - 1]).getTime() : 0 };
+  }
+  return out;
+}
+/* ⏱️ Homework habits, for the parts a save names (`ids`): tried = a red-pen mistake found or any answer at all
+   (Learn steps opened are not a try); done = _hwScoreOne_ on the part, as the homework scorer counts it. */
+function _stWuState_(kept, ids, email, man, wm) {
+  var by = _wuPartsById_(wm), byId = {}, idx = {}, out = {};
+  Object.keys(kept).forEach(function (id) { var p = by[id] || null, x = p ? _wuFit_(kept[id], p) : kept[id]; byId[id] = { done: x ? _wuCount_(x, p).done : 0 }; });
+  idx[WRITEUP_ID] = {}; idx[WRITEUP_ID][email] = { byId: byId, at: 0 };
+  (ids || []).forEach(function (id) {
+    var x = kept[id]; if (!x) return;
+    var rs = Object.keys(x.r || {}).map(function (l) { return x.r[l]; }).join('');
+    out[id] = { tried: /1/.test(rs) || /[tsf1]/.test(x.q || ''),
+                done: _hwScoreOne_({ tasks: [{ labId: WRITEUP_ID, stationIds: [id] }] }, email, idx, man).state === 'done' };
+  });
+  return out;
+}
+
 /* ── Posting homework to Google Classroom ───────────────────────────────────
    One post per class, to the course the class was imported from (the course most of its pupils
    came from). Homework for chosen pupils goes to them alone, when they share one course. The due
@@ -5476,6 +5788,7 @@ function _hwLinks_(id, tasks, man) {
   (tasks || []).forEach(function (t) {
     var lm = man && man.labs ? man.labs[t.labId] : null, sids = t.stationIds || [];
     if (t.labId === ENGLISH_ID) out.push({ labId: t.labId, name: 'Bio English Lab', url: ENGLISH_URL + '/#/hw/' + encodeURIComponent(id) });
+    else if (t.labId === WRITEUP_ID) out.push({ labId: t.labId, name: 'Write-Up Lab', url: WRITEUP_URL + '/#/hw/' + encodeURIComponent(id) });
     else if (/^[a-z0-9-]+$/.test(t.labId) && sids.length) {
       out.push({ labId: t.labId, name: lm && lm.name ? String(lm.name) : t.labId, url: _hwStationUrl_(t.labId, sids[0]) });
     }
@@ -5491,10 +5804,12 @@ var HW_SIGNIN_LINE = 'SIGN IN with your school GOOGLE ACCOUNT. If you do not sig
    station done when every question in it is answered). Daniel, 2 Oct 2026: the post did not say the practice questions
    must be completed, "otherwise they're not going to complete them". { labs, eng }: how many of each the homework has. */
 function _hwKinds_(tasks) {
-  var k = { labs: 0, eng: 0 };
-  (tasks || []).forEach(function (t) { if (t.labId === ENGLISH_ID) k.eng++; else k.labs++; });
+  var k = { labs: 0, eng: 0, wu: 0 };
+  (tasks || []).forEach(function (t) { if (t.labId === ENGLISH_ID) k.eng++; else if (t.labId === WRITEUP_ID) k.wu++; else k.labs++; });
   return k;
 }
+/* What "finished" means in the Write-Up Lab (Daniel, 3 Oct 2026: every red pen and every question, IB ones too) */
+var HW_WU_LINE = 'In each Write-Up Lab part, find EVERY mistake in the Red pen (each version: IGCSE, IB IA, IB EE) and answer EVERY question in Test yourself, the IB ones too. A part is done only then.';
 /* The words of the Classroom post (Daniel, 1 Oct 2026): every station by the name the pupils see in the lab, and NO web
    address in the text (the post's one link per lab carries it). Since 2 Oct 2026 (Daniel: "make that message a bit more
    easy to read"): the heading, each lab's stations as a numbered list, then WHAT TO DO as numbered steps: open the link,
@@ -5503,10 +5818,10 @@ function _hwKinds_(tasks) {
 function _hwPostText_(id, tasks, man) {
   var blocks = [], k = _hwKinds_(tasks), links = _hwLinks_(id, tasks, man).length;
   tasks.forEach(function (t) {
-    var lm = man && man.labs ? man.labs[t.labId] : null, nameOf = {}, en = t.labId === ENGLISH_ID;
+    var lm = man && man.labs ? man.labs[t.labId] : null, nameOf = {}, en = t.labId === ENGLISH_ID, wu = t.labId === WRITEUP_ID;
     if (lm) (lm.stations || []).forEach(function (x) { nameOf[x.id] = x.name; });
-    blocks.push({ name: en ? 'Bio English Lab' : (lm && lm.name ? String(lm.name) : t.labId),
-                  list: ['Complete these ' + (en ? 'sets' : 'stations') + ':']
+    blocks.push({ name: en ? 'Bio English Lab' : wu ? 'Write-Up Lab' : (lm && lm.name ? String(lm.name) : t.labId),
+                  list: ['Complete these ' + (en ? 'sets' : wu ? 'parts' : 'stations') + ':']
                     .concat((t.stationIds || []).map(function (sid, i) { return (i + 1) + '. ' + (nameOf[sid] || sid); })).join('\n') });
   });
   var out = blocks.length === 1 ? ['YOUR HOMEWORK: ' + blocks[0].name, blocks[0].list]
@@ -5514,12 +5829,15 @@ function _hwPostText_(id, tasks, man) {
   var steps = [];
   if (links) steps.push(links > 1 ? 'Open the links below. There is one link for each lab. Each link opens your homework in that lab.'
                       : k.labs ? 'Open the link below. It opens the lab at your first homework station.'
+                      : k.wu ? 'Open the link below. It opens your homework parts in the Write-Up Lab.'
                       : 'Open the link below. It opens your homework sets in Bio English Lab.');
   steps.push(HW_SIGNIN_LINE);
   if (k.labs) steps.push('In each homework station, open the Practise tab and answer EVERY question. A station is done only when every question is answered.');
-  if (k.eng) steps.push(k.labs ? 'In Bio English Lab, answer EVERY question in each set.'
+  if (k.eng) steps.push(k.labs || k.wu ? 'In Bio English Lab, answer EVERY question in each set.'
                                : 'Answer EVERY question in each set. A set is done only when every question is answered.');
+  if (k.wu) steps.push(HW_WU_LINE);
   if (k.labs) steps.push('Your homework stations are coloured: red = not started, orange = part done, green = done. You have finished when every homework station is green.');
+  else if (k.wu) steps.push('Your homework parts are coloured: red = not started, orange = part done, green = done. You have finished when every homework part is green.');
   out.push('WHAT TO DO\n' + steps.map(function (x, i) { return (i + 1) + '. ' + x; }).join('\n'));
   return out.join('\n\n');
 }
@@ -5737,7 +6055,8 @@ function _hwRemindBody_(hw, studentIds, man) {
   /* what "finished" means, as the post says it (2 Oct 2026) */
   var k = _hwKinds_(hw.tasks);
   if (k.labs) text.push('Answer EVERY question in the Practise tab of each homework station. You have finished when every homework station is green.');
-  if (k.eng) text.push((k.labs ? 'In Bio English Lab, answer' : 'Answer') + ' EVERY question in each homework set.');
+  if (k.eng) text.push((k.labs || k.wu ? 'In Bio English Lab, answer' : 'Answer') + ' EVERY question in each homework set.');
+  if (k.wu) text.push(HW_WU_LINE);
   text.push(HW_SIGNIN_LINE);
   return {
     text: text.join('\n'),
@@ -6150,6 +6469,17 @@ function _hwTimesIndex_(labIds, need) {
       });
       return;
     }
+    if (id === WRITEUP_ID) {                                /* 3 Oct 2026: School email to Part times */
+      var wt = ss.getSheetByName(T_WRITEUP);
+      if (!wt || wt.getLastRow() < 2) return;
+      wt.getRange(2, WU_EMAIL, wt.getLastRow() - 1, Math.min(WU_TIMES, wt.getMaxColumns()) - WU_EMAIL + 1).getValues().forEach(function (r) {
+        var em = _cleanEmail_(r[0]); if (!em || !need[em]) return;
+        var kept = _wuParse_(r[WU_SNAP - WU_EMAIL]), f = {};
+        Object.keys(kept).forEach(function (pid) { f[pid] = (String(kept[pid].q || '').match(/f/g) || []).length; });
+        out[id][em] = { t: _stParse_(r[WU_TIMES - WU_EMAIL]), f: f };
+      });
+      return;
+    }
     var lab = null;
     LABS.forEach(function (l) { if (l.id === id) lab = l; });
     var sh = lab ? ss.getSheetByName(lab.name) : null;
@@ -6171,15 +6501,21 @@ function _hwTimesIndex_(labIds, need) {
 function _hwHabitCell_(hw, email, index, extra, man, ids, now) {
   var live = _hwScoreOne_(hw, email, index, man);
   if (!live.total) return null;
-  var parts = [], k = null, f = 0, nLab = 0, nEn = 0;
+  var parts = [], k = null, f = 0, q = 0, nLab = 0, nEn = 0, nWu = 0;
+  /* a Write-Up part counts red-pen marks AND questions towards done; right first time is of its questions alone */
+  var wuQ = {};
+  if (man && man.wu) (man.wu.parts || []).forEach(function (p) { wuQ[p.id] = Number(p.questions) || 0; });
   hw.tasks.forEach(function (t) {
     var x = (extra[t.labId] || {})[email] || { t: {}, f: {} }, idx = index[t.labId], rec = idx ? idx[email] : null;
     (t.stationIds || []).forEach(function (sid) {
       var one = _hwScoreOne_({ tasks: [{ labId: t.labId, stationIds: [sid] }] }, email, index, man);
       if (one.missing.length || !one.total) return;                       /* not scored by the list either */
       parts.push(x.t[sid] || [0, 0]);
-      f += Math.min(Number(x.f[sid]) || 0, one.total);
+      var qn = t.labId === WRITEUP_ID ? (wuQ[sid] || 0) : one.total;
+      q += qn;
+      f += Math.min(Number(x.f[sid]) || 0, qn);
       if (t.labId === ENGLISH_ID) { nEn++; return; }
+      if (t.labId === WRITEUP_ID) { nWu++; return; }
       nLab++;
       var g = rec && rec.byId ? rec.byId[sid] : null;
       k = (k || 0) + (g ? Number(g.checks) || 0 : 0);
@@ -6219,15 +6555,16 @@ function _hwHabitCell_(hw, email, index, extra, man, ids, now) {
       if (R && /^\d+$/.test(String(hw.rem[j - 1].said)) && R < fin.at) r = j;
     }
   }
-  return { c: c, r: r, k: k, f: f, q: live.total, n: nLab, m: nEn,
+  return { c: c, r: r, k: k, f: f, q: q, n: nLab, m: nEn, w: nWu,
            sm: (tExact && tt && fin && fin.at !== undefined) ? Math.max(0, fin.at - tt) : null, t: first, e: e };
 }
-/* "12 stations", "3 Bio English sets", "12 stations and 3 Bio English sets" */
-function _hwPartsWords_(n, m) {
+/* "12 stations", "3 Bio English sets", "12 stations and 3 Bio English sets", "2 Write-Up parts" */
+function _hwPartsWords_(n, m, w) {
   var a = [];
   if (n) a.push(n + ' station' + (n === 1 ? '' : 's'));
   if (m) a.push(m + ' Bio English set' + (m === 1 ? '' : 's'));
-  return a.join(' and ');
+  if (w) a.push(w + ' Write-Up part' + (w === 1 ? '' : 's'));
+  return a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join('');
 }
 
 /* "Worth a look", in neutral words, or '' (Daniel: "if a student that usually gets very bad scores does it very fast,
@@ -6253,7 +6590,7 @@ function _hwHabitFlag_(cell, med, base, earlier) {
     if (!(m < HW_FLAG_BASE)) return '';
     why = 'right first time on their earlier homework: median ' + m + '% (' + e.length + ' homework)';
   }
-  return 'Finished ' + _hwPartsWords_(cell.n, cell.m) + ' within ' + _hwSpanWords_(cell.sm) + ' of the first try (median for this homework: ' +
+  return 'Finished ' + _hwPartsWords_(cell.n, cell.m, cell.w) + ' within ' + _hwSpanWords_(cell.sm) + ' of the first try (median for this homework: ' +
     _hwSpanWords_(med) + '), ' + (cell.f >= cell.q ? 'all right first time' : Math.round(rft) + '% right first time') + '; ' + why + '.';
 }
 

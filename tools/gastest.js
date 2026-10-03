@@ -243,6 +243,7 @@ global.MANIFEST_JSON = '';
 /* Bio English Lab's public set list, when a test asks for one. Its addresses never reach the
    token check, so they cannot disturb a test that counts those calls. */
 global.ENGLISH_JSON = '';
+global.WRITEUP_JSON = '';
 global.UrlFetchApp = { fetch: (url) => {
   if (MANIFEST_JSON && /stations\.json$/.test(String(url || ''))) {
     return { getResponseCode: () => 200, getContentText: () => MANIFEST_JSON };
@@ -250,6 +251,12 @@ global.UrlFetchApp = { fetch: (url) => {
   if (/\/bio-english-lab\//.test(String(url || ''))) {
     return ENGLISH_JSON && /sets\.json$/.test(String(url))
       ? { getResponseCode: () => 200, getContentText: () => ENGLISH_JSON }
+      : { getResponseCode: () => 404, getContentText: () => '' };
+  }
+  /* the Write-Up Lab's public parts list (3 Oct 2026), the same way */
+  if (/\/write-up-lab\//.test(String(url || ''))) {
+    return WRITEUP_JSON && /parts\.json$/.test(String(url))
+      ? { getResponseCode: () => 200, getContentText: () => WRITEUP_JSON }
       : { getResponseCode: () => 404, getContentText: () => '' };
   }
   return _tokenFetch(); } };
@@ -2844,6 +2851,142 @@ ok &= run('English: a tab made before the new column is widened by the next save
   if (sh.maxC < 12 || sh.getRange(1, 12).getValue() !== 'Practised again') throw new Error('not widened: ' + sh.maxC);
   if (!/round 2, 2\/4/.test(sh.getRange(enRowNo(enB.email), EN_AGAIN).getValue())) throw new Error('practised again not written');
 });
+/* ── The Write-Up Lab (Daniel, 3 Oct 2026: "make sure that when I set homework, this is also something I can set and
+   that is tracked in the spreadsheet") ──────────────────────────────────────────────────────────────────────────────
+   Whole parts; one standard for everyone: a part is finished when every red pen in it is done (each version) and every
+   question is answered, IB ones too. A part's homework "questions" are its red-pen marks plus its questions (units).
+   Learn steps, Mistakes to avoid and Go further are kept and shown, never needed; keyword cards are not kept. */
+console.log('— Write-Up Lab —');
+global.WRITEUP_JSON = JSON.stringify({ v:1, stages:[ { id:'plan', name:'Plan' } ], parts:[
+  { id:'variables', title:'Variables', stage:'plan', levels:'gie', v:'vv1', steps:7, redpens:[ { l:'g', n:5 }, { l:'i', n:4 } ], questions:8, further:1, units:17 },
+  { id:'background', title:'Background', stage:'plan', levels:'ie', v:'bb1', steps:9, redpens:[ { l:'i', n:5 }, { l:'e', n:4 } ], questions:8, further:1, units:17 } ] });
+const wuPost = (body, email) => enPost(body, email);
+const wuKept = email => {
+  const sh = ss.getSheetByName(T_WRITEUP); if (!sh || sh.getLastRow() < 2) return null;
+  const v = sh.getRange(2, 1, sh.getLastRow() - 1, WU_TIMES).getValues();
+  const r = v.filter(x => String(x[WU_EMAIL - 1]).toLowerCase() === email)[0];
+  return r ? { row: r, kept: _wuParse_(r[WU_SNAP - 1]) } : null;
+};
+const VAR_DONE = { v:'vv1', l:'1110000', r:{ g:'11111', i:'1111' }, m:1, q:'ff1s1111', f:'1' };   /* every mistake, every question */
+let wuHw = null;
+
+ok &= run('Write-Up: a save from somebody not signed in, or not on the roster, leaves no trace', () => {
+  const rows = () => { const sh = ss.getSheetByName(T_WRITEUP); return sh ? sh.getLastRow() : 0; };
+  const before = rows();
+  const junk = JSON.parse(doPost({ postData:{ contents: JSON.stringify({ action:'writeup.save', token:'junk', parts:{ variables: VAR_DONE } }) } }));
+  if (junk.ok !== false) throw new Error('a junk token was accepted');
+  const r = wuPost({ action:'writeup.save', parts:{ variables: VAR_DONE } }, 'stranger@elsewhere.com');
+  if (r.ok !== false || !/class list/.test(r.why)) throw new Error('a stranger was recorded: ' + JSON.stringify(r));
+  if (rows() !== before) throw new Error('a row was written');
+});
+ok &= run('Write-Up: a pupil’s saves make ONE row: parts finished, mistakes found, questions answered, right first time, Learn steps, per part', () => {
+  let r = wuPost({ action:'writeup.save', parts:{ variables: { v:'vv1', l:'1000000', r:{ g:'11000' }, q:'f0000000' } } }, enA.email);
+  if (!r.ok || r.saved !== 1) throw new Error(JSON.stringify(r));
+  r = wuPost({ action:'writeup.save', parts:{ variables: VAR_DONE } }, enA.email);
+  if (!r.ok) throw new Error(JSON.stringify(r));
+  const sh = ss.getSheetByName(T_WRITEUP);
+  if (!sh) throw new Error('no 📝 Write-Up Lab tab');
+  if (sh.getLastRow() - 1 !== 1) throw new Error((sh.getLastRow() - 1) + ' rows for one pupil');
+  const v = wuKept(enA.email).row;
+  if (v[0] !== enA.name || v[1] !== enA.cls) throw new Error('name/class: ' + v[0] + ' ' + v[1]);
+  if (v[2] !== 1 || v[3] !== 9 || v[4] !== 8 || Math.abs(v[5] - 0.25) > 1e-9 || v[6] !== 3)
+    throw new Error('finished ' + v[2] + ', found ' + v[3] + ', answered ' + v[4] + ', first ' + v[5] + ', learn ' + v[6] + ' — want 1, 9, 8, 0.25, 3');
+  if (v[8] !== 'Variables ✓ (red pen 9/9, questions 8/8, 2 first time, Learn 3/7, Mistakes to avoid opened, Go further 1/1)') throw new Error('Per part reads "' + v[8] + '"');
+  if (sh.getRange(1, WU_TIMES).getValue() !== 'Part times') throw new Error('no Part times column');
+});
+ok &= run('Write-Up: two computers — letter by letter the better one, nothing goes backwards', () => {
+  wuPost({ action:'writeup.save', parts:{ variables: { v:'vv1', l:'0000000', r:{ g:'10000', i:'0000' }, q:'f0000000' } } }, enB.email);
+  wuPost({ action:'writeup.save', parts:{ variables: { v:'vv1', l:'0100000', r:{ g:'01000' }, q:'t1000000' } } }, enB.email);
+  const x = wuKept(enB.email).kept.variables;
+  if (x.r.g !== '11000' || x.r.i !== '0000' || x.q !== 'f1000000' || x.l !== '0100000') throw new Error(JSON.stringify(x));
+});
+ok &= run('Write-Up: a part the site does not have is ignored; a page from before a part was rewritten cannot overwrite it', () => {
+  wuPost({ action:'writeup.save', parts:{ ghost: { v:'g1', q:'111' }, variables: { v:'OLD', l:'1111111', r:{ g:'11111', i:'1111' }, q:'ffffffff', f:'1' } } }, enB.email);
+  const k = wuKept(enB.email).kept;
+  if (k.ghost) throw new Error('an unknown part was stored');
+  if (k.variables.q !== 'f1000000') throw new Error('an old version overwrote the current one: ' + k.variables.q);
+});
+ok &= run('Write-Up: writeup.mine gives a pupil their own work back, and nobody else’s; a teacher is told the teacher page', () => {
+  const me = wuPost({ action:'writeup.mine' }, enA.email);
+  if (!me.ok || !me.onList || me.cls !== enA.cls) throw new Error(JSON.stringify(me).slice(0, 200));
+  if (!me.parts.variables || me.parts.variables.q !== 'ff1s1111' || me.parts.variables.r.g !== '11111') throw new Error('their work did not come back');
+  const stranger = wuPost({ action:'writeup.mine' }, 'stranger@elsewhere.com');
+  if (stranger.onList || Object.keys(stranger.parts).length || stranger.homework.length) throw new Error('a stranger was told something');
+  if (!wuPost({ action:'writeup.mine' }, OWNER).teacher) throw new Error('the owner was not recognised as a teacher');
+});
+ok &= run('Write-Up parts can be set as homework beside lab stations: named in words, scored as red-pen mistakes + questions', () => {
+  const r = homeworkCreate({ title:'Planning a report', classes:[{ cls: enA.cls, due: enDay(40) }],
+    tasks:[ { labId:'digestion-lab', stationIds:['mouth'] }, { labId:'write-up-lab', stationIds:['variables', 'background'] } ] });
+  if (!r.ok) throw new Error('refused: ' + r.why);
+  wuHw = _homeworkRows_().filter(h => h.id === r.made[0])[0];
+  if (!/Write-Up Lab: Variables, Background/.test(wuHw.what)) throw new Error('What reads "' + wuHw.what + '"');
+  const d = _homeworkData_();
+  if (!d.writeup || d.writeup.parts.length !== 2 || d.writeup.parts[0].units !== 17 || d.writeup.parts[0].marks !== 9) throw new Error('the page was not given the parts: ' + JSON.stringify(d.writeup));
+  if (d.labs.some(l => l.id === 'write-up-lab')) throw new Error('the Write-Up Lab was offered as a lab');
+  const man = _hwManifest_(), idx = _hwLabIndex_(['digestion-lab', 'write-up-lab']);
+  const only = { tasks: [{ labId:'write-up-lab', stationIds:['variables', 'background'] }] };
+  const a = _hwScoreOne_(only, enA.email, idx, man), b = _hwScoreOne_(only, enB.email, idx, man);
+  if (a.total !== 34 || a.done !== 17 || a.state !== 'partly') throw new Error('pupil A: ' + JSON.stringify(a));
+  if (b.done !== 4) throw new Error('pupil B: ' + b.done + ' done, want 4 (2 mistakes + 2 questions)');
+  const one = _hwScoreOne_({ tasks: [{ labId:'write-up-lab', stationIds:['variables'] }] }, enA.email, idx, man);
+  if (one.state !== 'done') throw new Error('every red pen and every question, and the part is not done: ' + JSON.stringify(one));
+  /* a part's Learn steps, Mistakes to avoid and Go further are never needed */
+  wuPost({ action:'writeup.save', parts:{ background: { v:'bb1', r:{ i:'11111', e:'1111' }, q:'11111111' } } }, enA.email);
+  const both = _hwScoreOne_(only, enA.email, _hwLabIndex_(['write-up-lab']), man);
+  if (both.state !== 'done') throw new Error('Learn, Mistakes to avoid and Go further were required: ' + JSON.stringify(both));
+});
+ok &= run('Write-Up: the homework reaches its pupils on the Write-Up site, and nobody else; a lab-only homework is not listed there', () => {
+  const me = wuPost({ action:'writeup.mine' }, enA.email);
+  const hw = me.homework.filter(h => h.id === wuHw.id)[0];
+  if (!hw) throw new Error('the pupil was not given their homework');
+  if (hw.parts.join(',') !== 'variables,background') throw new Error('parts: ' + hw.parts);
+  if (enB.cls !== enA.cls && wuPost({ action:'writeup.mine' }, enB.email).homework.some(h => h.id === wuHw.id)) throw new Error('another class was given it');
+  const r = homeworkCreate({ title:'Just the lab', classes:[{ cls: enA.cls, due: enDay(41) }], tasks:[{ labId:'digestion-lab', stationIds:['stomach'] }] });
+  if (wuPost({ action:'writeup.mine' }, enA.email).homework.some(h => h.id === r.made[0])) throw new Error('a lab-only homework was listed on the Write-Up site');
+  homeworkDelete(r.made[0]);
+  /* the labs' coloured stations come from the progress answer: the Write-Up parts are not lab stations */
+  if (_ownHomework_(enA.email, enA.cls).some(h => (h.stations || []).some(s => s.lab === 'write-up-lab'))) throw new Error('a lab was told about Write-Up parts');
+});
+ok &= run('Write-Up: the Classroom post names the parts, has ONE link to the Write-Up Lab’s homework page, and says what finished means', () => {
+  const man = _hwManifest_(), tasks = [{ labId:'write-up-lab', stationIds:['variables', 'background'] }];
+  const links = _hwLinks_('HW-WU001', tasks, man);
+  if (links.length !== 1 || links[0].url !== 'https://nlcsbiology.com/write-up-lab/#/hw/HW-WU001') throw new Error(JSON.stringify(links));
+  const t = _hwPostText_('HW-WU001', tasks, man);
+  if (!/^YOUR HOMEWORK: Write-Up Lab\n\nComplete these parts:\n1\. Variables\n2\. Background\n\nWHAT TO DO\n1\. Open the link below/.test(t)) throw new Error('the post reads:\n' + t);
+  if (!/opens your homework parts in the Write-Up Lab/.test(t) || t.indexOf(HW_WU_LINE) < 0 || !/every homework part is green/.test(t)) throw new Error('what to do is not said:\n' + t);
+  if (/https?:/.test(t)) throw new Error('a web address in the words');
+  const mixed = _hwPostText_('HW-WU002', [{ labId:'digestion-lab', stationIds:['mouth'] }].concat(tasks), man);
+  if (mixed.indexOf(HW_WU_LINE) < 0 || !/Practise tab/.test(mixed)) throw new Error('a mixed post lost a half:\n' + mixed);
+  const rem = _hwRemindBody_({ id:'HW-WU001', title:'Planning', due: new Date(Date.now() + 864e5).toISOString(), tasks: tasks }, ['u1'], man);
+  if (rem.text.indexOf(HW_WU_LINE) < 0 || rem.text.indexOf('https://nlcsbiology.com/write-up-lab/#/hw/HW-WU001') < 0) throw new Error('the reminder reads:\n' + rem.text);
+});
+ok &= run('Write-Up: each save notes when a part was first tried and first finished (⏱️ Homework habits); right first time counts questions only', () => {
+  const k = wuKept(enA.email), t = _stParse_(k.row[WU_TIMES - 1]);
+  if (!t.variables || !(t.variables[0] > 0) || !(t.variables[1] > 0)) throw new Error('Part times: ' + k.row[WU_TIMES - 1]);
+  if (!t.background || !(t.background[1] !== 0)) throw new Error('background not finished in the times: ' + JSON.stringify(t.background));
+  const man = _hwManifest_(), idx = _hwLabIndex_(['write-up-lab']);
+  const ex = _hwTimesIndex_(['write-up-lab'], (() => { const n = {}; n[enA.email] = 1; return n; })());
+  const cell = _hwHabitCell_({ id:'x', tasks:[{ labId:'write-up-lab', stationIds:['variables', 'background'] }], from: new Date(Date.now() - 864e5).toISOString(),
+    due: new Date(Date.now() + 864e5).toISOString(), rem:[{}, {}] }, enA.email, idx, ex, man, {}, Date.now());
+  if (!cell || cell.q !== 16 || cell.f !== 2 || cell.w !== 2) throw new Error('the cell: ' + JSON.stringify(cell));
+  if (_hwPartsWords_(0, 0, 2) !== '2 Write-Up parts' || _hwPartsWords_(3, 1, 1) !== '3 stations, 1 Bio English set and 1 Write-Up part') throw new Error('the words');
+});
+ok &= run('Write-Up: the tab sits after Bio English, Tidy up dresses it, and 🩺 says whether its parts can be read', () => {
+  _orderTabs_();
+  const names = ss.getSheets().map(x => x.name);
+  if (names.indexOf(T_WRITEUP) !== names.indexOf(T_ENGLISH) + 1) throw new Error('order: ' + names.slice(0, 8).join(', '));
+  if (!/_dress2_\(wu, WRITEUP_COLS/.test(fs.readFileSync(process.argv[2] || 'apps-script/Code.gs', 'utf8'))) throw new Error('Tidy up does not dress it');
+  const keep = SpreadsheetApp.getUi; let said = '';
+  SpreadsheetApp.getUi = () => Object.assign(keep(), { alert: (a, b) => { said = String(b === undefined ? a : b); } });
+  try { checkSetup(); } finally { SpreadsheetApp.getUi = keep; }
+  if (!/✅  Write-Up Lab: its 2 parts can be read/.test(said)) throw new Error('🩺 does not say it: ' + said.slice(-500));
+});
+ok &= run('Write-Up: the Set homework form offers the parts and sends them as a task of their own', () => {
+  const page = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  ['function wuBlock()', "var WUID = 'write-up-lab'", "tasks.push({labId:WUID,stationIds:wp})", "'[data-wupick]'", "'[data-wuall]'", "enBlock()+wuBlock()+"]
+    .forEach(x => { if (page.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
+});
+
 /* ── Homework the pupils can see (Daniel, 29 Sep 2026) ─────────────────────────────────────────────────────────
    The Classroom post names every station with its own link; a due TIME; a Classroom TOPIC; and the pupil's own
    homework in the progress answer, each station scored by the teacher's _hwScoreOne_. */
@@ -4048,11 +4191,19 @@ console.log('— ⏱️ homework habits —');
       p.win.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
       p.drawn = null; p.win.__view.openDraw = (t, m, b) => { p.drawn = { t, m, b }; };
       return p; };
-    ok &= run('habits page: a sixth view of the one page — its tab "⏱️ Homework habits", its help note task first, drawn by the second script', () => {
+    ok &= run('habits page: a sixth view of the one page — its tab "⏱️ Homework habits", a note of what the page cannot show, drawn by the second script', () => {
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
       if (!/var ORDER = \[[^\]]*'habits'\];/.test(h)) throw new Error('no habits tab in ORDER');
       if (!/habits:\{ label:'⏱️ Homework habits'/.test(h)) throw new Error('the tab is not called ⏱️ Homework habits');
-      if (!/note:'Start here: pick a class\./.test(h)) throw new Error('the help note does not start with what to do');
+      /* Daniel, 2 Oct 2026: a note says what a teacher cannot see or guess; "Start here: pick a class" was obvious and went */
+      const hn = (h.match(/habits:\{[\s\S]*?note:'([^']*)'/) || ['', ''])[1];
+      if (!/^Hover over or tap a mark/.test(hn) || !/never proof of anything/.test(hn) || !/not time spent working/.test(hn)) throw new Error('the habits note lost what only it can say: ' + hn.slice(0, 120));
+      const notes = (h.match(/\n      note:'[^']*'/g) || []);
+      if (notes.length !== 6) throw new Error('not six notes: ' + notes.length);
+      const lame = notes.filter(n => /Nothing here changes a mark|Start here: pick a class|stays hidden from pupils until its start|Completion is worked out|never a zero|because you are their teacher/.test(n));
+      if (lame.length) throw new Error('a note says the obvious again: ' + lame[0].slice(0, 120));
+      if (!/Reminders \(🔔\) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00\.' \},/.test(h)) throw new Error('the homework note is not the reminders rule alone');
+      if (!/\$\('note'\)\.hidden = !VIEWS\[cur\]\.note;/.test(h)) throw new Error('an empty note would still be drawn');
       if (/homework analysis/i.test(h)) throw new Error('it is not called "homework analysis"');
       if (!/if \(cur==='habits'\) return window\.vHabits\(r\.data\);/.test(h)) throw new Error('the view is never drawn');
       if (!/window\.vHabits = function/.test(h.slice(h.indexOf('<script>', h.indexOf('</script>', h.indexOf('<script>')))))) throw new Error('the view is not in the second script');
@@ -4186,10 +4337,12 @@ console.log('— ⏱️ homework habits —');
       if (!/localStorage\.setItem\('biology\.theme', t\)/.test(h)) throw new Error('the choice is not kept');
       if ((h.match(/localStorage\.setItem\('biology\./g) || []).length !== 1) throw new Error('the page writes another biology.* key');
     });
-    ok &= run('📊 Analysis ↗ on the page: a link out (new tab, rel=noopener), beside the tab list and never one of its tabs, hidden unless the server gave an address', () => {
+    ok &= run('📊 Analysis on the page: opens in the SAME tab (no target of its own; the page\'s base is _top), beside the tab list and never one of its tabs, hidden unless the server gave an address', () => {
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
       const tag = (h.match(/<a class="ana"[^>]*>[^<]*<\/a>/) || [''])[0];
-      if (!/target="_blank"/.test(tag) || !/rel="noopener"/.test(tag) || !/\shidden>/.test(tag) || !/>📊 Analysis ↗<\/a>$/.test(tag)) throw new Error('the link: ' + tag);
+      /* Daniel, 2 Oct 2026: "I open the biology hub, I press my assessments, and I press analysis, and I have three tabs open instead of one" */
+      if (/target=/.test(tag) || !/\shidden>/.test(tag) || !/>📊 Analysis<\/a>$/.test(tag)) throw new Error('the link: ' + tag);
+      if (!/<base target="_top">/.test(h)) throw new Error('the page has no base target _top: a link would open inside the frame');
       if (!/<\/nav>\n\s*<a class="ana"/.test(h)) throw new Error('not the next thing after the tab list');
       if (/\btab\b/.test((tag.match(/class="([^"]*)"/) || ['', ''])[1])) throw new Error('the link is a tab');
       const iife = (h.match(/\(function\(\)\{ var a=\$\('ana'\)[\s\S]*?\}\)\(\);/) || [''])[0];
@@ -4199,6 +4352,21 @@ console.log('— ⏱️ homework habits —');
       const ok1 = show('https://nlcsbiology.com/biology-hub/analysis.html');
       if (ok1.hidden || ok1.at.href !== 'https://nlcsbiology.com/biology-hub/analysis.html') throw new Error('a viewer does not see it');
       if (!show('').hidden || !show(undefined).hidden || !show('javascript:alert(1)//analysis.html').hidden) throw new Error('shown without a good address');
+    });
+    ok &= run('← Biology Hub on the page: the hub opens the teacher page in the same tab, so the page links back — only to an https address the server gave (HUB_URL), in the same tab', () => {
+      const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      const tag = (h.match(/<a class="backhub"[^>]*>[^<]*<\/a>/) || [''])[0];
+      if (!/id="backHub"/.test(tag) || /target=/.test(tag) || !/\shidden>/.test(tag) || !/>← Biology Hub<\/a>$/.test(tag)) throw new Error('the link: ' + tag);
+      const iife = (h.match(/\(function\(\)\{ var b=\$\('backHub'\)[\s\S]*?\}\)\(\);/) || [''])[0];
+      if (!iife) throw new Error('the page never shows the link from BOOT');
+      const show = url => { const els = { backHub: { hidden: true, at: {}, setAttribute(k, v) { this.at[k] = v; } }, eyeHub: { hidden: false } };
+        require('vm').runInNewContext(iife, { $: id => els[id], BOOT: { hub: url } }); return els; };
+      const a = show('https://nlcsbiology.com/biology-hub');
+      if (a.backHub.hidden || a.backHub.at.href !== 'https://nlcsbiology.com/biology-hub/' || !a.eyeHub.hidden) throw new Error('a teacher does not get the way back: ' + JSON.stringify(a.backHub.at));
+      for (const bad of ['', undefined, 'javascript:alert(1)', 'http://nlcsbiology.com/biology-hub']) { const b = show(bad); if (!b.backHub.hidden || b.eyeHub.hidden) throw new Error('shown without a good address: ' + bad); }
+      if (!/\n    hub: _hubUrl_\(\) /.test(fs.readFileSync('apps-script/Code.gs', 'utf8'))) throw new Error('the server does not give the page the hub\'s address');
+      const hub = fs.readFileSync('js/hub.js', 'utf8');
+      if (!/asLink\(teacher\.page, lbl, 'Assessment system', 'Signed in · teacher mode', true\);/.test(hub) || !/if \(sameTab\) \{ link\.removeAttribute\('target'\);/.test(hub)) throw new Error('the hub still opens the teacher page in a new tab');
     });
   } finally {
     made.forEach(id => { try { homeworkDelete(id); } catch (e) {} });
