@@ -1315,9 +1315,13 @@
     /* Signed in with somewhere to go. Two cards are filled and the stylesheet shows one: on the
        front page the door beside the hero is the way in, so the corner only says who is signed
        in; on every other page there is no door, so the corner card is the link. */
-    function asLink(href, lbl, act, whoSays) {
+    /* `sameTab`: the teacher page opens in this tab (Daniel, 2 Oct 2026: "I open the biology hub, I press my assessments,
+       and I press analysis, and I have three tabs open instead of one"); it has ← Biology Hub. A student's My assessments
+       keeps its own tab, as the link is written in index.html. */
+    function asLink(href, lbl, act, whoSays, sameTab) {
       hideAll(); link.hidden = false;
       link.href = href; linkLbl.textContent = lbl; linkAct.textContent = act;
+      if (sameTab) { link.removeAttribute('target'); link.removeAttribute('rel'); } else { link.target = '_blank'; link.rel = 'noopener'; }
       if (whoCard) { whoLbl.textContent = lbl; if (whoAct) whoAct.textContent = whoSays || 'Signed in'; whoCard.hidden = false; }
     }
 
@@ -1453,7 +1457,7 @@
           return;
         }
         if (sysEl) { sysEl.href = teacher.page; showPersonal('system'); } else showPersonal(null);
-        asLink(teacher.page, lbl, 'Assessment system', 'Signed in · teacher mode');
+        asLink(teacher.page, lbl, 'Assessment system', 'Signed in · teacher mode', true);
         return;
       }
 
