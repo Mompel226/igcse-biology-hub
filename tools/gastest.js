@@ -48,6 +48,9 @@ class Range {
     return Array.from({ length: this.nr }, () => Array.from({ length: this.nc }, () => 'general'));
   }
   setNumberFormats(v) { return this._grid('setNumberFormats', v); }
+  /* one format for the whole range (5 Oct 2026: the import marks the id columns as text, '@'); the stand-in keeps it */
+  setNumberFormat(f) { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) (this.sheet.fmt = this.sheet.fmt || new Map()).set((this.r + i) + ':' + (this.c + j), f); return this; }
+  getDisplayValue() { const v = this.sheet.get(this.r, this.c); return v == null ? '' : String(v); }
   setHorizontalAlignments(v) { return this._grid('setHorizontalAlignments', v); }
   setDataValidations(v) { return this._grid('setDataValidations', v); }
   getValues() {
@@ -73,7 +76,7 @@ class Range {
   clearDataValidations() { return this; }
 }
 for (const m of ['setFontWeight','setFontColor','setBackground','setVerticalAlignment','setHorizontalAlignment',
-                 'setWrap','setNumberFormat','setFontSize','setFontStyle','setBorder','clearFormat',
+                 'setWrap','setFontSize',   /* setNumberFormat is the class's own (5 Oct 2026): it keeps the format */'setFontStyle','setBorder','clearFormat',
                  'setFontFamily','setHorizontalAlignments','merge','clear'])
   Range.prototype[m] = function () { return this; };
 
@@ -583,6 +586,8 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
     'checkChips',            /* gated: _isAdminCaller_ — Run ▸ checkChips in the editor, which cannot
                                 list a name ending in an underscore; it only writes to the owner's log */
+    'checkReminders',        /* gated: _isAdminCaller_ — Run ▸ checkReminders in the editor (5 Oct 2026); it posts only
+                                DRAFTS, which reach nobody, deletes each at once, and writes nothing to the sheet */
     'sendDueSummaries',      /* a trigger must be callable: it only ever emails the teacher who set each
                                 overdue homework, once, and hands back a count */
     'sendHomeworkReminders'  /* a trigger must be callable (1 Oct 2026): it takes nothing from its caller, posts only the
@@ -2987,6 +2992,40 @@ ok &= run('Write-Up: the Set homework form offers the parts and sends them as a 
     .forEach(x => { if (page.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
 });
 
+ok &= run('checkReminders: a pupil gets nothing; the owner gets Classroom’s full reason, from DRAFTS only, each deleted', () => {
+  const keepFetch = UrlFetchApp.fetch, keepTok = ScriptApp.getOAuthToken, keepUi = SpreadsheetApp.getUi, calls = [];
+  let said = '';
+  ScriptApp.getOAuthToken = () => 'tok';
+  SpreadsheetApp.getUi = () => Object.assign(keepUi(), { alert: (a, b) => { said = String(b === undefined ? a : b); } });
+  UrlFetchApp.fetch = (url, o) => {
+    if (!/classroom\.googleapis/.test(url)) return keepFetch(url, o);
+    const body = o && o.payload ? JSON.parse(o.payload) : null; calls.push({ url, method: o.method, body });
+    const res = (code, j) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(j) });
+    if (o.method === 'get' && /\/students\//.test(url)) return res(200, {});
+    if (o.method === 'get') return res(200, { name: 'Bio 9C', courseState: 'ACTIVE' });
+    if (o.method === 'post' && body.materials) return res(400, { error: { status: 'FAILED_PRECONDITION', message: '@Example The link cannot be attached' } });
+    if (o.method === 'post') return res(200, { id: 'a' + calls.length });
+    return res(200, {});
+  };
+  try {
+    const r = homeworkCreate({ title:'Remind test', classes:[{ cls: enA.cls, due: enDay(20) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+    const sh = ss.getSheetByName(T_HOMEWORK), row = _homeworkRows_().filter(h => h.id === r.made[0])[0].row, c = n => _hwHeadCols_(sh)[n];
+    sh.getRange(row, c('Course')).setValue('C1'); sh.getRange(row, c('CourseWork')).setValue('W1');
+    sh.getRange(row, c('Reminder 1 students')).setValue('not sent: Precondition check failed.');
+    VISITOR = 'pupil@pupils.x.kr';
+    const keepOwner = OWNER; OWNER = 'teacher@x.kr';
+    checkReminders();
+    if (calls.length) throw new Error('a pupil made it call Classroom');
+    VISITOR = OWNER;
+    checkReminders();
+    homeworkDelete(r.made[0]);
+    OWNER = keepOwner;
+    const posts = calls.filter(x => x.method === 'post');
+    if (posts.length !== 3 || posts.some(p => p.body.state !== 'DRAFT')) throw new Error('posts: ' + JSON.stringify(posts.map(p => p.body.state)));
+    if (calls.filter(x => x.method === 'delete').length !== 2) throw new Error('every accepted draft must be deleted');
+    if (!/FAILED_PRECONDITION: @Example The link cannot be attached/.test(said) || !/without the link: Classroom accepts it/.test(said) || !/state ACTIVE/.test(said)) throw new Error('said: ' + said);
+  } finally { UrlFetchApp.fetch = keepFetch; ScriptApp.getOAuthToken = keepTok; SpreadsheetApp.getUi = keepUi; VISITOR = OWNER; }
+});
 /* ── Homework the pupils can see (Daniel, 29 Sep 2026) ─────────────────────────────────────────────────────────
    The Classroom post names every station with its own link; a due TIME; a Classroom TOPIC; and the pupil's own
    homework in the progress answer, each station scored by the teacher's _hwScoreOne_. */
@@ -3410,6 +3449,30 @@ console.log('— reminders to the pupils who have not finished —');
       if (!/^skipped: reminder 2 was due at the same time/.test(row.rem[0].said) || !/^\d+$/.test(row.rem[1].said)) throw new Error('the row reads ' + JSON.stringify(row.rem));
       if (runAt(KST(2027, 3, 4, 7, 17)) || RA.length !== 1) throw new Error('posted again at 07:17');
     } finally { homeworkDelete(id); }
+  });
+  ok &= run('a reminder names pupils by the ids Classroom has for them, never the rounded copy in the Students tab (5 Oct 2026: every reminder failed)', () => {
+    const s = KST(2027, 3, 15, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const real = {}; mates.forEach((p, i) => { real[p.email] = '117346278912345' + String(678901 + i); });   /* 21 digits, as Classroom's */
+    const r = setHw('Real ids', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      global.Classroom = fakeClassroom();
+      global.Classroom.Courses.Students = { list: cid => ({ students: cid === course ? mates.map(p => ({ userId: real[p.email], profile: { emailAddress: p.email } })) : [] }) };
+      if (_hwRemindRun_(t1 + 60e3) !== 1 || RA.length !== 1) throw new Error('reminder 1 did not go: ' + RA.length);
+      const got = RA[0].body.individualStudentsOptions.studentIds.slice().sort(), want = [...new Set(mates.map(p => real[p.email]))].sort();
+      if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error('to ' + got + ', want Classroom’s own ' + want);
+    } finally { global.Classroom = undefined; homeworkDelete(id); }
+  });
+  ok &= run('importing again repairs a rounded Classroom id, and keeps ids as text', () => {
+    const sh = ss.getSheetByName(T_STUDENTS), ec = _emailCol_(sh), uc = _headerCol_(sh, 'Classroom user id', ec + 3);
+    const p = mates[0], row = sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === p.email) + 2;
+    const keep = sh.getRange(row, uc).getValue();
+    sh.getRange(row, uc).setValue(1.17346278912346e20);                       /* what Sheets kept of a 21-digit id */
+    try {
+      _upsertStudents_([{ name: p.name, email: p.email, userId: '117346278912345678901' }], p.cls, 'Bio', course);
+      if (sh.getRange(row, uc).getValue() !== '117346278912345678901') throw new Error('not repaired: ' + sh.getRange(row, uc).getValue());
+      if (!sh.fmt || sh.fmt.get(row + ':' + uc) !== '@') throw new Error('the id cell is not text');
+    } finally { sh.getRange(row, uc).setValue(keep); }
   });
   ok &= run('a reminder goes ONCE, as one announcement to the pupils who have not finished, by their Classroom ids, naming nobody; reminder 2 is worked out again', () => {
     const s = KST(2027, 3, 8, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W), t2 = s + Math.round(0.85 * W);

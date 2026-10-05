@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '3 Oct 2026 — the Write-Up Lab in Set homework: its parts, saved for each signed-in pupil in a 📝 Write-Up Lab tab; the teacher page opens in the hub’s own tab with ← Biology Hub; before that, 2 Oct 2026 (11:20) — each teacher sees only the homework they set (the owner can see all); 🤝 Let the teachers on the list edit this spreadsheet; before that, 10:50 — Set homework for a later date: each class can have a start date and time; until then pupils see nothing (Google Classroom holds the post, the labs hide it), and the reminders count from the start; before that, 08:00 — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
+var SCRIPT_EDITION = '5 Oct 2026 (evening) — homework reminders work: pupils\u2019 Classroom ids are read from Classroom, not from the rounded copy in the Students tab; the import keeps ids as text; Run ▸ checkReminders says why Classroom refuses a reminder; before that, 3 Oct 2026 — the Write-Up Lab in Set homework: its parts, saved for each signed-in pupil in a 📝 Write-Up Lab tab; the teacher page opens in the hub’s own tab with ← Biology Hub; before that, 2 Oct 2026 (11:20) — each teacher sees only the homework they set (the owner can see all); 🤝 Let the teachers on the list edit this spreadsheet; before that, 10:50 — Set homework for a later date: each class can have a start date and time; until then pupils see nothing (Google Classroom holds the post, the labs hide it), and the reminders count from the start; before that, 08:00 — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -839,21 +839,29 @@ function _upsertStudents_(students, classCode, courseName, courseId) {
     if (em) { seen[em] = true; rowOf[em] = i + 1; }
   }
   var add = [], skipped = 0, moved = 0, now = new Date();
+  /* the Classroom user id and course id are TEXT (5 Oct 2026): a user id has about 21 digits, and as a number Sheets
+     keeps only 15 of them. A pupil already listed gets them rewritten too, so importing again repairs a rounded id. */
+  var UID_COL = _headerCol_(sh, 'Classroom user id', EMAIL_COL + 3), CID_COL = _headerCol_(sh, 'Course id', EMAIL_COL + 4);
   students.forEach(function (st) {
     if (st.email && seen[st.email]) {
       var r = rowOf[st.email];
       if (String(sh.getRange(r, 2).getValue()).toUpperCase() !== classCode) {
         sh.getRange(r, 2).setValue(classCode); moved++;
       }
+      var hu = sh.getRange(r, UID_COL), hc = sh.getRange(r, CID_COL);
+      if (st.userId && String(hu.getDisplayValue()) !== String(st.userId)) hu.setNumberFormat('@').setValue(String(st.userId));
+      if (courseId && String(hc.getDisplayValue()) !== String(courseId)) hc.setNumberFormat('@').setValue(String(courseId));
       skipped++;
       return;
     }
-    add.push([st.name, classCode, st.email, courseName, now, st.userId, courseId]);
+    add.push([st.name, classCode, st.email, courseName, now, String(st.userId || ''), String(courseId || '')]);
   });
   if (add.length) {
     var at = sh.getLastRow() + 1;
     _room_(sh, at + add.length - 1);
     sh.getRange(at, 1, add.length, 2).setValues(add.map(function (a) { return [a[0], a[1]]; }));
+    sh.getRange(at, UID_COL, add.length, 1).setNumberFormat('@');
+    sh.getRange(at, CID_COL, add.length, 1).setNumberFormat('@');
     sh.getRange(at, EMAIL_COL, add.length, 5).setValues(add.map(function (a) { return a.slice(2); }));
   }
   /* Their names go into every lab straight away, so each tab reads as a class list with the
@@ -5735,6 +5743,33 @@ function _classroomIds_() {
   });
   return out;
 }
+/* A course's pupils as Classroom itself knows them: { email: userId }, or null when it cannot be read. 5 Oct 2026: every
+   reminder failed ("Precondition check failed") because the Students tab's ids were wrong. A Classroom user id has about
+   21 digits; the import wrote it as a value, Sheets kept it as a number, and a number keeps only 15 digits, so the rest
+   came back as zeros and named nobody in the course. Anything that names pupils to Classroom (the reminders, homework for
+   chosen pupils) now takes their ids from the course's own list at that moment; `memo` keeps one read per course per run. */
+function _courseRoster_(courseId, memo) {
+  if (memo && (courseId in memo)) return memo[courseId];
+  var out = {}, page = null, ok = true;
+  try {
+    do {
+      var r = Classroom.Courses.Students.list(courseId, { pageSize: 100, pageToken: page }) || {};
+      (r.students || []).forEach(function (st) {
+        var e = _cleanEmail_(st.profile && st.profile.emailAddress);
+        if (e && st.userId) out[e] = String(st.userId);
+      });
+      page = r.nextPageToken;
+    } while (page);
+  } catch (e) { ok = false; }
+  if (memo) memo[courseId] = ok ? out : null;
+  return ok ? out : null;
+}
+/* The Students tab's ids (_classroomIds_), with every pupil of this course given the id Classroom has for them. */
+function _freshIds_(ids, courseId, memo) {
+  var ros = courseId ? _courseRoster_(courseId, memo) : null;
+  if (ros) Object.keys(ros).forEach(function (e) { ids[e] = { userId: ros[e], courseId: String(courseId) }; });
+  return ids;
+}
 function _hwPost_(id, title, what, tasks, job, ids, opt) {
   opt = opt || {};
   try { _needClassroom_(); } catch (e) { return { ok:false, why:'Google Classroom is not switched on in the script' }; }
@@ -5760,7 +5795,8 @@ function _hwPost_(id, title, what, tasks, job, ids, opt) {
      Until then only the course's teachers see it, under Classwork, as "Scheduled". */
   if (job.start && job.start.getTime() > Date.now()) { body.state = 'DRAFT'; body.scheduledTime = job.start.toISOString(); }
   if (!job.cls) {
-    var uids = (job.setFor || []).map(function (e) { return ids[e] && ids[e].userId; }).filter(function (x) { return !!x; });
+    var ros = _courseRoster_(courseId) || {};          /* the course's own ids: the Students tab's can be rounded */
+    var uids = (job.setFor || []).map(function (e) { return ros[e] || (ids[e] && ids[e].userId); }).filter(function (x) { return !!x; });
     if (!uids.length) return { ok:false, why:'those students have no Classroom id — import them from Classroom first' };
     body.assigneeMode = 'INDIVIDUAL_STUDENTS';
     body.individualStudentsOptions = { studentIds: uids };
@@ -6124,6 +6160,8 @@ function _hwRemindRun_(now) {
       j.hw.tasks.forEach(function (t) { if (labIds.indexOf(t.labId) < 0) labIds.push(t.labId); });
     });
     ids = _classroomIds_(); man = _hwManifest_(); index = _hwLabIndex_(labIds, need); allowed = _hwAnnounceAllowed_();
+    var memo = {};
+    sends.forEach(function (j) { _freshIds_(ids, j.hw.course, memo); });   /* Classroom's own ids (5 Oct 2026) */
   }
   jobs.forEach(function (j) {
     j.skip.forEach(function (s) { _hwRemindMark_(j.hw.id, s.k, now, s.why, true); });
@@ -6152,6 +6190,70 @@ function _hwRemindRun_(now) {
     _hwRemindMark_(j.hw.id, j.k, now, said, false);
   });
   return posted;
+}
+/* Why Classroom refuses a reminder (5 Oct 2026: every reminder came back "not sent: … Precondition check failed",
+   which is all the Classroom service in Apps Script passes on). Run ▸ checkReminders in the editor. It takes the newest
+   homework whose reminder was not sent (else the newest with reminders on), builds the SAME post the reminder sends but
+   as a DRAFT, which reaches nobody, and sends it to Classroom's own web address, which answers with the full reason.
+   Then the same draft without its link, then addressed to the whole class, so the difference says which part Classroom
+   refuses; it also reads the course's state and whether each pupil is a student in that course. Every draft it makes is
+   deleted at once. It writes nothing to the spreadsheet and posts nothing a pupil can see. */
+function checkReminders() {
+  if (!_isAdminCaller_()) { Logger.log('checkReminders runs from the Apps Script editor: Run ▸ checkReminders.'); return; }
+  var lines = [];
+  function say(t) { lines.push(t); try { Logger.log(t); } catch (e) {} }
+  function done() { try { SpreadsheetApp.getUi().alert('Homework reminders: what Classroom says', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK); } catch (e) {} return lines.join('\n'); }
+  var rows = _homeworkRows_().filter(function (hw) { return hw.course && hw.courseWork; });
+  var bad = rows.filter(function (hw) { return hw.rem.some(function (r) { return /^not sent/.test(r.said); }); });
+  var pick = (bad.length ? bad : rows.filter(function (hw) { return hw.remindOn; }))
+               .sort(function (a, b) { return String(b.created || '').localeCompare(String(a.created || '')); })[0];
+  if (!pick) { say('No homework posted in Google Classroom with reminders to test.'); return done(); }
+  say('Homework ' + pick.id + ' "' + pick.title + '" (' + (pick.who || pick.targets.cls || '') + '), course ' + pick.course + '.');
+  var base = 'https://classroom.googleapis.com/v1/courses/' + encodeURIComponent(pick.course);
+  var auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  function call(method, url, body) {
+    var o = { method: method, headers: auth, muteHttpExceptions: true };
+    if (body) { o.contentType = 'application/json'; o.payload = JSON.stringify(body); }
+    var r = UrlFetchApp.fetch(url, o), j = {};
+    try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) { j = {}; }
+    return { code: r.getResponseCode(), j: j };
+  }
+  function why(r) { var e = r.j && r.j.error; return e ? (e.status || r.code) + ': ' + (e.message || '') : 'HTTP ' + r.code; }
+  var c = call('get', base);
+  say(c.code === 200 ? 'The course: "' + c.j.name + '", state ' + c.j.courseState + '.' : 'The course could not be read: ' + why(c));
+  /* the pupils the reminder would name: those it was set for who have not finished, with a Classroom id in this course */
+  var roster = _studentDirectory_().students, ids = _classroomIds_(), man = _hwManifest_(), need = {}, labIds = [];
+  var sheetIds = JSON.parse(JSON.stringify(ids)), ros = _courseRoster_(pick.course), off = 0;
+  if (ros) Object.keys(ros).forEach(function (e) { if (sheetIds[e] && sheetIds[e].userId && sheetIds[e].userId !== ros[e]) off++; });
+  say(ros ? Object.keys(ros).length + ' pupils in the course' + (off ? '; ' + off + ' of them have a wrong id in the Students tab (Sheets rounds long numbers): the reminders now use Classroom\u2019s own.' : '; the Students tab\u2019s ids match.')
+          : 'The course\u2019s pupils could not be read from Classroom.');
+  _freshIds_(ids, pick.course, ros ? (function () { var m = {}; m[pick.course] = ros; return m; })() : null);
+  var pupils = _hwPupils_(pick, roster);
+  pupils.forEach(function (p) { need[p.email] = 1; });
+  pick.tasks.forEach(function (t) { if (labIds.indexOf(t.labId) < 0) labIds.push(t.labId); });
+  var who = _hwRemindWho_(pick, pupils, ids, man, _hwLabIndex_(labIds, need));
+  var sids = who.ids && who.ids.length ? who.ids : [];
+  if (!sids.length) pupils.forEach(function (p) { var x = ids[p.email]; if (x && x.userId && x.courseId === pick.course && sids.indexOf(x.userId) < 0) sids.push(x.userId); });
+  say(sids.length + ' pupil(s) the reminder would name.');
+  var notIn = 0;
+  sids.forEach(function (u) { var r = call('get', base + '/students/' + encodeURIComponent(u)); if (r.code !== 200) notIn++; });
+  say(notIn ? '⚠ ' + notIn + ' of them are NOT students in this course in Classroom.' : 'Every one of them is a student in this course.');
+  var post = _hwRemindBody_(pick, sids, man);
+  post.state = 'DRAFT';
+  var tries = [
+    ['the reminder as it is sent (as a draft)', post],
+    ['the same, without the link', { text: post.text, state: 'DRAFT', assigneeMode: 'INDIVIDUAL_STUDENTS', individualStudentsOptions: { studentIds: sids } }],
+    ['to the whole class, without the link', { text: post.text, state: 'DRAFT', assigneeMode: 'ALL_STUDENTS' }]
+  ];
+  tries.forEach(function (t) {
+    var r = call('post', base + '/announcements', t[1]);
+    if (r.code === 200 && r.j.id) {
+      call('delete', base + '/announcements/' + encodeURIComponent(r.j.id));
+      say('✅ ' + t[0] + ': Classroom accepts it (the draft was deleted).');
+    } else say('❌ ' + t[0] + ': ' + why(r));
+  });
+  say('Nothing was posted to pupils. Send Claude this text.');
+  return done();
 }
 /* The trigger, every 15 minutes (_hwReminderTrigger_ makes it). It stays callable, as a trigger must: it takes NOTHING
    from its caller (a trigger's event, or anything a page sends, is ignored), posts only the reminders due at this
