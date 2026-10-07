@@ -41,16 +41,23 @@ class Range {
   setWraps(v) { return this._grid('setWraps', v); }
   /* the read-then-overlay-then-write pattern: the grid that comes back must be the range's own
      shape, so a mistake in the overlay is caught by _grid on the way back in */
-  getNumberFormats() {
-    return Array.from({ length: this.nr }, () => Array.from({ length: this.nc }, () => ''));
+  getNumberFormats() {     /* what setNumberFormat(s) kept, '' for a cell never given one */
+    const f = this.sheet.fmt || new Map();
+    return Array.from({ length: this.nr }, (_, i) => Array.from({ length: this.nc }, (_, j) => f.get((this.r + i) + ':' + (this.c + j)) || ''));
   }
   getHorizontalAlignments() {
     return Array.from({ length: this.nr }, () => Array.from({ length: this.nc }, () => 'general'));
   }
-  setNumberFormats(v) { return this._grid('setNumberFormats', v); }
+  setNumberFormats(v) {    /* kept per cell, like setNumberFormat below (6 Oct 2026: the import writes ids as text, a run at a time) */
+    this._grid('setNumberFormats', v);
+    const f = (this.sheet.fmt = this.sheet.fmt || new Map());
+    for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) f.set((this.r + i) + ':' + (this.c + j), v[i][j]);
+    return this;
+  }
   /* one format for the whole range (5 Oct 2026: the import marks the id columns as text, '@'); the stand-in keeps it */
   setNumberFormat(f) { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) (this.sheet.fmt = this.sheet.fmt || new Map()).set((this.r + i) + ':' + (this.c + j), f); return this; }
   getDisplayValue() { const v = this.sheet.get(this.r, this.c); return v == null ? '' : String(v); }
+  getDisplayValues() { return this.getValues().map(r => r.map(v => (v == null ? '' : String(v)))); }
   setHorizontalAlignments(v) { return this._grid('setHorizontalAlignments', v); }
   setDataValidations(v) { return this._grid('setDataValidations', v); }
   getValues() {
@@ -200,7 +207,9 @@ global.SpreadsheetApp = {
   BorderStyle: { SOLID: 'solid', SOLID_THICK: 'thick', DOTTED: 'dotted' }
 };
 const props = new Map();
-global.PropertiesService = { getScriptProperties: () => ({ getProperty: k => props.get(k) || null, setProperty: (k, v) => props.set(k, v) }) };
+global.PropertiesService = { getScriptProperties: () => ({ getProperty: k => props.get(k) || null, setProperty: (k, v) => props.set(k, v),
+                                                         deleteProperty: k => props.delete(k),
+                                                         getKeys: () => Array.from(props.keys()), getProperties: () => Object.fromEntries(props) }) };
 /* A real cache, EXCEPT for verified tokens: those keys stay a miss so every hand-in
    re-verifies rather than passing on a cached yes. The import's progress does need to come
    back out again, or the dialog has nothing to read. */
@@ -223,7 +232,8 @@ global.ScriptApp = {
   newTrigger: (fn) => ({
     forSpreadsheet: () => ({ onEdit: () => ({ create: () => {} }) }),
     timeBased: () => { const b = { everyDays: () => b, atHour: () => b, everyMinutes: n => { b.minutes = n; return b; },
-      create: () => { const t = { getHandlerFunction: () => fn, minutes: b.minutes }; TRIGGERS.push(t); return t; } }; return b; }
+      after: ms => { b.after = ms; return b; },    /* a one-off trigger (7 Oct 2026: the Classroom import carries on by itself) */
+      create: () => { const t = { getHandlerFunction: () => fn, minutes: b.minutes, after: b.after }; TRIGGERS.push(t); return t; } }; return b; }
   }),
   /* which of the scopes asked about the owner has allowed (the reminders' Classroom announcements, 1 Oct 2026):
      all of them, unless a test sets SCOPES_GRANTED = false */
@@ -283,8 +293,17 @@ global.Utilities = {
     const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return x.getUTCDate() + ' ' + M[x.getUTCMonth()];
   },
-  base64EncodeWebSafe: b => 'b64' + String(b).length,
-                     computeDigest: (a, t) => String(t), DigestAlgorithm: { SHA_256: 1 },
+  /* the real encoding (padding kept, as Apps Script keeps it), of bytes (an array of signed bytes, as Java gives them) or
+     of text: the script's own pass (6 Oct 2026) round-trips through it */
+  base64EncodeWebSafe: b => Buffer.from(Array.isArray(b) ? b.map(x => x & 255) : String(b), Array.isArray(b) ? undefined : 'utf8')
+                              .toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
+  computeHmacSha256Signature: (value, key) => Array.from(require('crypto').createHmac('sha256', String(key)).update(String(value)).digest())
+                                                .map(x => (x > 127 ? x - 256 : x)),
+  getUuid: () => require('crypto').randomUUID(),
+                     /* the real digest, as signed bytes: the script keys its sign-in cache on the start of it, and the text itself would
+                        give every sign-in the same key (they all begin alike) */
+                     computeDigest: (a, t) => Array.from(require('crypto').createHash('sha256').update(String(t)).digest()).map(x => (x > 127 ? x - 256 : x)),
+                     DigestAlgorithm: { SHA_256: 1 },
                      base64DecodeWebSafe: s => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
                      newBlob: bytes => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }) };
 /* A sign-in shaped like Google's: three parts, the middle one naming this app and a time to come.
@@ -383,8 +402,8 @@ ok &= run('every google.script.run call in every window exists — the import di
     seen[f] = r.names;
   }
   /* and the scan itself still sees the calls it must, or it could pass by finding nothing (renamed one? change it here too) */
-  const want = { ClassroomImport: ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress'],
-                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind'],
+  const want = { ClassroomImport: ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress', 'getNotThisYear', 'markPupilsLeft'],
+                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'homeworkHide', 'studentMove'],
                  TeacherPage: ['teacherPanelData', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherAddLink', 'teacherSetHubUrl'] };
   Object.keys(want).forEach(f => { const lost = want[f].filter(n => seen[f].indexOf(n) < 0);
     if (lost.length) throw new Error('the scan no longer finds ' + f + '.html calling ' + lost.join(', ')); });
@@ -578,16 +597,15 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'setup', 'checkSetup', 'refreshDashboard',                  /* menu: rebuild/refresh this sheet only */
     'showClassroomImport', 'showTeacherPanel',                  /* menu: need a UI, throw in a web context */
     'getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',  /* gated: _isAdminCaller_ */
+    'getNotThisYear', 'markPupilsLeft',                                      /* gated: _isAdminCaller_ (a new school year, 7 Oct 2026) */
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
     'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder', 'teacherWatchFolder',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
-    'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind',   /* gated: _hwCaller_ */
+    'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove',   /* gated: _hwCaller_ */
+    'homeworkHide',                                                          /* gated: _hwCaller_ (the Archive, 7 Oct 2026) */
     'uiData',                                                                /* gated: _hwCaller_ */
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
-    'checkChips',            /* gated: _isAdminCaller_ — Run ▸ checkChips in the editor, which cannot
-                                list a name ending in an underscore; it only writes to the owner's log */
-    'checkReminders',        /* gated: _isAdminCaller_ — Run ▸ checkReminders in the editor (5 Oct 2026); it posts only
-                                DRAFTS, which reach nobody, deletes each at once, and writes nothing to the sheet */
+    'portRoundsOnce',        /* TEMPORARY (7 Oct 2026), gated: _isAdminCaller_; run once from the editor, then deleted */
     'sendDueSummaries',      /* a trigger must be callable: it only ever emails the teacher who set each
                                 overdue homework, once, and hands back a count */
     'sendHomeworkReminders'  /* a trigger must be callable (1 Oct 2026): it takes nothing from its caller, posts only the
@@ -603,8 +621,9 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
       '\n   Give each a trailing underscore, or gate it and add it to ALLOWED with the reason.');
   }
   /* and the ones that must stay callable really do check the caller */
-  ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress',
-   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'uiData', 'installDailySummary', 'checkChips'].forEach(n => {
+  ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress', 'getNotThisYear', 'markPupilsLeft',
+   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'uiData', 'installDailySummary', 'homeworkHide',
+   'portRoundsOnce'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -854,6 +873,159 @@ ok &= run('a page from before goes is given the first round, never a later round
   if (_snapForOldPages_('a~1:x:tt@2', 'a~1:y:ff') !== '') throw new Error('a first round of other questions was given');
   const got = _snapForOldPages_('a~1:x:t0|b~2:z:f1@2', 'b~2:z:ft');
   if (got !== 'a~1:x:t0|b~2:z:ft') throw new Error('mixed: ' + got);
+});
+/* ── Rounds and checks (7 Oct 2026): every round kept, small; the checks at each question in each round ── */
+const fay = o => { TOKEN_EMAIL = 'fay@x.kr'; const out = hand(Object.assign({ name: 'Fay Lee', total: QN, complete: false }, o)); TOKEN_EMAIL = 'ana@x.kr'; return out; };
+const M1 = 'mouth~' + S8 + ':';
+ok &= run('rounds: a station’s round is kept with the checks at each question, and Checks counts them', () => {
+  _upsertStudents_([{ name: 'Fay Lee', email: 'fay@x.kr', userId: 'u11' }], '9A', 'Y9 Biology', 'c1');
+  const out = fay({ score: 2, checks: 4, snap: M1 + 'f0100000', first: M1 + 'f0100000', best: M1 + 'f0100000',
+                    stations: { mouth: '2/8 in 4' }, rounds: M1 + 'f0100000.10300000', resets: 0 });
+  if (!/^recorded/.test(out)) throw new Error(out);
+  const r = digRow('fay@x.kr');
+  if (r[LAB_ROUNDS - 1] !== M1 + 'f0100000.10300000') throw new Error('rounds: ' + r[LAB_ROUNDS - 1]);
+  if (r[6] !== 4 || r[LAB_AGAIN - 1] !== '') throw new Error('checks / practised again: ' + r[6] + ' / ' + r[LAB_AGAIN - 1]);
+});
+ok &= run('rounds: round 2 keeps round 1; Practised again says each round and what failed again; resets are counted', () => {
+  const S = { score: 3, checks: 6, snap: M1 + '00t00000@2', first: M1 + 'f0100000', best: M1 + 'f0100000',
+              stations: { mouth: '2/8 in 6' }, rounds: M1 + 'f0100000.10300000;00t00000.00200000', resets: 1 };
+  fay(S);
+  let r = digRow('fay@x.kr');
+  const want = '#1|' + M1 + 'f0100000.10300000;00t00000.00200000';
+  if (r[LAB_ROUNDS - 1] !== want) throw new Error('rounds: ' + r[LAB_ROUNDS - 1]);
+  if (r[6] !== 6) throw new Error('checks: ' + r[6]);
+  if (r[LAB_AGAIN - 1] !== 'Round 2 in 1 station: 1 tried, 0 right, 2 checks · reset the whole lab 1× · failed again: mouth Q3')
+    throw new Error('practised again: ' + r[LAB_AGAIN - 1]);
+  fay(S);                                                      /* the same save again: counted once */
+  fay(Object.assign({}, S, { rounds: M1 + 'f0100000.10000000', resets: 0 }));   /* an older, smaller copy: takes nothing away */
+  r = digRow('fay@x.kr');
+  if (r[LAB_ROUNDS - 1] !== want || r[6] !== 6) throw new Error('a save seen twice, or an older one, changed it: ' + r[LAB_ROUNDS - 1] + ' / ' + r[6]);
+});
+ok &= run('rounds: a page from before rounds takes nothing away; its counts stay as each station’s least', () => {
+  fay({ score: 3, checks: 9, snap: M1 + '0tt00000', stations: { mouth: '2/8 in 9', stomach: '1/9 in 2' } });
+  const r = digRow('fay@x.kr');
+  if (r[LAB_ROUNDS - 1] !== '#1|' + M1 + '^9;f0100000.10300000;00t00000.00200000') throw new Error('rounds: ' + r[LAB_ROUNDS - 1]);
+  if (r[6] !== 9 || !/mouth 2\/8 in 9/.test(r[13])) throw new Error('checks / per station: ' + r[6] + ' / ' + r[13]);
+  if (!/^Round 2 in 1 station/.test(r[LAB_AGAIN - 1])) throw new Error('practised again went back to the old words: ' + r[LAB_AGAIN - 1]);
+});
+ok &= run('rounds: a station rewritten since keeps its old rounds whole beside the new one; each check counted once', () => {
+  fay({ score: 3, checks: 1, snap: 'mouth~8:new:t0000000', rounds: 'mouth~8:new:t0000000.10000000', stations: { mouth: '0/8 in 1' } });
+  const r = digRow('fay@x.kr');
+  if (r[LAB_ROUNDS - 1] !== '#1|' + M1 + '^9;f0100000.10300000;00t00000.00200000|mouth~8:new:t0000000.10000000') throw new Error('rounds: ' + r[LAB_ROUNDS - 1]);
+  if (r[6] !== 10 || !/mouth \d+\/8 in 10/.test(r[13])) throw new Error('checks / per station: ' + r[6] + ' / ' + r[13]);
+});
+ok &= run('rounds: the pull gives them back, with the resets', () => {
+  const me = pullFor('fay@x.kr').labs['digestion-lab'];
+  if (!me || me.rounds !== digRow('fay@x.kr')[LAB_ROUNDS - 1] || me.resets !== 1) throw new Error(JSON.stringify(me).slice(0, 300));
+});
+ok &= run('rounds: a row never grows without end, and folding loses no check (past 35 too)', () => {
+  const list = [];
+  for (let k = 1; k <= 15; k++) list.push('10000000.' + (k === 3 ? 'z' : '2') + '0000000');
+  const m = _roundsMerge_('', M1 + list.join(';'), 0, null, ''), v = m.P.by['mouth~' + S8];
+  if (m.total !== 63) throw new Error('total: ' + m.total);
+  if (v.list.length !== RND_KEPT || v.list[1] !== '10000000.z0000000*6' || v.U !== 10) throw new Error(JSON.stringify(v));
+  /* two copies folded differently (one a round further on): rounds are matched by number, never added twice */
+  const ones = n => Array.from({ length: n }, () => '1.1').join(';');
+  const a = _rMergeCells_('', 'x~1:q:' + ones(11)), b = _rMergeCells_('', 'x~1:q:' + ones(12));
+  const both = _roundsSums_(_rParse_(_rMergeCells_(a, b)));
+  if (both.total !== 12 || both.P.by['x~1:q'].list.length !== RND_KEPT) throw new Error('merged: ' + both.cell);
+  if (_roundsMerge_('#3|' + M1 + '1.1', '', 2, null, '').P.resets !== 3 || _roundsMerge_('#3', '', 5, null, '').P.resets !== 5) throw new Error('resets');
+  /* never more than a cell holds: past 40,000 characters the longest records shrink to their totals, and the total stands */
+  const huge = Array.from({ length: 110 }, (_, k) => 's' + k + '~9:x:' + Array.from({ length: 10 }, () => 'f'.repeat(200) + '.' + '1'.repeat(200)).join(';')).join('|');
+  const big = _roundsMerge_(huge, '', 0, null, '');                /* a page sends at most 45,000; a row can gather more */
+  if (big.cell.length > 40000 || big.total !== 110 * 10 * 200) throw new Error('a huge row: ' + big.cell.length + ' characters, ' + big.total + ' checks');
+});
+ok &= run('rounds: the labs’ own sync.js and this script agree, both ways', () => {
+  const p = '../../labs-shared/engine/sync.js';
+  if (!fs.existsSync(p)) return;                              /* the open edition alone, away from the labs */
+  const ctx = {}; require('vm').runInNewContext(fs.readFileSync(p, 'utf8'), ctx); const L = ctx.LabSync;
+  const st = { mouth: { activities: new Array(8).fill({}) } }, sigOf = () => S8;
+  const prog = { mouth: { go: 3, r: ['f0100000.10300000', '0t000000.02000000'], done: {}, tried: { 2: true }, per: { 2: 4 }, sig: S8, legacy: 2 } };
+  const sent = L.roundsSnapshot(prog, st, ['mouth'], sigOf), all = L.counts(prog.mouth, 8).checks;
+  const m = _roundsMerge_('', sent, 0, { mouth: '2/8 in ' + all }, '');
+  if (all !== 12 || m.total !== all) throw new Error('the page counts ' + all + ', the script ' + m.total + ' (' + m.cell + ')');
+  const fresh = {};
+  L.merge(fresh, 'mouth~' + S8 + ':00t00000@3', st, sigOf);
+  L.mergeRounds(fresh, m.cell, st, sigOf);
+  if (L.counts(fresh.mouth, 8).checks !== all || JSON.stringify(fresh.mouth.r) !== JSON.stringify(prog.mouth.r)) throw new Error('another computer: ' + JSON.stringify(fresh.mouth));
+});
+/* ── the second audit of rounds (7 Oct 2026) ── */
+ok &= run('rounds (audit): a page’s unfolded rounds meet the sheet’s folded ones round by round; nothing is dropped', () => {
+  const twos = (k) => Array.from({ length: k }, () => '1.2').join(';'), ones = (k) => Array.from({ length: k }, () => '1.1').join(';');
+  const stored = _rMergeCells_('', 'x~1:q:' + twos(11));               /* the sheet: round 11 on the page, rounds 2–3 folded */
+  const m = _roundsMerge_(stored, 'x~1:q:' + ones(12), 0, null, '');    /* a page one round on, its 11 finished rounds unfolded */
+  if (m.total !== 23) throw new Error('total ' + m.total + ' (23 wanted): ' + m.cell);
+});
+ok &= run('rounds (audit): a number past 7 digits is a number, never a round; resets at most 999; a station called "constructor" is a station', () => {
+  const v = _rParse_('x~1:q:+99999999;^123456789;1.1').by['x~1:q'];
+  if (v.list.length !== 1 || v.U !== 9999999 || v.F !== 9999999) throw new Error(JSON.stringify(v));
+  if (_roundsMerge_('', '', 1e12, null, '').P.resets !== 999) throw new Error('resets not capped');
+  const c = _roundsMerge_('', 'constructor~1:q:1.3', 0, { constructor: '1/1 in 3' }, '');
+  if (c.total !== 3 || c.by.constructor !== 3) throw new Error('constructor: ' + c.total + ' / ' + c.by.constructor);
+});
+ok &= run('rounds (audit): Practised again also says a station a page from before moved on, when other stations have rounds', () => {
+  const P = _rParse_('mouth~8:a:f1000000.12000000;0t000000.03000000');
+  const say = _roundsSay_(P, { mouth: 'The mouth' }, 'mouth~8:a:0t000000@2|liver~5:b:ft000@2', {});
+  if (!/^Round 2 in 2 stations: 3 tried, 1 right, 3 checks/.test(say)) throw new Error(say);
+  const only = _roundsSay_(_rParse_('mouth~8:a:f1000000.12000000'), {}, 'liver~5:b:ft000@2', {});
+  if (only !== 'Round 2 in 1 station: 2 tried, 1 right') throw new Error('letters only: ' + only);
+});
+ok &= run('rounds (audit): round 1’s checks for Stuck are every check less the later rounds’: never only what the cell holds, never more than Checks', () => {
+  const e1 = { checks: 50 }; _roundsForTeacher_(e1, null, 'mouth~8:a:f1000000.12000000');                 /* 3 in the cell, 50 in all */
+  const e2 = { checks: 30 }; _roundsForTeacher_(e2, null, '#2');
+  const e3 = { checks: 9 };  _roundsForTeacher_(e3, null, 'mouth~8:a:f1000000.12000000;0t000000.03000000|mouth~8:old:^7');
+  if (e1.c1 !== 50 || e2.c1 !== 30 || e3.c1 !== 6) throw new Error([e1.c1, e2.c1, e3.c1].join(' / '));
+});
+ok &= run('rounds (audit): the pull gives the Rounds column only when it is ours, never a teacher’s own column there', () => {
+  const sh = ss.getSheetByName('Plants');
+  const keep = sh.getRange(1, LAB_ROUNDS).getValue();
+  sh.getRange(1, LAB_ROUNDS).setValue('My notes');
+  const no = _roundsColOk_(sh);
+  sh.getRange(1, LAB_ROUNDS).setValue(keep);
+  if (no !== false || _roundsColOk_(ss.getSheetByName('Digestion')) !== true) throw new Error('column check: ' + no);
+});
+ok &= run('portRoundsOnce (audit): a station with two fingerprints is not counted twice, however often it runs', () => {
+  const sh = ss.getSheetByName('Digestion');
+  _upsertStudents_([{ name: 'Ivy Ko', email: 'ivy@x.kr', userId: 'u13' }], '9A', 'Y9 Biology', 'c1');
+  _seedLab_(_labById_('digestion-lab'));
+  const r = sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === 'ivy@x.kr') + 2;
+  sh.getRange(r, 3).setValue(1); sh.getRange(r, 7).setValue(7); sh.getRange(r, 14).setValue('mouth 1/8 in 7');
+  sh.getRange(r, LAB_SNAP).setValue('mouth~8:bbbb:f0000000');
+  sh.getRange(r, LAB_ROUNDS).setValue('mouth~8:aaaa:^5|mouth~8:bbbb:f0000000.20000000');
+  portRoundsOnce();
+  const one = sh.getRange(r, LAB_ROUNDS).getValue();
+  portRoundsOnce();
+  const two = sh.getRange(r, LAB_ROUNDS).getValue(), t = _roundsSums_(_rParse_(two)).total;
+  if (t !== 7 || one !== two) throw new Error('total ' + t + ': ' + one + ' → ' + two);
+});
+ok &= run('portRoundsOnce: starts every row’s rounds from what it holds, writes nothing else, and a second run changes nothing', () => {
+  const sh = ss.getSheetByName('Classification');
+  _upsertStudents_([{ name: 'Gus Han', email: 'gus@x.kr', userId: 'u12' }], '9A', 'Y9 Biology', 'c1');
+  _seedLab_(_labById_('classification-lab'));
+  const r = sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === 'gus@x.kr') + 2;
+  if (r < 2) throw new Error('no row for Gus');
+  sh.getRange(r, 3).setValue(15); sh.getRange(r, 7).setValue(101);
+  sh.getRange(r, 14).setValue('alive 9/9 in 94 · naming 6/6 in 7');
+  sh.getRange(r, LAB_SNAP).setValue('alive~9:abc:fffffffff@2|naming~6:def:ff1ft0');
+  sh.getRange(r, LAB_FIRST).setValue('alive~9:abc:ff1ft1fff|naming~6:def:ff1ft0');
+  sh.getRange(r, LAB_ROUNDS).setValue('');
+  const before = sh.getRange(1, 1, sh.getLastRow(), LAB_ROUNDS - 1).getValues().map(x => x.join('|'));
+  const say = portRoundsOnce();
+  const cell = sh.getRange(r, LAB_ROUNDS).getValue();
+  if (cell !== 'alive~9:abc:^94;ff1ft1fff.;fffffffff.|naming~6:def:^7;ff1ft0.') throw new Error('ported: ' + cell);
+  if (!/Classification: \d+ rows with work, \d+ written; 1 on round 2 or later/.test(say)) throw new Error('log: ' + say);
+  const after = sh.getRange(1, 1, sh.getLastRow(), LAB_ROUNDS - 1).getValues().map(x => x.join('|'));
+  if (after.join('\n') !== before.join('\n')) throw new Error('it changed a column other than Rounds');
+  portRoundsOnce();
+  if (sh.getRange(r, LAB_ROUNDS).getValue() !== cell) throw new Error('a second run changed it: ' + sh.getRange(r, LAB_ROUNDS).getValue());
+  /* the pupil's page then sends its round: nothing is counted twice */
+  TOKEN_EMAIL = 'gus@x.kr';
+  const out = hand({ app: 'classification-lab', name: 'Gus Han', total: 64, score: 15, checks: 101, snap: 'alive~9:abc:fffffffff@2|naming~6:def:ff1ft0',
+                     stations: { alive: '9/9 in 101', naming: '6/6 in 7' }, rounds: 'alive~9:abc:+94;ff1ft1fff.;fffffffff.700000000|naming~6:def:ff1ft0.112300' });
+  TOKEN_EMAIL = 'ana@x.kr';
+  if (!/^recorded/.test(out)) throw new Error(out);
+  const g = sh.getRange(r, 1, 1, LAB_ROUNDS).getValues()[0];
+  if (g[6] !== 108 || g[LAB_ROUNDS - 1] !== 'alive~9:abc:+94;ff1ft1fff.;fffffffff.700000000|naming~6:def:ff1ft0.112300') throw new Error('after the page: ' + g[6] + ' / ' + g[LAB_ROUNDS - 1]);
 });
 ok &= run('a pupil whose answers are all still wrong gets them back too (Score 0)', () => {
   _upsertStudents_([{ name: 'Eli Kim', email: 'eli@x.kr', userId: 'u10' }], '9A', 'Y9 Biology', 'c1');
@@ -1365,6 +1537,262 @@ ok &= run('an import says what it is doing, and only says done when it is', () =
   if (!rowOf('Digestion', 'imp1@x.kr')) throw new Error('a pasted-looking address did not land clean');
 });
 
+console.log('— importing several classes: a job that carries on by itself —');
+/* Daniel, 6 Oct 2026: importing several classes at once "got stuck", and 11C came in as 8 of 16. The import was ONE call
+   (every class, then all the formatting); Google stops a call after six minutes; and a pupil already on the Students tab
+   cost four to eight sheet calls of their own, so the stop could land part way through a class. Now every read comes
+   before every write, a new pupil's row is ONE write, and the import is a JOB: saved after each class, handing the rest to
+   a one-off trigger a minute later when its time is nearly up, and picked up by a safety trigger if a piece is stopped.
+   The window still makes ONE call (it may be closed: the reflection's import has promised that since September). */
+{
+  const STU = () => ss.getSheetByName('Students');
+  const head = () => STU().getRange(1, 1, 1, STU().getLastColumn()).getValues()[0].map(h => String(h || '').replace(/^✎\s*/, '').trim());
+  const col = name => head().indexOf(name) + 1;
+  const stuRows = () => { const sh = STU(), n = sh.getLastRow() - 1; return n > 0 ? sh.getRange(2, 1, n, sh.getLastColumn()).getValues() : []; };
+  const stuRow = email => { const ec = col('School email'); return stuRows().find(r => String(r[ec - 1]).toLowerCase() === email) || null; };
+  const people = (pre, n) => Array.from({ length: n }, (_, i) => ({ userId: '117346278912345' + String(670000 + i),
+    profile: { name: { fullName: pre + ' ' + i }, emailAddress: pre.toLowerCase() + i + '@x.kr' } }));
+  const courses = {};
+  const classroom = (onList) => ({ Courses: { list: () => ({ courses: [] }), Students: { list: c => { if (onList) onList(c); return { students: courses[c] || [] }; } } } });
+  const importOne = (list, code, cid, job) => {      /* ONE class, as a piece of the job does it */
+    courses[cid] = list; global.Classroom = classroom();
+    try { return _importOneClass_({ courseId: cid, classCode: code, courseName: 'Course ' + code }, job); }
+    finally { global.Classroom = undefined; }
+  };
+  const said = (job) => cacheWrites.filter(([k]) => k === 'BATCH_IMPORT_' + job).map(([, v]) => JSON.parse(v));
+  const ours = () => TRIGGERS.filter(t => t.getHandlerFunction() === 'continueBatchImport_');
+  const OURS = /^(few|many|fresh|noad|twice|busy|late|slow|dead|run)\d+@x\.kr$/;
+  const tidyUp = () => {          /* take this section's pupils off the Students tab again, so later tests see what they expect */
+    const sh = STU(), ec = col('School email'), v = sh.getRange(2, 1, sh.getLastRow() - 1, ec).getValues();
+    for (let i = v.length - 1; i >= 0; i--) {
+      if (OURS.test(String(v[i][ec - 1]).toLowerCase()) || /^(Noad|Few|Many|Fresh|Twice|Busy|Late|Slow|Dead|Run) \d+$/.test(String(v[i][0]))) sh.deleteRows(i + 2, 1);
+    }
+  };
+  const realNow = Date.now;
+
+  try {
+    ok &= run('re-importing a class already on the Students tab costs the same few sheet calls, whatever its size', () => {
+      /* the 5 Oct case: every pupil already here, their Classroom ids stored as rounded numbers, and a new class code */
+      const few = people('Few', 8), many = people('Many', 24);
+      importOne(few, '7P', 'cP', 'jobP0'); importOne(many, '7P', 'cP2', 'jobP0');
+      const uc = col('Classroom user id'), ec = col('School email'), sh = STU();
+      sh.getRange(2, 1, sh.getLastRow() - 1, ec).getValues().forEach((r, i) => {
+        if (/^(few|many)\d+@x\.kr$/.test(String(r[ec - 1]))) sh.getRange(i + 2, uc).setValue(1.17346278912346e20);
+      });
+      __CALLS = 0; const a = importOne(few, '7Q', 'cP', 'jobP1'); const cFew = __CALLS;
+      __CALLS = 0; const b = importOne(many, '7Q', 'cP2', 'jobP1'); const cMany = __CALLS;
+      if (a.status !== 'success' || b.status !== 'success') throw new Error('an import failed: ' + JSON.stringify([a, b]));
+      if (a.moved !== 8 || b.moved !== 24) throw new Error('moved ' + a.moved + ' and ' + b.moved + ', wanted 8 and 24');
+      if (cMany > 20) throw new Error('24 pupils cost ' + cMany + ' sheet calls (8 cost ' + cFew + '): it still reads and writes a pupil at a time');
+      if (cMany - cFew > 2) throw new Error('the calls grow with the class: 8 pupils ' + cFew + ', 24 pupils ' + cMany);
+      const r = stuRow('many23@x.kr');
+      if (!r || r[1] !== '7Q') throw new Error('the last pupil is not in 7Q: ' + (r && r[1]));
+      if (r[uc - 1] !== '117346278912345670023') throw new Error('the rounded id was not repaired: ' + r[uc - 1]);
+      const row = stuRows().findIndex(x => x[ec - 1] === 'many23@x.kr') + 2;
+      if (!sh.fmt || sh.fmt.get(row + ':' + uc) !== '@') throw new Error('the repaired id is not stored as text');
+      if (typeof b.listed !== 'number' || b.listed !== 24) throw new Error('the class line does not say how many Classroom listed: ' + b.listed);
+    });
+
+    ok &= run('a new pupil’s row is ONE write: a stop between two writes can never leave a name without its address', () => {
+      const keep = Range.prototype.setValues, writes = [];
+      Range.prototype.setValues = function (v) { if (this.sheet.name === 'Students') writes.push({ r: this.r, c: this.c, nr: this.nr, nc: this.nc }); return keep.call(this, v); };
+      let out;
+      try { out = importOne(people('Fresh', 3), '7F', 'cF', 'jobF'); } finally { Range.prototype.setValues = keep; }
+      if (out.status !== 'success' || out.added !== 3) throw new Error('did not add three: ' + JSON.stringify(out));
+      const ec = col('School email');
+      const nameOnly = writes.filter(w => w.c <= 2 && w.c + w.nc - 1 < ec);
+      if (nameOnly.length) throw new Error('names went in without their addresses, in a write of their own: ' + JSON.stringify(nameOnly));
+      if (writes.filter(w => w.c === 1 && w.c + w.nc - 1 >= ec && w.nr === 3).length !== 1) throw new Error('the three rows were not one write: ' + JSON.stringify(writes));
+      const r = stuRow('fresh2@x.kr');
+      if (!r || r[0] !== 'Fresh 2' || r[1] !== '7F' || !(r[col('Imported') - 1] instanceof Date)) throw new Error('the row is not whole: ' + JSON.stringify(r));
+    });
+
+    ok &= run('the import is ONE call: the classes, then the formatting, then Finished with each class’s count; the job and its trigger are gone', () => {
+      cacheWrites.length = 0; courses.cG = people('Late', 3);
+      global.Classroom = classroom();
+      let out;
+      try { out = executeBatchImportAll([{ courseId: 'cG', classCode: '7G', courseName: 'Y7 G' }], 'jobG'); } finally { global.Classroom = undefined; }
+      if (!out || !out[0] || out[0].status !== 'success' || out[0].added !== 3) throw new Error('the class did not import: ' + JSON.stringify(out));
+      const seen = said('jobG');
+      if (!seen.some(o => !o.done && /formatting/i.test(o.phase || ''))) throw new Error('it never said it was formatting');
+      const last = seen[seen.length - 1];
+      if (!last || !last.done || !last.counts || last.counts['7G'] !== 3) throw new Error('the end does not say Finished with each class’s count: ' + JSON.stringify(last).slice(0, 200));
+      if (seen.slice(0, -1).some(o => o.done)) throw new Error('it said done before it was');
+      if (!rowOf('Digestion', 'late0@x.kr')) throw new Error('the formatting did not give the new pupils their lab rows');
+      if (props.get(IMPORT_JOB_KEY)) throw new Error('the finished job was left in Script Properties');
+      if (ours().length) throw new Error('a carry-on trigger was left behind: ' + ours().length);
+    });
+
+    ok &= run('out of time: the job saves where it is and hands the rest to a trigger a minute later, which finishes it (the window may be closed)', () => {
+      let clock = realNow.call(Date);
+      Date.now = () => clock;
+      ['cS1', 'cS2', 'cS3'].forEach((c, i) => { courses[c] = people('Slow', 3).map((p, k) => ({ userId: p.userId + i, profile: { name: { fullName: 'Slow ' + (i * 3 + k) }, emailAddress: 'slow' + (i * 3 + k) + '@x.kr' } })); });
+      cacheWrites.length = 0;
+      global.Classroom = classroom(() => { clock += 96 * 1000; });   /* each class "takes" 1.6 minutes */
+      let out;
+      try {
+        out = executeBatchImportAll([{ courseId: 'cS1', classCode: '7S' }, { courseId: 'cS2', classCode: '7S' }, { courseId: 'cS3', classCode: '7T' }], 'jobS');
+        const mid = said('jobS').pop();
+        if (out.filter(r => r.status === 'success').length !== 2 || out[2].status !== 'pending') throw new Error('the first piece did not stop after two classes: ' + JSON.stringify(out).slice(0, 200));
+        if (!mid || mid.done || !mid.continuing || !/carries on by itself/.test(mid.phase)) throw new Error('the window was not told it carries on by itself: ' + JSON.stringify(mid).slice(0, 200));
+        const job = JSON.parse(props.get(IMPORT_JOB_KEY) || 'null');
+        if (!job || job.i !== 2 || job.phase !== 'classes') throw new Error('where the job is was not saved: ' + JSON.stringify(job));
+        if (ours().length !== 1 || ours()[0].after !== 60 * 1000) throw new Error('not ONE trigger a minute later: ' + JSON.stringify(ours().map(t => t.after)));
+        clock += 60 * 1000;
+        continueBatchImport_();
+      } finally { global.Classroom = undefined; Date.now = realNow; }
+      const end = said('jobS').pop();
+      if (!end || !end.done || end.results.filter(r => r.status === 'success').length !== 3) throw new Error('the trigger did not finish the job: ' + JSON.stringify(end).slice(0, 240));
+      if (!stuRow('slow8@x.kr') || stuRow('slow8@x.kr')[1] !== '7T') throw new Error('the last class is not in');
+      if (!rowOf('Digestion', 'slow8@x.kr')) throw new Error('the formatting did not run at the end');
+      if (props.get(IMPORT_JOB_KEY) || ours().length) throw new Error('the job or its trigger was left behind');
+    });
+
+    ok &= run('Google will not set the trigger that carries it on: the window is told at once, with the class not done, and no job is left waiting', () => {
+      let clock = realNow.call(Date);
+      Date.now = () => clock;
+      ['cW1', 'cW2'].forEach((c, i) => { courses[c] = [{ userId: 'w' + i, profile: { name: { fullName: 'Slow ' + (20 + i) }, emailAddress: 'slow' + (20 + i) + '@x.kr' } }]; });
+      cacheWrites.length = 0;
+      global.Classroom = classroom(() => { clock += 4 * 60 * 1000; });   /* the first class "takes" four minutes */
+      const keepNew = ScriptApp.newTrigger;
+      ScriptApp.newTrigger = (fn) => { if (fn === 'continueBatchImport_') throw new Error('This script has too many triggers. Triggers must be deleted from the script before more can be added.'); return keepNew(fn); };
+      let out;
+      try { out = executeBatchImportAll([{ courseId: 'cW1', classCode: '7W' }, { courseId: 'cW2', classCode: '7W' }], 'jobW'); }
+      finally { global.Classroom = undefined; Date.now = realNow; ScriptApp.newTrigger = keepNew; }
+      const end = said('jobW').pop();
+      if (!end || !end.done || !end.noTrigger) throw new Error('the window was not told the import stopped: ' + JSON.stringify(end).slice(0, 200));
+      if (end.results[0].status !== 'success' || end.results[1].status !== 'pending' || end.namesIn) throw new Error('what it says of each class: ' + JSON.stringify(end.results));
+      if (!end.counts || end.counts['7W'] !== 1) throw new Error('no count for the class that went in: ' + JSON.stringify(end.counts));
+      if (props.get(IMPORT_JOB_KEY)) throw new Error('the job was left waiting for a trigger that never comes (and blocks the next import for ten minutes)');
+      if (!out || out[1].status !== 'pending') throw new Error('the first answer: ' + JSON.stringify(out));
+    });
+
+    ok &= run('a piece stopped part way is picked up by the safety trigger: the class it was on is done again, nobody twice', () => {
+      courses.cD1 = people('Dead', 2); courses.cD2 = people('Dead', 4).slice(2);
+      global.Classroom = classroom();
+      try {
+        importOne(courses.cD1, '7D', 'cD1', 'jobD');          /* class 1 went in before the piece was stopped… */
+        const full = courses.cD2;
+        importOne(full.slice(0, 1), '7D', 'cD2', 'jobD');       /* …and class 2 half way */
+        courses.cD2 = full;
+        _saveImportJob_({ id: 'jobD', sels: [{ courseId: 'cD1', classCode: '7D' }, { courseId: 'cD2', classCode: '7D' }], i: 1, phase: 'classes',
+                          tickAt: Date.now() - 9 * 60 * 1000, finishTries: 0 });
+        _publish_('jobD', [{ status: 'success', added: 2, skipped: 0, moved: 0 }, { status: 'pending' }], false, '');
+        global.Classroom = classroom();                       /* importOne put the stand-in away */
+        continueBatchImport_();
+      } finally { global.Classroom = undefined; }
+      const end = said('jobD').pop();
+      if (!end || !end.done || end.results[1].status !== 'success' || end.results[1].added !== 1 || end.results[1].skipped !== 1)
+        throw new Error('the class it was on was not done again: ' + JSON.stringify(end).slice(0, 240));
+      const ec = col('School email'), dead = stuRows().filter(r => /^dead\d+@x\.kr$/.test(String(r[ec - 1])));
+      if (dead.length !== 4) throw new Error('a pupil was added twice, or lost: ' + dead.length);
+    });
+
+    ok &= run('a second import while one runs is refused in words; one silent for ten minutes is dead and is replaced', () => {
+      _saveImportJob_({ id: 'jobRun', sels: [{ courseId: 'cX', classCode: '7X' }], i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0 });
+      courses.cB2 = people('Run', 1);
+      global.Classroom = classroom();
+      try {
+        const r = executeBatchImportAll([{ courseId: 'cB2', classCode: '7B' }], 'jobOther');
+        if (!r[0] || r[0].status !== 'busy' || !/Another import is still running/.test(r[0].error)) throw new Error('not refused: ' + JSON.stringify(r));
+        if (stuRow('run0@x.kr')) throw new Error('it imported anyway');
+        _saveImportJob_({ id: 'jobRun', sels: [{ courseId: 'cX', classCode: '7X' }], i: 0, phase: 'classes', tickAt: Date.now() - 11 * 60 * 1000, finishTries: 0 });
+        const r2 = executeBatchImportAll([{ courseId: 'cB2', classCode: '7B' }], 'jobOther');
+        if (!r2[0] || r2[0].status !== 'success') throw new Error('a dead job still blocked the import: ' + JSON.stringify(r2));
+      } finally { global.Classroom = undefined; _clearImportJob_(); _deleteImportTriggers_(); }
+    });
+
+    ok &= run('a pupil Classroom gives no address for is not added, and is named', () => {
+      const list = people('Noad', 2); delete list[1].profile.emailAddress;
+      const out = importOne(list, '7N', 'cN', 'jobN');
+      if (out.status !== 'success' || out.added !== 1) throw new Error('wanted one added: ' + JSON.stringify(out));
+      if (JSON.stringify(out.noEmail) !== JSON.stringify(['Noad 1'])) throw new Error('the pupil with no address is not named: ' + JSON.stringify(out.noEmail));
+      if (stuRows().some(r => r[0] === 'Noad 1')) throw new Error('a row with no address was added: nothing can ever match it, and the next import adds them again');
+      if (out.listed !== 1) throw new Error('listed should count the pupils who can be added: ' + out.listed);
+    });
+
+    ok &= run('a pupil in two of the courses ticked in one import: the second class says so', () => {
+      const three = people('Twice', 3);
+      importOne(three, '7R', 'cR', 'jobT');
+      const out = importOne(three.slice(0, 2), '7S', 'cS', 'jobT');
+      const c = (out.clashes || []).map(x => x.name + '>' + x.was).sort();
+      if (JSON.stringify(c) !== JSON.stringify(['Twice 0>7R', 'Twice 1>7R'])) throw new Error('the clash is not named: ' + JSON.stringify(out.clashes));
+      if (stuRow('twice0@x.kr')[1] !== '7S') throw new Error('the pupil is not in the class imported last');
+      /* a later import on its own is a pupil changing class, not a clash */
+      const later = importOne(three.slice(0, 1), '7R', 'cR', 'jobLater');
+      if (later.moved !== 1 || (later.clashes || []).length) throw new Error('a later import named a clash: ' + JSON.stringify(later));
+    });
+
+    /* ── the audit (7 Oct 2026): what the Test System and the reflection got the same day ── */
+    ok &= run('audit: a second import, refused, is over at once: its record says done and why (it spun twelve minutes)', () => {
+      _saveImportJob_({ id: 'jobRun2', sels: [{ courseId: 'cX', classCode: '7X' }], i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0 });
+      cacheWrites.length = 0; global.Classroom = classroom();
+      try { executeBatchImportAll([{ courseId: 'cB2', classCode: '7B' }], 'jobRefused'); } finally { _clearImportJob_(); global.Classroom = undefined; }
+      const end = said('jobRefused').pop();
+      if (!end || !end.done || !end.stopped || !/Another import is still running/.test(end.phase || '')) throw new Error(JSON.stringify(end));
+    });
+    ok &= run('audit: a class Google stopped twice is passed over in words, and the next class is imported (it was tried every 8 minutes for ever)', () => {
+      courses.cK1 = people('Busy', 1); courses.cK2 = people('Twice', 2).map((p, k) => ({ userId: 'k' + k, profile: { name: { fullName: 'Twice ' + (20 + k) }, emailAddress: 'twice' + (20 + k) + '@x.kr' } }));
+      _saveImportJob_({ id: 'jobK', sels: [{ courseId: 'cK1', classCode: '7K' }, { courseId: 'cK2', classCode: '7K' }], i: 0, phase: 'classes',
+                        tickAt: Date.now() - 9 * 60 * 1000, finishTries: 0, tries: { 0: 2 } });
+      cacheWrites.length = 0; global.Classroom = classroom();
+      try { continueBatchImport_(); } finally { global.Classroom = undefined; }
+      const end = said('jobK').pop();
+      if (!end || !end.done || end.results[0].status !== 'error' || !/stopped this class twice/.test(end.results[0].error || '') || end.results[1].status !== 'success')
+        throw new Error(JSON.stringify(end).slice(0, 300));
+      if (props.get(IMPORT_JOB_KEY)) throw new Error('the job stayed');
+    });
+    ok &= run('audit: a class done again after a stop builds the tabs, even when it adds nobody new (its pupils had no lab rows)', () => {
+      courses.cQ = [{ userId: 'q1', profile: { name: { fullName: 'Twice 30' }, emailAddress: 'twice30@x.kr' } }];
+      importOne(courses.cQ, '7Q2', 'cQ', 'jobQ');                     /* written before the stop: on the Students tab, no lab rows */
+      _saveImportJob_({ id: 'jobQ', sels: [{ courseId: 'cQ', classCode: '7Q2' }], i: 0, phase: 'classes', tickAt: Date.now() - 9 * 60 * 1000, finishTries: 0, tries: { 0: 1 } });
+      cacheWrites.length = 0; global.Classroom = classroom();
+      try { continueBatchImport_(); } finally { global.Classroom = undefined; }
+      const end = said('jobQ').pop();
+      if (!end || !end.done || !end.built || end.results[0].added !== 0) throw new Error(JSON.stringify(end).slice(0, 300));
+      if (!rowOf('Digestion', 'twice30@x.kr')) throw new Error('no lab row for the pupil written before the stop');
+    });
+    ok &= run('audit: a job Google will not keep is said in words and is over (it imported nothing, in silence)', () => {
+      const keepSet = PropertiesService.getScriptProperties;
+      PropertiesService.getScriptProperties = () => { const p = keepSet(); return Object.assign({}, p, { setProperty: (k, v) => { if (k === IMPORT_JOB_KEY) throw new Error('You have exceeded the property storage quota.'); return p.setProperty(k, v); } }); };
+      cacheWrites.length = 0; global.Classroom = classroom(); let r;
+      try { r = executeBatchImportAll([{ courseId: 'cB2', classCode: '7B' }], 'jobFull'); } finally { PropertiesService.getScriptProperties = keepSet; global.Classroom = undefined; }
+      const end = said('jobFull').pop();
+      if (!r || !r[0] || r[0].status !== 'error' || !/would not keep where it is/.test(r[0].error || '') || !end || !end.done || !end.stopped) throw new Error(JSON.stringify([r, end]).slice(0, 300));
+    });
+    ok &= run('audit: the carry-on trigger is made BEFORE the old one goes (a refusal left none at all)', () => {
+      TRIGGERS.push({ getHandlerFunction: () => 'continueBatchImport_', after: 480000, getUniqueId: () => 'OLD' });
+      const keepNew = ScriptApp.newTrigger;
+      ScriptApp.newTrigger = (fn) => { if (fn === 'continueBatchImport_') throw new Error('too many triggers'); return keepNew(fn); };
+      let made;
+      try { made = _scheduleImport_(60000); } finally { ScriptApp.newTrigger = keepNew; }
+      const left = ours().map(t => (t.getUniqueId ? t.getUniqueId() : '?'));
+      _deleteImportTriggers_();
+      if (made !== false || left.join() !== 'OLD') throw new Error('made ' + made + ', left ' + JSON.stringify(left));
+    });
+    ok &= run('audit: a class code over 16 characters is refused in words, never cut (two such codes merged in silence)', () => {
+      courses.cL = people('Busy', 1);
+      global.Classroom = classroom(); let r;
+      try { r = executeBatchImportAll([{ courseId: 'cL', classCode: 'IGCSE-BIO-10C-SET2' }], 'jobLong'); } finally { global.Classroom = undefined; }
+      if (!r || !r[0] || r[0].status !== 'error' || !/at most 16 characters/.test(r[0].error || '')) throw new Error(JSON.stringify(r));
+    });
+
+    ok &= run('a busy spreadsheet: the class says so and nothing is written', () => {
+      const keepLock = LockService.getScriptLock; let out;
+      LockService.getScriptLock = () => ({ waitLock: () => { throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock: () => {} });
+      try { out = importOne(people('Busy', 2), '7B', 'cB', 'jobB'); } finally { LockService.getScriptLock = keepLock; }
+      if (!out || out.status !== 'busy') throw new Error('not reported as busy: ' + JSON.stringify(out));
+      if (stuRow('busy0@x.kr')) throw new Error('it wrote without the lock');
+    });
+  } finally {
+    Date.now = realNow;
+    global.Classroom = undefined;
+    try { _clearImportJob_(); _deleteImportTriggers_(); } catch (e) {}
+    tidyUp();
+    setup();
+  }
+}
+
 console.log('— a lab added in the middle of the year —');
 
 ok &= run('adding a lab keeps every mark exactly where it was', () => {
@@ -1762,35 +2190,13 @@ ok &= run('smart chips and Links typed without https:// are named to a teacher; 
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });   /* the dialog made the first */
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
-ok &= run('checkChips reads nothing for a pupil or a stranger who calls it from a page', () => {
-  /* It must stay runnable from the editor, so it cannot hide behind an underscore; the gate is what
-     keeps a google.script.run call from reading the links tab with the owner's rights. */
-  SCHOOL_DOMAIN = 'x.kr';
-  { const old = ss.getSheetByName(T_LINKS); if (old) ss.deleteSheet(old); }
-  const tab = ss.insertSheet(T_LINKS);
-  tab.getRange(1, 1, 2, 7).setValues([_LINK_HEADERS_, ['Test', 'Topic 9 test', '2028', '', 'T3T4: Test A', '', '']]);
-  /* "reads nothing" = never even opens the links tab: every lookup of it is counted */
-  const attempt = () => {
-    let opened = 0; const l0 = calls.length;
-    ss.getSheetByName = (n) => { if (n === T_LINKS) opened++; return SS.prototype.getSheetByName.call(ss, n); };
-    try { checkChips(); } finally { delete ss.getSheetByName; }
-    return { opened, said: calls.slice(l0).join(' | ') };
-  };
-  VISITOR = 'stu@pupils.x.kr';
-  let r = attempt();
-  if (r.opened || /Chip addresses|switched on/.test(r.said)) throw new Error('a pupil ran checkChips: ' + r.said);
-  /* a stranger has no identity at all, and in a web app getUi() throws: that is how the gate tells it
-     from the spreadsheet itself */
-  const ui = SpreadsheetApp.getUi;
-  SpreadsheetApp.getUi = () => { throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); };
-  VISITOR = '';
-  try { r = attempt(); } finally { SpreadsheetApp.getUi = ui; }
-  if (r.opened || /Chip addresses|switched on/.test(r.said)) throw new Error('a stranger ran checkChips: ' + r.said);
-  VISITOR = OWNER;                                           /* Run ▸ checkChips: you, as yourself */
-  r = attempt();
-  if (!r.opened || !/switched on in this code: false/.test(r.said)) throw new Error('the owner could not run checkChips: ' + r.said);
-  ss.deleteSheet(tab);
-  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+ok &= run('the one-off editor checks are gone (5 Oct 2026), and no page tells a teacher to run them', () => {
+  ['checkChips', 'checkReminders'].forEach(n => {
+    if (typeof global[n] === 'function' || new RegExp('function ' + n + '\\(').test(SRC)) throw new Error(n + ' is still in the script');
+    ['apps-script/Teacher.html', 'apps-script/TeacherPage.html'].forEach(p => {
+      if (fs.readFileSync(p, 'utf8').indexOf(n) >= 0) throw new Error(p + ' still names ' + n); });
+  });
+  if (SCRIPT_EDITION.length > 60) throw new Error('SCRIPT_EDITION is long again (' + SCRIPT_EDITION.length + ' characters): keep it one short line');
 });
 
 ok &= run('the import window tells an editor who may not import so, instead of "no courses"', () => {
@@ -2992,40 +3398,6 @@ ok &= run('Write-Up: the Set homework form offers the parts and sends them as a 
     .forEach(x => { if (page.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
 });
 
-ok &= run('checkReminders: a pupil gets nothing; the owner gets Classroom’s full reason, from DRAFTS only, each deleted', () => {
-  const keepFetch = UrlFetchApp.fetch, keepTok = ScriptApp.getOAuthToken, keepUi = SpreadsheetApp.getUi, calls = [];
-  let said = '';
-  ScriptApp.getOAuthToken = () => 'tok';
-  SpreadsheetApp.getUi = () => Object.assign(keepUi(), { alert: (a, b) => { said = String(b === undefined ? a : b); } });
-  UrlFetchApp.fetch = (url, o) => {
-    if (!/classroom\.googleapis/.test(url)) return keepFetch(url, o);
-    const body = o && o.payload ? JSON.parse(o.payload) : null; calls.push({ url, method: o.method, body });
-    const res = (code, j) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(j) });
-    if (o.method === 'get' && /\/students\//.test(url)) return res(200, {});
-    if (o.method === 'get') return res(200, { name: 'Bio 9C', courseState: 'ACTIVE' });
-    if (o.method === 'post' && body.materials) return res(400, { error: { status: 'FAILED_PRECONDITION', message: '@Example The link cannot be attached' } });
-    if (o.method === 'post') return res(200, { id: 'a' + calls.length });
-    return res(200, {});
-  };
-  try {
-    const r = homeworkCreate({ title:'Remind test', classes:[{ cls: enA.cls, due: enDay(20) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
-    const sh = ss.getSheetByName(T_HOMEWORK), row = _homeworkRows_().filter(h => h.id === r.made[0])[0].row, c = n => _hwHeadCols_(sh)[n];
-    sh.getRange(row, c('Course')).setValue('C1'); sh.getRange(row, c('CourseWork')).setValue('W1');
-    sh.getRange(row, c('Reminder 1 students')).setValue('not sent: Precondition check failed.');
-    VISITOR = 'pupil@pupils.x.kr';
-    const keepOwner = OWNER; OWNER = 'teacher@x.kr';
-    checkReminders();
-    if (calls.length) throw new Error('a pupil made it call Classroom');
-    VISITOR = OWNER;
-    checkReminders();
-    homeworkDelete(r.made[0]);
-    OWNER = keepOwner;
-    const posts = calls.filter(x => x.method === 'post');
-    if (posts.length !== 3 || posts.some(p => p.body.state !== 'DRAFT')) throw new Error('posts: ' + JSON.stringify(posts.map(p => p.body.state)));
-    if (calls.filter(x => x.method === 'delete').length !== 2) throw new Error('every accepted draft must be deleted');
-    if (!/FAILED_PRECONDITION: @Example The link cannot be attached/.test(said) || !/without the link: Classroom accepts it/.test(said) || !/state ACTIVE/.test(said)) throw new Error('said: ' + said);
-  } finally { UrlFetchApp.fetch = keepFetch; ScriptApp.getOAuthToken = keepTok; SpreadsheetApp.getUi = keepUi; VISITOR = OWNER; }
-});
 /* ── Homework the pupils can see (Daniel, 29 Sep 2026) ─────────────────────────────────────────────────────────
    The Classroom post names every station with its own link; a due TIME; a Classroom TOPIC; and the pupil's own
    homework in the progress answer, each station scored by the teacher's _hwScoreOne_. */
@@ -3836,20 +4208,27 @@ console.log('— reminders to the pupils who have not finished —');
     const page = teacherPage(); page.win.localStorage = store; page.win.vHomework(D);
     let html = page.html();
     if (!/data-hsort="due" aria-pressed="true">Due date</.test(html) || !/data-hsort="class" aria-pressed="false">Class</.test(html)) throw new Error('no “Sort by: Due date · Class” switch, on Due date');
-    /* not yet due, soonest first; past, most recent first; no readable date last */
-    if (order(html) !== 'DABCEF') throw new Error('by due date: ' + order(html));
+    /* not yet due, soonest first; no readable date last; past its due date: in the Archive (7 Oct 2026), folded */
+    if (order(html) !== 'DABF') throw new Error('by due date: ' + order(html));
+    page.press('data-arch', '1'); html = page.html();       /* the Archive, opened: the most recent first, sorted as the list is */
+    if (order(html) !== 'DABFCE') throw new Error('by due date, the Archive open: ' + order(html));
+    page.press('data-arch', '1'); html = page.html();
     page.press('data-hsort', 'class'); html = page.html();
-    if (order(html) !== 'BCFAED') throw new Error('by class: ' + order(html));
+    if (order(html) !== 'BFAD') throw new Error('by class: ' + order(html));
     const groups = [...html.matchAll(/<span class="coh__t">([^<]+)<\/span>/g)].map(m => m[1]);
     if (groups.join('|') !== '9A|10B|Chosen pupils') throw new Error('the groups: ' + groups.join('|'));
     if (store.m['homework.sort'] !== 'class') throw new Error('the choice was not remembered');
     const page2 = teacherPage(); page2.win.localStorage = store; page2.win.vHomework(D);   /* a reload */
-    if (order(page2.html()) !== 'BCFAED') throw new Error('not remembered after a reload: ' + order(page2.html()));
+    if (order(page2.html()) !== 'BFAD') throw new Error('not remembered after a reload: ' + order(page2.html()));
+    page2.press('data-arch', '1');
+    if (order(page2.html()) !== 'BFADCE') throw new Error('by class, the Archive open: ' + order(page2.html()));
+    if ([...page2.html().matchAll(/<span class="coh__t">([^<]+)<\/span>/g)].map(m => m[1]).join('|') !== '9A|10B|Chosen pupils|9A|10B')
+      throw new Error('the Archive is not grouped by class as the list is');
     const page3 = teacherPage();                                 /* storage blocked: still drawn, by due date, and the switch works */
     page3.win.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
     page3.win.vHomework(D);
-    if (order(page3.html()) !== 'DABCEF') throw new Error('with storage blocked: ' + order(page3.html()));
-    page3.press('data-hsort', 'class'); if (order(page3.html()) !== 'BCFAED') throw new Error('the switch failed with storage blocked');
+    if (order(page3.html()) !== 'DABF') throw new Error('with storage blocked: ' + order(page3.html()));
+    page3.press('data-hsort', 'class'); if (order(page3.html()) !== 'BFAD') throw new Error('the switch failed with storage blocked');
     /* the 🔔 line; opened, the plan and the switch, which asks the server */
     if (!/class="hw__r">🔔 1: sent to 4 · 2: waiting</.test(html)) throw new Error('no 🔔 line');
     const CALLS = [];
@@ -4636,6 +5015,847 @@ console.log('— sit a test: each version read with its own columns —');
   } finally {
     SpreadsheetApp.openById = realOpen; _testSheetIds_ = stIds; CLIENT_ID = stCid; TOKEN_EMAIL = stTok;
     cacheStore.delete('tsnap4:' + TSID);
+  }
+}
+
+console.log('— who a homework is for: joiners, movers and the 11C six (Daniel, 6 Oct 2026) —');
+/* Daniel, 6 Oct 2026: a pupil who did a homework badly in class A and moves to class B keeps that result ("everything is
+   ported"); a pupil who joins mid-year: "any previous homework should not be accounted for, only the one that it is
+   included"; and the special case of 11C, whose import stopped part way: pupils in the class (and its Classroom course)
+   the day it was set, but on the Students tab only later. */
+{
+  const keepCid = CLIENT_ID, made = [];
+  CLIENT_ID = 'CID'; SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  const hwOf = (id) => _homeworkData_().homework.filter((h) => h.id === id)[0];
+  const rowOf = (id) => _homeworkRows_().filter((x) => x.id === id)[0];
+  const names = (h) => h.pupils.map((x) => x.name).sort().join(', ');
+  const task = [{ labId: 'digestion-lab', stationIds: ['mouth'] }];
+  const setFor = (cls, title) => { const r = homeworkCreate({ title, classes: [{ cls, due: '2027-03-01T23:59:00' }], tasks: task });
+    if (!r.ok) throw new Error('refused: ' + r.why); made.push(r.made[0]); return r.made[0]; };
+  const pupil = (n, e) => ({ name: n, email: e, userId: 'u-' + e.split('@')[0] });
+  try {
+    ok &= run('a pupil who joins the class after a homework was set is not in it: the list, their own page and the counts leave it out, and the list names them', () => {
+      _upsertStudents_([pupil('Joiner One', 'joiner.one@x.kr'), pupil('Joiner Two', 'joiner.two@x.kr')], '8Z', 'Y8 Biology', 'c8z');
+      const id = setFor('8Z', 'Joiners stay out');
+      _upsertStudents_([pupil('Joiner Three', 'joiner.three@x.kr')], '8Z', 'Y8 Biology', 'c8z');
+      const h = hwOf(id);
+      if (names(h) !== 'Joiner One, Joiner Two') throw new Error('the list has ' + names(h));
+      if (_hwIsFor_(rowOf(id), 'joiner.three@x.kr', '8Z')) throw new Error('their own page shows homework set before they came');
+      if (h.tally.none !== 2) throw new Error('the counts: ' + JSON.stringify(h.tally));
+      const out = (h.outside || []).map((x) => x.name + (x.late ? ' (late)' : '')).join(', ');
+      if (out !== 'Joiner Three (late)') throw new Error('the list does not name the pupil outside it: ' + out);
+    });
+    ok &= run('a pupil who was in the class’s Classroom course the day it was set is in it once imported (the 11C case); one who joined the course later is not', () => {
+      const course = [pupil('Joiner One', 'joiner.one@x.kr'), pupil('Joiner Two', 'joiner.two@x.kr'), pupil('Joiner Four', 'joiner.four@x.kr')];
+      global.Classroom = { Courses: { Students: { list: (cid) => ({ students: cid === 'c8z' ? course.map((p) => ({ userId: p.userId, profile: { emailAddress: p.email } })) : [] }) } } };
+      let id;
+      try { id = setFor('8Z', 'Who was in Classroom'); } finally { global.Classroom = undefined; }
+      if (JSON.stringify(rowOf(id).inCourse) !== JSON.stringify(['joiner.four@x.kr', 'joiner.one@x.kr', 'joiner.two@x.kr'])) throw new Error('the course that day was not kept: ' + JSON.stringify(rowOf(id).inCourse));
+      _upsertStudents_([pupil('Joiner Four', 'joiner.four@x.kr'), pupil('Joiner Five', 'joiner.five@x.kr')], '8Z', 'Y8 Biology', 'c8z');
+      const h = hwOf(id);
+      if (names(h) !== 'Joiner Four, Joiner One, Joiner Three, Joiner Two') throw new Error('the list has ' + names(h));   /* Three was on the tab that day */
+      if (!_hwIsFor_(rowOf(id), 'joiner.four@x.kr', '8Z') || _hwIsFor_(rowOf(id), 'joiner.five@x.kr', '8Z')) throw new Error('their own pages disagree with the list');
+      if (h.gone) throw new Error('a pupil in Classroom but not yet on the tab was counted as left');
+    });
+    ok &= run('the teacher can count in pupils who were in the class all along: only pupils in its class now, never twice, their own homework or the owner’s; never a pupil', () => {
+      const id = made[0];
+      let r = homeworkAddPupils({ id, emails: ['joiner.three@x.kr'] });
+      if (!r.ok || !/1 pupil of 8Z now counts/.test(r.note)) throw new Error('refused: ' + JSON.stringify(r).slice(0, 160));
+      if (names(hwOf(id)) !== 'Joiner One, Joiner Three, Joiner Two') throw new Error('the list has ' + names(hwOf(id)));
+      if (!_hwIsFor_(rowOf(id), 'joiner.three@x.kr', '8Z')) throw new Error('their own page does not show it');
+      r = homeworkAddPupils({ id, emails: ['joiner.three@x.kr'] });
+      if (r.ok !== false || !/Nobody to add/.test(r.why)) throw new Error('added twice: ' + JSON.stringify(r).slice(0, 120));
+      if (homeworkAddPupils({ id, emails: [enA.email] }).ok !== false) throw new Error('a pupil of another class was added');
+      if (homeworkAddPupils({ id, emails: [] }).ok !== false) throw new Error('nothing ticked was accepted');
+      TEACHERS = 'colleague@x.kr'; VISITOR = 'colleague@x.kr';
+      r = homeworkAddPupils({ id, emails: ['joiner.five@x.kr'] });
+      if (r.ok !== false || !/Only they \(or the owner\)/.test(r.why)) throw new Error('a colleague changed it: ' + JSON.stringify(r).slice(0, 120));
+      VISITOR = 'pupil@pupils.x.kr';
+      if (homeworkAddPupils({ id, emails: ['joiner.five@x.kr'] }).ok !== false) throw new Error('a pupil changed it');
+      VISITOR = OWNER;
+    });
+    ok &= run('Move: the pupil keeps the homework set while they were in the old class; the new class’s earlier homework never counts for them; homework set after the move includes them', () => {
+      _upsertStudents_([pupil('Mover Kim', 'mover.kim@x.kr')], '8Z', 'Y8 Biology', 'c8z');
+      const before = setFor('8Z', 'Set in the old class'), theirsNot = setFor('8Y', 'The new class, before the move');
+      const r = studentMove({ email: 'Mover.Kim@x.kr ', cls: '8y' });
+      if (!r.ok || !/moved from 8Z to 8Y/.test(r.note) || !/Google Classroom/.test(r.note)) throw new Error('refused: ' + JSON.stringify(r).slice(0, 200));
+      const dir = r.data.students.filter((x) => x.email === 'mover.kim@x.kr')[0];
+      if (!dir || dir.cls !== '8Y') throw new Error('the Students tab still says ' + (dir && dir.cls));
+      const dg = ss.getSheetByName('Digestion'), v = dg.getRange(2, 1, dg.getLastRow() - 1, LAB_EMAIL).getValues().filter((x) => x[LAB_EMAIL - 1] === 'mover.kim@x.kr')[0];
+      if (!v || v[1] !== '8Y') throw new Error('their Digestion row still says ' + (v && v[1]));
+      const after = setFor('8Y', 'The new class, after the move');
+      const inIt = (id) => hwOf(id).pupils.some((x) => x.name === 'Mover Kim');
+      if (!inIt(before)) throw new Error('the homework from the old class was lost');
+      if (inIt(theirsNot)) throw new Error('the new class’s earlier homework counts against them');
+      if (!inIt(after)) throw new Error('homework set after the move leaves them out');
+      if (!hwOf(before).pupils.some((x) => x.name === 'Mover Kim' && x.cls === '8Y')) throw new Error('the old homework does not show their new class');
+      const mine = (id) => _hwIsFor_(rowOf(id), 'mover.kim@x.kr', '8Y');
+      if (!mine(before) || mine(theirsNot) || !mine(after)) throw new Error('their own page disagrees with the list');
+    });
+    ok &= run('Move is refused in words: no pupil, not on the tab, no class, the class they are in; never a pupil', () => {
+      [[{ cls: '8Z' }, /Which pupil/], [{ email: 'nobody@x.kr', cls: '8Z' }, /not on the Students tab/], [{ email: 'mover.kim@x.kr', cls: '' }, /Choose the class/],
+       [{ email: 'mover.kim@x.kr', cls: '8Y' }, /in 8Y already/]].forEach(([d, re]) => {
+        const r = studentMove(d); if (r.ok !== false || !re.test(r.why)) throw new Error(JSON.stringify(d) + ' → ' + JSON.stringify(r).slice(0, 120)); });
+      VISITOR = 'pupil@pupils.x.kr';
+      if (studentMove({ email: 'mover.kim@x.kr', cls: '8Z' }).ok !== false) throw new Error('a pupil moved somebody');
+      VISITOR = OWNER;
+    });
+    ok &= run('homework set for chosen pupils never gains anybody', () => {
+      const set = Date.now() - 864e5;
+      const roster = [{ name: 'Chosen', cls: '8X', email: 'chosen@x.kr', since: set - 864e5 }, { name: 'Classmate', cls: '8X', email: 'classmate@x.kr', since: Date.now() }];
+      const chosen = { setFor: ['chosen@x.kr'], targets: { cls: '', emails: ['chosen@x.kr'] }, created: new Date(set).toISOString(), due: '2027-03-01T23:59:00' };
+      if (_hwPupils_(chosen, roster).map((x) => x.name).join() !== 'Chosen') throw new Error('chosen pupils: ' + _hwPupils_(chosen, roster).map((x) => x.name));
+      if (_hwIsFor_(chosen, 'classmate@x.kr', '8X')) throw new Error('a classmate sees homework set for one chosen pupil');
+    });
+  } finally {
+    VISITOR = OWNER; made.forEach((id) => { try { homeworkDelete(id); } catch (e) {} });
+    CLIENT_ID = keepCid; TEACHERS = ''; props.delete('TEACHERS'); global.Classroom = undefined;
+  }
+}
+
+console.log('— a new school year: pupils in none of this year’s classes (Daniel, 7 Oct 2026) —');
+/* "the next following year … a new Google Classroom … the same student, but a different year, how is it going to handle
+   that?" Each import keeps, for the school year, which pupils each course listed. The import window lists the pupils in
+   none of this year's courses; one press puts them in LEFT <year>: their records stay, and they drop out of every class
+   list and every class's new homework. Importing their class again, or Move, brings one back. */
+{
+  const d0 = new Date(), sy = d0.getMonth() >= 7 ? d0.getFullYear() : d0.getFullYear() - 1;   /* the school year, worked out here: the code may not have it */
+  const label = 'LEFT ' + d0.getFullYear(), keepCid = CLIENT_ID, made = [];
+  const clsOf = em => { const d = _studentDirectory_().students.filter(x => x.email === em)[0]; return d ? d.cls : null; };
+  const courses = {};
+  const classroom = () => ({ Courses: { list: () => ({ courses: [] }), Students: { list: c => ({ students: courses[c] || [] }) } } });
+  const kid = (pre, i) => ({ userId: 'u-' + pre + i, profile: { name: { fullName: pre + ' ' + i }, emailAddress: pre.toLowerCase() + i + '@x.kr' } });
+  const importOne = (cid, code, list) => { courses[cid] = list; global.Classroom = classroom();
+    try { return _importOneClass_({ courseId: cid, classCode: code, courseName: 'Course ' + code }, 'jobNY'); } finally { global.Classroom = undefined; } };
+  const listed = () => { const v = _notThisYearView_(); return { v, emails: [].concat(...v.groups.map(g => g.pupils.map(p => p.email))).sort() }; };
+  const record = () => [...props.keys()].filter(k => /^IMPORTED_/.test(k));
+  const labRow = (tab, em) => { const sh = ss.getSheetByName(tab); return sh.getRange(2, 1, sh.getLastRow() - 1, LAB_EMAIL).getValues().filter(x => x[LAB_EMAIL - 1] === em)[0]; };
+  const hwOf = id => _homeworkData_().homework.filter(h => h.id === id)[0];
+  const task = [{ labId: 'digestion-lab', stationIds: ['mouth'] }];
+  const setHw = (o) => { const r = homeworkCreate(Object.assign({ title: 'New year', tasks: task }, o)); if (!r.ok) throw new Error('refused: ' + r.why); made.push(r.made[0]); return r.made[0]; };
+  let before = '';
+  try {
+    CLIENT_ID = 'CID'; SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+    record().forEach(k => props.delete(k));          /* as on the day the code is first pasted */
+    /* the pupils as imports before this code left them: a class and a course id each, and no lists */
+    _upsertStudents_([0, 1, 2, 3].map(i => ({ name: 'Leaver ' + i, email: 'leaver' + i + '@x.kr', userId: 'u-Leaver' + i })), '8L', 'Y8 L', 'cL');
+    _upsertStudents_([0, 1, 2].map(i => ({ name: 'Stayer ' + i, email: 'stayer' + i + '@x.kr', userId: 'u-Stayer' + i })), '8M', 'Y8 M', 'cM');
+    _upsertStudents_([{ name: 'Hand Added', email: 'hand.added@x.kr', userId: '' }], '8L', '', '');   /* typed in by hand: no course */
+    _upsertStudents_([{ name: 'Teacher Row', email: 'teacher.row@x.kr', userId: 'u-t' }], 'TEST', 'A test course', 'cTest');
+    before = setHw({ classes: [{ cls: '8L', due: '2027-03-01T23:59:00' }] });
+
+    ok &= run('the first school year it runs in: nobody is listed, until a course is imported again and no longer lists a pupil', () => {
+      let { v, emails } = listed();
+      if (v.n !== 0) throw new Error('pupils were listed before any course was imported again: ' + emails.join(', '));
+      if (props.get('IMPORTED_COURSES_FROM') !== String(sy) || !JSON.parse(props.get('IMPORTED_COURSES_' + sy)).seeded) throw new Error('the first year’s record was not made: ' + record().join(', '));
+      const r = importOne('cL', '8L', [0, 1, 2].map(i => kid('Leaver', i)));      /* Leaver 3 is not in the course any more */
+      if (r.status !== 'success') throw new Error('the import failed: ' + JSON.stringify(r));
+      ({ v, emails } = listed());
+      if (emails.join() !== 'leaver3@x.kr') throw new Error('wanted only Leaver 3, got: ' + emails.join(', '));
+      const g = v.groups[0];
+      if (g.cls !== '8L' || g.total !== 5 || g.pupils[0].why !== 'gone' || g.pupils[0].name !== 'Leaver 3') throw new Error('the class as the window shows it: ' + JSON.stringify(g));
+      if (v.label !== label || v.since !== '1 August ' + sy || v.busy) throw new Error('the window’s words: ' + JSON.stringify(v).slice(0, 200));
+    });
+
+    ok &= run('a new school year: once a course is imported, every pupil whose course was not is listed, by class; a pupil added by hand, and the TEST row, never', () => {
+      props.set('IMPORTED_COURSES_' + (sy - 3), '{"at":{}}'); props.set('IMPORTED_LIST_' + (sy - 3) + '_old', '[]');   /* records of years long gone */
+      record().filter(k => k.indexOf('IMPORTED_COURSES_' + sy) === 0 || k.indexOf('IMPORTED_LIST_' + sy + '_') === 0).forEach(k => props.delete(k));
+      props.set('IMPORTED_COURSES_FROM', String(sy - 1));                       /* this is the year after the one it was pasted in */
+      let { v, emails } = listed();
+      if (v.imported !== 0) throw new Error('a course counts as imported before any was: ' + v.imported);
+      if (props.get('IMPORTED_COURSES_' + (sy - 3)) || props.get('IMPORTED_LIST_' + (sy - 3) + '_old')) throw new Error('the records of years long gone were kept');
+      importOne('cM', '8M', [0, 1, 2].map(i => kid('Stayer', i)));
+      ({ v, emails } = listed());
+      if (emails.some(e => /^stayer/.test(e))) throw new Error('pupils of the course just imported are listed');
+      const g = v.groups.filter(x => x.cls === '8L')[0];
+      if (!g || g.pupils.map(p => p.name).join() !== 'Leaver 0,Leaver 1,Leaver 2,Leaver 3' || g.total !== 5 || g.pupils.some(p => p.why !== 'course'))
+        throw new Error('8L, whose course was not imported: ' + JSON.stringify(g));
+      if (emails.indexOf('hand.added@x.kr') >= 0 || emails.indexOf('teacher.row@x.kr') >= 0) throw new Error('a pupil added by hand, or the TEST row, was listed');
+      global.Classroom = { Courses: { list: () => ({ courses: [] }), Students: { list: () => ({ students: [] }) } } };
+      let d; try { d = getBatchImportData(); } finally { global.Classroom = undefined; }
+      if (!d.left || d.left.n !== v.n || d.left.imported !== 1) throw new Error('the window does not get the list when it opens: ' + JSON.stringify(d.left).slice(0, 160));
+      importOne('cL', '8L', [0, 1, 2].map(i => kid('Leaver', i)));
+      ({ v, emails } = listed());
+      if (emails.filter(e => /^leaver/.test(e)).join() !== 'leaver3@x.kr') throw new Error('after 8L was imported: ' + emails.filter(e => /^leaver/.test(e)).join(', '));
+    });
+
+    ok &= run('a pupil Classroom lists with no address is still in their course, by their Classroom user id', () => {
+      importOne('cM', '8M', [kid('Stayer', 0), kid('Stayer', 1), { userId: 'u-Stayer2', profile: { name: { fullName: 'Stayer 2' } } }]);
+      if (listed().emails.indexOf('stayer2@x.kr') >= 0) throw new Error('a pupil with no address from Classroom was listed as no longer in the course');
+    });
+
+    ok &= run('one press: the ticked pupils go to LEFT <year> on the Students tab and on their row of every lab, Bio English and Write-Up tab; only pupils still in none of this year’s classes', () => {
+      _enRowFor_(_englishSheet_(), 'leaver3@x.kr', { name: 'Leaver 3', cls: '8L' });
+      _wuRowFor_(_writeupSheet_(), 'leaver3@x.kr', { name: 'Leaver 3', cls: '8L' });
+      const r = markPupilsLeft(['LEAVER3@x.kr ', 'stayer0@x.kr', 'nobody@x.kr']);
+      if (!r.ok || !new RegExp('^1 pupil is in ' + label + ' now').test(r.note)) throw new Error('refused: ' + JSON.stringify(r).slice(0, 200));
+      if (clsOf('leaver3@x.kr') !== label) throw new Error('the Students tab says ' + clsOf('leaver3@x.kr'));
+      if (clsOf('stayer0@x.kr') !== '8M') throw new Error('a pupil in a class imported this year was marked');
+      ['Digestion', T_ENGLISH, T_WRITEUP].forEach(tab => {
+        const em = tab === T_ENGLISH ? EN_EMAIL : tab === T_WRITEUP ? WU_EMAIL : LAB_EMAIL, sh = ss.getSheetByName(tab);
+        const row = sh.getRange(2, 1, sh.getLastRow() - 1, em).getValues().filter(x => x[em - 1] === 'leaver3@x.kr')[0];
+        if (!row || row[1] !== label) throw new Error('their ' + tab + ' row says ' + (row && row[1]));
+      });
+      if (r.left.groups.some(g => g.pupils.some(p => p.email === 'leaver3@x.kr'))) throw new Error('they are still on the window’s list');
+      const again = markPupilsLeft(['leaver3@x.kr']);
+      if (again.ok !== false || !/Nobody to mark/.test(again.why)) throw new Error('marked twice: ' + JSON.stringify(again).slice(0, 120));
+    });
+
+    ok &= run('marking waits for a running import, needs a tick, and is for teachers only', () => {
+      _saveImportJob_({ id: 'jobBusyLeft', sels: [], i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0 });
+      try {
+        const r = markPupilsLeft(['leaver2@x.kr']);
+        if (r.ok !== false || !/import is still running/.test(r.why)) throw new Error('marked while an import runs: ' + JSON.stringify(r).slice(0, 120));
+        if (!_notThisYearView_().busy) throw new Error('the window is not told an import is running');
+      } finally { _clearImportJob_(); }
+      if (markPupilsLeft([]).ok !== false) throw new Error('nothing ticked was accepted');
+      const was = VISITOR; VISITOR = 'kid@pupils.x.kr';
+      try {
+        if (markPupilsLeft(['leaver2@x.kr']).ok !== false) throw new Error('a pupil marked somebody');
+        if (getNotThisYear() !== null) throw new Error('a pupil read the list');
+      } finally { VISITOR = was; }
+    });
+
+    ok &= run('in LEFT: out of every class list, the class views and every new homework; on the Students view still; homework set while they were in the class keeps them', () => {
+      const dir = _studentDirectory_();
+      if (dir.classes.indexOf(label) >= 0) throw new Error('LEFT is offered as a class');
+      if (!dir.students.some(x => x.email === 'leaver3@x.kr' && x.cls === label)) throw new Error('the Students view lost them');
+      if (_labProgressData_().students.some(x => x.name === 'Leaver 3')) throw new Error('Lab progress still shows them');
+      if (_englishProgressData_().students.some(x => x.email === 'leaver3@x.kr')) throw new Error('Bio English still shows them');
+      const H = _homeworkData_();
+      if (H.students.some(x => x.email === 'leaver3@x.kr') || H.classes.indexOf(label) >= 0) throw new Error('Set homework still offers them');
+      if (!hwOf(before).pupils.some(x => x.name === 'Leaver 3' && x.cls === label)) throw new Error('the homework set while they were in 8L lost them');
+      const now = setHw({ classes: [{ cls: '8L', due: '2027-03-02T23:59:00' }] });
+      if (hwOf(now).pupils.some(x => x.name === 'Leaver 3')) throw new Error('a new 8L homework takes them in');
+      const chosen = setHw({ classes: [{ cls: '', due: '2027-03-02T23:59:00', emails: ['leaver3@x.kr', 'leaver0@x.kr'] }] });
+      if (hwOf(chosen).pupils.map(x => x.name).join() !== 'Leaver 0') throw new Error('homework for chosen pupils took in a pupil in LEFT: ' + hwOf(chosen).pupils.map(x => x.name));
+      const r = homeworkCreate({ title: 'For LEFT', tasks: task, classes: [{ cls: label, due: '2027-03-02T23:59:00' }] });
+      if (r.ok !== false || !/not a class/.test(r.why)) throw new Error('homework was set for LEFT: ' + JSON.stringify(r).slice(0, 120));
+    });
+
+    ok &= run('a new homework’s Classroom list never takes in a pupil marked LEFT who is still in the course', () => {
+      global.Classroom = { Courses: { Students: { list: (cid) => ({ students: cid === 'cL' ? [0, 1, 2, 3].map(i => ({ userId: 'u-Leaver' + i, profile: { emailAddress: 'leaver' + i + '@x.kr' } })) : [] }) } } };
+      let id; try { id = setHw({ classes: [{ cls: '8L', due: '2027-03-03T23:59:00' }] }); } finally { global.Classroom = undefined; }
+      const row = _homeworkRows_().filter(x => x.id === id)[0];
+      if (!row.inCourse || row.inCourse.indexOf('leaver0@x.kr') < 0) throw new Error('the course list was not kept, so this proves nothing: ' + JSON.stringify(row.inCourse));
+      if (row.inCourse.indexOf('leaver3@x.kr') >= 0) throw new Error('the pupil marked LEFT is in it through Classroom');
+    });
+
+    ok &= run('importing their class again puts them back; Move takes a pupil out of every class, and brings one back', () => {
+      importOne('cL', '8L', [0, 1, 2, 3].map(i => kid('Leaver', i)));
+      if (clsOf('leaver3@x.kr') !== '8L') throw new Error('importing their class did not put them back: ' + clsOf('leaver3@x.kr'));
+      let r = studentMove({ email: 'leaver2@x.kr', left: true });
+      if (!r.ok || clsOf('leaver2@x.kr') !== label || !/none of the classes/.test(r.note) || !/the next import puts them back/.test(r.note)) throw new Error('Move to LEFT: ' + JSON.stringify(r).slice(0, 200));
+      if ((labRow('Digestion', 'leaver2@x.kr') || [])[1] !== label) throw new Error('their Digestion row was not moved');
+      if (r.data.classes.indexOf(label) >= 0) throw new Error('LEFT came back as a class');
+      r = studentMove({ email: 'leaver2@x.kr', left: true });
+      if (r.ok !== false || !/none of the classes already/.test(r.why)) throw new Error('twice: ' + JSON.stringify(r).slice(0, 120));
+      r = studentMove({ email: 'leaver1@x.kr', cls: label.toLowerCase() });
+      if (r.ok !== false || !/Left: in no class/.test(r.why)) throw new Error('LEFT typed as a class: ' + JSON.stringify(r).slice(0, 120));
+      r = studentMove({ email: 'leaver2@x.kr', cls: '8L' });
+      if (!r.ok || clsOf('leaver2@x.kr') !== '8L' || (labRow('Digestion', 'leaver2@x.kr') || [])[1] !== '8L') throw new Error('Move did not bring them back: ' + JSON.stringify(r).slice(0, 160));
+    });
+
+    ok &= run('an import refuses an empty class code, and LEFT, in words, and changes nothing', () => {
+      courses.cZ = [kid('Zed', 0)]; global.Classroom = classroom();
+      try {
+        [['', /No class code/], ['LEFT', /LEFT is kept/], [label, /LEFT is kept/]].forEach(([code, re]) => {
+          const r = _importOneClass_({ courseId: 'cZ', classCode: code, courseName: 'Z' }, 'jobZ');
+          if (r.status !== 'error' || !re.test(r.error)) throw new Error(JSON.stringify(code) + ' → ' + JSON.stringify(r));
+        });
+      } finally { global.Classroom = undefined; }
+      if (clsOf('zed0@x.kr') !== null) throw new Error('a pupil was added');
+      if (JSON.parse(props.get('IMPORTED_COURSES_' + sy)).at.cZ !== undefined) throw new Error('a refused class counts as imported');
+    });
+
+    ok &= run('a reminder never names a pupil Classroom no longer lists in the course: one id the course does not have fails the whole post', () => {
+      global.Classroom = { Courses: { Students: { list: (cid) => ({ students: cid === 'cR' ? [{ userId: 'u-stay', profile: { emailAddress: 'stay@x.kr' } }] : [] }) } } };
+      let ids;
+      try { ids = _freshIds_({ 'stay@x.kr': { userId: 'old', courseId: 'cR' }, 'gone@x.kr': { userId: 'u-gone', courseId: 'cR' }, 'other@x.kr': { userId: 'u-o', courseId: 'cQ' } }, 'cR', {}); }
+      finally { global.Classroom = undefined; }
+      if (ids['stay@x.kr'].userId !== 'u-stay') throw new Error('the course’s own id was not taken');
+      if (ids['gone@x.kr'].userId || ids['gone@x.kr'].courseId) throw new Error('a pupil no longer in the course is still named to it: ' + JSON.stringify(ids['gone@x.kr']));
+      if (ids['other@x.kr'].courseId !== 'cQ' || ids['other@x.kr'].userId !== 'u-o') throw new Error('a pupil of another course was changed');
+    });
+    /* ── the audit (7 Oct 2026) ── */
+    ok &= run('audit: a new homework counts a pupil through its Classroom course only if they are in its class now (a mover, a split course, a TEST account)', () => {
+      global.Classroom = { Courses: { Students: { list: (cid) => ({ students: cid === 'cL' ? [0, 1, 2, 3].map(i => ({ userId: 'u-Leaver' + i, profile: { emailAddress: 'leaver' + i + '@x.kr' } }))
+        .concat([{ userId: 'u-Stayer2', profile: { emailAddress: 'stayer2@x.kr' } }, { userId: 'u-t', profile: { emailAddress: 'teacher.row@x.kr' } }]) : [] }) } } };
+      let id; try { id = setHw({ classes: [{ cls: '8L', due: '2027-03-04T23:59:00' }] }); } finally { global.Classroom = undefined; }
+      const names = hwOf(id).pupils.map(x => x.name);
+      if (names.indexOf('Stayer 2') >= 0 || names.indexOf('Teacher Row') >= 0) throw new Error('taken in through the course: ' + names.join(', '));
+      if (_hwIsFor_(_homeworkRows_().filter(x => x.id === id)[0], 'stayer2@x.kr', '8M')) throw new Error('their own page would colour it');
+    });
+    ok &= run('audit: Move gives a pupil the course of their new class, so the old course’s next import never lists them', () => {
+      const r = studentMove({ email: 'stayer1@x.kr', cls: '8L' });
+      if (!r.ok) throw new Error(JSON.stringify(r).slice(0, 160));
+      const sh = ss.getSheetByName('Students'), ec = _emailCol_(sh), cc = _headerCol_(sh, 'Course id', ec + 4);
+      const row = sh.getRange(2, 1, sh.getLastRow() - 1, cc).getDisplayValues().filter(x => x[ec - 1] === 'stayer1@x.kr')[0];
+      if (!row || row[cc - 1] !== 'cL') throw new Error('Course id: ' + (row && row[cc - 1]));
+      importOne('cM', '8M', [kid('Stayer', 0), kid('Stayer', 2)]);          /* 8M's course no longer lists the mover */
+      if (listed().emails.indexOf('stayer1@x.kr') >= 0) throw new Error('the mover is listed under the old course');
+    });
+    ok &= run('audit: Left marks every row of an address; LEFT is never a class to choose on the Students tab', () => {
+      const sh = ss.getSheetByName('Students'), ec = _emailCol_(sh);
+      const src = sh.getRange(2, 1, sh.getLastRow() - 1, ec).getValues().findIndex(x => x[ec - 1] === 'leaver1@x.kr') + 2;
+      const copy = sh.getRange(src, 1, 1, ec).getValues()[0]; sh.appendRow(copy);           /* the same address, a second row */
+      importOne('cL', '8L', [kid('Leaver', 0), kid('Leaver', 2), kid('Leaver', 3)]);
+      const r = markPupilsLeft(['leaver1@x.kr']);
+      const rows = sh.getRange(2, 1, sh.getLastRow() - 1, ec).getValues().filter(x => x[ec - 1] === 'leaver1@x.kr').map(x => x[1]);
+      if (!r.ok || rows.length !== 2 || rows.some(c => c !== label)) throw new Error(JSON.stringify([r.ok, rows]));
+      if (_classList_().some(c => /^LEFT/.test(c))) throw new Error('the class list offers ' + _classList_().join(', '));
+      const last = sh.getLastRow(); sh.deleteRows(last, 1);
+      importOne('cL', '8L', [0, 1, 2, 3].map(i => kid('Leaver', i)));     /* back, for the tests after */
+    });
+    ok &= run('audit: in a later school year nothing can be marked before a course is imported (a window opened on 31 July)', () => {
+      const keep = record().map(k => [k, props.get(k)]);
+      record().forEach(k => props.delete(k)); props.set('IMPORTED_COURSES_FROM', String(sy - 1)); props.set('IMPORTED_LIST_' + (sy - 1) + '_cL', '[]');
+      const r = markPupilsLeft(['leaver1@x.kr']);
+      const lastYear = props.get('IMPORTED_LIST_' + (sy - 1) + '_cL');
+      record().forEach(k => props.delete(k)); keep.forEach(([k, v]) => props.set(k, v));
+      if (r.ok !== false || !/Nothing has been imported since 1 August/.test(r.why) || clsOf('leaver1@x.kr') !== '8L') throw new Error(JSON.stringify(r).slice(0, 160));
+      if (lastYear) throw new Error('last year’s list of addresses was kept: it is never read');
+    });
+    ok &= run('audit: the first year’s record counts only courses still active in Classroom: last year’s archived course is found', () => {
+      const keep = record().map(k => [k, props.get(k)]);
+      record().forEach(k => props.delete(k));
+      const v = _notThisYearView_(null, ['cM']);                          /* cL is archived: not offered by Classroom */
+      const emails = [].concat(...v.groups.map(g => g.pupils.map(p => p.email)));
+      record().forEach(k => props.delete(k)); keep.forEach(([k, val]) => props.set(k, val));
+      if (!['leaver0@x.kr', 'leaver3@x.kr'].every(e => emails.indexOf(e) >= 0) || ['stayer0@x.kr', 'stayer2@x.kr'].some(e => emails.indexOf(e) >= 0)) throw new Error(emails.join(', ').slice(0, 300));
+    });
+    ok &= run('audit: a reminder keeps a pupil Classroom still lists in the course without an address', () => {
+      global.Classroom = { Courses: { Students: { list: () => ({ students: [{ userId: 'u-na', profile: {} }] }) } } };
+      let ids; try { ids = _freshIds_({ 'noaddr@x.kr': { userId: 'u-na', courseId: 'cR' } }, 'cR', {}); } finally { global.Classroom = undefined; }
+      if (ids['noaddr@x.kr'].userId !== 'u-na') throw new Error(JSON.stringify(ids));
+    });
+    ok &= run('audit: a save that read the pupil before a Move or Left reads them again under the lock', () => {
+      const readAt = Date.now() - 5000, was = { name: 'Leaver 2', cls: 'OLDCLASS' };
+      if (_freshStudent_('leaver2@x.kr', was, readAt + 60000).cls !== 'OLDCLASS') throw new Error('it re-read with nothing changed since');
+      _classesChanged_();
+      if (_freshStudent_('leaver2@x.kr', was, readAt).cls !== clsOf('leaver2@x.kr')) throw new Error('it kept the class it read before the change');
+    });
+    ok &= run('audit: a lab’s question words are kept under the hub’s station list too (a lab pushed before its hub)', () => {
+      const src = SRC.slice(SRC.indexOf('function _labQuestions_('), SRC.indexOf('function _labQuestions_(') + 2500);
+      if (!/var KEY = 'LABQ_' \+ lab\.id \+ '_' \+ \(ver \|\| 'none'\) \+ '_' \+ \(hubStamp/.test(src)) throw new Error('the cache key is the lab’s version alone');
+    });
+  } finally {
+    VISITOR = OWNER; made.forEach(id => { try { homeworkDelete(id); } catch (e) {} });
+    CLIENT_ID = keepCid; TEACHERS = ''; props.delete('TEACHERS'); global.Classroom = undefined;
+    try { _clearImportJob_(); } catch (e) {}
+    record().forEach(k => props.delete(k));
+  }
+}
+
+console.log('— this script’s own pass —');
+/* 6 Oct 2026, Daniel: a pupil shown as signed in must be synced "no matter what". Google's sign-in lasts an hour; the script
+   gives a pass of its own (HMAC under a secret kept only in Script Properties), good for 30 days, for saving and the pupil's
+   own practice only. */
+{
+  const keepCid = CLIENT_ID, keepTok = TOKEN_EMAIL, realNow = Date.now, keepUi = SpreadsheetApp.getUi, keepTracker = props.get('TRACKER_ID');
+  CLIENT_ID = 'CID'; TOKEN_EMAIL = 'ana@x.kr'; props.set('TRACKER_ID', 'tracker');
+  const J = (body) => JSON.parse(String(doPost({ postData: { contents: JSON.stringify(body) } })));
+  const passFor = (email) => { TOKEN_EMAIL = email; const j = J({ action: 'pass', token: TOK }); TOKEN_EMAIL = 'ana@x.kr'; return j; };
+  /* Google's sign-in from two hours ago: the script turns it away itself, before any call to Google */
+  const OLD = jwt({ aud: 'CID', exp: Math.floor(Date.now() / 1000) - 7200, email: 'ana@x.kr' });
+  const rowOf = email => { const sh = ss.getSheetByName('Digestion');
+    return sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues().filter(r => String(r[LAB_EMAIL - 1]).toLowerCase() === email)[0]; };
+  const enc = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const mac = (b, key) => require('crypto').createHmac('sha256', key).update(b).digest('base64url');
+  try {
+    ok &= run('a pass is given for Google’s own sign-in, to a pupil on the class list or a teacher, and the answer holds nothing else', () => {
+      props.delete('PASS_SECRET');
+      const j = passFor('ana@x.kr');
+      if (!j.ok || !/^p1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{40,60}$/.test(j.pass)) throw new Error(JSON.stringify(j));
+      if (Object.keys(j).sort().join() !== 'exp,ok,pass') throw new Error('the answer holds ' + Object.keys(j));
+      const days = (j.exp - Date.now()) / 864e5;
+      if (days < 29.9 || days > 30.1) throw new Error('it lasts ' + days + ' days');
+      const secret = props.get('PASS_SECRET');
+      if (!secret || secret.length < 64) throw new Error('no secret was made: ' + secret);
+      if (JSON.stringify(j).indexOf(secret) >= 0 || SRC.indexOf(secret) >= 0) throw new Error('the secret is in the answer or the code');
+      if (passFor('ana@x.kr').pass === j.pass && false) throw new Error('unreachable');
+      if (!passFor(OWNER).ok) throw new Error('a teacher got no pass');
+      const s = passFor('stranger@elsewhere.com');
+      if (s.ok || s.why !== 'not on this class list') throw new Error('a stranger: ' + JSON.stringify(s));
+      const old = J({ action: 'pass', token: OLD });
+      if (old.ok || old.why !== 'not signed in') throw new Error('an out-of-date Google sign-in got a pass: ' + JSON.stringify(old));
+    });
+    ok &= run('a pass never makes a pass, so a stolen one cannot be kept alive', () => {
+      const P = passFor('ana@x.kr').pass;
+      const j = J({ action: 'pass', pass: P }), k = J({ action: 'pass', token: OLD, pass: P });
+      if (j.ok || j.why !== 'not signed in' || k.ok || k.why !== 'not signed in') throw new Error(JSON.stringify([j, k]));
+    });
+    ok &= run('Google’s hour is up: a save with the pass is recorded, at the script’s own time, with no call to Google', () => {
+      const P = passFor('ana@x.kr').pass, f0 = FETCHES, t0 = Date.now(), seen = Number(rowOf('ana@x.kr')[9]) || 0;
+      const out = hand({ token: OLD, pass: P, score: 1, total: QN, checks: 987654 });
+      if (!/^recorded/.test(out)) throw new Error(out);
+      const r = rowOf('ana@x.kr');
+      if (Number(r[6]) !== 987654 || Number(r[9]) !== seen + 1) throw new Error('the save was not written: checks ' + r[6] + ', saves ' + r[9]);
+      const at = new Date(r[10]).getTime();
+      if (!(at >= t0 && at <= Date.now())) throw new Error('Last saved is not the script’s own time: ' + r[10]);
+      if (FETCHES !== f0) throw new Error((FETCHES - f0) + ' call(s) to Google for an out-of-date sign-in and a pass');
+    });
+    ok &= run('a pass altered, stamped with another secret, out of date or dated too far ahead is refused', () => {
+      const P = passFor('ana@x.kr').pass, [h, body, sig] = P.split('.');
+      const claims = JSON.parse(Buffer.from(body, 'base64url').toString());
+      const tries = {
+        'another pupil’s email, the stamp kept': h + '.' + enc(Object.assign({}, claims, { e: 'dee@x.kr' })) + '.' + sig,
+        'one letter of the stamp changed': h + '.' + body + '.' + (sig[0] === 'A' ? 'B' : 'A') + sig.slice(1),
+        'stamped with another secret': (() => { const b = h + '.' + enc(Object.assign({}, claims, { e: 'dee@x.kr' })); return b + '.' + mac(b, 'f'.repeat(128)); })(),
+        'no stamp': h + '.' + body + '.',
+        'another kind': 'p2.' + body + '.' + sig,
+        'not text': { e: 'ana@x.kr' }
+      };
+      for (const [what, p] of Object.entries(tries)) {
+        const out = hand({ token: OLD, pass: p, score: 1, total: QN });
+        if (out !== 'not recorded: not signed in') throw new Error(what + ': ' + out);
+      }
+      Date.now = () => realNow() + 31 * 864e5;
+      try { const out = hand({ token: OLD, pass: P, score: 1, total: QN }); if (out !== 'not recorded: not signed in') throw new Error('31 days on: ' + out); }
+      finally { Date.now = realNow; }
+      /* a good stamp on a date further ahead than any pass is made (how a leaked secret would show): refused */
+      const b = 'p1.' + enc(Object.assign({}, claims, { x: Date.now() + 400 * 864e5 }));
+      const far = hand({ token: OLD, pass: b + '.' + mac(b, props.get('PASS_SECRET')), score: 1, total: QN });
+      if (far !== 'not recorded: not signed in') throw new Error('400 days ahead: ' + far);
+    });
+    ok &= run('a pass opens only a pupil’s own saving and practice: never the reflection record, a test, or the teacher page', () => {
+      const P = passFor('ana@x.kr').pass;
+      const rec = J({ action: 'record', pass: P }), tst = J({ action: 'test', pass: P });
+      if (rec.ok || rec.why !== 'not signed in' || tst.ok || tst.why !== 'not signed in') throw new Error(JSON.stringify([rec, tst]));
+      const pr = J({ action: 'progress', token: OLD, pass: P });
+      if (!pr.ok || !pr.labs || !pr.labs['digestion-lab']) throw new Error('progress: ' + JSON.stringify(pr).slice(0, 160));
+      const TP = passFor(OWNER).pass;
+      const viaPass = J({ action: 'english.mine', token: OLD, pass: TP }), wu = J({ action: 'writeup.mine', token: OLD, pass: TP });
+      TOKEN_EMAIL = OWNER; const viaGoogle = J({ action: 'english.mine', token: TOK }); TOKEN_EMAIL = 'ana@x.kr';
+      if (!viaPass.ok || 'teacher' in viaPass || 'teacherPage' in viaPass) throw new Error('english.mine with a pass: ' + JSON.stringify(viaPass));
+      if (!wu.ok || 'teacher' in wu || 'teacherPage' in wu) throw new Error('writeup.mine with a pass: ' + JSON.stringify(wu));
+      if (!viaGoogle.teacher) throw new Error('english.mine with Google’s own sign-in lost the teacher’s way in');
+    });
+    ok &= run('every use still asks the class list: a teacher’s pass saves nothing in a lab', () => {
+      const out = hand({ token: OLD, pass: passFor(OWNER).pass, name: 'T', score: 1, total: QN });
+      if (!/^not recorded: not on this class list/.test(out)) throw new Error(out);
+    });
+    ok &= run('Bio English and the Write-Up Lab save with a pass too; Google’s good sign-in still wins over a pass for someone else', () => {
+      const P = passFor(enA.email).pass;
+      const e = J({ action: 'english.save', token: OLD, pass: P, sets: { 't3.kw.meanings': { done: 1, first: 1, total: 4, snap: 'f000', v: 'k1', go: 1, snap1: 'f000', best: 'f000' } } });
+      if (!e.ok || e.saved !== 1) throw new Error('english.save: ' + JSON.stringify(e));
+      const w = J({ action: 'writeup.save', token: OLD, pass: P, parts: { variables: { v: 'vv1', l: '1000000', r: { g: '10000' }, q: 'f0000000' } } });
+      if (!w.ok || w.saved !== 1) throw new Error('writeup.save: ' + JSON.stringify(w));
+      const deeBefore = Number(rowOf('dee@x.kr')[9]) || 0, anaBefore = Number(rowOf('ana@x.kr')[9]) || 0;
+      const out = hand({ token: TOK, pass: passFor('dee@x.kr').pass, score: 1, total: QN });
+      if (!/^recorded/.test(out) || Number(rowOf('dee@x.kr')[9]) !== deeBefore || Number(rowOf('ana@x.kr')[9]) !== anaBefore + 1)
+        throw new Error('a save with Ana’s Google sign-in and Dee’s pass went to the wrong row: ' + out);
+    });
+    ok &= run('🔑 in the menu cancels every pass at once (after a question); the next pass made works', () => {
+      const P = passFor('ana@x.kr').pass, said = [];
+      let answer = 'NO';
+      SpreadsheetApp.getUi = () => Object.assign(keepUi(), { ButtonSet: { OK: 1, YES_NO: 2 }, Button: { YES: 'YES', NO: 'NO' },
+        alert: (a, b, c) => { said.push(String(b)); return c === 2 ? answer : 'OK'; } });
+      newPassSecretMENU_();
+      if (!/^recorded/.test(hand({ token: OLD, pass: P, score: 1, total: QN }))) throw new Error('"No" cancelled the passes');
+      answer = 'YES'; newPassSecretMENU_();
+      const out = hand({ token: OLD, pass: P, score: 1, total: QN });
+      if (out !== 'not recorded: not signed in') throw new Error('an old pass after 🔑: ' + out);
+      if (!/^recorded/.test(hand({ token: OLD, pass: passFor('ana@x.kr').pass, score: 1, total: QN }))) throw new Error('a new pass after 🔑 does not save');
+      if (!/sign in again/.test(said.join(' ')) || !/Nothing they did is lost/.test(said.join(' '))) throw new Error('the question does not say what pupils will see: ' + said.join(' | '));
+    });
+    ok &= run('a refused save (numbers that do not add up) keeps no sign-in and no pass in the Rejected tab (audit, 6 Oct 2026)', () => {
+      const P = passFor('ana@x.kr').pass;
+      const out = hand({ token: OLD, pass: P, score: 5, total: 2 });
+      if (!/^rejected/.test(out)) throw new Error(out);
+      const rj = ss.getSheetByName('Rejected'), row = rj.getRange(rj.getLastRow(), 1, 1, rj.getLastColumn()).getValues()[0].join(' ');
+      if (row.indexOf(P) >= 0 || row.indexOf(OLD) >= 0 || /"(token|pass)"/.test(row)) throw new Error('the Rejected row keeps a credential: ' + row.slice(0, 200));
+      if (!/"score":5/.test(row)) throw new Error('the Rejected row lost the body it is there for: ' + row.slice(0, 200));
+    });
+    ok &= run('🔑 while saves hold the lock: nothing is cancelled, and the teacher is told to try again (audit, 6 Oct 2026)', () => {
+      const P = passFor('ana@x.kr').pass, said = [], keepLock = LockService.getScriptLock;
+      SpreadsheetApp.getUi = () => Object.assign(keepUi(), { ButtonSet: { OK: 1, YES_NO: 2 }, Button: { YES: 'YES', NO: 'NO' },
+        alert: (a, b, c) => { said.push(String(a) + ' ' + String(b)); return c === 2 ? 'YES' : 'OK'; } });
+      LockService.getScriptLock = () => ({ waitLock: () => { throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock: () => {} });
+      let threw = '';
+      try { newPassSecretMENU_(); } catch (e) { threw = e.message; } finally { LockService.getScriptLock = keepLock; }
+      if (threw) throw new Error('a raw error reached the teacher: ' + threw);
+      if (!/[Tt]ry again/.test(said.join(' '))) throw new Error('the teacher was not told: ' + said.join(' | '));
+      if (!/^recorded/.test(hand({ token: OLD, pass: P, score: 1, total: QN }))) throw new Error('the passes were cancelled anyway');
+    });
+    ok &= run('a long or unusual name (Hangul, an emoji, half an emoji) still gets a pass that works (audit, 6 Oct 2026)', () => {
+      for (const name of ['김'.repeat(200), 'Ana 😀'.repeat(40), 'Ana ' + String.fromCharCode(0xD83D)]) {
+        let p = null;
+        try { p = _issuePass_({ email: 'ana@x.kr', name: name }); } catch (e) { throw new Error('making a pass threw for ' + name.slice(0, 12) + ': ' + e.message); }
+        const who = p && _whoByPass_(p.pass);
+        if (!who || who.email !== 'ana@x.kr') throw new Error('the pass made for ' + JSON.stringify(name.slice(0, 12)) + ' is refused');
+      }
+    });
+  } finally {
+    Date.now = realNow; SpreadsheetApp.getUi = keepUi; CLIENT_ID = keepCid; TOKEN_EMAIL = keepTok;
+    if (keepTracker == null) props.delete('TRACKER_ID'); else props.set('TRACKER_ID', keepTracker);
+  }
+}
+
+console.log('— changing a due date from the teacher page (Daniel, 6 Oct 2026) —');
+/* "if I decide to change the due date, I can do it from the website and I don't have to go to Google Classroom" */
+{
+  const PATCHES = [], CREATES = [], made = [];
+  let patchFail = '';
+  const fake = () => ({ Courses: { CourseWork: {
+    create: (body, courseId) => { CREATES.push({ body, courseId }); return { id: 'cw-due-' + CREATES.length }; },
+    patch: (body, courseId, id, opt) => { if (patchFail) throw new Error(patchFail); PATCHES.push({ body, courseId, id, opt }); return Object.assign({ id }, body); } } } });
+  const task = [{ labId:'digestion-lab', stationIds:['mouth'] }];
+  const rowOf = id => _homeworkRows_().filter(h => h.id === id)[0];
+  const setOne = o => { global.Classroom = fake();
+    try { const r = homeworkCreate(Object.assign({ title:'Due test', post:true, classes:[{ cls: enA.cls, due:'2027-03-02' }], tasks: task }, o || {}));
+          if (!r.ok) throw new Error('could not set it: ' + r.why); made.push(r.made[0]); return r.made[0]; }
+    finally { global.Classroom = undefined; } };
+  const change = d => { global.Classroom = fake(); try { return homeworkChangeDue(d); } finally { global.Classroom = undefined; } };
+  const keep = { V: VISITOR, D: SCHOOL_DOMAIN, T: TEACHERS };
+  try {
+    SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+    ok &= run('the new date and time go into the 📚 Homework row and onto its Google Classroom assignment (its due date and time only)', () => {
+      if (typeof homeworkChangeDue !== 'function') throw new Error('there is no homeworkChangeDue for the page to call');
+      const id = setOne(), was = rowOf(id);
+      if (!was.courseWork) throw new Error('the homework was not posted, so this proves nothing');
+      PATCHES.length = 0;
+      const r = change({ id, due:'2027-03-09', time:'08:30' });
+      if (!r.ok) throw new Error('refused: ' + r.why);
+      if (rowOf(id).due !== '2027-03-08T23:30:00.000Z') throw new Error('the row’s due is ' + rowOf(id).due + ' (08:30 in the school’s zone, UTC+9, is 23:30 UTC the day before)');
+      if (PATCHES.length !== 1) throw new Error('Classroom was asked ' + PATCHES.length + ' times');
+      const p = PATCHES[0];
+      if (p.courseId !== was.course || p.id !== was.courseWork) throw new Error('the wrong assignment: ' + JSON.stringify(p).slice(0, 160));
+      if (!p.opt || p.opt.updateMask !== 'dueDate,dueTime') throw new Error('more than the due was asked to change: ' + JSON.stringify(p.opt));
+      if (JSON.stringify(p.body) !== JSON.stringify({ dueDate: { year: 2027, month: 3, day: 8 }, dueTime: { hours: 23, minutes: 30 } })) throw new Error('the due sent: ' + JSON.stringify(p.body));
+      if (!/here and in Google Classroom/.test(r.note)) throw new Error('the page is not told: ' + r.note);
+      if (!r.data || !r.data.homework.some(h => h.id === id && h.dueText === '9 Mar, 08:30' && h.dueDay === '2027-03-09' && h.dueHm === '08:30'))
+        throw new Error('the list that comes back does not show the new date, ready for the boxes: ' + JSON.stringify(r.data && r.data.homework.filter(h => h.id === id)).slice(0, 300));
+    });
+    ok &= run('a date that has passed, a time that is not a time, no date, the same date, before a later start, or gone: refused in words, nothing changed', () => {
+      const id = setOne(), later = setOne({ classes:[{ cls: enA.cls, due:'2027-03-20', start:'2027-03-10', startTime:'09:00' }] });
+      PATCHES.length = 0;
+      [[{ id, due:'2026-01-05' }, /has passed/], [{ id, due:'2027-03-09', time:'25:00' }, /not a time/], [{ id, due:'' }, /Give it a due date/],
+       [{ id, due:'2027-03-02' }, /already its due time/], [{ id: later, due:'2027-03-09' }, /due after it starts/], [{ id:'HW-nope', due:'2027-03-09' }, /not there any more/]]
+        .forEach(([d, re]) => { const r = change(d); if (r.ok !== false || !re.test(r.why)) throw new Error(JSON.stringify(d) + ' → ' + JSON.stringify(r).slice(0, 160)); });
+      if (PATCHES.length) throw new Error('Google Classroom was changed for a refused date');
+      if (rowOf(id).due !== '2027-03-02T14:59:59.000Z') throw new Error('the row changed: ' + rowOf(id).due);
+    });
+    ok &= run('only the teacher who set it, or the owner; never a pupil', () => {
+      const id = setOne();
+      TEACHERS = 'colleague@x.kr'; VISITOR = 'colleague@x.kr';
+      const r = change({ id, due:'2027-03-10' });
+      if (r.ok !== false || !/Only they \(or the owner\)/.test(r.why)) throw new Error('a colleague changed it: ' + JSON.stringify(r).slice(0, 120));
+      VISITOR = 'pupil@pupils.x.kr';
+      if (change({ id, due:'2027-03-10' }).ok !== false) throw new Error('a pupil changed it');
+      VISITOR = OWNER;
+      if (!change({ id, due:'2027-03-10' }).ok) throw new Error('the owner could not');
+    });
+    ok &= run('Classroom refusing: the date still changes here, and the page says to change it in Classroom by hand', () => {
+      const id = setOne(); patchFail = 'ProjectPermissionDenied: The Developer Console project is not permitted to make this request.';
+      let r; try { r = change({ id, due:'2027-03-11' }); } finally { patchFail = ''; }
+      if (!r.ok || !/did not take it/.test(r.note) || !/by hand/.test(r.note)) throw new Error(JSON.stringify(r).slice(0, 200));
+      if (!/^2027-03-11/.test(rowOf(id).due)) throw new Error('the row did not change: ' + rowOf(id).due);
+    });
+    ok &= run('homework never posted: only the row changes, and the page says there is nothing to change in Classroom', () => {
+      const id = setOne({ post:false }); PATCHES.length = 0;
+      const r = change({ id, due:'2027-03-12' });
+      if (!r.ok || PATCHES.length || !/not posted to Google Classroom/.test(r.note)) throw new Error(JSON.stringify(r).slice(0, 200));
+    });
+    ok &= run('a reminder skipped for the old due time can go at the new one; one that went, or one skipped because the next went, never goes again', () => {
+      const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh);
+      const put = (id, k, txt) => { const r = rowOf(id).row; sh.getRange(r, hc['Reminder ' + k]).setValue(new Date()); sh.getRange(r, hc['Reminder ' + k + ' students']).setValue(txt); };
+      const a = setOne({ remind: true }), b = setOne({ remind: true }), c = setOne({ remind: true }), off = setOne();
+      put(a, 1, 'skipped: the due time had passed'); put(a, 2, 'skipped: the due time had passed');
+      put(b, 1, 'skipped: reminder 2 was due at the same time'); put(b, 2, '12');
+      put(c, 1, '9'); put(c, 2, 'skipped: its time fell between 22:00 and 07:00, and 07:00 was too close to the due time');
+      put(off, 1, 'skipped: the due time had passed');
+      const said = {}; [a, b, c, off].forEach(id => { const r = change({ id, due:'2027-03-20' }); if (!r.ok) throw new Error('refused: ' + r.why); said[id] = r.note; });
+      const st = id => rowOf(id).rem.map(x => (x.at ? 'at' : '-') + ':' + x.said).join(' | ');
+      if (st(a) !== '-: | -:') throw new Error('both skipped reminders should wait for the new time: ' + st(a));
+      if (st(b) !== 'at:skipped: reminder 2 was due at the same time | at:12') throw new Error('a reminder that went, or the one it replaced, changed: ' + st(b));
+      if (st(c) !== 'at:9 | -:') throw new Error('reminder 1 went and reminder 2 was skipped: ' + st(c));
+      if (!/skipped for the old due time/.test(said[a]) || !/skipped for the old due time/.test(said[c])) throw new Error('the page is not told: ' + said[a]);
+      if (/skipped for the old due time/.test(said[b]) || /skipped for the old due time/.test(said[off])) throw new Error('told of a reminder that will not go: ' + said[b] + ' / ' + said[off]);
+    });
+    ok &= run('a summary already emailed for the old date goes again after the new one', () => {
+      const id = setOne(), sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh);
+      sh.getRange(rowOf(id).row, hc.Status).setValue('reported'); sh.getRange(rowOf(id).row, hc.Reported).setValue(new Date());
+      const r = change({ id, due:'2027-03-13' }), row = rowOf(id);
+      if (!r.ok || row.status !== 'set' || row.reported) throw new Error('still reported: ' + row.status + ' ' + row.reported);
+      if (!/summary/.test(r.note)) throw new Error('the page is not told: ' + r.note);
+    });
+  } finally {
+    VISITOR = OWNER; made.forEach(id => { try { homeworkDelete(id); } catch (e) {} });
+    VISITOR = keep.V; SCHOOL_DOMAIN = keep.D; TEACHERS = keep.T; props.delete('TEACHERS'); props.delete('SCHOOL_DOMAIN');
+    global.Classroom = undefined;
+  }
+}
+
+console.log('— the Archive of Set homework: Hide keeps everything, Remove deletes (Daniel, 7 Oct 2026) —');
+/* "I think deleting a homework should just hide it, not remove it from everywhere else … it's worth having the homework set
+   for all of the students throughout their whole progress"; "remove before the due date and hide after the due date"; the
+   tips say what Remove does to Homework habits, and that a wrong date only needs Change the due date */
+{
+  const made = [];
+  const task = [{ labId:'digestion-lab', stationIds:['mouth'] }];
+  const tab = () => ss.getSheetByName(T_HOMEWORK);
+  const rowOf = id => _homeworkRows_().filter(h => h.id === id)[0];
+  const isDate = v => Object.prototype.toString.call(v) === '[object Date]';
+  const setOne = o => { const r = homeworkCreate(Object.assign({ title:'Archive test', classes:[{ cls: enA.cls, due:'2027-03-02' }], tasks: task }, o || {}));
+    if (!r.ok) throw new Error('could not set it: ' + r.why); made.push(r.made[0]); return r.made[0]; };
+  /* set nine days ago, due two days ago: past its due date, and inside ⏱️ Homework habits' window */
+  const pastDue = id => { const hc = _hwHeadCols_(tab()), r = rowOf(id).row;
+    tab().getRange(r, hc.Created).setValue(new Date(Date.now() - 9 * 864e5)); tab().getRange(r, hc.Due).setValue(new Date(Date.now() - 2 * 864e5)); };
+  const keep = { V: VISITOR, D: SCHOOL_DOMAIN, T: TEACHERS, H: HUB_URL, M: MANIFEST_JSON };
+  /* the station list the pupils' own list scores against (the tests above left no hub address) */
+  const freshMan = () => { for (const k of Array.from(cacheStore.keys())) if (/^(STATIONS_MANIFEST_|HUB_STAMP)/.test(k)) cacheStore.delete(k); };
+  try {
+    SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+    HUB_URL = 'https://hub.test';
+    MANIFEST_JSON = JSON.stringify({ generated:'t', labs: { 'digestion-lab': { name:'Digestion', questions:123,
+      stations:[ { id:'mouth', name:'Mouth and teeth', questions:8 }, { id:'stomach', name:'Stomach', questions:9 } ] } } });
+    freshMan();
+    ok &= run('homework still to come cannot be hidden; the refusal points to Remove for a mistake and to a new due date', () => {
+      if (typeof homeworkHide !== 'function') throw new Error('there is no homeworkHide for the page to call');
+      const id = setOne(), r = homeworkHide({ id, hide: true });
+      if (r.ok !== false || !/due date has passed/.test(r.why) || !/Remove/.test(r.why) || !/change the due date/.test(r.why)) throw new Error(JSON.stringify(r).slice(0, 220));
+      if (rowOf(id).hidden) throw new Error('it was hidden anyway');
+    });
+    ok &= run('past its due date, Hide writes the time under the last heading, Hidden, and the list says it is hidden; no other cell moves', () => {
+      const id = setOne(); pastDue(id);
+      const n = _HW_HEADERS_.length, row = rowOf(id).row, before = JSON.stringify(tab().getRange(row, 1, 1, n - 1).getValues()[0]);
+      const r = homeworkHide({ id, hide: true });
+      if (!r.ok) throw new Error('refused: ' + r.why);
+      const head = tab().getRange(1, 1, 1, tab().getLastColumn()).getValues()[0].map(x => String(x).replace(/^\u270e\s*/, '').trim());
+      if (head.indexOf('Hidden') !== n - 1) throw new Error('Hidden is not the last heading: ' + head.join(', '));
+      const cell = tab().getRange(row, n).getValue();
+      if (!isDate(cell) || Math.abs(cell.getTime() - Date.now()) > 60000) throw new Error('the Hidden cell holds ' + cell);
+      if (JSON.stringify(tab().getRange(row, 1, 1, n - 1).getValues()[0]) !== before) throw new Error('another cell of the row changed');
+      const h = r.data.homework.filter(x => x.id === id)[0];
+      if (!h || h.hidden !== true || !h.overdue || !/^\d{1,2} [A-Z][a-z]{2}, \d\d:\d\d$/.test(h.hiddenText))
+        throw new Error('the page is not told: ' + JSON.stringify(h && { hidden: h.hidden, overdue: h.overdue, t: h.hiddenText }));
+    });
+    ok &= run('hidden homework still counts everywhere else: the pupil’s own list, ⏱️ Homework habits, and the teacher’s list, marked hidden', () => {
+      const id = setOne(); pastDue(id);
+      const mine = () => _ownHomework_(enA.email, enA.cls).map(x => x.id).indexOf(id) >= 0;
+      const habits = () => _habitsData_(Date.now()).homework.map(x => x.id).indexOf(id) >= 0;
+      if (!mine() || !habits()) throw new Error('before hiding it is not in the pupil’s list (' + mine() + ') or Homework habits (' + habits() + '): this proves nothing');
+      if (!homeworkHide({ id, hide: true }).ok) throw new Error('could not hide it');
+      if (!mine()) throw new Error('hiding took it off the pupil’s own list');
+      if (!habits()) throw new Error('hiding took it out of ⏱️ Homework habits');
+      if (!_homeworkData_(undefined, OWNER).homework.some(x => x.id === id && x.hidden)) throw new Error('the teacher’s list lost it: it must stay there, marked hidden');
+    });
+    ok &= run('Show it again empties the cell; hiding twice, or showing twice, changes nothing', () => {
+      const id = setOne(); pastDue(id);
+      const cellOf = () => tab().getRange(rowOf(id).row, _HW_HEADERS_.length).getValue();
+      homeworkHide({ id, hide: true });
+      const at = String(cellOf());
+      if (!homeworkHide({ id, hide: true }).ok || String(cellOf()) !== at) throw new Error('hiding again moved its time');
+      const r = homeworkHide({ id, hide: false });
+      if (!r.ok || rowOf(id).hidden || cellOf() !== '') throw new Error('not shown again: ' + JSON.stringify(r).slice(0, 120) + ' / ' + cellOf());
+      if (!homeworkHide({ id, hide: false }).ok || rowOf(id).hidden) throw new Error('showing twice went wrong');
+    });
+    ok &= run('only the teacher who set it, or the owner, hides it; never a pupil; never homework that is not there', () => {
+      const id = setOne(); pastDue(id);
+      TEACHERS = 'colleague@x.kr'; VISITOR = 'colleague@x.kr';
+      const r = homeworkHide({ id, hide: true });
+      if (r.ok !== false || !/Only they \(or the owner\)/.test(r.why)) throw new Error('a colleague hid it: ' + JSON.stringify(r).slice(0, 120));
+      VISITOR = 'pupil@pupils.x.kr';
+      if (homeworkHide({ id, hide: true }).ok !== false) throw new Error('a pupil hid it');
+      VISITOR = OWNER;
+      if (rowOf(id).hidden) throw new Error('hidden by somebody who may not');
+      if (!homeworkHide({ id, hide: true }).ok) throw new Error('the owner could not');
+      const no = homeworkHide({ id:'HW-nope', hide: true });
+      if (no.ok !== false || !/not there any more/.test(no.why)) throw new Error('hiding nothing: ' + JSON.stringify(no));
+      TEACHERS = keep.T; props.delete('TEACHERS');
+    });
+    ok &= run('a new due date lists hidden homework again, and the page is told', () => {
+      const id = setOne(); pastDue(id);
+      homeworkHide({ id, hide: true });
+      const r = homeworkChangeDue({ id, due:'2027-04-01' });
+      if (!r.ok) throw new Error('refused: ' + r.why);
+      if (rowOf(id).hidden) throw new Error('still hidden, though students are doing it again');
+      if (!/listed again/.test(r.note)) throw new Error('the page is not told: ' + r.note);
+    });
+    ok &= run('a tab from before Hidden, tidied over a teacher’s own column: words there never hide anything, and Hide never writes over them', () => {
+      const id = setOne(); pastDue(id);
+      const n = _HW_HEADERS_.length, sh = tab(), row = rowOf(id).row;
+      sh.getRange(1, n).setValue('My notes'); sh.getRange(row, n).setValue('ring the parents');
+      try {
+        if (rowOf(id).hidden) throw new Error('a column headed My notes hid it');
+        const r = homeworkHide({ id, hide: true });
+        if (r.ok !== false || !/holds something else/.test(r.why)) throw new Error('Hide wrote into the teacher’s column: ' + JSON.stringify(r).slice(0, 160));
+        if (sh.getRange(row, n).getValue() !== 'ring the parents') throw new Error('the note changed: ' + sh.getRange(row, n).getValue());
+        sh.getRange(1, n).setValue('Hidden');      /* Tidy up writes its heading over that column */
+        if (rowOf(id).hidden) throw new Error('words under the Hidden heading hid it');
+        if (_homeworkData_(undefined, OWNER).homework.some(x => x.id === id && x.hidden)) throw new Error('the page was told it is hidden');
+      } finally { sh.getRange(1, n).setValue('Hidden'); sh.getRange(row, n).setValue(''); }
+    });
+    ok &= run('Remove still deletes, before and after the due date', () => {
+      const a = setOne(), b = setOne(); pastDue(b);
+      if (!homeworkDelete(a).ok || rowOf(a)) throw new Error('homework still to come was not removed');
+      if (!homeworkDelete(b).ok || rowOf(b)) throw new Error('homework past its due date was not removed');
+    });
+    ok &= run('the page: past its due date, homework is in a folded Archive, not the list; open, it has Hide, and Remove says what it does to Homework habits', () => {
+      const a = setOne({ title:'Still to come' }), b = setOne({ title:'Past and listed' }), c = setOne({ title:'Past and hidden' });
+      pastDue(b); pastDue(c);
+      if (!homeworkHide({ id: c, hide: true }).ok) throw new Error('could not hide the test homework');
+      const D = uiData('homework').data, page = teacherPage();
+      const mine = D.homework.filter(h => h.mine), nPast = mine.filter(h => h.overdue && !h.hidden).length, nHid = mine.filter(h => h.overdue && h.hidden).length;
+      page.win.vHomework(D);
+      let html = page.html();
+      const at = html.indexOf('id="harch"');
+      if (at < 0) throw new Error('there is no Archive');
+      const listPart = html.slice(0, at);
+      if (listPart.indexOf('data-hw="' + a + '"') < 0) throw new Error('homework still to come left the list');
+      if (listPart.indexOf('data-hw="' + b + '"') >= 0 || listPart.indexOf('data-hw="' + c + '"') >= 0) throw new Error('homework past its due date is still in the list');
+      if (html.indexOf('data-hw="' + b + '"') >= 0) throw new Error('the Archive is open before it is asked');
+      if (html.indexOf(nPast + ' past ' + (nPast === 1 ? 'its' : 'their') + ' due date · ' + nHid + ' hidden') < 0) throw new Error('the Archive does not say how many: ' + html.slice(at, at + 400));
+      page.press('data-arch', '1');
+      html = page.html();
+      if (html.indexOf('data-hw="' + b + '"') < 0) throw new Error('open, the Archive does not list it');
+      if (html.indexOf('data-hw="' + c + '"') >= 0) throw new Error('hidden homework is listed before it is asked for');
+      page.press('data-hw', b);
+      html = page.html();
+      if (!new RegExp('data-hide="' + b + '"[^>]*data-tip="[^"]*still counts in ⏱️ Homework habits').test(html)) throw new Error('its Hide does not say it still counts in Homework habits');
+      if (!new RegExp('data-ask="' + b + '"[^>]*data-tip="[^"]*leaves ⏱️ Homework habits[^"]*set by mistake[^"]*press “Hide”').test(html)) throw new Error('its Remove does not warn about Homework habits and point to Hide');
+      page.press('data-hw', a);
+      html = page.html();
+      if (new RegExp('data-hide="' + a + '"').test(html)) throw new Error('homework still to come offers Hide');
+      if (!new RegExp('data-ask="' + a + '"[^>]*data-tip="[^"]*leaves ⏱️ Homework habits[^"]*set by mistake[^"]*Change the due date').test(html)) throw new Error('Remove on homework still to come does not warn about Homework habits and point to Change the due date');
+      page.press('data-ask', a);
+      html = page.html();
+      if (!/Remove deletes it, and it cannot be undone[^<]*Homework habits[^<]*“Change the due date”/.test(html)) throw new Error('waiting for a yes, the card does not say what Remove does');
+      page.press('data-hidopen', '1');
+      html = page.html();
+      if (html.indexOf('data-hw="' + c + '"') < 0) throw new Error('the hidden homework cannot be shown');
+      page.press('data-hw', c);
+      html = page.html();
+      if (!new RegExp('data-unhide="' + c + '"').test(html)) throw new Error('hidden homework has no Show it again');
+      if (new RegExp('data-hide="' + c + '"').test(html) || new RegExp('data-duechg="' + c + '"').test(html)) throw new Error('hidden homework offers Hide or a new date before it is shown again');
+      if (!new RegExp('data-ask="' + c + '"').test(html)) throw new Error('hidden homework cannot be removed');
+    });
+  } finally {
+    VISITOR = OWNER; made.forEach(id => { try { homeworkDelete(id); } catch (e) {} });
+    VISITOR = keep.V; SCHOOL_DOMAIN = keep.D; TEACHERS = keep.T; props.delete('TEACHERS'); props.delete('SCHOOL_DOMAIN');
+    HUB_URL = keep.H; MANIFEST_JSON = keep.M; props.delete('HUB_URL'); freshMan();
+  }
+}
+
+console.log('— keep: a reworded station keeps its fingerprint (the practice-questions audit, 7 Oct 2026) —');
+/* "even if you shuffle the questions, even if you rephrase the questions … the students still have the correct answer"
+   (Daniel). The teacher page shows a pupil's squares and words only where _labSig_ matches the fingerprint their letters
+   were saved under, so it must honour `keep` exactly as every lab's own stationSig does. */
+ok &= run('_labSig_ honours keep exactly as the four labs’ stationSig do; reworded again, the station is new', () => {
+  const vm = require('vm');
+  const appSig = lab => {
+    const src = fs.readFileSync('../../labs/' + lab + '-lab/js/app.js', 'utf8');
+    const a = src.indexOf('  function hash36('), z = src.indexOf('  function reconcile()');
+    if (a < 0 || z < a) throw new Error(lab + '’s app.js has changed shape: no hash36 … reconcile');
+    const ctx = {}; vm.runInNewContext(src.slice(a, z) + '\nthis.stationSig = stationSig;', ctx); return ctx.stationSig;
+  };
+  const w = {}; vm.runInNewContext(fs.readFileSync('../../labs/plants-lab/js/data/stations.js', 'utf8'), { window: w });
+  const st = JSON.parse(JSON.stringify(w.STATIONS.filter(s => (s.activities || []).some(a => a.type === 'mcq'))[0]));
+  const labs = ['plants', 'circulation', 'classification', 'digestion'].map(l => [l, appSig(l)]);
+  const was = _labSig_(st);
+  labs.forEach(([l, sig]) => { if (sig(st) !== was) throw new Error(l + ' and _labSig_ disagree on a station as published'); });
+  const q = st.activities.findIndex(a => a.type === 'mcq');
+  st.activities[q].options = st.activities[q].options.map(o => o + ' (in new words)');
+  const now = _labSig_(st);
+  if (now === was) throw new Error('new words did not change the fingerprint: this proves nothing');
+  st.keep = { sig: was, now: now, on: '2026-10-07', why: 'the test' };
+  if (_labSig_(st) !== was) throw new Error('_labSig_ does not honour keep: the teacher page would drop the pupils’ squares for this station');
+  labs.forEach(([l, sig]) => { if (sig(st) !== was) throw new Error(l + '’s stationSig does not honour keep'); });
+  st.activities[q].options[0] += ' again';
+  if (_labSig_(st) === was) throw new Error('reworded again, the station still claims its old fingerprint');
+  labs.forEach(([l, sig]) => { if (sig(st) !== _labSig_(st)) throw new Error(l + ' and _labSig_ disagree once keep no longer applies'); });
+  st.keep = { sig: 5, now: _labSig_(st) };
+  if (_labSig_(st) === 5) throw new Error('a keep whose sig is not a fingerprint was taken');
+});
+
+console.log('— each question as a square on the teacher page (Daniel, 6 Oct 2026) —');
+/* "so that I know exactly where the students had to check multiple times": Lab progress carries each pupil's first-round
+   letters per station, and the page asks for one lab's question words when a teacher opens them. The letters and the
+   words are both tied to the station's fingerprint, so a station rewritten since is never shown against other questions. */
+{
+  const labJs = lab => fs.readFileSync('../../labs/' + lab + '-lab/js/data/stations.js', 'utf8');
+  const stationsOf = txt => { const a = txt.indexOf('window.STATIONS = '), z = txt.indexOf('\n];', a); return JSON.parse(txt.slice(a + 18, z + 2)); };
+  const REAL_MAN = fs.readFileSync('../../labs-shared/stations.json', 'utf8');
+  const keepMan = MANIFEST_JSON, keepHub = HUB_URL, keepVisitor = VISITOR, keepDomain = SCHOOL_DOMAIN, keepFetch = UrlFetchApp.fetch;
+  const setMan = j => { MANIFEST_JSON = j; for (const k of Array.from(cacheStore.keys())) if (/^(STATIONS_MANIFEST_|HUB_STAMP|LABQ_|LABV_)/.test(k)) cacheStore.delete(k); };
+  let jsFetches = 0;
+  UrlFetchApp.fetch = (url, o) => {
+    const u = String(url);
+    if (/\/digestion-lab\/version\.txt$/.test(u)) return { getResponseCode: () => 200, getContentText: () => '1759990000' };
+    if (/\/digestion-lab\/js\/data\/stations\.js/.test(u)) { jsFetches++; return { getResponseCode: () => 200, getContentText: () => labJs('digestion') }; }
+    return keepFetch(url, o);
+  };
+  const dig = ss.getSheetByName('Digestion'), keepRows = {};
+  const rowAt = email => dig.getRange(2, LAB_EMAIL, dig.getLastRow() - 1, 1).getValues().findIndex(r => String(r[0]).toLowerCase() === email) + 2;
+  const nameOf = email => { const sh = ss.getSheetByName('Students'), ec = _emailCol_(sh);
+    const r = sh.getRange(2, 1, sh.getLastRow() - 1, ec).getValues().find(x => String(x[ec - 1]).toLowerCase() === email); return r ? r[0] : null; };
+  const putRow = (email, cells) => { const r = rowAt(email); if (r < 2) throw new Error('no Digestion row for ' + email);
+    if (!keepRows[email]) keepRows[email] = dig.getRange(r, 1, 1, LAB_COLS.length).getValues()[0];
+    Object.keys(cells).forEach(c => dig.getRange(r, +c).setValue(cells[c])); };
+  try {
+    HUB_URL = 'https://hub.test'; setMan(REAL_MAN); SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+
+    ok &= run('the script works out a station’s fingerprint exactly as each lab’s own page does (every station of the four labs)', () => {
+      let n = 0;
+      ['digestion', 'classification', 'plants', 'circulation'].forEach(lab => {
+        const app = fs.readFileSync('../../labs/' + lab + '-lab/js/app.js', 'utf8');
+        const h = app.slice(app.indexOf('function hash36('), app.indexOf('\n  }\n', app.indexOf('function hash36(')) + 4);
+        const sg = app.slice(app.indexOf('function stationSig('), app.indexOf('\n  }\n', app.indexOf('function stationSig(')) + 4);
+        if (h.length < 60 || sg.length < 60) throw new Error(lab + ': its stationSig has moved, so this test cannot read it');
+        const theirs = new Function(h + '\n' + sg + '\nreturn stationSig;')();
+        stationsOf(labJs(lab)).forEach(st => { n++;
+          if (_labSig_(st) !== theirs(st)) throw new Error(lab + ' ' + st.id + ': the script says ' + _labSig_(st) + ', the lab ' + theirs(st)); });
+      });
+      if (n < 40) throw new Error('only ' + n + ' stations were compared');
+    });
+
+    ok &= run('Lab progress gives each pupil’s first-round letters per station, the best only where it differs, never for a station rewritten since', () => {
+      const man = JSON.parse(REAL_MAN), D = man.labs['digestion-lab'].stations, diet = D.find(x => x.id === 'diet').sig, mouth = D.find(x => x.id === 'mouth').sig;
+      putRow('ana@x.kr', { 3: 5, [LAB_SNAP]: 'diet~' + diet + ':ffft1t0f0@2|mouth~8:old:ffffffff',
+                               [LAB_FIRST]: 'diet~' + diet + ':f1t000000|mouth~8:old:ffffffff', [LAB_BEST]: 'diet~' + diet + ':ff1t1f000' });
+      putRow('bo@x.kr', { 3: 2, [LAB_SNAP]: 'diet~' + diet + ':ff1|mouth~' + mouth + ':tt', [LAB_FIRST]: '', [LAB_BEST]: '' });
+      const d = _labProgressData_(SEP26), who = n => d.students.find(x => x.name === n), a = who(nameOf('ana@x.kr')), b = who(nameOf('bo@x.kr'));
+      const ea = a && a.byLab['digestion-lab'], eb = b && b.byLab['digestion-lab'];
+      if (!ea || !ea.q) throw new Error('no letters for the first pupil: ' + JSON.stringify(ea).slice(0, 200));
+      if (ea.q.diet !== 'f1t000000') throw new Error('the first round is not what the squares show: ' + ea.q.diet);
+      if (!ea.b || ea.b.diet !== 'ffft1f0f0') throw new Error('the best ever (this round and the kept best, folded) is wrong: ' + JSON.stringify(ea.b));
+      if ('mouth' in ea.q) throw new Error('a station rewritten since its letters were saved still got squares');
+      if (!eb || !eb.q || eb.q.diet !== 'ff1000000' || eb.q.mouth !== 'tt000000') throw new Error('a save from before rounds is not read as round 1: ' + JSON.stringify(eb && eb.q));
+      if (eb.b) throw new Error('a best was sent where it is the same as the first round: ' + JSON.stringify(eb.b));
+    });
+
+    ok &= run('Lab progress gives each station’s rounds, the checks no question can be given, the resets and round 1’s checks (for Stuck)', () => {
+      const man = JSON.parse(REAL_MAN), D = man.labs['digestion-lab'].stations, diet = D.find(x => x.id === 'diet').sig;
+      putRow('ana@x.kr', { 3: 5, 7: 30, [LAB_ROUNDS]: '#2|diet~' + diet + ':+3;f1t000000.132000000;0t1000000.023000000|mouth~8:old:^7' });
+      const d = _labProgressData_(SEP26), a = d.students.find(x => x.name === nameOf('ana@x.kr')), e = a && a.byLab['digestion-lab'];
+      if (!e || !e.rd || JSON.stringify(e.rd) !== JSON.stringify({ diet: ['f1t000000.132000000', '0t1000000.023000000'] })) throw new Error('rounds: ' + JSON.stringify(e && e.rd));
+      if (JSON.stringify(e.rx) !== JSON.stringify({ diet: 3, mouth: 7 })) throw new Error('not by question: ' + JSON.stringify(e.rx));
+      /* round 1's checks: every check (30) less those known to be in a later round (5): what the cell does not hold counts */
+      if (e.rs !== 2 || e.ag !== 1 || e.c1 !== 25) throw new Error('resets / again / round 1: ' + [e.rs, e.ag, e.c1]);
+    });
+
+    ok &= run('a lab’s question words come from its own page, cut short, only where the fingerprint matches, fetched once per version', () => {
+      const man = JSON.parse(REAL_MAN); man.labs['digestion-lab'].stations.find(x => x.id === 'overview').sig = '9:rewritten';
+      setMan(JSON.stringify(man)); jsFetches = 0;
+      const r = uiData('questions', 'digestion-lab');
+      if (!r.ok || !r.data) throw new Error('no words: ' + JSON.stringify(r).slice(0, 160));
+      const words = r.data;
+      if (!words.diet || words.diet.length !== 9 || !/^Four people, four pie charts/.test(words.diet[0])) throw new Error('the diet station’s words are wrong: ' + JSON.stringify(words.diet).slice(0, 160));
+      if ('overview' in words) throw new Error('a station whose fingerprint differs from the hub list still got words');
+      const all = [].concat(...Object.values(words));
+      if (all.some(w => typeof w !== 'string' || !w || w.length > 171)) throw new Error('a question’s words are missing or not cut short');
+      if (!all.some(w => /…$/.test(w))) throw new Error('nothing long was cut with …');
+      if (jsFetches !== 1) throw new Error('the lab page was fetched ' + jsFetches + ' times');
+      uiData('questions', 'digestion-lab');
+      if (jsFetches !== 1) throw new Error('a second ask fetched the lab page again instead of using the cache');
+      if (uiData('questions', 'no-such-lab').data !== null) throw new Error('an unknown lab gave words');
+      VISITOR = 'stu@pupils.x.kr';
+      if (uiData('questions', 'digestion-lab').ok !== false) throw new Error('a pupil was given the question words through the teacher page');
+    });
+  } finally {
+    UrlFetchApp.fetch = keepFetch; HUB_URL = keepHub; VISITOR = keepVisitor; SCHOOL_DOMAIN = keepDomain; setMan(keepMan);
+    Object.keys(keepRows).forEach(email => dig.getRange(rowAt(email), 1, 1, LAB_COLS.length).setValues([keepRows[email]]));
   }
 }
 

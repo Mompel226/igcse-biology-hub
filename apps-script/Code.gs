@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '5 Oct 2026 (evening) — homework reminders work: pupils\u2019 Classroom ids are read from Classroom, not from the rounded copy in the Students tab; the import keeps ids as text; Run ▸ checkReminders says why Classroom refuses a reminder; before that, 3 Oct 2026 — the Write-Up Lab in Set homework: its parts, saved for each signed-in pupil in a 📝 Write-Up Lab tab; the teacher page opens in the hub’s own tab with ← Biology Hub; before that, 2 Oct 2026 (11:20) — each teacher sees only the homework they set (the owner can see all); 🤝 Let the teachers on the list edit this spreadsheet; before that, 10:50 — Set homework for a later date: each class can have a start date and time; until then pupils see nothing (Google Classroom holds the post, the labs hide it), and the reminders count from the start; before that, 08:00 — Set homework: the Classroom post is a heading, numbered stations and numbered steps (sign in; answer every question in the Practise tab); an empty time says it means 23:59; “Same date and time” for the next class; a Classroom topic for each class; 🩺 says which time zone is used; before that, 2 Oct: the teacher page reads its other views at the same time; 1 Oct 2026 (23:45) — the teacher page: a bright version beside the dark one (☀/☾, the computer’s own setting until pressed), and the header in two rows (who is signed in and Refresh on top, the tabs below); before that, late night: Set homework sorts, links and reminders; Homework habits; the Analysis link for its viewers';
+var SCRIPT_EDITION = '7 Oct 2026 — rounds and checks; the homework Archive';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -213,7 +213,7 @@ var T_SETUP = 'Setup', T_LABS = 'Labs', T_STUDENTS = 'Students', T_REJECTED = 'R
    columns after Class stay empty until their first save arrives. */
 var LAB_COLS = [
   { h:'Name', w:200, note:'From the Students tab. Everyone gets a row here when they are imported, whether anything has been saved or not. To correct a name, correct it there.' },
-  { h:'Class', w:80, align:'center', note:'From the Students tab. Move somebody between classes there and it follows them into every lab.' },
+  { h:'Class', w:80, align:'center', note:'From the Students tab. Move somebody between classes there and it follows them into every lab. "LEFT 2027": in none of your classes (marked in the import window, or with Move on the teacher page); their work stays here.' },
   { h:'Score', w:76, align:'center', fmt:'0', group:true, note:'Their best score in this lab. Blank means nothing has been saved yet.' },
   { h:'Out of', w:76, align:'center', fmt:'0', note:'How many questions the lab asked.' },
   { h:'%', w:78, align:'center', fmt:'0.0%', note:'Their best score as a percentage.' },
@@ -235,7 +235,7 @@ var LAB_COLS = [
      (Start this station again, or Reset). The page empties; the record does not. Appended, so every column
      above keeps its position. */
   { h:'Practised again', w:300,
-    note:'Stations they started again (Start this station again, or Reset), so they could try the questions again. Nothing is lost: Score, %, Per station and homework keep their best, and Right first time stays from their FIRST round.\n\n"mouth: round 2, 5/8" — the mouth station is on its 2nd round, with 5 of its 8 questions right so far in this round.' },
+    note:'Stations they started again (Start this station again, or Reset), so they could try the questions again. Nothing is lost: Score, %, Per station and homework keep their best, and Right first time stays from their FIRST round.\n\n"Round 2 in 3 stations: 15 tried, 13 right, 30 checks · reset the whole lab 2× · failed again: The mouth Q3" — three stations reached a 2nd round; in it they answered 15 questions, 13 of them right, with 30 presses of Check; they pressed Reset twice; question 3 of the mouth was not right at the first check in round 1, nor in a later round. (A row whose last save came before 7 Oct 2026 still reads the old way: "mouth: round 2, 5/8".)' },
   { h:'First round', w:200, hide:true,
     note:'Every question as they answered it in their FIRST round: 0 not touched, t tried, 1 right after more tries, f right first time. Right first time and My assessments read this. Written by the lab. Do not edit.' },
   { h:'Best ever', w:200, hide:true,
@@ -243,7 +243,11 @@ var LAB_COLS = [
   /* ⏱️ Homework habits (1 Oct 2026): written by each save, inside the same write. Appended, so every column above keeps
      its position (the reflection's My assessments reads columns 15, 17, 19 and 20 by position). */
   { h:'Station times', w:200, hide:true,
-    note:'When each station was first tried, and when it was first finished, as their saves arrived. Kept from the first save after this column appeared; a first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' }
+    note:'When each station was first tried, and when it was first finished, as their saves arrived. Kept from the first save after this column appeared; a first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' },
+  /* Rounds and checks (7 Oct 2026): every round of every station, small, with the checks at each question in each round,
+     and how often the whole lab was reset. Appended, so every column above keeps its position. */
+  { h:'Rounds', w:200, hide:true,
+    note:'Every round of every station they practised, kept small. Each round: each question as 0 not touched, t tried, 1 right after more tries, f right first time; then, after the dot, how many times they pressed Check at each question in that round (0–9, then a = 10, b = 11 … z = 35 or more). "#2" at the start: they reset the whole lab twice. The teacher page’s Lab progress reads it. Written by the lab. Not marks. Do not edit.' }
 ];
 var LAB_EMAIL = 15;
 var LAB_GNAME = 16;        /* the column that ties a row to a person */
@@ -252,6 +256,7 @@ var LAB_AGAIN = 18;        /* goes, Sept 2026 — appended again, for the same r
 var LAB_FIRST = 19;
 var LAB_BEST  = 20;
 var LAB_TIMES = 21;        /* ⏱️ Homework habits (1 Oct 2026): appended again, for the same reason */
+var LAB_ROUNDS = 22;       /* rounds and checks (7 Oct 2026): appended again, for the same reason */
 
 /* ---- Signing in ----------------------------------------------------------
    The labs are public web pages: anyone in the world can open one and work through it.
@@ -314,6 +319,8 @@ function onOpen() {
     .addItem('👥  Teacher page: teachers and addresses…', 'showTeacherSetup_')
     .addItem('🤝  Let the teachers on the list edit this spreadsheet…', 'shareWithTeachersMENU_')
     .addItem('📬  Email me when homework falls due (every morning)', 'installDailySummary')
+    .addSeparator()
+    .addItem('🔑  Make every pupil sign in again (cancel their saving passes)…', 'newPassSecretMENU_')
     .addToUi();
 }
 
@@ -327,6 +334,10 @@ function doPost(e) {
     /* The hubs ask for a student's own scores back, so a cleared browser or a new device does
        not start from nothing. Handled before anything else, and it only ever reads. */
     if (String(d.action || '') === 'progress') return _ownProgress_(d);
+
+    /* A page with a fresh Google sign-in asks for this script's own pass, so its saves still go after Google's hour
+       (6 Oct 2026; _ownPass_). It only ever gives the caller their own. */
+    if (String(d.action || '') === 'pass') return _ownPass_(d);
 
     /* And whether they have a reflection record waiting for them. Also read-only, also
        only ever their own. */
@@ -350,9 +361,9 @@ function doPost(e) {
     /* Only this teacher's students are recorded. Anyone else in the world who works through
        a lab leaves no trace here at all — no row, no name, no email, nowhere. */
     if (!_clientId_()) return _text_('not recorded: sign-in is not set up');
-    var who = _whoIs_(d.token);
+    var who = _whoSaving_(d);                     /* Google's sign-in, or this script's pass once Google's hour is up */
     if (!who) return _text_('not recorded: not signed in');
-    var student = _studentOf_(who.email);
+    var student = _studentOf_(who.email), readAt = Date.now();
     /* The list is matched on the EMAIL column, never on the name. Adding a name and no
        address looks like being on the list and is not, so the address is named back. */
     if (!student) {
@@ -370,7 +381,7 @@ function doPost(e) {
     if (total < 0 || total > 1000) wrong.push('impossible total');
     if (wrong.length) {
       _reject_(lab, [new Date(), lab.id, student.name, student.cls, score, total, _plain_(String(d.code || '').slice(0, 60)),
-                    wrong.join('; '), _plain_(JSON.stringify(d).slice(0, 2000))]);
+                    wrong.join('; '), _plain_(JSON.stringify(d, _noCredentials_).slice(0, 2000))]);
       return _text_('rejected: ' + wrong.join('; '));
     }
 
@@ -401,6 +412,7 @@ function doPost(e) {
       var seen = Number(row[9]) || 0;
       var perBefore = row[13];                              /* Per station before this save (⏱️ Homework habits) */
 
+      student = _freshStudent_(who.email, student, readAt);   /* a Move or Left done while this save waited for the lock */
       row[0] = student.name; row[1] = student.cls;
       row[LAB_GNAME - 1] = _plain_(who.name);
       row[9] = seen + 1; row[10] = new Date();
@@ -413,9 +425,14 @@ function doPost(e) {
       row[LAB_SNAP - 1] = _plain_(got.here);
       row[LAB_FIRST - 1] = _plain_(got.first);
       row[LAB_BEST - 1] = _plain_(got.best);
-      row[LAB_AGAIN - 1] = _plain_(_practisedAgain_(got.here));
+      /* every round and the checks in it (7 Oct 2026): merged like the letters, never replaced. A page from before sends
+         no rounds: its Per station counts are then kept as each station's least; and until some station's rounds are here,
+         Practised again is said from the letters, as before. */
+      var rounds = _roundsMerge_(row[LAB_ROUNDS - 1], d.rounds, d.resets, d.stations, String(d.snap || ''));
+      row[LAB_ROUNDS - 1] = _plain_(rounds.cell);
+      row[LAB_AGAIN - 1] = _plain_(rounds.kept ? _roundsSay_(rounds.P, _stationNamesOf_(stMan, lab.id), got.here, rounds.current) : _practisedAgain_(got.here));
 
-      var per = _stationsBest_(row[13], d.stations, got.best);
+      var per = _stationsBest_(row[13], d.stations, got.best, rounds.by);
       var now = per.named ? Math.max(score, per.done) : score;
       if (total) now = Math.min(now, total);
       var beaten = !(was > 0) || now > was;
@@ -430,7 +447,7 @@ function doPost(e) {
         row[12] = flags.join('; ');
         if (!per.named) row[13] = _plain_(_stations_(d.stations));
       }
-      row[6] = Math.max(Number(row[6]) || 0, Number(d.checks) || 0) || '';
+      row[6] = Math.max(Number(row[6]) || 0, Number(d.checks) || 0, rounds.total) || '';   /* every round's checks */
       /* an old page's own count is its first go only while no station here has gone past go 1 */
       var sentFirst = oldPage && /@\d/.test(hereBefore) ? 0 : Number(d.firstTime) || 0;
       row[7] = Math.max(Number(row[7]) || 0, _snapCount_(got.first, 'f'), sentFirst) || '';
@@ -564,7 +581,7 @@ function _practisedAgain_(here) {
    stations this save names come first, in the lab's own order (every lab sends its whole list), and Score is
    THEIR sum; a station only the row still names is kept after them, never dropped. `named` is false for a
    save that names no station, and then nothing here is used. Returns { text (Per station), done, named }. */
-function _stationsBest_(stored, sent, bestSnap) {
+function _stationsBest_(stored, sent, bestSnap, roundsBy) {
   var by = {}, named = [], rest = [];
   var okId = function (id) { return /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(id); };
   if (sent && typeof sent === 'object' && !Array.isArray(sent)) Object.keys(sent).forEach(function (id) {
@@ -589,11 +606,316 @@ function _stationsBest_(stored, sent, bestSnap) {
   var o = {}, done = 0;
   named.concat(rest).forEach(function (id, k) {
     var x = by[id];
+    if (roundsBy && roundsBy[id] > x.checks) x.checks = roundsBy[id];   /* every round's checks (7 Oct 2026) */
     if (x.total) x.done = Math.min(x.done, x.total);
     if (k < named.length) done += x.done;
     o[id] = x.done + '/' + x.total + (x.checks ? ' in ' + x.checks : '');
   });
   return { text: _stations_(o), done: done, named: true };
+}
+
+/* ── Rounds and checks (7 Oct 2026) ────────────────────────────────────────────────────────────────
+   Daniel: "round one should show how they did in round one, how they did in round two, in a summarised way"; "a total
+   checks per question, no matter the number of rounds, and per round"; how often they reset the whole lab; and keep it
+   small ("over time we're going to be storing a lot of information"). One hidden cell per lab row (LAB_ROUNDS), sent by
+   the labs (labs-shared/engine/sync.js, roundsSnapshot) and merged here by the same rules:
+       #<resets>|<station>~<count>:<hash>:[^F;][+U;]<round 1>;<round 2>;…;<the round on the page>|…
+   A round is <letters>.<checks>[*k]: the letters of the other records, one per question; then the Checks pressed at each
+   question in it, one character each, base 36 (0–9, a = 10 … z = 35 or more); "*k" when k rounds are folded into one.
+   Round 1 and the newest seven rounds are kept one by one and the ones between folded together (RND_KEPT), so a row never
+   grows without end. A round may be '' (it happened; its answers were never sent: a page from before 7 Oct 2026), its
+   letters '' (".*6": six such rounds, folded) or its checks '' (not counted by question). A round is found by counting k
+   from round 1, never by its place in the list, which folding changes.
+       +U   checks no question can be given: made before rounds were kept, or past the 35 one character holds
+       ^F   at least this many: the station's checks in Per station when this cell began (portRoundsOnce, or a page from
+            before rounds), so a total here is never lower than the sheet said before
+   A station's checks: the larger of F and U + every round's checks. Merged question by question — each round its further
+   letter and its larger count — never added, so a save that arrives twice counts once; resets by the larger count. A
+   station rewritten since keeps its old part under its old fingerprint, whole (it was shrunk to its total until the
+   second audit, 7 Oct 2026: a stale page and the live one then undid each other's rounds); its checks count beside the
+   new part's. */
+var RND_KEPT = 10, RND_B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+function _rTok_(t) {
+  var m = String(t == null ? '' : t).match(/^([01tf]{0,500})\.([0-9a-z]{0,500})(?:\*(\d{1,4}))?$/);
+  return m ? { l: m[1], c: m[2], k: m[3] ? Math.max(1, +m[3]) : 1, known: true } : { l: '', c: '', k: 1, known: false };
+}
+function _rStr_(x) { return x.known ? x.l + '.' + x.c + (x.k > 1 ? '*' + x.k : '') : ''; }
+function _rN_(ch) { var i = RND_B36.indexOf(String(ch || '')); return i < 0 ? 0 : i; }
+function _rC_(v) { v = Math.floor(Number(v) || 0); return RND_B36.charAt(v < 0 ? 0 : v > 35 ? 35 : v); }
+function _rSum_(c) { var t = 0; c = String(c || ''); for (var i = 0; i < c.length; i++) t += _rN_(c.charAt(i)); return t; }
+function _rMaxC_(a, b) { var o = '', n = Math.max(a.length, b.length); for (var i = 0; i < n; i++) o += _rC_(Math.max(_rN_(a.charAt(i)), _rN_(b.charAt(i)))); return o; }
+/* two copies of the same round(s): the further letter, the larger count, question by question */
+function _rMergeTok_(a, b) {
+  var A = _rTok_(a), B = _rTok_(b);
+  if (!A.known) return _rStr_(B);
+  if (!B.known) return _rStr_(A);
+  return _rStr_({ known: true, l: (A.l || B.l) ? _snapMax_(A.l, B.l) : '', c: (A.c || B.c) ? _rMaxC_(A.c, B.c) : '', k: Math.max(A.k, B.k) });
+}
+/* several rounds as one: letters at their best, checks added (past 35 → `over`, so the total loses nothing) */
+function _rFold_(list, over) {
+  var f = null;
+  list.forEach(function (t) {
+    var x = _rTok_(t);
+    if (!f) { f = { known: true, l: x.l, c: x.c, k: x.k }; return; }
+    var c = '', n = Math.max(f.c.length, x.c.length);
+    for (var i = 0; i < n; i++) { var s = _rN_(f.c.charAt(i)) + _rN_(x.c.charAt(i)); if (s > 35 && over) over.n += s - 35; c += _rC_(s); }
+    f.l = (f.l || x.l) ? _snapMax_(f.l, x.l) : ''; f.c = (f.c || x.c) ? c : ''; f.k += x.k;
+  });
+  return f ? _rStr_(f) : '';
+}
+function _rSpan_(list) { var t = 0; list.forEach(function (x) { t += _rTok_(x).k; }); return t; }
+function _rTotal_(v) { var t = v.U; v.list.forEach(function (x) { t += _rSum_(_rTok_(x).c); }); return Math.max(v.F, t); }
+function _rParse_(cell) {
+  var P = { resets: 0, order: [], by: {} };
+  String(cell == null ? '' : cell).split('|').forEach(function (part) {
+    var h = part.match(/^#(\d+)$/);
+    if (h) { P.resets = Math.max(P.resets, Math.min(+h[1], 999)); return; }
+    var colon = part.lastIndexOf(':'), tilde = part.indexOf('~');
+    if (colon < 0 || tilde < 1 || tilde > colon) return;
+    var id = part.slice(0, tilde), sig = part.slice(tilde + 1, colon).slice(0, 60), tail = part.slice(colon + 1);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(id)) return;
+    var v = { id: id, sig: sig, F: 0, U: 0, list: [] };
+    if (tail) tail.split(';').slice(0, 60).forEach(function (t) {
+      if (/^\^\d+$/.test(t)) { v.F = Math.max(v.F, Math.min(+t.slice(1), 9999999)); return; }   /* a number, never a round */
+      if (/^\+\d+$/.test(t)) { v.U = Math.max(v.U, Math.min(+t.slice(1), 9999999)); return; }
+      v.list.push(_rTok_(t).known ? t : '');
+    });
+    var key = id + '~' + sig;
+    if (P.by[key]) { _rMergeV_(P.by[key], v); return; }
+    if (P.order.length >= 120) return;
+    P.by[key] = v; P.order.push(key);
+  });
+  return P;
+}
+/* A cell holds 50,000 characters, and a write past that fails the whole save. A lab writes about 3,000 at most (every
+   station, ten rounds each); should a row ever pass 40,000, the stations with the most rounds keep only their totals (^F),
+   one at a time, so nothing is ever counted less. */
+function _rJoin_(P) {
+  var one = function (v) {
+    var t = [], u = v.U;
+    v.list.forEach(function (x) { u += _rSum_(_rTok_(x).c); });
+    if (v.F > u) t.push('^' + v.F);                      /* a floor the rounds have reached says nothing more */
+    if (v.U > 0) t.push('+' + v.U);
+    return t.length || v.list.length ? v.id + '~' + v.sig + ':' + t.concat(v.list).join(';') : '';
+  };
+  for (var guard = 0; guard < 200; guard++) {
+    var parts = P.resets > 0 ? ['#' + P.resets] : [], longest = null;
+    P.order.forEach(function (key) {
+      var v = P.by[key], p = one(v);
+      if (p) parts.push(p);
+      if (v.list.length && (!longest || v.list.length > longest.list.length)) longest = v;
+    });
+    var out = parts.join('|');
+    if (out.length <= 40000 || !longest) return out;
+    longest.F = _rTotal_(longest); longest.U = 0; longest.list = [];
+  }
+  return out;
+}
+/* Keep round 1 and the newest seven finished rounds one by one; the ones between become one. The round on the page (the
+   last) is never folded. */
+function _rCap_(v) {
+  var fin = v.list.length - 1;
+  if (fin <= RND_KEPT - 1) return v;
+  var keepNew = RND_KEPT - 3, over = { n: 0 };
+  var mid = v.list.slice(1, fin - keepNew);
+  v.list = [v.list[0], _rFold_(mid, over)].concat(v.list.slice(fin - keepNew));
+  v.U += over.n;
+  return v;
+}
+/* The same station, two copies (same fingerprint): `I` folded into `S`. The copy that has reached the later round gives
+   the shape; the other's rounds are found in it by round number (inside a fold they are folded first), and each round
+   takes the further letter and the larger count. */
+function _rMergeV_(S, I) {
+  /* folded as S is first (a page may send its rounds unfolded): every round of the shorter copy then lies inside one of the
+     longer's (an unfolded one could straddle a fold, and was dropped; the second audit, 7 Oct 2026) */
+  if (I.list.length) _rCap_(I);
+  S.F = Math.max(S.F, I.F); S.U = Math.max(S.U, I.U);
+  if (!I.list.length) return S;
+  if (!S.list.length) { S.list = I.list.slice(); return _rCap_(S); }
+  var a = _rSpan_(S.list) >= _rSpan_(I.list) ? S.list : I.list, b = a === S.list ? I.list : S.list;
+  var out = a.slice(), at = [], k = 1;
+  a.forEach(function (t) { var n = _rTok_(t).k; at.push([k, k + n - 1]); k += n; });
+  var into = {}, p = 1;
+  b.forEach(function (t) {
+    var n = _rTok_(t).k, lo = p, hi = p + n - 1; p += n;
+    for (var j = 0; j < at.length; j++) if (at[j][0] <= lo && hi <= at[j][1]) { (into[j] = into[j] || []).push(t); return; }
+  });
+  Object.keys(into).forEach(function (j) {
+    var g = into[j], one = g.length === 1 && _rTok_(g[0]).k === _rTok_(out[j]).k ? g[0] : _rFold_(g, null);
+    out[j] = _rMergeTok_(out[j], one);
+  });
+  S.list = out;
+  return _rCap_(S);
+}
+/* A save's rounds folded into the stored cell. `sent` is what a page sends (no "#", no "^"); `resets` its count of whole-lab
+   resets; `stations` its Per station ({ id: "done/total in checks" }), the least each station's checks can be; `snap` its
+   letters, for the fingerprint of a station a page from before rounds names. Returns { cell, P, total, by } — by: each
+   station's checks, every fingerprint it has had. */
+function _roundsMerge_(cell, sent, resets, stations, snap) {
+  var P = _rParse_(cell), I = _rParse_(String(sent == null ? '' : sent).slice(0, 45000)), named = Object.create(null);
+  P.resets = Math.max(P.resets, Math.min(999, Math.floor(Number(resets) || 0)));
+  I.order.forEach(function (key) {
+    var v = I.by[key]; v.F = 0;                            /* a floor is this sheet's own, never a page's */
+    named[v.id] = v.sig;
+    if (P.by[key]) _rMergeV_(P.by[key], v);
+    else if (P.order.length < 120) { P.by[key] = _rCap_(v); P.order.push(key); }
+  });
+  /* the least each station can have: what the page counted there (its Per station), under the fingerprint it used */
+  var sigOf = Object.create(null), H = _snapParse_(snap);
+  H.order.forEach(function (id) { sigOf[id] = H.by[id].sig; });
+  Object.keys(named).forEach(function (id) { sigOf[id] = named[id]; });
+  if (stations && typeof stations === 'object' && !Array.isArray(stations)) Object.keys(stations).slice(0, 40).forEach(function (id) {
+    var m = String(stations[id]).match(/^\s*\d+\/\d+\s+in\s+(\d+)\s*$/), sig = sigOf[id];
+    if (!m || sig == null || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(id)) return;
+    var key = id + '~' + sig, v = P.by[key];
+    if (!v) { if (P.order.length >= 120) return; v = P.by[key] = { id: id, sig: sig, F: 0, U: 0, list: [] }; P.order.push(key); }
+    v.F = Math.max(v.F, Math.min(+m[1], 9999999));
+  });
+  /* a station this save names under a new fingerprint keeps its old part whole: see the note above */
+  var out = _roundsSums_(P);
+  out.current = named;                                   /* the fingerprint of each station this save named */
+  return out;
+}
+/* `kept`: some station here has its rounds (a page from 7 Oct 2026 has saved), so Practised again can be said from them */
+function _roundsSums_(P) {
+  var by = Object.create(null), total = 0, kept = false;   /* no prototype: a station named "constructor" is a station */
+  P.order.forEach(function (key) { var v = P.by[key], t = _rTotal_(v); by[v.id] = (by[v.id] || 0) + t; total += t; if (v.list.length) kept = true; });
+  return { cell: _rJoin_(P), P: P, total: total, by: by, kept: kept };
+}
+/* the Rounds column is ours on this tab: until a save (or Tidy up) adds it, column 22 may be a teacher's own column, and
+   none of that may reach a pupil (the second audit, 7 Oct 2026) */
+function _roundsColOk_(sh) {
+  try { return sh.getMaxColumns() >= LAB_ROUNDS && String(sh.getRange(1, LAB_ROUNDS).getValue()).replace(/[^a-z]/gi, '').toLowerCase() === 'rounds'; }
+  catch (e) { return false; }
+}
+function _stationNamesOf_(man, labId) {
+  var out = {};
+  try { ((man && man.labs && man.labs[labId] && man.labs[labId].stations) || []).forEach(function (x) { out[x.id] = String(x.name || x.id); }); } catch (e) {}
+  return out;
+}
+/* "Practised again", for the sheet: each round after the first, over the stations that reached it; whole-lab resets; and
+   the questions not right at the first check in round 1 that were again not right at the first check in a later round.
+   "Round 2 in 3 stations: 15 tried, 13 right, 30 checks · reset the whole lab 2× · failed again: Mouth Q3, Stomach Q2" */
+function _roundsSay_(P, names, here, current) {
+  var rows = {}, keys = [], again = [], pick = Object.create(null);
+  current = current || {};
+  /* one part per station: the one this save named, else the one furthest on (a station rewritten since has two) */
+  P.order.forEach(function (key) {
+    var v = P.by[key], p = pick[v.id];
+    if (!v.list.length) return;
+    if (!p) { pick[v.id] = v; return; }
+    if (current[p.id] === p.sig) return;
+    if (current[v.id] === v.sig || _rSpan_(v.list) > _rSpan_(p.list)) pick[v.id] = v;
+  });
+  Object.keys(pick).forEach(function (id) {
+    var v = pick[id]; if (v.list.length < 2) return;
+    var r1 = _rTok_(v.list[0]).l, nm = names[v.id] || v.id, k = 1, bad = {};
+    v.list.forEach(function (t, j) {
+      var x = _rTok_(t), a = k; k += x.k;
+      if (!j) return;
+      var label = x.k > 1 ? 'Rounds ' + a + '–' + (a + x.k - 1) : 'Round ' + a;
+      var R = rows[label]; if (!R) { R = rows[label] = { a: a, st: 0, tried: 0, right: 0, checks: 0, seen: 0 }; keys.push(label); }
+      R.st++;
+      if (!x.l) return;
+      R.seen++;
+      for (var i = 0; i < x.l.length; i++) {
+        var c = x.l.charAt(i);
+        if (c !== '0') R.tried++;
+        if (c === '1' || c === 'f') R.right++;
+        if ((c === 't' || c === '1') && (r1.charAt(i) === 't' || r1.charAt(i) === '1')) bad[i] = 1;
+      }
+      R.checks += _rSum_(x.c);
+    });
+    Object.keys(bad).sort(function (p, q) { return p - q; }).forEach(function (i) { again.push(nm + ' Q' + (+i + 1)); });
+  });
+  /* a station a page from before moved on to round 2 or later, whose rounds are not here: said from its letters (it went
+     blank once any other station had rounds; the second audit, 7 Oct 2026) */
+  var H = _snapParse_(here || '');
+  H.order.forEach(function (id) {
+    var x = H.by[id], v = pick[id];
+    if (x.go < 2 || (v && v.sig === x.sig && _rSpan_(v.list) >= x.go)) return;
+    var label = 'Round ' + x.go, R = rows[label];
+    if (!R) { R = rows[label] = { a: x.go, st: 0, tried: 0, right: 0, checks: 0, seen: 0, blind: 0 }; keys.push(label); }
+    R.st++; R.seen++; R.blind = (R.blind || 0) + 1;
+    for (var i = 0; i < x.q.length; i++) { var c = x.q.charAt(i); if (c !== '0') R.tried++; if (c === '1' || c === 'f') R.right++; }
+  });
+  keys.sort(function (p, q) { return rows[p].a - rows[q].a; });
+  var out = keys.map(function (label) {
+    var R = rows[label], all = R.blind && R.blind === R.st;
+    return label + ' in ' + R.st + ' station' + (R.st === 1 ? '' : 's') + ': ' +
+      (R.seen ? R.tried + ' tried, ' + R.right + ' right' + (all ? '' : ', ' + R.checks + ' check' + (R.checks === 1 ? '' : 's')) : 'answers not kept');
+  });
+  if (P.resets > 0) out.push('reset the whole lab ' + P.resets + '\u00d7');
+  if (again.length) out.push('failed again: ' + again.slice(0, 12).join(', ') + (again.length > 12 ? ' and ' + (again.length - 12) + ' more' : ''));
+  return out.join(' · ').slice(0, 900);
+}
+/* Two cells as one, floors and all (portRoundsOnce; the tests). */
+function _rMergeCells_(a, b) {
+  var P = _rParse_(a), Q = _rParse_(b);
+  P.resets = Math.max(P.resets, Q.resets);
+  Q.order.forEach(function (key) {
+    if (P.by[key]) _rMergeV_(P.by[key], Q.by[key]);
+    else if (P.order.length < 120) { P.by[key] = _rCap_(Q.by[key]); P.order.push(key); }
+  });
+  return _rJoin_(P);
+}
+
+/* ── TEMPORARY (7 Oct 2026): run ONCE from the script editor (choose portRoundsOnce, then ▶ Run). The next edition deletes it.
+   It starts the hidden Rounds column on every lab tab from what each row already holds, so the work done before rounds were
+   kept is counted too. It writes ONLY that new column (nothing a teacher reads changes) and it merges, never replaces: a
+   save that arrived first is kept, and a second run changes nothing.
+     · round 1: the First round letters (a station still on its first round: its letters now); checks by question not known
+     · a station on round 2 or later: the rounds between are known to have happened, nothing more; the round on the page:
+       its letters now
+     · each station's checks in Per station are kept as its least (^F), so no total drops
+   What it could not fill is written to the log (Executions). */
+function portRoundsOnce() {
+  if (!_isAdminCaller_()) throw new Error('Only the owner, or a teacher on the list, can run this.');
+  var ss = _ss_(), lines = [], lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    LABS.forEach(function (lab) {
+      var sh = ss.getSheetByName(lab.name);
+      if (!sh || sh.getLastRow() < 2) return;
+      _labColsReady_(sh);
+      var n = sh.getLastRow() - 1, v = _labRows_(sh, 2, n), out = [], started = 0, later = 0, bare = 0, changed = 0;
+      v.forEach(function (r) {
+        var cell = String(r[LAB_ROUNDS - 1] || '');
+        if (r[2] === '' || r[2] == null) { out.push([cell]); return; }          /* nothing saved */
+        var H = _snapParse_(r[LAB_SNAP - 1]), F = _snapParse_(r[LAB_FIRST - 1]), per = Object.create(null), parts = [], noSig = 0;
+        _parseStations_(r[13]).forEach(function (x) { per[x.name] = x.checks; });
+        /* Per station counts every fingerprint a station has had; the least given to the one in use is what the others do
+           not hold already (the second audit, 7 Oct 2026: the whole of it was given, and counted twice, more at each run) */
+        var Ex = _rParse_(cell), others = Object.create(null);
+        Ex.order.forEach(function (key) { var x = Ex.by[key], h = H.by[x.id]; if (h && h.sig !== x.sig) others[x.id] = (others[x.id] || 0) + _rTotal_(x); });
+        Object.keys(others).forEach(function (id) { if (per[id]) per[id] = Math.max(0, per[id] - others[id]); });
+        H.order.forEach(function (id) {
+          var h = H.by[id], f = F.by[id], list = [];
+          if (h.go > 1) {
+            list.push(f && f.sig === h.sig && /[^0]/.test(f.q) ? f.q + '.' : '');
+            for (var g = 2; g < h.go; g++) list.push('');
+          }
+          list.push(h.q + '.');
+          parts.push(id + '~' + h.sig + ':' + (per[id] ? '^' + per[id] + ';' : '') + list.join(';'));
+        });
+        Object.keys(per).forEach(function (id) { if (per[id] && !H.by[id]) noSig++; });
+        var next = _rMergeCells_(cell, parts.join('|'));
+        if (next !== cell) changed++;
+        started++;
+        if (H.order.some(function (id) { return H.by[id].go > 1; })) later++;
+        if (noSig) bare++;
+        out.push([_plain_(next)]);
+      });
+      sh.getRange(2, LAB_ROUNDS, n, 1).setValues(out);
+      lines.push(lab.name + ': ' + started + ' rows with work, ' + changed + ' written' +
+        (later ? '; ' + later + ' on round 2 or later (their earlier rounds’ checks are kept as a total, not by question)' : '') +
+        (bare ? '; ' + bare + ' with checks at a station that has no letters (from before 27 Sep 2026): those stay in Checks and Per station only' : ''));
+    });
+  } finally { lock.releaseLock(); }
+  SpreadsheetApp.flush();
+  var say = lines.length ? lines.join('\n') : 'No lab tab has any work in it yet.';
+  Logger.log(say);
+  return say;
 }
 
 /* A cell given text that starts with = + - or @ reads it as a formula, and a formula can reach
@@ -649,6 +971,110 @@ function _whoIs_(idToken) {
   return who;
 }
 
+/* ── This script's own pass (6 Oct 2026, Daniel: a pupil shown as signed in must be synced "no matter what") ──────────────
+   Google's sign-in lasts an hour, and Google renews it without a click only sometimes. So a page whose Google sign-in is
+   fresh asks for a pass of this script's own (action `pass`, _ownPass_): the pupil's email and name and a time 30 days ahead,
+   stamped with HMAC-SHA256 under a secret kept ONLY in Script Properties (PASS_SECRET, made on first use; never in this file,
+   never in any reply). A page sends it beside Google's sign-in, and _whoSaving_ takes Google's while it is good and the pass
+   when it is not. A pass opens ONLY a pupil's own saving and own practice: lab saves, `progress`, `english.save`/`english.mine`
+   and `writeup.save`/`writeup.mine` (with no way to the teacher page). Never `record`, `test`, the teacher page, or a new pass:
+   a pass cannot make a pass, so a stolen one dies within 30 days. Every use still checks the class list, so a pupil taken off
+   it is refused. 🔑 in the menu deletes the secret: every pass stops at once, and each pupil signs in once more.
+   The pages keep it in labs-shared/signin.js (`biology.pass`); signing out removes it. Proof: gastest "— this script's own
+   pass —" and tools/signin-runs-out.mjs. */
+var PASS_DAYS = 30;
+var PASS_SECRET_KEY = 'PASS_SECRET';
+function _passSecret_() {
+  var props = PropertiesService.getScriptProperties(), s = props.getProperty(PASS_SECRET_KEY);
+  if (s) return s;
+  /* made once, under the lock, so two first passes at the same moment cannot each make a secret of their own */
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); } catch (e) { return ''; }
+  try {
+    s = props.getProperty(PASS_SECRET_KEY);
+    if (!s) {
+      s = [Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid(), Utilities.getUuid()].join('').replace(/-/g, '');
+      props.setProperty(PASS_SECRET_KEY, s);
+    }
+    return s;
+  } finally { lock.releaseLock(); }
+}
+/* the stamp on a pass: '' when there is no secret, and then no pass is made and none is taken */
+function _passSig_(body) {
+  var key = _passSecret_();
+  if (!key || key.length < 64) return '';
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(body), key)).replace(/=+$/, '');
+}
+/* a request body as the Rejected tab keeps it: never a Google sign-in or a pass in a cell (audit, 6 Oct 2026) */
+function _noCredentials_(k, v) { return k === 'token' || k === 'pass' ? undefined : v; }
+/* the same text, compared in the same time whatever it holds */
+function _sameText_(a, b) {
+  a = String(a); b = String(b);
+  if (!a || a.length !== b.length) return false;
+  var d = 0;
+  for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+/* p1.<the claims, base64url>.<the stamp>; the name travels %-encoded, so the claims are plain ASCII on any charset */
+function _issuePass_(who) {
+  var exp = Date.now() + PASS_DAYS * 864e5, n = '';
+  /* at most 60 letters, cut between letters (never inside an emoji); a name that will not encode travels as none */
+  try { n = encodeURIComponent(Array.from(String(who.name || '')).slice(0, 60).join('')); } catch (e) { n = ''; }
+  if (n.length > 600) n = '';
+  var body = 'p1.' + Utilities.base64EncodeWebSafe(JSON.stringify({ e: String(who.email || ''), n: n, x: exp })).replace(/=+$/, '');
+  var sig = _passSig_(body);
+  return sig ? { pass: body + '.' + sig, exp: exp } : null;
+}
+/* who a pass belongs to, or null: a stamp that is not this script's, a pass out of date (or dated further ahead than one is
+   ever made), an unreadable one */
+function _whoByPass_(pass) {
+  if (!_clientId_()) return null;
+  var m = /^p1\.([A-Za-z0-9_-]{8,1600})\.([A-Za-z0-9_-]{40,60})$/.exec(String(pass || ''));
+  if (!m) return null;
+  var want = _passSig_('p1.' + m[1]);
+  if (!want || !_sameText_(m[2], want)) return null;
+  var j = null, mid = m[1];
+  while (mid.length % 4) mid += '=';
+  try { j = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(mid)).getDataAsString()); } catch (e) { return null; }
+  var x = Number(j && j.x), now = Date.now();
+  if (!j || typeof j.e !== 'string' || !j.e || !(x > now) || x > now + (PASS_DAYS + 1) * 864e5) return null;
+  var name = '';
+  try { name = decodeURIComponent(String(j.n || '')); } catch (e) { name = ''; }
+  return { email: _cleanEmail_(j.e), name: name, viaPass: true };
+}
+/* Who is saving, or asking for their own practice: Google's sign-in while it is good, else this script's pass. */
+function _whoSaving_(d) {
+  return _whoIs_(d && d.token) || _whoByPass_(d && d.pass);
+}
+/* action `pass`: the caller's own pass, for Google's own sign-in only (a pass never makes a pass), and only for somebody
+   on the class list or a teacher on the list. The answer holds the pass and its date, nothing else. */
+function _ownPass_(d) {
+  if (!_clientId_()) return _json_({ ok: false, why: 'sign-in is not set up' });
+  var who = _whoIs_(d.token);
+  if (!who) return _json_({ ok: false, why: 'not signed in' });
+  if (!_studentOf_(who.email) && !_isTeacher_(who.email)) return _json_({ ok: false, why: 'not on this class list' });
+  var p = _issuePass_(who);
+  if (!p) return _json_({ ok: false, why: 'busy — it will try again' });
+  return _json_({ ok: true, pass: p.pass, exp: p.exp });
+}
+/* 🔑 Every pupil's pass stops at once (a lost laptop, a pass seen where it should not be): the secret is deleted, and the
+   next pass made has a new one. Each pupil is asked to sign in once more; nothing they did is lost. */
+function newPassSecretMENU_() {
+  var ui = SpreadsheetApp.getUi();
+  var go = ui.alert('🔑 Make every pupil sign in again',
+    'Each pupil’s browser keeps a pass from this script, so their work is still saved after Google’s one-hour sign-in ' +
+    'ends. Cancel every pass if a laptop was lost, or if a pass was seen where it should not be.\n\n' +
+    'Each pupil then sees “sign in again” once, and one press of Google’s button sends their work. Nothing they did is lost.\n\n' +
+    'Cancel every pass now?', ui.ButtonSet.YES_NO);
+  if (go !== ui.Button.YES) return;
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); }
+  catch (e) { ui.alert('🔑 Busy', 'Pupils’ work is being saved just now. Nothing was cancelled: try again in a minute.', ui.ButtonSet.OK); return; }
+  try { PropertiesService.getScriptProperties().deleteProperty(PASS_SECRET_KEY); }
+  finally { lock.releaseLock(); }
+  ui.alert('🔑 Done', 'Every pass is cancelled. Each pupil signs in once more, the next time a lab asks.', ui.ButtonSet.OK);
+}
+
 /* An address typed or pasted into the Sheet carries what came with it: a trailing space from
    a copy, a non-breaking space from a web page, a zero-width character from a document, or a
    "mailto:" from a pasted link. Every comparison below lowercased but did not trim, so an
@@ -662,6 +1088,18 @@ function _cleanEmail_(v) {
 }
 
 /* What the roster knows about them — and whether they are on it at all. */
+/* A pupil's class can change while one of their saves waits for the lock (Students ▸ Move, Left, an import moving them),
+   and the save then wrote the class it had read before back onto their lab, Bio English or Write-Up row (the audit, 7 Oct
+   2026). Whoever changes a class says when (CLASS_CHANGED, in the script cache); a save that read the pupil before that
+   reads them again, under the lock. Most saves cost nothing more: one cache read. */
+var CLASS_CHANGED_KEY = 'CLASS_CHANGED';
+function _classesChanged_() { try { CacheService.getScriptCache().put(CLASS_CHANGED_KEY, String(Date.now()), 21600); } catch (e) {} }
+function _freshStudent_(email, was, readAt) {
+  var at = 0;
+  try { at = Number(CacheService.getScriptCache().get(CLASS_CHANGED_KEY) || 0); } catch (e) { at = 0; }
+  if (!(at >= readAt - 2000)) return was;
+  return _studentOf_(email) || was;
+}
 function _studentOf_(email) {
   if (!email) return null;
   var sh = _sheet_(T_STUDENTS), last = sh.getLastRow();
@@ -763,56 +1201,223 @@ function getBatchImportData() {
 
   courses.sort(function (a, b) { return a.display.localeCompare(b.display); });
 
-  /* how many students each class already has here, so the dialog can say so */
-  var have = {}, rows = _sheet_(T_STUDENTS).getDataRange().getValues();
-  for (var i = 1; i < rows.length; i++) {
-    var cls = String(rows[i][1] || '').toUpperCase();
-    if (cls) have[cls] = (have[cls] || 0) + 1;
-  }
-  return { courses: courses, have: have };
+  /* how many students each class already has here, so the dialog can say so; and, once a course has been imported this
+     school year, the pupils in none of this year's courses (a new school year, 7 Oct 2026) */
+  var left = null;
+  /* the courses active in Classroom now: the first year's record counts only these as imported (an archived course, last
+     year's, cannot be imported again, so its pupils would never have been found: the audit, 7 Oct 2026) */
+  try { left = _notThisYearView_(null, courses.map(function (c) { return String(c.id); })); } catch (e) { left = null; }
+  return { courses: courses, have: _classCounts_(), left: left };
 }
+
+/* How many pupils each class has on the Students tab: the rows with a class AND a school address (a row with no address
+   matches nobody, and the next import adds that pupil again). The import window shows it before ("already") and after. */
+function _classCounts_() {
+  var sh = _sheet_(T_STUDENTS), n = sh.getLastRow() - 1, have = {};
+  if (n < 1) return have;
+  var EMAIL_COL = _emailCol_(sh), rows = sh.getRange(2, 1, n, EMAIL_COL).getValues();
+  rows.forEach(function (r) {
+    var cls = String(r[1] || '').toUpperCase().trim();
+    if (cls && _cleanEmail_(r[EMAIL_COL - 1])) have[cls] = (have[cls] || 0) + 1;
+  });
+  return have;
+}
+
+/* ── The Classroom import: ONE call from the window, run as a job that Google's six-minute limit cannot stop part way
+   (7 Oct 2026) ──
+   Daniel, 6 Oct 2026: an import of several classes "got stuck" and his 11C came in as 8 of 16; "can you make sure that
+   those spreadsheets can handle the six minutes limit well?". And the window may be closed while the import goes on (the
+   reflection's import has promised that since September, at his wish). Google stops any call after six minutes, and the
+   import used to do every class and then all of Tidy up's formatting in one. Now the window still makes ONE call, but the
+   work is a JOB (Script Property IMPORT_JOB), saved after each class: a piece of work starts a class only in its first
+   three minutes and the formatting only in its first two, and otherwise hands the rest to a one-off trigger a minute
+   later (continueBatchImport_), as often as it needs. A safety trigger, set as each piece starts (8 minutes out), picks
+   the job up if a piece is stopped all the same; the class it was on is done again, and nobody is added twice. The window
+   reads each class's result as it is done from the cache key BATCH_IMPORT_<job> (6 h): `continuing` while it waits a
+   minute, `done` with each class's count at the end. Closed, the job finishes anyway. */
+var IMPORT_JOB_KEY = 'IMPORT_JOB', IMPORT_TRIGGER_FN = 'continueBatchImport_';
+var IMPORT_CLASS_BY_MS = 3 * 60 * 1000;     /* a piece starts another class only in its first 3 minutes */
+var IMPORT_FINISH_BY_MS = 2 * 60 * 1000;    /* …and the formatting (Tidy up's work, minutes) only in its first 2 */
+var IMPORT_NEXT_MS = 60 * 1000;             /* a handed-over job carries on a minute later */
+var IMPORT_SAFETY_MS = 8 * 60 * 1000;       /* the safety trigger: after any piece's six minutes */
+var IMPORT_STALE_MS = 10 * 60 * 1000;       /* a job not heard from for 10 minutes is dead: a new import may start */
+var IMPORT_BUILD_KEY = 'IMPORT_NEEDS_BUILD'; /* an import stopped before building the tabs: the next import, or Tidy up, builds them */
 
 function executeBatchImportAll(sels, jobId) {
   if (!_isAdminCaller_()) return [{ status: 'refused' }];   /* google.script.run reaches ANY function without a trailing underscore */
   _needClassroom_();
-  var results = [];
-  sels.forEach(function (s) { results.push({ status: 'pending' }); });
-  _publish_(jobId, results, false);
-
-  sels.forEach(function (s, i) {
-    try {
-      var students = [], page = null;
-      do {
-        var r = Classroom.Courses.Students.list(s.courseId, { pageSize: 100, pageToken: page });
-        (r.students || []).forEach(function (st) {
-          students.push({
-            name: st.profile.name.fullName,
-            email: _cleanEmail_(st.profile.emailAddress),
-            userId: st.userId
-          });
-        });
-        page = r.nextPageToken;
-      } while (page);
-
-      if (!students.length) results[i] = { status: 'empty', added: 0, skipped: 0 };
-      else results[i] = _upsertStudents_(students, s.classCode, s.courseName, s.courseId);
-    } catch (err) {
-      results[i] = { status: 'error', error: String(err).slice(0, 120) };
-    }
-    _publish_(jobId, results, false);
+  var id = String(jobId || '').replace(/[^\w-]/g, '').slice(0, 80) || ('batch_' + Date.now());
+  var list = (Array.isArray(sels) ? sels : []).slice(0, 40).map(function (s) {
+    s = s || {};
+    /* a code is checked whole, never cut (two codes that shared their first 16 characters merged in silence) */
+    return { courseId: String(s.courseId || '').slice(0, 40), classCode: String(s.classCode || '').trim().toUpperCase().slice(0, 40),
+             courseName: String(s.courseName || '').slice(0, 60) };
   });
+  if (!list.length) return [];
+  var cur = _importJob_();
+  if (cur && cur.id !== id && Date.now() - (cur.tickAt || 0) < IMPORT_STALE_MS) {
+    var busy = list.map(function () {
+      return { status: 'busy', error: 'Another import is still running (it carries on by itself). Try again once it says Finished.' };
+    });
+    /* the refusal is the end of THIS job: the window says so at once (it said "Importing…" for twelve minutes) */
+    _publish_(id, busy, true, 'Another import is still running. Try again once it says Finished.', { stopped: true });
+    return busy;
+  }
+  /* an import that stopped before its tabs were built leaves word for the next one to build them (IMPORT_BUILD_KEY) */
+  var owed = false;
+  try { owed = !!PropertiesService.getScriptProperties().getProperty(IMPORT_BUILD_KEY); } catch (e) { owed = false; }
+  if (!_saveImportJob_({ id: id, sels: list, i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0, tries: {}, needBuild: owed })) {
+    /* a job Google will not keep (Script Properties full, or more than 9 KB) never starts in silence */
+    var none = list.map(function () {
+      return { status: 'error', error: 'The import could not start: Google would not keep where it is (Script Properties). Tick fewer classes, or try again in a minute.' };
+    });
+    _publish_(id, none, true, 'Stopped.', { stopped: true, counts: _classCounts_() });
+    return none;
+  }
+  _publish_(id, list.map(function () { return { status: 'pending' }; }), false, '');
+  return _importPiece_(Date.now());
+}
 
-  /* An import is the first thing anyone does, so it leaves the spreadsheet finished: every
-     tab that should exist exists and the whole thing is dressed. That part takes far longer
-     than fetching the names, and it used to run AFTER the dialog had been told the job was
-     done — so the window sat there looking finished while the script worked on in silence,
-     and nothing could be seen happening for a minute or more. The dialog is now told the
-     truth: still working, and what it is working on. */
-  _publish_(jobId, results, false, 'Names imported. Building and formatting every tab\u2026');
-  _PROGRESS_JOB = { id: jobId, results: results };
-  try { _buildAndStyle_(); } finally { _PROGRESS_JOB = null; }
-  _publish_(jobId, results, true, 'Finished.');
+/* The trigger that carries an import on: after a piece handed over, or the safety one after a piece was stopped. Private
+   (a trigger runs it; google.script.run cannot), and as the teacher who pressed Import. */
+function continueBatchImport_() {
+  if (!_importJob_()) { _deleteImportTriggers_(); return; }
+  _importPiece_(Date.now());
+}
+
+/* One piece of the job, started at t0: classes while there is time, then the formatting, then done. */
+function _importPiece_(t0) {
+  var job = _importJob_();
+  if (!job) { _deleteImportTriggers_(); return []; }
+  _scheduleImport_(IMPORT_SAFETY_MS);
+  var env = _importEnv_(job.id), n = job.sels.length;
+  var results = env && Array.isArray(env.results) && env.results.length === n ? env.results
+              : job.sels.map(function () { return { status: 'pending' }; });
+  while (job.phase === 'classes') {
+    if (job.i >= n) { job.phase = 'finish'; break; }
+    if (Date.now() - t0 > IMPORT_CLASS_BY_MS) return _importLater_(job, results);
+    /* a class Google has stopped twice before it was done is said and passed over (it was tried again every 8 minutes for
+       ever, and the job never went stale, so every later import was refused: the audit, 7 Oct 2026) */
+    var tk = String(job.i); job.tries = job.tries || {};
+    if ((job.tries[tk] || 0) >= 2) {
+      results[job.i] = { status: 'error', error: 'Google stopped this class twice before it was done. Import it again on its own: nobody is added twice.' };
+      job.needBuild = true; job.i++; job.tickAt = Date.now(); _saveImportJob_(job);
+      _publish_(job.id, results, false, '');
+      continue;
+    }
+    if (job.tries[tk]) job.needBuild = true;                    /* done again after a stop: what it wrote before must be built */
+    job.tries[tk] = (job.tries[tk] || 0) + 1;
+    job.tickAt = Date.now(); _saveImportJob_(job);              /* alive (and its try counted), before a class that may take a while */
+    var r;
+    try { r = _importOneClass_(job.sels[job.i], job.id); }
+    catch (err) { r = { status: 'error', error: String((err && err.message) || err).slice(0, 160) }; }
+    if (r && r.status === 'success' && (r.added || r.moved)) job.needBuild = true;
+    results[job.i] = r; job.i++; job.tickAt = Date.now(); _saveImportJob_(job);
+    _publish_(job.id, results, false, '');
+  }
+  var extra = {};
+  /* An import leaves the spreadsheet finished: every lab tab gets its rows and every tab is built and dressed (Tidy up's
+     work), unless no class added or moved anybody. It is the long part, so it starts only early in a piece. */
+  if (job.phase === 'finish' && (job.needBuild || results.some(function (r) { return r && r.status === 'success' && (r.added || r.moved); }))) {
+    if (Date.now() - t0 > IMPORT_FINISH_BY_MS) return _importLater_(job, results);
+    job.finishTries = (job.finishTries || 0) + 1; job.tickAt = Date.now(); _saveImportJob_(job);
+    if (job.finishTries > 2) {
+      extra.formatStopped = true;      /* stopped by Google twice: every name is in; Tidy up finishes it */
+      try { PropertiesService.getScriptProperties().setProperty(IMPORT_BUILD_KEY, '1'); } catch (e) {}
+    } else {
+      _publish_(job.id, results, false, 'Names imported. Building and formatting every tab…');
+      _PROGRESS_JOB = { id: job.id, results: results };
+      try { _buildAndStyle_(); } finally { _PROGRESS_JOB = null; }
+      extra.built = true;
+      try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_BUILD_KEY); } catch (e) {}
+    }
+  }
+  _clearImportJob_(); _deleteImportTriggers_();
+  extra.counts = _classCounts_();
+  _publish_(job.id, results, true, 'Finished.', extra);
   return results;
+}
+/* out of time: save where the job is, and carry on a minute later */
+function _importLater_(job, results) {
+  job.tickAt = Date.now();
+  if (!_saveImportJob_(job) || !_scheduleImport_(IMPORT_NEXT_MS)) {
+    /* names written and tabs not yet built: the next import (or Tidy up) builds them */
+    if (job.needBuild) { try { PropertiesService.getScriptProperties().setProperty(IMPORT_BUILD_KEY, '1'); } catch (e) {} }
+    /* Google would not set the trigger that carries it on (7 Oct 2026): stop now and say so, rather than leave the window
+       waiting twelve minutes for a job nothing will pick up. Every class done is in; Try again imports the rest, or Tidy up
+       does the formatting when only that was left. */
+    _clearImportJob_(); _deleteImportTriggers_();
+    _publish_(job.id, results, true, 'Stopped.', { noTrigger: true, namesIn: job.phase === 'finish', counts: _classCounts_() });
+    return results;
+  }
+  _publish_(job.id, results, false, 'Paused for a minute, to stay inside Google’s time limit. It carries on by itself: you can close this window.',
+            { continuing: true });
+  return results;
+}
+
+/* One class from Classroom into the Students tab. Every lab tab gets its rows at the end of the job, once. Who the course
+   listed is kept for the school year (_noteImported_): it is how the window finds the pupils in none of this year's
+   courses. */
+function _importOneClass_(s, jobId) {
+  /* a class needs a code of its own; LEFT is kept for pupils in none of the classes (7 Oct 2026) */
+  if (!s.classCode) return { status: 'error', error: 'No class code. Type one, such as 9A, and try again.' };
+  if (s.classCode.length > 16) return { status: 'error', error: 'A class code has at most 16 characters. Type a shorter one, such as 10C.' };
+  if (_isLeftClass_(s.classCode)) return { status: 'error', error: 'LEFT is kept for pupils who are in none of your classes. Give this class a code of its own.' };
+  var students = [], noEmail = [], kept = [], page = null;
+  do {
+    var r = Classroom.Courses.Students.list(s.courseId, { pageSize: 100, pageToken: page });
+    (r.students || []).forEach(function (st) {
+      var pr = st.profile || {}, name = String((pr.name && pr.name.fullName) || '').trim();
+      var email = _cleanEmail_(pr.emailAddress);
+      /* No address from Classroom: a row for them could never be matched to a sign-in, and the next import added them
+         again. They are named in the window instead (6 Oct 2026). */
+      if (email.indexOf('@') < 1) { noEmail.push(name || ('Classroom user ' + st.userId)); if (st.userId) kept.push('uid:' + st.userId); return; }
+      students.push({ name: name, email: email, userId: st.userId }); kept.push(email);
+    });
+    page = r.nextPageToken;
+  } while (page);
+  if (!students.length) { _noteImported_(s.courseId, kept); return { status: 'empty', added: 0, skipped: 0, listed: 0, noEmail: noEmail }; }
+  var out = _upsertStudents_(students, s.classCode, s.courseName, s.courseId, { noSeed: true, jobId: jobId });
+  if (out.status === 'success') _noteImported_(s.courseId, kept);
+  out.listed = students.length;
+  out.noEmail = noEmail;
+  return out;
+}
+
+function _importJob_() {
+  try { var raw = PropertiesService.getScriptProperties().getProperty(IMPORT_JOB_KEY); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+/* says whether Google kept it (the audit, 7 Oct 2026: a refusal used to be silent) */
+function _saveImportJob_(job) { try { PropertiesService.getScriptProperties().setProperty(IMPORT_JOB_KEY, JSON.stringify(job)); return true; } catch (e) { return false; } }
+function _clearImportJob_() { try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_JOB_KEY); } catch (e) {} }
+function _importEnv_(id) {
+  try { var raw = CacheService.getScriptCache().get('BATCH_IMPORT_' + id); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+/* at most one carry-on trigger at a time */
+function _deleteImportTriggers_() {
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() === IMPORT_TRIGGER_FN) { try { ScriptApp.deleteTrigger(t); } catch (e) {} }
+    });
+  } catch (e) {}
+}
+/* the new trigger is made FIRST, and only then are the others taken away (a refusal used to leave none at all, in
+   silence: the audit, 7 Oct 2026). Says whether Google set it. */
+function _scheduleImport_(ms) {
+  var made = null;
+  try { made = ScriptApp.newTrigger(IMPORT_TRIGGER_FN).timeBased().after(ms).create(); } catch (e) { return false; }
+  var keep = null;
+  try { keep = made.getUniqueId(); } catch (e) { keep = null; }
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() !== IMPORT_TRIGGER_FN) return;
+      var same = false;
+      try { same = keep ? t.getUniqueId() === keep : t === made; } catch (e) { same = false; }
+      if (!same) { try { ScriptApp.deleteTrigger(t); } catch (e) {} }
+    });
+  } catch (e) {}
+  return true;
 }
 
 function getBatchImportProgress(jobId) {
@@ -820,54 +1425,300 @@ function getBatchImportProgress(jobId) {
   var raw = CacheService.getScriptCache().get('BATCH_IMPORT_' + jobId);
   return raw ? JSON.parse(raw) : null;
 }
-function _publish_(jobId, results, done, phase) {
+/* the window's view of a job: each class's result, `done`, what it is on (`phase`), and when it last moved (`ts`) */
+function _publish_(jobId, results, done, phase, extra) {
   try {
-    CacheService.getScriptCache().put('BATCH_IMPORT_' + jobId,
-      JSON.stringify({ results: results, done: done, phase: phase || '' }), 600);
+    var o = { results: results, done: done, phase: phase || '', ts: Date.now() };
+    if (extra) for (var k in extra) o[k] = extra[k];
+    CacheService.getScriptCache().put('BATCH_IMPORT_' + jobId, JSON.stringify(o), 21600);
   } catch (e) {}
 }
 
-/* Add the ones we do not have; update the class of the ones we do. Never duplicates:
-   the key is the school email. */
-function _upsertStudents_(students, classCode, courseName, courseId) {
-  var sh = _sheet_(T_STUDENTS);
-  var EMAIL_COL = _emailCol_(sh);
-  var rows = sh.getDataRange().getValues();
-  var seen = {}, rowOf = {};
-  for (var i = 1; i < rows.length; i++) {
-    var em = _cleanEmail_(rows[i][EMAIL_COL - 1]);
-    if (em) { seen[em] = true; rowOf[em] = i + 1; }
+/* ── A new school year: the pupils in none of this year's classes (7 Oct 2026) ──
+   Daniel asked for it on 7 Oct 2026. A pupil who leaves, or whose class is not imported again, keeps last year's class
+   code ("10C"); next year another group is 10C, and the new 10C's first whole-class homework would take those pupils in.
+   So each import keeps, for the school year (from 1 August), which pupils each course listed: Script Properties
+   IMPORTED_COURSES_<year> ({ at: { courseId: when }, seeded }) and IMPORTED_LIST_<year>_<courseId> (the addresses, and
+   'uid:<id>' for a pupil Classroom gives no address for), the course's latest import. A pupil is in none of this year's
+   classes when no list of this year names them and their course was not imported this year, or was and no longer lists
+   them. A pupil with no course id (added by hand, the TEST row) never is. The import window lists them, by class, once
+   any course has been imported this year; one press (markPupilsLeft) puts the ticked ones in the class "LEFT <year>".
+   Every record stays theirs; they drop out of every class list, every class's new homework and the teacher page's
+   views but Students, where Move brings one back. Importing their class again puts them back too. The imports before
+   this code kept no lists, so in the school year it is first used every course on the Students tab counts as imported
+   (nobody is listed until a course is imported again). */
+var IMPORTED_INDEX_KEY = 'IMPORTED_COURSES_', IMPORTED_LIST_KEY = 'IMPORTED_LIST_', IMPORTED_FROM_KEY = 'IMPORTED_COURSES_FROM';
+
+function _isLeftClass_(cls) { return /^LEFT(\s|$)/.test(String(cls == null ? '' : cls).trim().toUpperCase()); }
+/* 2026 for the school year that starts on 1 August 2026, as _classCohort_ counts it */
+function _schoolStartYear_(now) { var d = now || new Date(); return d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1; }
+/* the class of a pupil who is in none of the classes: LEFT and the year they were marked */
+function _leftLabel_(now) { return 'LEFT ' + (now || new Date()).getFullYear(); }
+function _importRunning_() { var cur = _importJob_(); return !!(cur && Date.now() - (cur.tickAt || 0) < IMPORT_STALE_MS); }
+
+/* This school year's record of the courses imported, made the first time it is asked for. In the first school year it is
+   used, the courses on the Students tab count as imported, so nobody is listed before their course is imported again; but
+   only those still ACTIVE in Classroom (`active`, when the window gives them): an archived course is last year's, cannot be
+   imported again, and its pupils are the ones this is for (the audit, 7 Oct 2026). */
+function _importedIndex_(sy, active) {
+  var p = PropertiesService.getScriptProperties(), o = null;
+  try { o = JSON.parse(p.getProperty(IMPORTED_INDEX_KEY + sy) || 'null'); } catch (e) { o = null; }
+  if (o && o.at) return o;
+  o = { at: {}, seeded: false };
+  var first = !p.getProperty(IMPORTED_FROM_KEY), live = null;
+  if (Array.isArray(active)) { live = {}; active.forEach(function (c) { live[String(c)] = 1; }); }
+  if (first) { _studentCourseIds_().forEach(function (c) { if (!live || live[c]) o.at[c] = 0; }); o.seeded = true; }
+  try {
+    p.setProperty(IMPORTED_INDEX_KEY + sy, JSON.stringify(o));
+    if (first) p.setProperty(IMPORTED_FROM_KEY, String(sy));      /* only once the year's record is kept */
+  } catch (e) {}
+  /* a new year's record: earlier years' are never read, and hold pupils' addresses, so they go (the audit, 7 Oct 2026) */
+  try {
+    p.getKeys().forEach(function (k) {
+      var m = k.match(/^IMPORTED_(?:COURSES|LIST)_(\d{4})(?:_|$)/);
+      if (m && +m[1] < sy) p.deleteProperty(k);
+    });
+  } catch (e) {}
+  return o;
+}
+/* every course id on the Students tab, for the first year's record */
+function _studentCourseIds_() {
+  var sh = _ss_().getSheetByName(T_STUDENTS), out = {};
+  if (!sh || sh.getLastRow() < 2) return [];
+  var cc = _headerCol_(sh, 'Course id', _emailCol_(sh) + 4);
+  if (sh.getLastColumn() < cc) return [];
+  sh.getRange(2, cc, sh.getLastRow() - 1, 1).getDisplayValues().forEach(function (r) { var c = String(r[0] || '').trim(); if (c) out[c] = 1; });
+  return Object.keys(out);
+}
+/* A course has just been imported: it was imported this year, and `keys` are the pupils it listed. */
+function _noteImported_(courseId, keys) {
+  var cid = String(courseId == null ? '' : courseId).trim();
+  if (!cid) return;
+  var sy = _schoolStartYear_(), p = PropertiesService.getScriptProperties(), idx = _importedIndex_(sy);
+  idx.at[cid] = Date.now();
+  try { p.setProperty(IMPORTED_INDEX_KEY + sy, JSON.stringify(idx)); } catch (e) {}
+  try { p.setProperty(IMPORTED_LIST_KEY + sy + '_' + cid, JSON.stringify(keys || [])); }
+  catch (e) { try { p.deleteProperty(IMPORTED_LIST_KEY + sy + '_' + cid); } catch (e2) {} }   /* too long to keep: then nobody of that course is listed */
+}
+/* A pupil Move put in a class: the course of that class, if imported this year, counts them in until it is imported again. */
+function _noteListed_(courseId, email) {
+  var sy = _schoolStartYear_(), p = PropertiesService.getScriptProperties(), k = IMPORTED_LIST_KEY + sy + '_' + courseId, L = null;
+  try { L = JSON.parse(p.getProperty(k) || 'null'); } catch (e) { L = null; }
+  if (!Array.isArray(L) || L.indexOf(email) >= 0) return;
+  L.push(email);
+  try { p.setProperty(k, JSON.stringify(L)); } catch (e) {}
+}
+/* The pupils in none of this year's classes: { sy, imported (courses imported this year), rows [{ i (their Students row
+   less 2), name, email, cls, why }], totals { class: pupils } }. why: 'course' (their course was not imported this year)
+   or 'gone' (it was, and no longer lists them). */
+function _notThisYear_(active) {
+  var sy = _schoolStartYear_(), idx = _importedIndex_(sy, active);
+  var out = { sy: sy, imported: Object.keys(idx.at).length, rows: [], totals: {} };
+  var sh = _ss_().getSheetByName(T_STUDENTS);
+  if (!sh || sh.getLastRow() < 2) return out;
+  var all = {}, inList = {}, hasList = {}, pre = IMPORTED_LIST_KEY + sy + '_';
+  try { all = PropertiesService.getScriptProperties().getProperties() || {}; } catch (e) { all = {}; }
+  Object.keys(all).forEach(function (k) {
+    if (k.indexOf(pre) !== 0) return;
+    var L = null;
+    try { L = JSON.parse(all[k]); } catch (e) { L = null; }
+    if (!Array.isArray(L)) return;
+    hasList[k.slice(pre.length)] = 1;
+    L.forEach(function (x) { inList[String(x)] = 1; });
+  });
+  var n = sh.getLastRow() - 1, ec = _emailCol_(sh), last = sh.getLastColumn();
+  var uc = _headerCol_(sh, 'Classroom user id', ec + 3), cc = _headerCol_(sh, 'Course id', ec + 4);
+  var v = sh.getRange(2, 1, n, ec).getValues();
+  var cids = cc <= last ? sh.getRange(2, cc, n, 1).getDisplayValues() : null;
+  var uids = uc <= last ? sh.getRange(2, uc, n, 1).getDisplayValues() : null;
+  var seen = {};
+  for (var i = 0; i < n; i++) {
+    var em = _cleanEmail_(v[i][ec - 1]);
+    if (!em || seen[em]) continue;                               /* the first row wins, as for a save */
+    seen[em] = 1;
+    var cls = String(v[i][1] || '').trim().toUpperCase();
+    if (!cls || cls === 'TEST' || _isLeftClass_(cls)) continue;
+    out.totals[cls] = (out.totals[cls] || 0) + 1;
+    var cid = cids ? String(cids[i][0] || '').trim() : '';
+    if (!cid) continue;                                          /* added by hand: never listed */
+    var uid = uids ? String(uids[i][0] || '').trim() : '';
+    if (inList[em] || (uid && inList['uid:' + uid])) continue;   /* a course imported this year lists them */
+    var known = Object.prototype.hasOwnProperty.call(idx.at, cid);
+    if (known && !hasList[cid]) continue;                        /* imported before lists were kept: counted in */
+    out.rows.push({ i: i, name: String(v[i][0] || '').trim(), email: em, cls: cls, why: known ? 'gone' : 'course' });
   }
-  var add = [], skipped = 0, moved = 0, now = new Date();
+  return out;
+}
+/* …as the import window shows them: by class, in year order, each class with its size */
+function _notThisYearView_(L, active) {
+  L = L || _notThisYear_(active);
+  var by = {}, order = [];
+  L.rows.forEach(function (r) {
+    if (!by[r.cls]) { by[r.cls] = { cls: r.cls, total: L.totals[r.cls] || 0, pupils: [] }; order.push(r.cls); }
+    by[r.cls].pupils.push({ name: r.name, email: r.email, why: r.why });
+  });
+  order.sort(_byClass_);
+  return {
+    n: L.rows.length, imported: L.imported, since: '1 August ' + L.sy, label: _leftLabel_(), busy: _importRunning_(),
+    groups: order.map(function (k) { by[k].pupils.sort(function (a, b) { return a.name.localeCompare(b.name); }); return by[k]; })
+  };
+}
+/* The window asks again: after an import, or after marking. */
+function getNotThisYear() {
+  if (!_isAdminCaller_()) return null;   /* google.script.run reaches ANY function without a trailing underscore */
+  return _notThisYearView_();
+}
+/* One press: the ticked pupils go to the class "LEFT <year>", on the Students tab and on their row of every lab, Bio
+   English and Write-Up tab. Only pupils who are STILL in none of this year's classes (worked out again, under the lock),
+   and never while an import runs. Their records stay; importing their class again, or Move on the teacher page, puts
+   one back. { ok, note, left (the list now) } or { ok:false, why }. */
+function markPupilsLeft(emails) {
+  if (!_isAdminCaller_()) return { ok: false, why: 'Only the owner of this spreadsheet, or a teacher on its 👩‍🏫 Teachers list, can do this.' };
+  var want = {};
+  (Array.isArray(emails) ? emails : []).slice(0, 3000).forEach(function (e) { e = _cleanEmail_(e); if (e) want[e] = 1; });
+  if (!Object.keys(want).length) return { ok: false, why: 'Tick the pupils first.' };
+  if (_importRunning_()) return { ok: false, why: 'An import is still running. Wait until it says Finished, then try again.' };
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); }
+  catch (e) { return { ok: false, why: 'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  var label = _leftLabel_(), n = 0;
+  try {
+    var L = _notThisYear_(), w = [], to = {};
+    /* as the window: only once a course has been imported this school year (a window opened on 31 July and pressed after
+       midnight would have marked everybody it ticked: the audit, 7 Oct 2026) */
+    if (!L.imported) return { ok: false, why: 'Nothing has been imported since 1 August ' + L.sy + ' yet. Import this year’s classes first.', left: _notThisYearView_(L) };
+    L.rows.forEach(function (r) { if (want[r.email]) to[r.email] = label; });
+    if (!Object.keys(to).length) return { ok: false, why: 'Nobody to mark: each ticked pupil is in a class imported this year now, or is marked already.', left: _notThisYearView_(L) };
+    /* every row of that address (one address on two rows kept its class on the second) */
+    var stu = _sheet_(T_STUDENTS), ec = _emailCol_(stu);
+    stu.getRange(2, ec, stu.getLastRow() - 1, 1).getValues().forEach(function (x, k) { if (to[_cleanEmail_(x[0])]) w.push([k, label]); });
+    _writeRuns_(stu, 2, w, false);
+    _classEverywhere_(to);
+    _classesChanged_();
+    n = Object.keys(to).length;
+  } catch (e) {
+    return { ok: false, why: 'Could not mark them: ' + String((e && e.message) || e).slice(0, 120) };
+  } finally { try { lock.releaseLock(); } catch (e) {} }
+  return { ok: true, left: _notThisYearView_(),
+           note: n + ' pupil' + (n === 1 ? ' is' : 's are') + ' in ' + label + ' now. Their records stay. Importing their class again, or Move on the teacher page, puts one back.' };
+}
+/* A pupil's class, written on their row of every tab that copies it (every lab, Bio English and Write-Up): one read of the
+   address column per tab, one write per run of rows. `to`: { email: class }. The first row of an address wins, as for a
+   save. Tidy up would put the lab rows right later; this does it at once. */
+function _classEverywhere_(to) {
+  var tabs = [];
+  LABS.forEach(function (l) { tabs.push([l.name, LAB_EMAIL]); });
+  tabs.push([T_ENGLISH, EN_EMAIL], [T_WRITEUP, WU_EMAIL]);
+  tabs.forEach(function (t) {
+    var sh = _ss_().getSheetByName(t[0]);
+    if (!sh || sh.getLastRow() < 2 || sh.getMaxColumns() < t[1]) return;
+    var col = sh.getRange(2, t[1], sh.getLastRow() - 1, 1).getValues(), w = [], seen = {};
+    for (var k = 0; k < col.length; k++) {
+      var e = _cleanEmail_(col[k][0]);
+      if (!e || seen[e]) continue;
+      seen[e] = 1;
+      if (Object.prototype.hasOwnProperty.call(to, e)) w.push([k, to[e]]);
+    }
+    _writeRuns_(sh, 2, w, false);
+  });
+}
+
+/* Add the ones we do not have; move the ones we do into this class, and keep their Classroom ids true. Never
+   duplicates: the key is the school email.
+   Under the script lock, every read comes before every write, and each write covers a run of rows (6 Oct 2026). It
+   used to read and write one pupil at a time, four to eight calls each, every read waiting for the write before it,
+   so with several classes in one go Google's six minutes ran out part way through a class. New pupils go in with ONE
+   write, name and address together: two writes could leave a name with no address, which matches nobody.
+   opt.noSeed: the lab tabs are left to the end of the import. opt.jobId: a pupil an earlier class of the same import
+   put in another class is named in `clashes` (each ends in the class imported last, as before). */
+function _upsertStudents_(students, classCode, courseName, courseId, opt) {
+  opt = opt || {};
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); }
+  catch (e) { return { status: 'busy', error: 'The spreadsheet was busy (pupils saving, or another import), so nothing was changed. Try this class again.' }; }
+  var out;
+  try { out = _upsertLocked_(students, classCode, courseName, courseId, opt); }
+  finally { try { lock.releaseLock(); } catch (e) {} }
+  /* Their names go into every lab straight away, so each tab reads as a class list with the
+     marks still to come, rather than filling up only as work arrives. */
+  if (!opt.noSeed && (out.added || out.moved)) LABS.forEach(function (l) { _seedLab_(l); });
+  return out;
+}
+function _upsertLocked_(students, classCode, courseName, courseId, opt) {
+  var sh = _sheet_(T_STUDENTS);
+  var head = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0]
+               .map(function (h) { return String(h || '').replace(/^\s*✎\s*/, '').trim().toLowerCase(); });
+  function col(name, dflt) { var i = head.indexOf(name.toLowerCase()); return i >= 0 ? i + 1 : dflt; }
+  var EMAIL_COL = col('School email', 3 + LABS.length + 2);
+  var COURSE_COL = col('Classroom course', EMAIL_COL + 1), IMP_COL = col('Imported', EMAIL_COL + 2);
   /* the Classroom user id and course id are TEXT (5 Oct 2026): a user id has about 21 digits, and as a number Sheets
      keeps only 15 of them. A pupil already listed gets them rewritten too, so importing again repairs a rounded id. */
-  var UID_COL = _headerCol_(sh, 'Classroom user id', EMAIL_COL + 3), CID_COL = _headerCol_(sh, 'Course id', EMAIL_COL + 4);
-  students.forEach(function (st) {
-    if (st.email && seen[st.email]) {
-      var r = rowOf[st.email];
-      if (String(sh.getRange(r, 2).getValue()).toUpperCase() !== classCode) {
-        sh.getRange(r, 2).setValue(classCode); moved++;
-      }
-      var hu = sh.getRange(r, UID_COL), hc = sh.getRange(r, CID_COL);
-      if (st.userId && String(hu.getDisplayValue()) !== String(st.userId)) hu.setNumberFormat('@').setValue(String(st.userId));
-      if (courseId && String(hc.getDisplayValue()) !== String(courseId)) hc.setNumberFormat('@').setValue(String(courseId));
-      skipped++;
-      return;
-    }
-    add.push([st.name, classCode, st.email, courseName, now, String(st.userId || ''), String(courseId || '')]);
+  var UID_COL = col('Classroom user id', EMAIL_COL + 3), CID_COL = col('Course id', EMAIL_COL + 4);
+  var W = Math.max(EMAIL_COL, COURSE_COL, IMP_COL, UID_COL, CID_COL);
+  if (W > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), W - sh.getMaxColumns());
+
+  var n = Math.max(0, sh.getLastRow() - 1);
+  var vals = n ? sh.getRange(2, 1, n, W).getValues() : [];
+  var uidShown = n ? sh.getRange(2, UID_COL, n, 1).getDisplayValues() : [];
+  var cidShown = n ? sh.getRange(2, CID_COL, n, 1).getDisplayValues() : [];
+  var rowOf = {};
+  vals.forEach(function (v, i) {
+    var em = _cleanEmail_(v[EMAIL_COL - 1]);
+    if (em && rowOf[em] === undefined) rowOf[em] = i;      /* the first row wins, as for a save */
   });
+
+  var cache = null, key = '', placed = {};
+  if (opt.jobId) {
+    try { cache = CacheService.getScriptCache(); key = 'BATCH_PLACED_' + opt.jobId; placed = JSON.parse(cache.get(key) || '{}') || {}; }
+    catch (e) { cache = null; placed = {}; }
+  }
+  var add = [], skipped = 0, moved = 0, clashes = [], once = {}, now = new Date();
+  var clsW = [], uidW = [], cidW = [];
+  students.forEach(function (st) {
+    var em = st.email;
+    if (!em || once[em]) return;                       /* listed twice by Classroom: added once */
+    once[em] = true;
+    if (placed[em] && placed[em] !== classCode) clashes.push({ name: st.name, was: placed[em] });
+    placed[em] = classCode;
+    var i = rowOf[em];
+    if (i === undefined) { add.push(st); return; }
+    if (String(vals[i][1]).toUpperCase() !== classCode) { clsW.push([i, classCode]); moved++; }
+    if (st.userId && String(uidShown[i][0]) !== String(st.userId)) uidW.push([i, String(st.userId)]);
+    if (courseId && String(cidShown[i][0]) !== String(courseId)) cidW.push([i, String(courseId)]);
+    skipped++;
+  });
+
+  _writeRuns_(sh, 2, clsW, false);
+  _writeRuns_(sh, UID_COL, uidW, true);
+  _writeRuns_(sh, CID_COL, cidW, true);
   if (add.length) {
     var at = sh.getLastRow() + 1;
     _room_(sh, at + add.length - 1);
-    sh.getRange(at, 1, add.length, 2).setValues(add.map(function (a) { return [a[0], a[1]]; }));
     sh.getRange(at, UID_COL, add.length, 1).setNumberFormat('@');
     sh.getRange(at, CID_COL, add.length, 1).setNumberFormat('@');
-    sh.getRange(at, EMAIL_COL, add.length, 5).setValues(add.map(function (a) { return a.slice(2); }));
+    sh.getRange(at, 1, add.length, W).setValues(add.map(function (st) {
+      var r = new Array(W).fill('');
+      r[0] = st.name; r[1] = classCode; r[EMAIL_COL - 1] = st.email; r[COURSE_COL - 1] = courseName;
+      r[IMP_COL - 1] = now; r[UID_COL - 1] = String(st.userId || ''); r[CID_COL - 1] = String(courseId || '');
+      return r;
+    }));
   }
-  /* Their names go into every lab straight away, so each tab reads as a class list with the
-     marks still to come, rather than filling up only as work arrives. */
-  if (add.length || moved) LABS.forEach(function (l) { _seedLab_(l); });
-  return { status: 'success', added: add.length, skipped: skipped, moved: moved };
+  if (cache) { try { cache.put(key, JSON.stringify(placed), 21600); } catch (e) {} }
+  if (moved) _classesChanged_();
+  return { status: 'success', added: add.length, skipped: skipped, moved: moved, clashes: clashes };
+}
+/* Writes [index, value] pairs into one column, one call per run of rows next to each other (row = index + 2). text:
+   the cells are plain text first, so a long id is never turned into a rounded number. */
+function _writeRuns_(sh, col, list, text) {
+  list.sort(function (a, b) { return a[0] - b[0]; });
+  for (var k = 0; k < list.length; ) {
+    var j = k;
+    while (j + 1 < list.length && list[j + 1][0] === list[j][0] + 1) j++;
+    var rg = sh.getRange(list[k][0] + 2, col, j - k + 1, 1);
+    if (text) rg.setNumberFormat('@');
+    rg.setValues(list.slice(k, j + 1).map(function (p) { return [p[1]]; }));
+    k = j + 1;
+  }
 }
 
 /* "Y9 Biology · 9A" → "9A";  "10 Set 2" → "10"; falls back to '' so the dialog asks. */
@@ -1138,6 +1989,7 @@ function _buildAndStyle_() {
 function setup() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
   var notes = _buildAndStyle_();
+  try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_BUILD_KEY); } catch (e) {}   /* what a stopped import owed */
   var said = notes.length ? notes.join('  ')
            : 'Every tab is built and styled. Nothing needed repairing.';
   SpreadsheetApp.getActive().toast(said, 'Biology Labs', 20);
@@ -1329,7 +2181,7 @@ function _classList_() {
   if (sh && sh.getLastRow() > 1) {
     sh.getRange(2, 2, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
       var v = String(r[0] || '').trim().toUpperCase();
-      if (v && !out[v]) { out[v] = 1; list.push(v); }
+      if (v && !out[v] && !_isLeftClass_(v)) { out[v] = 1; list.push(v); }   /* LEFT … is no class to choose (7 Oct 2026) */
     });
   }
   list.sort();
@@ -2195,7 +3047,7 @@ function _ownProgress_(d) {
   /* answered for anyone with a Google account before now, and each answer read every lab tab in
      full — twenty full-sheet reads, as the owner, to discover the caller has no row */
   if (!_clientId_()) return _json_({ ok: false, why: 'sign-in is not set up' });
-  var who = _whoIs_(d.token);
+  var who = _whoSaving_(d);                       /* their own practice: this script's pass is enough */
   if (!who) return _json_({ ok: false, why: 'not signed in' });
 
   var out = {}, ss;
@@ -2219,6 +3071,7 @@ function _ownProgress_(d) {
       /* nothing saved yet. A row whose answers are all still wrong (Score 0) does come back: its "tried" letters
          stop another computer calling the next right answer "right first time". */
       if (!(score > 0) && !here && !first && !best) break;
+      var rok = _roundsColOk_(sh);
       out[lab.id] = {
         done:      score > 0 ? score : 0,
         total:     Number(vals[r][3]) || lab.questions || 0,
@@ -2234,7 +3087,10 @@ function _ownProgress_(d) {
         snap:      _snapForOldPages_(here, first),
         here:      here,                                     /* this go (goes, Sept 2026) */
         first:     first,                                    /* first go */
-        best:      best                                      /* best ever */
+        best:      best,                                     /* best ever */
+        /* every round and its checks, and the whole-lab resets (7 Oct 2026): the page keeps each count at the larger */
+        rounds:    rok ? String(vals[r][LAB_ROUNDS - 1] || '') : '',
+        resets:    rok ? _rParse_(vals[r][LAB_ROUNDS - 1]).resets : 0
       };
       break;
     }
@@ -2256,7 +3112,7 @@ function _ownHomework_(email, cls) {
     if (!email || !_ss_().getSheetByName(T_HOMEWORK)) return out;   /* no tab: nothing set (and none is made here) */
     var now = Date.now(), MONTH = 28 * 24 * 3600 * 1000, mine = [];
     _homeworkRows_().forEach(function (hw) {
-      if (hw.waiting || !_hwIsFor_(hw, email, cls)) return;         /* set for a later date: not theirs yet */
+      if (hw.waiting || !_hwIsFor_(hw, email, cls)) return;  /* set for a later date: not theirs yet */
       var dms = hw.due ? new Date(hw.due).getTime() : 0;
       if (dms && now - dms > MONTH) return;                         /* a month past its date: off their list */
       var tasks = hw.tasks.filter(function (t) { return t.labId !== ENGLISH_ID && t.labId !== WRITEUP_ID && (t.stationIds || []).length; });
@@ -2592,7 +3448,7 @@ function _ownTest_(d) {
     if (chips.length) why.push('the Link of \u201c' + chips[0].name + '\u201d in \ud83d\udd17 Teacher links is a smart chip' +
                                (chips[0].shown ? ' (\u201c' + chips[0].shown + '\u201d)' : '') +
                                (_chipsOn_()
-                                 ? ', and its address could not be read' + (trouble ? ' (' + trouble + ')' : '') + ' \u2014 run checkChips in the script editor, or use the spreadsheet\u2019s plain address'
+                                 ? ', and its address could not be read' + (trouble ? ' (' + trouble + ')' : '') + ' \u2014 use the spreadsheet\u2019s plain address instead'
                                  : ', which the hub reads only once the Google Sheets API is switched on in its script (Services \u25b8 + \u25b8 Google Sheets API) \u2014 or use the spreadsheet\u2019s plain address'));
     else why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
   }
@@ -3344,29 +4200,6 @@ function _chipParse_(res, nRows, nCols) {
 }
 function _chipAny_(g) { return !!g && g.some(function (r) { return r.some(function (u) { return !!u; }); }); }
 
-/* Run this from the Apps Script editor (Run ▸ checkChips) if a chip in 🔗 Teacher links will not read.
-   The log shows what Google returns for that tab, both ways the hub asks, so the cause is seen, not
-   guessed. Read only. It cannot take a trailing underscore (the editor's Run menu hides those), so it
-   checks its caller instead: run from the editor you are yourself; called from a page the web app
-   serves, it would read the tab with the owner's rights, so a pupil or a stranger is turned away. */
-function checkChips() {
-  if (!_isAdminCaller_()) { Logger.log('checkChips runs from the Apps Script editor: Run ▸ checkChips.'); return; }
-  var sh = _ss_().getSheetByName(T_LINKS);
-  if (!sh || sh.getLastRow() < 2) { Logger.log('No rows in ' + T_LINKS + '.'); return; }
-  var n = sh.getLastRow() - 1, w = sh.getLastColumn();
-  Logger.log('Google Sheets API service switched on in this code: ' + _chipsOn_());
-  var g = _chipGrid_(sh, 2, n, w);
-  Logger.log(g ? 'Chip addresses read: ' + JSON.stringify(g.map(function (r) { return r.filter(String); })) : 'No chip addresses read.');
-  if (_CHIP_TROUBLE_) Logger.log('Why: ' + _CHIP_TROUBLE_);
-  try {
-    var range = "'" + sh.getName().replace(/'/g, "''") + "'!A2:" + _colA1_(w) + (n + 1);
-    var res = UrlFetchApp.fetch('https://sheets.googleapis.com/v4/spreadsheets/' + sh.getParent().getId() + '?ranges=' +
-                                encodeURIComponent(range) + '&fields=' + encodeURIComponent('sheets.data.rowData.values(chipRuns,formattedValue)'),
-                                { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-    Logger.log('Google, asked directly (' + res.getResponseCode() + '): ' + res.getContentText().slice(0, 3000));
-  } catch (e) { Logger.log('Asking Google directly failed: ' + e); }
-}
-
 /* A block of the links tab as its values AND as the address each cell holds. Three reads for the
    whole block, never three per cell — and a fourth, to the Sheets API, only when one of `chipCols`
    (0-based: the Link and Dashboard columns) has words in it but no address: a smart chip. */
@@ -4051,39 +4884,167 @@ function _labProgressData_(now) {
     stu.getRange(2, 1, last - 1, ec).getValues().forEach(function (r) {
       var email = _cleanEmail_(r[ec - 1]); if (!email) return;
       var cls = String(r[1] || '').trim().toUpperCase();
+      if (_isLeftClass_(cls)) return;                 /* in none of the classes (7 Oct 2026): their marks stay on the lab tabs */
       var s = { name: String(r[0] || '').trim(), cls: cls, cohort: _classCohort_(cls, now), byLab: {} };
       byEmail[email] = s; students.push(s);
     });
   }
+  /* The lab tabs record station IDS, so without this a teacher reads "ileum-villi" and
+     "molecules-lab" instead of "Small intestine" and "Molecules and enzymes". Names come from the
+     published manifest; with no manifest the page falls back to the ids rather than breaking.
+     Its fingerprints (sigs) decide which stations' question letters are given (6 Oct 2026, below). */
+  var man = _manifest_(), names = {}, sigs = {};
+  if (man && man.labs) Object.keys(man.labs).forEach(function (k) {
+    names[k] = {}; sigs[k] = {};
+    (man.labs[k].stations || []).forEach(function (st) { names[k][st.id] = st.name; if (st.sig) sigs[k][st.id] = String(st.sig); });
+  });
   labs.forEach(function (l) {
     var sh = ss.getSheetByName(l.name); if (!sh || sh.getLastRow() < 2) return;
     var n = sh.getLastRow() - 1;
-    var v = sh.getRange(2, 1, n, LAB_EMAIL).getValues();
+    var v = sh.getRange(2, 1, n, Math.min(LAB_ROUNDS, sh.getMaxColumns())).getValues(), rok = _roundsColOk_(sh);
     for (var i = 0; i < n; i++) {
       var r = v[i], email = _cleanEmail_(r[LAB_EMAIL - 1]);
       if (!email || !byEmail[email]) continue;
       if (r[2] === '' || r[2] == null) continue;                 /* Score blank = nothing saved */
       var done = Number(r[2]) || 0, total = Number(r[3]) || l.questions || 0;
-      byEmail[email].byLab[l.id] = {
+      var e = byEmail[email].byLab[l.id] = {
         done: done, total: total, pct: total ? Math.round(1000 * done / total) / 10 : 0,
         complete: String(r[5] || '') === 'complete',
         checks: Number(r[6]) || 0, firstTime: Number(r[7]) || 0, handIns: Number(r[9]) || 0,
         at: r[10] ? new Date(r[10]).toISOString() : null,
         stations: _parseStations_(r[13])
       };
+      _questionLetters_(e, sigs[l.id], r[LAB_SNAP - 1], r[LAB_FIRST - 1], r[LAB_BEST - 1]);
+      if (rok) _roundsForTeacher_(e, sigs[l.id], r[LAB_ROUNDS - 1]);
     }
   });
   var cset = {}; students.forEach(function (s) { if (s.cls) cset[s.cls] = 1; });
-  /* The lab tabs record station IDS, so without this a teacher reads "ileum-villi" and
-     "molecules-lab" instead of "Small intestine" and "Molecules and enzymes". Names come from the
-     published manifest; with no manifest the page falls back to the ids rather than breaking. */
-  var man = _manifest_(), names = {};
-  if (man && man.labs) Object.keys(man.labs).forEach(function (k) {
-    names[k] = {};
-    (man.labs[k].stations || []).forEach(function (st) { names[k][st.id] = st.name; });
-  });
   return { generatedAt: new Date().toISOString(), labs: labs, students: students,
            classes: Object.keys(cset).sort(_byClass_), stationNames: names };
+}
+
+/* ── each question, as a square on the teacher page (6 Oct 2026, Daniel: "so that I know exactly where the students had
+   to check multiple times") ──
+   e.q[station] = the letters of their FIRST round (0 not tried · t tried, not right · 1 right after more checks · f right
+   first time), the round "Right first time" counts; e.b[station] = the best ever, given only where it differs (right in
+   a later round). Only for a station whose fingerprint in the sheet is the hub list's: a station rewritten since those
+   letters were saved has other questions, so it gets no squares. A save from before rounds (Sept 2026) has no first
+   round of its own: its letters are round 1 when they say so. */
+function _questionLetters_(e, want, hereStr, firstStr, bestStr) {
+  if (!want) return;
+  var F = _snapParse_(firstStr), H = _snapParse_(hereStr), B = _snapParse_(bestStr), q = {}, b = {}, any = false, anyB = false;
+  Object.keys(want).forEach(function (sid) {
+    var sig = want[sid], n = parseInt(sig, 10) || 0;
+    var f = F.by[sid], h = H.by[sid], bb = B.by[sid];
+    var hq = h && h.sig === sig ? h.q : '';
+    var first = f && f.sig === sig ? f.q : (h && h.sig === sig && h.go === 1 ? h.q : '');
+    var best = _snapMax_(_snapMax_(bb && bb.sig === sig ? bb.q : '', hq), first);
+    if (!first && !best) return;
+    var fit = function (x) { x = String(x || ''); while (x.length < n) x += '0'; return x.slice(0, n); };
+    q[sid] = fit(first); any = true;
+    if (fit(best) !== q[sid]) { b[sid] = fit(best); anyB = true; }
+  });
+  if (any) e.q = q;
+  if (anyB) e.b = b;
+}
+
+/* ── each round, for Lab progress (7 Oct 2026, Daniel: "a total checks per question, no matter the number of rounds,
+   and per round … if they're failing the same questions despite the rounds") ──
+   e.rd[station] = its rounds, oldest first and the round on the page last, as the Rounds column keeps them — only for a
+   station whose fingerprint is the hub list's, as for e.q; e.rx[station] = its checks no question can be given (made
+   before 7 Oct 2026, past 35, or on a version of the station rewritten since); e.rs = whole-lab resets; e.ag = how many
+   stations they started again; e.c1 = their checks in ROUND 1 only — Stuck reads it, as practising again is not being
+   stuck: every check of theirs (Checks) less the ones known to be in a later round, so a check the cell does not hold (a
+   station with no letters, from before 27 Sep 2026) still counts, and never more than Checks (the second audit, 7 Oct
+   2026: it was summed from the cell alone). */
+function _roundsForTeacher_(e, want, cell) {
+  var P = _rParse_(cell);
+  if (!P.order.length && !P.resets) return;
+  var S = _roundsSums_(P), rd = {}, rx = {}, inQ = Object.create(null), anyD = false, anyX = false, ag = Object.create(null), later = 0;
+  P.order.forEach(function (key) {
+    var v = P.by[key], mine = 0;
+    if (v.list.length > 1) ag[v.id] = 1;
+    v.list.forEach(function (x, j) { var c = _rSum_(_rTok_(x).c); mine += c; if (j) later += c; });
+    if (!v.list.length || !want || want[v.id] !== v.sig) return;
+    rd[v.id] = v.list.slice(); anyD = true;
+    inQ[v.id] = mine;
+  });
+  Object.keys(S.by).forEach(function (id) { var x = S.by[id] - (inQ[id] || 0); if (x > 0) { rx[id] = x; anyX = true; } });
+  if (anyD) e.rd = rd;
+  if (anyX) e.rx = rx;
+  if (P.resets) e.rs = P.resets;
+  e.ag = Object.keys(ag).length;
+  e.c1 = Math.max(0, (Number(e.checks) || 0) - later);
+}
+
+/* The words of each question in one lab, for those squares: from the lab's own published js/data/stations.js (the file
+   pupils load; it holds no answers, only salted fingerprints), asked for only when a teacher opens a pupil's station
+   or a lab's questions, and kept in the script cache under the lab's version.txt. A station's words are given only when
+   its fingerprint, worked out here exactly as the lab's app.js does (_labSig_), is the hub list's: the same one the
+   letters were checked against. */
+function _labSig_(st) {
+  var acts = (st && st.activities) || [];
+  var body = acts.map(function (a) {
+    var c = {};
+    Object.keys(a).sort().forEach(function (k) { if (k !== 'k' && k !== 'anyOrder') c[k] = a[k]; });
+    return JSON.stringify(c);
+  }).join('|');
+  var h = 0x811c9dc5;
+  for (var i = 0; i < body.length; i++) {
+    h ^= body.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  var sig = acts.length + ':' + h.toString(36);
+  /* `keep` (7 Oct 2026), as in each lab's stationSig: a station reworded without changing what it asks keeps the
+     fingerprint its records were saved under, while it reads exactly as declared */
+  var kp = st && st.keep;
+  return kp && kp.now === sig && typeof kp.sig === 'string' ? kp.sig : sig;
+}
+function _cutWords_(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (s.length <= n) return s;
+  var cut = s.slice(0, n), sp = cut.lastIndexOf(' ');
+  return (sp > n * 0.6 ? cut.slice(0, sp) : cut).replace(/[\s,;:.]+$/, '') + '\u2026';
+}
+function _labQuestions_(labId) {
+  var lab = null;
+  LABS.forEach(function (l) { if (l.id === labId) lab = l; });
+  var site = String(_hubUrl_() || '').match(/^https:\/\/[^\/]+/);
+  if (!lab || !site) return null;
+  var base = site[0] + '/' + lab.id, cache = null, ver = '';
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  ver = cache ? (cache.get('LABV_' + lab.id) || '') : '';
+  if (!ver) {
+    try {
+      var vr = UrlFetchApp.fetch(base + '/version.txt', { muteHttpExceptions: true, followRedirects: true });
+      if (vr.getResponseCode() === 200) ver = String(vr.getContentText()).trim().slice(0, 20);
+    } catch (e) {}
+    if (cache && ver) { try { cache.put('LABV_' + lab.id, ver, 600); } catch (e) {} }
+  }
+  /* which stations get words depends on the hub's station list too (its stamp): a station opened between the labs' push
+     and the hub's was cached without words for six hours (the audit, 7 Oct 2026) */
+  var hubStamp = '';
+  try { _manifest_(); hubStamp = cache ? (cache.get('HUB_STAMP') || '') : ''; } catch (e) { hubStamp = ''; }
+  var KEY = 'LABQ_' + lab.id + '_' + (ver || 'none') + '_' + (hubStamp || 'h');
+  if (cache && ver) { var hit = cache.get(KEY); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(base + '/js/data/stations.js' + (ver ? '?v=' + encodeURIComponent(ver) : ''), { muteHttpExceptions: true, followRedirects: true });
+    if (res.getResponseCode() !== 200) return null;
+    txt = String(res.getContentText());
+  } catch (e) { return null; }
+  var a = txt.indexOf('window.STATIONS = '), z = a < 0 ? -1 : txt.indexOf('\n];', a);
+  if (a < 0 || z < 0) return null;
+  var S = null;
+  try { S = JSON.parse(txt.slice(a + 'window.STATIONS = '.length, z + 2)); } catch (e) { return null; }
+  var man = _manifest_(), want = {}, out = {};
+  if (man && man.labs && man.labs[lab.id]) (man.labs[lab.id].stations || []).forEach(function (x) { want[x.id] = String(x.sig || ''); });
+  (S || []).forEach(function (st) {
+    if (!st || !st.id || !want[st.id] || want[st.id] !== _labSig_(st)) return;
+    out[st.id] = (st.activities || []).map(function (q) { return _cutWords_(q.prompt || q.text || q.type, 170); });
+  });
+  if (cache && ver) { try { cache.put(KEY, JSON.stringify(out), 21600); } catch (e) {} }
+  return out;
 }
 
 /* Every HTML page doGet serves goes out through here — the teacher page, and the page that says who it is
@@ -4098,14 +5059,19 @@ function _studentDirectory_(now) {
   var stu = ss.getSheetByName(T_STUDENTS);
   if (stu && stu.getLastRow() >= 2) {
     var ec = _emailCol_(stu), last = stu.getLastRow();
-    stu.getRange(2, 1, last - 1, ec).getValues().forEach(function (r) {
+    /* …and when each pupil was first imported (the import writes it two columns after the email), when the tab has it: the
+       teacher's list says which pupils outside a homework came onto the tab after it was set (6 Oct 2026; _homeworkData_) */
+    var width = Math.max(ec, Math.min(ec + 2, stu.getLastColumn()));
+    stu.getRange(2, 1, last - 1, width).getValues().forEach(function (r) {
       var email = _cleanEmail_(r[ec - 1]); if (!email) return;
       var cls = String(r[1] || '').trim().toUpperCase();
-      out.push({ name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now) });
+      var imp = width >= ec + 2 ? r[ec + 1] : '', since = (imp instanceof Date && !isNaN(imp.getTime())) ? imp.getTime() : 0;
+      out.push({ name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now), since: since });
     });
   }
   out.sort(function (a, b) { return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || ''); });
-  var cset = {}; out.forEach(function (s) { if (s.cls) cset[s.cls] = 1; });
+  /* pupils in none of the classes (LEFT …) stay on the list, for the Students view; never as a class (7 Oct 2026) */
+  var cset = {}; out.forEach(function (s) { if (s.cls && !_isLeftClass_(s.cls)) cset[s.cls] = 1; });
   return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort(_byClass_) };
 }
 /* ── Set homework, for teachers ─────────────────────────────────────────────
@@ -4135,7 +5101,8 @@ var T_HOMEWORK = '📚 Homework';
    a row by position, so a new column anywhere else would shift every column after it. */
 var _HW_HEADERS_ = ['ID', 'Created', 'Teacher', 'Title', 'Who', 'What', 'Due', 'Spec', 'Course', 'CourseWork', 'Status', 'Reported', 'Group', 'Cohort',
                     'Remind', 'Reminder 1', 'Reminder 1 students', 'Reminder 2', 'Reminder 2 students',
-                    'Starts'];                 /* 2 Oct 2026: homework set for a later date; at the END, as the reminder columns are */
+                    'Starts',                  /* 2 Oct 2026: homework set for a later date; at the END, as the reminder columns are */
+                    'Hidden'];                 /* 7 Oct 2026: hidden from the Set homework list (homeworkHide); at the END too */
 
 function _hwColDefs_() {
   return [
@@ -4158,7 +5125,8 @@ function _hwColDefs_() {
     { h:'Reminder 1 students', w:150, note:'How many students the first reminder went to (no names are kept), or why it was not posted.' },
     { h:'Reminder 2', w:132, fmt:'dd MMM, HH:mm', note:'When the second reminder went, or was tried or skipped.' },
     { h:'Reminder 2 students', w:150, note:'How many students the second reminder went to (no names are kept), or why it was not posted.' },
-    { h:'Starts',     w:132, fmt:'dd MMM, HH:mm', note:'When the students get it, for homework set for a later date. Empty — they got it when it was set.\nBefore this time they see nothing: Google Classroom holds its post until then, and the labs do not show it. Do not change it here: the post in Google Classroom keeps the time it was given.' }
+    { h:'Starts',     w:132, fmt:'dd MMM, HH:mm', note:'When the students get it, for homework set for a later date. Empty — they got it when it was set.\nBefore this time they see nothing: Google Classroom holds its post until then, and the labs do not show it. Do not change it here: the post in Google Classroom keeps the time it was given.' },
+    { h:'Hidden',     w:132, fmt:'dd MMM, HH:mm', note:'When it was hidden from the Set homework list (its Archive, after the due date). Hidden homework still counts: it stays in ⏱️ Homework habits and in every student’s record, and students see it as before. Only a date here hides it. Empty — it is listed. Press “Show it again” on the list, or clear this cell, to list it again.' }
   ];
 }
 function _ensureHomeworkTab_() {
@@ -4223,7 +5191,7 @@ function _manifest_() {
 /* Who is asking: the active user, if they are a teacher on the list, else ''. On the school-only deployment
    Google has already proved who they are, and google.script.run calls from the page arrive with the same
    active user. Every read and write the teacher page makes checks this (uiData, homeworkCreate, homeworkDelete,
-   homeworkTopics, homeworkRemind). */
+   homeworkTopics, homeworkRemind, homeworkChangeDue, homeworkAddPupils, homeworkHide, studentMove). */
 function _hwCaller_() {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
@@ -4290,6 +5258,8 @@ function _hwMs_(v) {
   return (t && !isNaN(t)) ? t : 0;
 }
 function _hwIso_(v) { var t = _hwMs_(v); return t ? new Date(t).toISOString() : null; }
+/* A real date in a cell (the sheet hands one back as a Date), never words or a number that new Date() would also read. */
+function _hwIsDate_(v) { return Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime()); }
 /* The cohort a piece of homework belongs to, decided when it is set and never recomputed: by the
    time it is old enough to tidy away, the pupils have left and the roster can no longer say. */
 function _hwCohortOf_(cls, emails, roster, now) {
@@ -4323,10 +5293,14 @@ function _homeworkRows_() {
   var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
                .map(function (x) { return String(x == null ? '' : x).replace(/^\u270e\s*/, '').trim(); });
   var c = {}; _HW_HEADERS_.forEach(function (h, i) { var k = head.indexOf(h); c[h] = k >= 0 ? k + 1 : i + 1; });
+  /* Hidden (7 Oct 2026) is read under its own heading only, never by position: on a tab from before it, that column may
+     hold something a teacher typed, which must not hide homework */
+  var hid = head.indexOf('Hidden');
   var v = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues(), out = [];
   for (var i = 0; i < v.length; i++) {
     var r = v[i], id = String(r[c.ID - 1] || '').trim();
     if (!id) continue;
+    var hv = hid >= 0 && hid < r.length ? r[hid] : '';
     var spec = {};
     try { spec = JSON.parse(String(r[c.Spec - 1] || '{}')) || {}; } catch (e) { spec = {}; }
     var due = r[c.Due - 1], dms = _hwMs_(due);
@@ -4342,6 +5316,7 @@ function _homeworkRows_() {
       group: String(r[c.Group - 1] || '').trim(),
       cohort: Number(r[c.Cohort - 1]) || '',
       setFor: spec.setFor || null,
+      inCourse: Array.isArray(spec.inCourse) ? spec.inCourse : null,   /* who was in its Classroom course that day (6 Oct 2026) */
       created: _hwIso_(r[c.Created - 1]),
       teacher: _cleanEmail_(r[c.Teacher - 1]),
       title: String(r[c.Title - 1] || '').trim(),
@@ -4365,24 +5340,37 @@ function _homeworkRows_() {
       rem: [1, 2].map(function (k) {
         var said = r[c['Reminder ' + k + ' students'] - 1];
         return { at: _hwIso_(r[c['Reminder ' + k] - 1]), said: (said === '' || said == null) ? '' : String(said).trim() };
-      })
+      }),
+      /* hidden from the Set homework list (7 Oct 2026). Only that list reads it: everything else (the students' own list,
+         ⏱️ Homework habits, the summary, the reminders) counts hidden homework as before. Only a date hides it, as
+         homeworkHide writes one: words typed into that column (a tab from before it, tidied) never hide anything, so
+         "Show it again", which empties the cell, is never offered for them. */
+      hidden: _hwIsDate_(hv),
+      hiddenAt: _hwIsDate_(hv) ? new Date(hv.getTime()).toISOString() : null
     });
   }
   return out;
 }
 
 /* Which pupils an assignment is for.
-   If the row remembers who it was SET for, that list wins — homework belongs to the pupils who were
-   in the room that day. Re-deriving it from the class every time looks tidier and is wrong: a pupil
-   who moves 10A -> 10B would silently inherit every 10B assignment ever set, including ones already
-   overdue, and be marked "not started" for work nobody ever gave them. Older rows, written before
-   this was recorded, fall back to the live class. */
+   Homework belongs to the pupils who were in the room the day it was set, wherever they go after (Daniel, 6 Oct 2026: a
+   pupil who did it badly in class A and moves to class B keeps that result; "everything is ported"). They are `setFor`,
+   the class on the Students tab that day, and, since 6 Oct 2026, `inCourse`: who was in its Google Classroom course that
+   day, so a pupil the Students tab did not have yet (an import that stopped part way: Daniel's 11C) is in it once
+   imported. A pupil who joins the class later, or moves into it, is NOT in it: "any previous homework should not be
+   accounted for" (Daniel, 6 Oct 2026); only homework set after they came. The teacher can still count a pupil in
+   (homeworkAddPupils) when they were in the class that day all along. Homework set for chosen pupils never gains anybody.
+   Older rows, written before `setFor` was recorded, fall back to the live class. */
 function _hwPupils_(hw, roster) {
   var want = {}, byEmail = {};
   roster.forEach(function (p) { byEmail[p.email] = p; });
   if (hw.setFor) {                      /* empty means nobody, not "work it out again" */
-    var kept = [];
-    hw.setFor.forEach(function (e) { if (byEmail[e]) kept.push(byEmail[e]); });
+    var kept = [], seen = {};
+    hw.setFor.forEach(function (e) { if (byEmail[e] && !seen[e]) { seen[e] = 1; kept.push(byEmail[e]); } });
+    /* in its Classroom course that day AND in its class now: a pupil the Students tab puts in another class (moved, a course
+       split into two classes, a TEST account in the course) is not taken in by the course (the audit, 7 Oct 2026) */
+    var hcls = String((hw.targets && hw.targets.cls) || '').trim().toUpperCase();
+    (hw.inCourse || []).forEach(function (e) { if (byEmail[e] && !seen[e] && hcls && byEmail[e].cls === hcls) { seen[e] = 1; kept.push(byEmail[e]); } });
     return kept.sort(function (a, b) {
       return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || '');
     });
@@ -4496,27 +5484,40 @@ function _homeworkData_(now, who) {
       s.missing.forEach(function (m) { miss[m] = 1; });
       return { name: p.name, cls: p.cls, done: s.done, total: s.total, pct: s.pct, state: s.state, last: s.last };
     });
-    /* what has changed under this assignment since it was set */
+    /* what has changed under this assignment since it was set: who it was set for and is no longer on the Students tab, and
+       who is in its class now but not in it (they joined or moved in after it was set, so it never counts against them;
+       `late`: they came onto the Students tab after it was set, as the 11C pupils of an import that stopped part way did,
+       whom the teacher can count in: homeworkAddPupils) */
     var setCount = (hw.setFor && hw.setFor.length) || pupils.length;
-    var gone = Math.max(0, setCount - pupils.length);
-    var joined = 0;
-    if (hw.targets && hw.targets.cls && hw.setFor) {
-      var had = {}; hw.setFor.forEach(function (e) { had[e] = 1; });
-      roster.forEach(function (p) { if (p.cls === hw.targets.cls && !had[p.email]) joined++; });
+    var onRoster = {}; roster.forEach(function (p) { onRoster[p.email] = 1; });
+    var gone = hw.setFor ? hw.setFor.filter(function (e) { return !onRoster[e]; }).length : 0;
+    var outside = [], tcls = String((hw.targets || {}).cls || '').trim().toUpperCase();
+    if (hw.setFor && tcls) {
+      var inIt = {}, setMs = _hwMs_(hw.created);
+      pupils.forEach(function (p) { inIt[p.email] = 1; });
+      roster.forEach(function (p) {
+        if (p.cls === tcls && !inIt[p.email]) outside.push({ name: p.name, email: p.email, late: !!(p.since && setMs && p.since >= setMs) });
+      });
     }
     return {
       id: hw.id, group: hw.group, title: hw.title, who: hw.who, what: hw.what, teacher: hw.teacher,
       mine: !!who && hw.teacher === who,
-      setCount: setCount, gone: gone, joined: joined, cohort: hw.cohort || '',
+      setCount: setCount, gone: gone, cohort: hw.cohort || '', outside: outside,
       created: hw.created, due: hw.due, status: hw.status, reported: hw.reported,
       /* worded and judged by _homeworkRows_ in the school's zone; without them the list showed "— due" (labs-script-001) */
       dueText: hw.dueText, overdue: hw.overdue, soon: hw.soon, dueBad: hw.dueBad,
+      /* the due as the page's date and time boxes want it, in the school's zone: Change the due date starts from it */
+      dueDay: hw.due ? Utilities.formatDate(new Date(hw.due), _tz_(), 'yyyy-MM-dd') : '',
+      dueHm: hw.due ? Utilities.formatDate(new Date(hw.due), _tz_(), 'HH:mm') : '',
+      inClassroom: !!(hw.course && hw.courseWork),
       /* set for a later date (2 Oct 2026): when it starts, in words, and whether the students are still waiting for it */
       start: hw.start, startText: hw.startText, waiting: hw.waiting,
       tasks: hw.tasks, targets: hw.targets,
       pupils: rows, tally: tally, missing: Object.keys(miss),
       /* the reminders, worded here in the school's zone (1 Oct 2026) */
-      remind: _hwRemindSays_(hw, nowMs)
+      remind: _hwRemindSays_(hw, nowMs),
+      /* hidden from this list (7 Oct 2026): the page keeps it at the end of the Archive, where it can be shown again */
+      hidden: !!hw.hidden, hiddenText: hw.hiddenAt ? _hwWhen_(_hwMs_(hw.hiddenAt)) : ''
     };
   });
   list.forEach(function (hw) { if (hw.remindOn && hw.course && hw.courseWork && _hwMs_(hw.due) > nowMs) anyRemind = true; });
@@ -4532,7 +5533,8 @@ function _homeworkData_(now, who) {
   }
   return {
     generatedAt: new Date().toISOString(),
-    labs: labs, students: roster, classes: dir.classes,
+    /* who can be picked: a pupil in none of the classes (LEFT …) cannot; homework set while they were here keeps them */
+    labs: labs, students: roster.filter(function (p) { return !_isLeftClass_(p.cls); }), classes: dir.classes,
     homework: out,
     /* 'mine': only this teacher's homework is in the list; 'all': every teacher's (the owner), each marked `mine` */
     whose: !who ? '' : (seesAll ? 'all' : 'mine'),
@@ -4579,6 +5581,7 @@ function homeworkCreate(d) {
     var cls = String(w.cls || '').trim().toUpperCase();
     var emails = (w.emails || []).map(_cleanEmail_).filter(function (e) { return !!e; });
     if (!cls && !emails.length) return { ok:false, why:'Choose a class, or some students.' };
+    if (_isLeftClass_(cls)) return { ok:false, why:cls + ' is not a class: its pupils are in none of your classes.' };
     /* the time is optional and comes on its own (a page from before sends none): no time = the end of that day */
     var time = String(w.time == null ? '' : w.time).trim();
     if (time && !_hwTime_(time)) return { ok:false, why: (cls ? cls + ': the' : 'The') + ' due time is not a time. Type it as hh:mm, or leave it empty.' };
@@ -4627,9 +5630,33 @@ function homeworkCreate(d) {
      The cohort (graduation year) is stable across that move, which is what makes it safe to keep. */
   var roster = _studentDirectory_().students;
   jobs.forEach(function (job) {
-    var ps = _hwPupils_({ targets: { cls: job.cls, emails: job.emails }, setFor: null }, roster);
+    var all = _hwPupils_({ targets: { cls: job.cls, emails: job.emails }, setFor: null }, roster);
+    var ps = all.filter(function (p) { return !_isLeftClass_(p.cls); });     /* in none of the classes (7 Oct 2026) */
+    job.leftOnly = all.length > 0 && !ps.length;
     job.setFor = ps.map(function (p) { return p.email; });
     job.cohort = _hwCohortOf_(job.cls, job.setFor, roster);
+  });
+  /* homework for nobody because every pupil chosen is in none of the classes now (a page from before still showed them) is
+     refused (the audit, 7 Oct 2026); a class with nobody on the Students tab yet may still be set, as before */
+  var nobody = jobs.filter(function (job) { return job.leftOnly; })[0];
+  if (nobody) return { ok:false, why:(nobody.cls ? nobody.cls + ': nobody' : 'Nobody') + ' to set it for: the pupils chosen are in none of your classes now. Reload the page and choose again.' };
+  /* …and who is in each class's Google Classroom course at this moment (6 Oct 2026, Daniel's 11C: an import that stopped
+     part way left 8 of 16 off the Students tab; they were in the class, and in Classroom, the day the homework was set).
+     The course is the one most of the class were imported from. Read outside the lock; any failure only leaves it out. */
+  var classroomOn = typeof Classroom !== 'undefined' && !!Classroom && !!Classroom.Courses, idsNow = null, rosMemo = {}, leftNow = {};
+  roster.forEach(function (p) { if (_isLeftClass_(p.cls)) leftNow[p.email] = 1; });
+  jobs.forEach(function (job) {
+    job.inCourse = null;
+    if (!job.cls || !classroomOn) return;
+    try {
+      idsNow = idsNow || _classroomIds_();
+      var tally = {};
+      job.setFor.forEach(function (e) { var c = idsNow[e] && idsNow[e].courseId; if (c) tally[c] = (tally[c] || 0) + 1; });
+      var cids = Object.keys(tally);
+      if (!cids.length) return;
+      var ros = _courseRoster_(cids.sort(function (a, b) { return tally[b] - tally[a]; })[0], rosMemo);
+      if (ros) job.inCourse = Object.keys(ros).filter(function (e) { return !leftNow[e]; }).sort();   /* never a pupil marked LEFT */
+    } catch (e) { job.inCourse = null; }
   });
 
   var made = [];
@@ -4648,7 +5675,7 @@ function homeworkCreate(d) {
       sh.appendRow([
         id, new Date(), who, _plain_(title), _plain_(whoTxt), _plain_(what), job.due,
         JSON.stringify({ targets: { cls: job.cls || undefined, emails: job.emails.length ? job.emails : undefined },
-                         setFor: job.setFor, tasks: tasks }),
+                         setFor: job.setFor, tasks: tasks, inCourse: job.inCourse || undefined }),
         '', '', 'set', '', group, job.cohort || '',
         remind ? 'on' : 'off', '', '', '', '',
         job.start || ''
@@ -4742,6 +5769,50 @@ function homeworkDelete(id) {
   return { ok:true, note: note, data:_homeworkData_(undefined, who) };
 }
 
+/* Hide homework from the Set homework list, or list it again (Daniel, 7 Oct 2026: "deleting a homework should just hide
+   it, not remove it from everywhere else … it's worth having the homework set for all of the students throughout their
+   whole progress"; "remove before the due date and hide after the due date"). Only homework whose due date has passed can
+   be hidden: before then students are still doing it, and Remove is there for homework set by mistake. Hidden homework
+   still counts everywhere else (the students' own list, ⏱️ Homework habits, the summary): only the teacher's list leaves
+   it out, at the end of its Archive. The time it was hidden goes into the Hidden column, found by its heading and never by
+   position (a tab from before it may hold a teacher's own column there). Gated like Remove: a teacher their own, the owner
+   anybody's. { ok, data } or { ok:false, why }. */
+function homeworkHide(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var id = String(d.id || '').trim(), hide = d.hide !== false;
+  var lock = null;
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'Somebody else is changing the homework just now — try again in a moment.' }; }
+  try {
+    /* the row is found INSIDE the lock, by its id, as Remove finds it */
+    var sh = _ensureHomeworkTab_(), rows = _homeworkRows_(), hit = null;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].id === id) { hit = rows[i]; break; } }
+    if (!hit) return { ok:false, why:'That homework is not there any more.' };
+    if (hit.teacher && hit.teacher !== who && who !== _owner_()) {
+      return { ok:false, why:'That was set by ' + hit.teacher + '. Only they (or the owner) can change it.' };
+    }
+    if (hide && !hit.overdue) {
+      return { ok:false, why:'Only homework whose due date has passed can be hidden: students are still doing this one. If it was set by mistake, press Remove. If only the date is wrong, change the due date.' };
+    }
+    if (hide !== hit.hidden) {                         /* already so: nothing to write */
+      _hwWiden_(sh);
+      var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+                   .map(function (x) { return String(x == null ? '' : x).replace(/^✎\s*/, '').trim(); });
+      var col = head.indexOf('Hidden') + 1;
+      if (!col) {
+        return { ok:false, why:'The 📚 Homework tab has no Hidden column: its column ' + String.fromCharCode(64 + _HW_HEADERS_.length) +
+                               ' holds something else. Move that to another column, then try again.' };
+      }
+      sh.getRange(hit.row, col).setValue(hide ? new Date() : '');
+    }
+  } catch (e) {
+    return { ok:false, why:'Could not change it.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  return { ok:true, data:_homeworkData_(undefined, who) };
+}
+
 /* The 🔔 switch on the list (1 Oct 2026): reminders off, or on again, for homework already set. Gated like every teacher
    call; a teacher may change their own homework, the owner anybody's (as Remove). Switching on also starts the 15-minute
    check. A reminder already posted is never posted again. { ok, data } or { ok:false, why }. */
@@ -4770,6 +5841,180 @@ function homeworkRemind(d) {
     return { ok:false, why:'The reminders are on, but the 15-minute check could not be started. 🧪 Biology Labs ▸ 🩺 Check the set-up says why.' };
   }
   return { ok:true, data:_homeworkData_(undefined, who) };
+}
+
+/* Change the due date of homework already set (Daniel, 6 Oct 2026: "can the system change the due date … from the website
+   and then automatically change it in Google Classroom?"). Gated like Remove and 🔔: a teacher changes their own, the
+   owner anybody's. The date and time are read in the school's zone, as Set homework reads them (no time = the end of the
+   day); the new due must be still to come, and after a later start. The 📚 Homework row is changed first, under the lock;
+   then its Google Classroom assignment, outside it (Classroom can take seconds): CourseWork.patch of dueDate and dueTime
+   only, which Classroom allows for an assignment this script posted. If Classroom refuses, the date is still changed here
+   and the note says to change it in Classroom by hand. A summary already emailed for the old date goes again after the new
+   one. Reminders already posted are not posted again; those still to come follow the new date. { ok, note, data } or
+   { ok:false, why }. */
+function homeworkChangeDue(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var id = String(d.id || '').trim(), time = String(d.time == null ? '' : d.time).trim();
+  if (time && !_hwTime_(time)) return { ok:false, why:'The due time is not a time. Type it as hh:mm, or leave it empty for the end of the day.' };
+  var due = _dueFrom_(d.due, time);
+  if (!due) return { ok:false, why:'Give it a due date.' };
+  if (due.getTime() <= Date.now()) return { ok:false, why:'The new due time (' + _hwWhen_(due.getTime()) + ') has passed. Choose a later one.' };
+  var lock = null, hit = null, again = [];
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'Somebody else is changing the homework just now — try again in a moment.' }; }
+  try {
+    /* the row is found INSIDE the lock, by its id, as Remove finds it */
+    var sh = _ensureHomeworkTab_(), rows = _homeworkRows_();
+    for (var i = 0; i < rows.length; i++) { if (rows[i].id === id) { hit = rows[i]; break; } }
+    if (!hit) return { ok:false, why:'That homework is not there any more.' };
+    if (hit.teacher && hit.teacher !== who && who !== _owner_()) {
+      return { ok:false, why:'That was set by ' + hit.teacher + '. Only they (or the owner) can change it.' };
+    }
+    var startMs = _hwMs_(hit.start);
+    if (startMs && due.getTime() <= startMs) return { ok:false, why:'It must be due after it starts (' + hit.startText + '). Choose a later due time.' };
+    if (_hwMs_(hit.due) === due.getTime()) return { ok:false, why:'That is already its due time.' };
+    var hc = _hwHeadCols_(sh);
+    sh.getRange(hit.row, hc.Due).setValue(due);
+    if (hit.status === 'reported') { sh.getRange(hit.row, hc.Status).setValue('set'); sh.getRange(hit.row, hc.Reported).setValue(''); }
+    /* due again later, so students are doing it again: back on the list (7 Oct 2026). Hidden is only ever read under its
+       heading, so a row that reads as hidden has that heading, and hc.Hidden is its column. */
+    if (hit.hidden) sh.getRange(hit.row, hc.Hidden).setValue('');
+    /* a reminder skipped for the old due time (it had passed, or fell too near the night) can go at the new one (7 Oct
+       2026). One that went is never posted again, nor one skipped because the reminder after it went. */
+    var skipped = function (r) { return !!(r && r.at) && /^skipped:/.test(String(r.said || '')); }, rem = hit.rem || [];
+    if (skipped(rem[1])) again.push(2);
+    if (skipped(rem[0]) && (!(rem[1] && rem[1].at) || skipped(rem[1]))) again.push(1);
+    again = again.filter(function (k) { return hc['Reminder ' + k] && hc['Reminder ' + k + ' students']; });
+    again.forEach(function (k) { sh.getRange(hit.row, hc['Reminder ' + k]).setValue(''); sh.getRange(hit.row, hc['Reminder ' + k + ' students']).setValue(''); });
+  } catch (e) {
+    return { ok:false, why:'Could not change it.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  var when = _hwWhen_(due.getTime()), note;
+  if (hit.course && hit.courseWork) {
+    try {
+      _needClassroom_();
+      Classroom.Courses.CourseWork.patch({
+        dueDate: { year: due.getUTCFullYear(), month: due.getUTCMonth() + 1, day: due.getUTCDate() },
+        dueTime: { hours: due.getUTCHours(), minutes: due.getUTCMinutes() }
+      }, hit.course, hit.courseWork, { updateMask: 'dueDate,dueTime' });
+      note = 'It is now due ' + when + ', here and in Google Classroom.';
+    } catch (e) {
+      note = 'It is now due ' + when + ' here, but Google Classroom did not take it (' +
+             String((e && e.message) || e).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 140) +
+             '). Change the due date in Classroom ▸ Classwork by hand.';
+    }
+  } else {
+    note = 'It is now due ' + when + '. It was not posted to Google Classroom, so there is nothing to change there.';
+  }
+  if (hit.status === 'reported') note += ' The summary email goes again after the new due time.';
+  if (again.length && hit.remindOn) note += ' A reminder skipped for the old due time can go before the new one.';
+  if (hit.hidden) note += ' It was hidden: it is listed again, with the homework still to come.';
+  return { ok:true, note: note, data:_homeworkData_(undefined, who) };
+}
+
+/* Count pupils in a whole-class homework they are not in (Daniel, 6 Oct 2026: "the special case of these six students"):
+   pupils who were in the class the day it was set, but came onto the Students tab later because the import had stopped part
+   way. The teacher ticks them on the list (_homeworkData_ `outside`); only pupils in its class now and not in it already are
+   added, to its Spec `setFor`, as if they had been on the tab that day. A pupil who joined or moved in later is left out
+   unless ticked: homework set before they came never counts against them. Gated like Remove: a teacher their own homework,
+   the owner anybody's. { ok, note, data } or { ok:false, why }. */
+function homeworkAddPupils(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var id = String(d.id || '').trim(), want = [];
+  (Array.isArray(d.emails) ? d.emails : []).slice(0, 200).forEach(function (e) { e = _cleanEmail_(e); if (e && want.indexOf(e) < 0) want.push(e); });
+  if (!want.length) return { ok:false, why:'Tick the pupils to count in it.' };
+  var lock = null, added = [], cls = '';
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'Somebody else is changing the homework just now — try again in a moment.' }; }
+  try {
+    /* the row is found INSIDE the lock, by its id, as Remove finds it */
+    var sh = _ensureHomeworkTab_(), rows = _homeworkRows_(), hit = null;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].id === id) { hit = rows[i]; break; } }
+    if (!hit) return { ok:false, why:'That homework is not there any more.' };
+    if (hit.teacher && hit.teacher !== who && who !== _owner_()) {
+      return { ok:false, why:'That was set by ' + hit.teacher + '. Only they (or the owner) can change it.' };
+    }
+    cls = String((hit.targets || {}).cls || '').trim().toUpperCase();
+    if (!cls || !hit.setFor) return { ok:false, why:'Only homework set for a whole class can take pupils in.' };
+    var roster = _studentDirectory_().students, have = {}, inClass = {};
+    _hwPupils_(hit, roster).forEach(function (p) { have[p.email] = 1; });
+    roster.forEach(function (p) { if (p.cls === cls) inClass[p.email] = 1; });
+    want.forEach(function (e) { if (inClass[e] && !have[e]) added.push(e); });
+    if (!added.length) return { ok:false, why:'Nobody to add: each ticked pupil is in it already, or no longer in ' + cls + '.' };
+    var hc = _hwHeadCols_(sh), cell = sh.getRange(hit.row, hc.Spec), spec = {};
+    try { spec = JSON.parse(String(cell.getValue() || '{}')) || {}; } catch (e) { spec = {}; }
+    if (!Array.isArray(spec.setFor)) return { ok:false, why:'This homework’s list of pupils cannot be read.' };
+    spec.setFor = spec.setFor.concat(added);
+    cell.setValue(JSON.stringify(spec));
+  } catch (e) {
+    return { ok:false, why:'Could not change it.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  return { ok:true, note: added.length + ' pupil' + (added.length === 1 ? '' : 's') + ' of ' + cls + ' now count' + (added.length === 1 ? 's' : '') +
+           ' in this homework.', data:_homeworkData_(undefined, who) };
+}
+
+/* Move a pupil to another class (Daniel, 6 Oct 2026: "there should be an option to move a student between classes … and then
+   everything is ported"). A pupil's record is theirs, never the class's: homework set while they were in the old class
+   still names them (its result stays theirs, and shows under their new class in ⏱️ Homework habits), their lab, Bio
+   English and Write-Up work is theirs by their email, homework set for the new class from now on includes them, and the
+   new class's earlier homework never counts against them. This writes the new class on the Students tab and on their row
+   of every lab, Bio English and Write-Up tab, at once (Tidy up would also have put the lab rows right). Google Classroom
+   is NOT changed: the teacher moves them there too (a script cannot put a pupil into a course without the pupil). Gated:
+   a teacher on the list or the owner. { ok, note, data (the Students directory) } or { ok:false, why }.
+   d.left (7 Oct 2026): into none of the classes, the class "LEFT <year>", for a pupil who leaves part way through the year
+   (the import window finds the rest at the start of a new one). Moving them to a class brings them back. */
+function studentMove(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var email = _cleanEmail_(d.email), to = String(d.cls == null ? '' : d.cls).replace(/\s+/g, ' ').trim().toUpperCase();
+  if (!email) return { ok:false, why:'Which pupil?' };
+  var left = d.left === true;
+  if (left) to = _leftLabel_();
+  else if (_isLeftClass_(to)) return { ok:false, why:'Choose a class. To take them out of every class, choose “Left: in no class”.' };
+  if (!/^[A-Z0-9][A-Z0-9 .\-]{0,15}$/.test(to)) return { ok:false, why:'Choose the class to move them to.' };
+  var lock = null, name = '', from = '';
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  try {
+    var stu = _sheet_(T_STUDENTS), n = stu.getLastRow() - 1;
+    if (n < 1) return { ok:false, why:'There is nobody on the Students tab.' };
+    var ec = _emailCol_(stu), v = stu.getRange(2, 1, n, ec).getValues(), at = -1;
+    for (var i = 0; i < v.length; i++) { if (_cleanEmail_(v[i][ec - 1]) === email) { at = i; break; } }   /* the first row wins, as for a save */
+    if (at < 0) return { ok:false, why:'That pupil is not on the Students tab.' };
+    name = String(v[at][0] || '').trim(); from = String(v[at][1] || '').trim().toUpperCase();
+    if (left && _isLeftClass_(from)) return { ok:false, why:(name || 'They') + ' is in none of the classes already.' };
+    if (from === to) return { ok:false, why:(name || 'They') + ' is in ' + to + ' already.' };
+    stu.getRange(at + 2, 2).setValue(to);
+    /* their Course id follows them: the course most of their new class came from, or none (a class made by hand). Left with
+       the old one, the next import of the old course listed them as "not in its Classroom course now" (the audit, 7 Oct 2026). */
+    if (!left) {
+      var cc = _headerCol_(stu, 'Course id', ec + 4);
+      if (cc <= stu.getLastColumn()) {
+        var cids = stu.getRange(2, cc, v.length, 1).getDisplayValues(), tally = {}, best = '';
+        v.forEach(function (row, k) { var c = String(cids[k][0] || '').trim(); if (k !== at && c && String(row[1] || '').trim().toUpperCase() === to) tally[c] = (tally[c] || 0) + 1; });
+        Object.keys(tally).forEach(function (c) { if (!best || tally[c] > tally[best]) best = c; });
+        stu.getRange(at + 2, cc).setNumberFormat('@').setValue(best);
+        /* and that course counts them in until its next import says otherwise (move them in Classroom too) */
+        if (best) _noteListed_(best, email);
+      }
+    }
+    /* their row on every tab that copies the class */
+    var one = {}; one[email] = to;
+    _classEverywhere_(one);
+    _classesChanged_();
+  } catch (e) {
+    return { ok:false, why:'Could not move them.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  var note = left
+    ? (name || 'They') + ' is in none of the classes now (' + to + '). Their records stay. If they are still in the class in Google Classroom, ' +
+      'remove them there too: the next import puts them back.'
+    : (name || 'They') + ' moved from ' + (from || 'no class') + ' to ' + to + '. Their homework and work go with them. Move them in Google Classroom too.';
+  return { ok:true, note:note, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
 }
 
 /* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
@@ -4824,10 +6069,11 @@ function _teacherAppPage_(startTab) {
 }
 
 /* Everything the page asks for, in one gated door. */
-function uiData(which) {
+function uiData(which, arg) {
   var who = _hwCaller_();
   if (!who) return { ok:false, why:'Not allowed.' };
   try {
+    if (which === 'questions') return { ok:true, data:_labQuestions_(String(arg || '').slice(0, 40)) };   /* one lab's question words (6 Oct 2026) */
     if (which === 'teachers')  return { ok:true, data:_teacherPageGroups_() };
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
@@ -5294,9 +6540,9 @@ function _enRowFor_(sh, email, student) {
    them (oldPage). `at` is sent but not read. */
 function _englishSave_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
-  var who = _whoIs_(d.token);
+  var who = _whoSaving_(d);
   if (!who) return _json_({ ok:false, why:'not signed in' });
-  var student = _studentOf_(who.email);
+  var student = _studentOf_(who.email), readAt = Date.now();
   /* the rule every save follows: somebody not on the roster leaves no trace here at all */
   if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
   var sets = d.sets && typeof d.sets === 'object' && !Array.isArray(d.sets) ? d.sets : {};
@@ -5312,6 +6558,7 @@ function _englishSave_(d) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
   try {
+    student = _freshStudent_(who.email, student, readAt);   /* a Move or Left done while this save waited for the lock */
     var sh = _englishSheet_(), r = _enRowFor_(sh, who.email, student);
     /* the sets, Practised again and Set times in ONE read (the sets alone were one read before) */
     var cells = sh.getRange(r, EN_SNAP, 1, EN_TIMES - EN_SNAP + 1).getValues()[0];
@@ -5351,10 +6598,11 @@ function _englishSave_(d) {
    them that has English in it, and, for a teacher, the way to the teacher page. Read only. */
 function _englishMine_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
-  var who = _whoIs_(d.token);
+  var who = _whoSaving_(d);
   if (!who) return _json_({ ok:false, why:'not signed in' });
   var out = { ok:true, name: who.name || '', onList:false, cls:'', sets:{}, homework:[] };
-  if (_isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _englishTeacherUrl_(); }
+  /* the way to the teacher page only for Google's own sign-in, never for a pass */
+  if (!who.viaPass && _isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _englishTeacherUrl_(); }
   var student = _studentOf_(who.email);
   if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
   out.onList = true; out.cls = student.cls;
@@ -5387,7 +6635,11 @@ function _englishMine_(d) {
 }
 /* The same answer _hwPupils_ gives, asked the other way round: is this homework theirs? */
 function _hwIsFor_(hw, email, cls) {
-  if (hw.setFor) return hw.setFor.indexOf(email) >= 0;          /* who was in the room that day */
+  if (hw.setFor) {
+    if (hw.setFor.indexOf(email) >= 0) return true;              /* who was in the room that day */
+    /* in its Classroom course that day, imported later, and in its class now (as _hwPupils_) */
+    return !!hw.inCourse && hw.inCourse.indexOf(email) >= 0 && !!hw.targets.cls && String(hw.targets.cls).trim().toUpperCase() === String(cls || '').toUpperCase();
+  }
   if ((hw.targets.emails || []).map(_cleanEmail_).indexOf(email) >= 0) return true;
   return !!hw.targets.cls && String(hw.targets.cls).toUpperCase() === cls;
 }
@@ -5430,7 +6682,8 @@ function _englishProgressData_(now) {
   return {
     generatedAt: new Date().toISOString(), manifestOk: !!en,
     english: en ? { years: en.years || [], units: en.units || {}, sets: en.sets || [] } : null,
-    students: dir.students.map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
+    students: dir.students.filter(function (s) { return !_isLeftClass_(s.cls); })      /* in none of the classes: off this view */
+                .map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
     classes: dir.classes, progress: prog
   };
 }
@@ -5609,9 +6862,9 @@ function _wuRowFor_(sh, email, student) {
    homework part is finished, at sign-in, and as the pupil leaves the page. */
 function _writeupSave_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
-  var who = _whoIs_(d.token);
+  var who = _whoSaving_(d);
   if (!who) return _json_({ ok:false, why:'not signed in' });
-  var student = _studentOf_(who.email);
+  var student = _studentOf_(who.email), readAt = Date.now();
   /* the rule every save follows: somebody not on the roster leaves no trace here at all */
   if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
   var parts = d.parts && typeof d.parts === 'object' && !Array.isArray(d.parts) ? d.parts : {};
@@ -5626,6 +6879,7 @@ function _writeupSave_(d) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
   try {
+    student = _freshStudent_(who.email, student, readAt);   /* a Move or Left done while this save waited for the lock */
     var sh = _writeupSheet_(), r = _wuRowFor_(sh, who.email, student);
     /* the parts and Part times in ONE read */
     var cells = sh.getRange(r, WU_SNAP, 1, WU_TIMES - WU_SNAP + 1).getValues()[0];
@@ -5658,10 +6912,11 @@ function _writeupSave_(d) {
    Write-Up parts in it, and, for a teacher, the way to the teacher page. Read only. */
 function _writeupMine_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
-  var who = _whoIs_(d.token);
+  var who = _whoSaving_(d);
   if (!who) return _json_({ ok:false, why:'not signed in' });
   var out = { ok:true, name: who.name || '', onList:false, cls:'', parts:{}, homework:[] };
-  if (_isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _writeupTeacherUrl_(); }
+  /* the way to the teacher page only for Google's own sign-in, never for a pass */
+  if (!who.viaPass && _isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _writeupTeacherUrl_(); }
   var student = _studentOf_(who.email);
   if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
   out.onList = true; out.cls = student.cls;
@@ -5750,24 +7005,31 @@ function _classroomIds_() {
    chosen pupils) now takes their ids from the course's own list at that moment; `memo` keeps one read per course per run. */
 function _courseRoster_(courseId, memo) {
   if (memo && (courseId in memo)) return memo[courseId];
-  var out = {}, page = null, ok = true;
+  var out = {}, uids = {}, page = null, ok = true;   /* uids: every pupil it lists, an address or not (_freshIds_) */
   try {
     do {
       var r = Classroom.Courses.Students.list(courseId, { pageSize: 100, pageToken: page }) || {};
       (r.students || []).forEach(function (st) {
         var e = _cleanEmail_(st.profile && st.profile.emailAddress);
         if (e && st.userId) out[e] = String(st.userId);
+        if (st.userId) uids[String(st.userId)] = 1;
       });
       page = r.nextPageToken;
     } while (page);
   } catch (e) { ok = false; }
-  if (memo) memo[courseId] = ok ? out : null;
+  if (memo) { memo[courseId] = ok ? out : null; memo['uids ' + courseId] = ok ? uids : null; }
   return ok ? out : null;
 }
 /* The Students tab's ids (_classroomIds_), with every pupil of this course given the id Classroom has for them. */
 function _freshIds_(ids, courseId, memo) {
-  var ros = courseId ? _courseRoster_(courseId, memo) : null;
-  if (ros) Object.keys(ros).forEach(function (e) { ids[e] = { userId: ros[e], courseId: String(courseId) }; });
+  memo = memo || {};
+  var ros = courseId ? _courseRoster_(courseId, memo) : null, uids = memo['uids ' + courseId] || {};
+  if (ros) {
+    /* a pupil the Students tab still puts in this course, whom Classroom no longer lists there (they left it, or moved and
+       are not imported again yet), is not named to it: one id the course does not have fails the whole post (7 Oct 2026) */
+    Object.keys(ids).forEach(function (e) { if (ids[e] && ids[e].courseId === String(courseId) && !ros[e] && !uids[String(ids[e].userId)]) ids[e] = { userId: '', courseId: '' }; });
+    Object.keys(ros).forEach(function (e) { ids[e] = { userId: ros[e], courseId: String(courseId) }; });
+  }
   return ids;
 }
 function _hwPost_(id, title, what, tasks, job, ids, opt) {
@@ -6190,70 +7452,6 @@ function _hwRemindRun_(now) {
     _hwRemindMark_(j.hw.id, j.k, now, said, false);
   });
   return posted;
-}
-/* Why Classroom refuses a reminder (5 Oct 2026: every reminder came back "not sent: … Precondition check failed",
-   which is all the Classroom service in Apps Script passes on). Run ▸ checkReminders in the editor. It takes the newest
-   homework whose reminder was not sent (else the newest with reminders on), builds the SAME post the reminder sends but
-   as a DRAFT, which reaches nobody, and sends it to Classroom's own web address, which answers with the full reason.
-   Then the same draft without its link, then addressed to the whole class, so the difference says which part Classroom
-   refuses; it also reads the course's state and whether each pupil is a student in that course. Every draft it makes is
-   deleted at once. It writes nothing to the spreadsheet and posts nothing a pupil can see. */
-function checkReminders() {
-  if (!_isAdminCaller_()) { Logger.log('checkReminders runs from the Apps Script editor: Run ▸ checkReminders.'); return; }
-  var lines = [];
-  function say(t) { lines.push(t); try { Logger.log(t); } catch (e) {} }
-  function done() { try { SpreadsheetApp.getUi().alert('Homework reminders: what Classroom says', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK); } catch (e) {} return lines.join('\n'); }
-  var rows = _homeworkRows_().filter(function (hw) { return hw.course && hw.courseWork; });
-  var bad = rows.filter(function (hw) { return hw.rem.some(function (r) { return /^not sent/.test(r.said); }); });
-  var pick = (bad.length ? bad : rows.filter(function (hw) { return hw.remindOn; }))
-               .sort(function (a, b) { return String(b.created || '').localeCompare(String(a.created || '')); })[0];
-  if (!pick) { say('No homework posted in Google Classroom with reminders to test.'); return done(); }
-  say('Homework ' + pick.id + ' "' + pick.title + '" (' + (pick.who || pick.targets.cls || '') + '), course ' + pick.course + '.');
-  var base = 'https://classroom.googleapis.com/v1/courses/' + encodeURIComponent(pick.course);
-  var auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-  function call(method, url, body) {
-    var o = { method: method, headers: auth, muteHttpExceptions: true };
-    if (body) { o.contentType = 'application/json'; o.payload = JSON.stringify(body); }
-    var r = UrlFetchApp.fetch(url, o), j = {};
-    try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) { j = {}; }
-    return { code: r.getResponseCode(), j: j };
-  }
-  function why(r) { var e = r.j && r.j.error; return e ? (e.status || r.code) + ': ' + (e.message || '') : 'HTTP ' + r.code; }
-  var c = call('get', base);
-  say(c.code === 200 ? 'The course: "' + c.j.name + '", state ' + c.j.courseState + '.' : 'The course could not be read: ' + why(c));
-  /* the pupils the reminder would name: those it was set for who have not finished, with a Classroom id in this course */
-  var roster = _studentDirectory_().students, ids = _classroomIds_(), man = _hwManifest_(), need = {}, labIds = [];
-  var sheetIds = JSON.parse(JSON.stringify(ids)), ros = _courseRoster_(pick.course), off = 0;
-  if (ros) Object.keys(ros).forEach(function (e) { if (sheetIds[e] && sheetIds[e].userId && sheetIds[e].userId !== ros[e]) off++; });
-  say(ros ? Object.keys(ros).length + ' pupils in the course' + (off ? '; ' + off + ' of them have a wrong id in the Students tab (Sheets rounds long numbers): the reminders now use Classroom\u2019s own.' : '; the Students tab\u2019s ids match.')
-          : 'The course\u2019s pupils could not be read from Classroom.');
-  _freshIds_(ids, pick.course, ros ? (function () { var m = {}; m[pick.course] = ros; return m; })() : null);
-  var pupils = _hwPupils_(pick, roster);
-  pupils.forEach(function (p) { need[p.email] = 1; });
-  pick.tasks.forEach(function (t) { if (labIds.indexOf(t.labId) < 0) labIds.push(t.labId); });
-  var who = _hwRemindWho_(pick, pupils, ids, man, _hwLabIndex_(labIds, need));
-  var sids = who.ids && who.ids.length ? who.ids : [];
-  if (!sids.length) pupils.forEach(function (p) { var x = ids[p.email]; if (x && x.userId && x.courseId === pick.course && sids.indexOf(x.userId) < 0) sids.push(x.userId); });
-  say(sids.length + ' pupil(s) the reminder would name.');
-  var notIn = 0;
-  sids.forEach(function (u) { var r = call('get', base + '/students/' + encodeURIComponent(u)); if (r.code !== 200) notIn++; });
-  say(notIn ? '⚠ ' + notIn + ' of them are NOT students in this course in Classroom.' : 'Every one of them is a student in this course.');
-  var post = _hwRemindBody_(pick, sids, man);
-  post.state = 'DRAFT';
-  var tries = [
-    ['the reminder as it is sent (as a draft)', post],
-    ['the same, without the link', { text: post.text, state: 'DRAFT', assigneeMode: 'INDIVIDUAL_STUDENTS', individualStudentsOptions: { studentIds: sids } }],
-    ['to the whole class, without the link', { text: post.text, state: 'DRAFT', assigneeMode: 'ALL_STUDENTS' }]
-  ];
-  tries.forEach(function (t) {
-    var r = call('post', base + '/announcements', t[1]);
-    if (r.code === 200 && r.j.id) {
-      call('delete', base + '/announcements/' + encodeURIComponent(r.j.id));
-      say('✅ ' + t[0] + ': Classroom accepts it (the draft was deleted).');
-    } else say('❌ ' + t[0] + ': ' + why(r));
-  });
-  say('Nothing was posted to pupils. Send Claude this text.');
-  return done();
 }
 /* The trigger, every 15 minutes (_hwReminderTrigger_ makes it). It stays callable, as a trigger must: it takes NOTHING
    from its caller (a trigger's event, or anything a page sends, is ignored), posts only the reminders due at this
@@ -6736,7 +7934,7 @@ function _habitsData_(now) {
     return { id: hw.id, title: hw.title, who: hw.who, set: _hwWhen_(hw.S), due: _hwWhen_(hw.D), day: _hwDueText_(hw.D),
              med: hw.med === null ? '' : _hwSpanWords_(hw.med), withTimes: spans.length };
   });
-  var pupils = order.map(function (em) {
+  var pupils = order.filter(function (em) { return !_isLeftClass_(who[em].p.cls); }).map(function (em) {   /* LEFT: in no class now */
     var P = who[em], cells = P.cells, b = base[em] || null, flags = [];
     cells.forEach(function (cell, j) {
       var says = _hwHabitFlag_(cell, list[cell.h].med, b, cells.slice(0, j));

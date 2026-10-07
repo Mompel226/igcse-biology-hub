@@ -5,10 +5,15 @@
  * The teaching material it carries is CC BY-NC-SA 4.0 (see LICENSE-CONTENT).
  * Commercial use needs my permission: dmompelriera@nlcsjeju.kr
 
-  ONE long-running server call does the work, and the dialog polls a cached progress
-  record alongside it. So each class ticks green as it
-  finishes, and closing this window does not interrupt the import — Apps Script
-  never learns that the client went away.
+  ONE server call starts the import as a JOB on the server (7 Oct 2026), and this window polls a cached progress
+  record beside it, so each class shows its result as it is done and closing the window does not stop the import.
+  The job never meets Google's six-minute limit: it saves where it is after each class and, when its time is nearly
+  up, carries on by itself a minute later (Code.gs, executeBatchImportAll / continueBatchImport_). A class that
+  fails is named, and "Try again" imports only the failed ones.
+  A new school year (7 Oct 2026): once any course has been imported this school year, the window lists the pupils in
+  none of the courses imported since 1 August (getNotThisYear), folded when it opens and open after an import; one press
+  puts the ticked ones in the class "LEFT <year>" (markPupilsLeft). Their records stay; importing their class again puts
+  them back.
 -->
 <!DOCTYPE html>
 <html>
@@ -31,7 +36,13 @@ input[type="text"].err { border-color: #f85149; }
 .badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
 .badge-have { background: #23863633; color: #3fb950; }
 .badge-dup  { background: #f8514933; color: #f85149; }
-.status { font-size: 12px; white-space: nowrap; min-width: 130px; }
+.status { font-size: 12px; min-width: 130px; line-height: 1.45; }
+.status .note { font-size: 11px; margin-top: 3px; }
+.ok { color: #3fb950; } .dim { color: #8b949e; } .amber { color: #d29922; } .bad { color: #f85149; }
+.hint { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
+.phase { font-size: 12px; color: #58a6ff; }
+.btns { display: flex; gap: 8px; margin-top: 10px; }
+.summary p { margin-top: 6px; }
 .spin { display: inline-block; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .btn { padding: 8px 20px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
@@ -47,11 +58,22 @@ input[type="text"].err { border-color: #f85149; }
 .course-name { color: #e6edf3; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 .section { color: #8b949e; font-size: 11px; }
 .key { margin-top: 8px; color: #8b949e; font-size: 11px; line-height: 1.5; }
+.leftbox { margin: 0 0 12px; padding: 10px 14px; background: #1f1a0c; border: 1px solid #5c4813; border-radius: 6px; font-size: 12px; color: #c9d1d9; line-height: 1.6; }
+.summary + .leftbox, #leftbox2 .leftbox { margin-top: 12px; }
+.leftbox p { margin-top: 6px; }
+.leftbox__list { max-height: 260px; overflow: auto; margin-top: 4px; }
+.lgrp { margin-top: 8px; }
+.lgrp__h, .lp { cursor: pointer; }
+.lpp { display: flex; flex-wrap: wrap; gap: 2px 16px; margin: 2px 0 0 22px; }
+.lp { white-space: nowrap; }
+.lgrp .note { margin-left: 22px; font-size: 11px; }
+.btn-small { padding: 3px 10px; font-size: 12px; margin-left: 6px; }
 </style>
 </head>
 <body>
 <h2>Import students from Google Classroom</h2>
 <div class="subtitle" id="subtitle">Loading courses…</div>
+<div id="leftbox"></div>
 
 <div id="content"><div class="loading">Fetching your Google Classroom courses…</div></div>
 
@@ -76,6 +98,8 @@ google.script.run
   .getBatchImportData();
 
 function esc(s) { var d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
+function attr(s) { return esc(s).replace(/"/g, '&quot;'); }
+function isLeftCode(c) { return /^LEFT(\s|$)/i.test(String(c || '').trim()); }
 
 function render() {
   /* the script answers only the spreadsheet's owner or a teacher on its list (labs-script-010: anyone else
@@ -112,13 +136,16 @@ function render() {
         (c.section ? ' <span class="section">' + esc(c.section) + '</span>' : '') +
         '<span id="badge-' + i + '"></span></td>' +
       '<td><input type="text" id="cc-' + i + '" value="' + esc(c.autoClassCode) + '" ' +
-        'oninput="updateUI()" placeholder="e.g. 9A"' + (c.autoClassCode ? '' : ' class="err"') + '></td>' +
+        'oninput="updateUI()" placeholder="e.g. 9A" maxlength="16"' + (c.autoClassCode ? '' : ' class="err"') + '></td>' +
       '<td class="status" id="st-' + i + '">—</td>' +
     '</tr>';
   });
   html += '</tbody></table><p class="key" id="key" hidden></p>';
   document.getElementById('content').innerHTML = html;
   updateUI();
+  /* the pupils in none of this year's classes, folded, once a course has been imported this school year */
+  LEFT = DATA.left || null;
+  if (LEFT && !LEFT.busy) paintLeft();
 }
 
 function toggleAll(checked) {
@@ -148,14 +175,15 @@ function updateUI() {
   DATA.courses.forEach(function (_, i) {
     document.getElementById('badge-' + i).innerHTML = '';
     var cc = document.getElementById('cc-' + i);
-    cc.classList.toggle('err', document.getElementById('cb-' + i).checked && !cc.value.trim());
+    cc.classList.toggle('err', document.getElementById('cb-' + i).checked && (!cc.value.trim() || isLeftCode(cc.value)));
   });
 
   /* what a badge means is said in words under the table, never in a title= tooltip: that waits a second, and
      never shows at all on a touch screen or to a keyboard */
-  var byCode = {}, hasEmpty = false, anyHave = false, anyDup = false;
+  var byCode = {}, hasEmpty = false, hasLeft = false, anyHave = false, anyDup = false;
   sels.forEach(function (s) {
     if (!s.classCode) { hasEmpty = true; return; }
+    if (isLeftCode(s.classCode)) { hasLeft = true; return; }
     var have = DATA.have[s.classCode];
     if (have) { anyHave = true; document.getElementById('badge-' + s.idx).innerHTML =
       '<span class="badge badge-have">' + have + ' already</span>'; }
@@ -172,146 +200,288 @@ function updateUI() {
   anyHave = sels.some(function (s) { return document.getElementById('badge-' + s.idx).innerHTML.indexOf('badge-have') >= 0; });
   if (anyHave) said.push('“already”: that class already has that many students on the Students tab. Anyone imported before is skipped, never added twice.');
   if (anyDup) said.push('“merge”: two ticked courses share one class code, so their students become one class.');
+  if (hasLeft) said.push('LEFT is kept for pupils in none of your classes: give each class a code of its own.');
   if (key) { key.textContent = said.join(' '); key.hidden = !said.length; }
 
-  document.getElementById('btn-import').disabled = sels.length === 0 || hasEmpty;
+  document.getElementById('btn-import').disabled = sels.length === 0 || hasEmpty || hasLeft;
 }
 
-/* ── the import: one long call, progress polled alongside it ── */
-var POLL_INTERVAL_MS = 1500;
+/* ── the import: ONE call, then this window polls the job's progress (7 Oct 2026) ──
+   The call runs the job's first piece; the rest, if any, carries on by itself on the server a minute later, as often as
+   needed, so this window only reads the record. It may be closed at any moment: the job finishes anyway. A class that
+   fails is named while the next still goes; "Try again" starts a new job for the failed ones only (nobody is added
+   twice). If the record stops moving for 12 minutes, the window says so. */
+var POLL_INTERVAL_MS = 2000, STALL_MS = 12 * 60 * 1000;
 var pollHandle = null;
-var pollFinished = false;
+/* pieceStopped: the first piece did not answer (it may have been stopped); the job carries on by itself and the poll
+   follows it, so nothing else is needed here */
+var JOB = '', SELS = [], RUN = [], lastSeen = '', lastMove = 0, ended = false, pieceStopped = false;
 
 function startImport() {
   var sels = getSelections();
   if (!sels.length) return;
-  importing = true;
-  pollFinished = false;
-  var btn = document.getElementById('btn-import');
-  btn.disabled = true;
-  btn.textContent = 'Importing ' + sels.length + ' class(es)…';
+  SELS = sels;
   Array.prototype.forEach.call(document.querySelectorAll('.cb, input[type="text"]'), function (el) { el.disabled = true; });
-
-  sels.forEach(function (s, i) {
-    var st = document.getElementById('st-' + s.idx);
-    if (st) st.innerHTML = '<span class="spin">⏳</span> Queued (' + (i + 1) + '/' + sels.length + ')';
+  sels.forEach(function (s) {
     var row = document.getElementById('row-' + s.idx);
     if (row) row.classList.add('selected');
   });
-
-  document.getElementById('bar').insertAdjacentHTML('afterbegin',
-    '<div id="close-hint" style="font-size:11px;color:#8b949e;margin-bottom:6px">' +
-    'You can close this window — the import keeps running. Re-open the sheet to see the result.</div>' +
-    '<div id="phase" style="font-size:12px;color:#58a6ff;margin-bottom:8px"></div>');
-
-  var jobId = 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-
-  google.script.run
-    .withSuccessHandler(function (results) {
-      stopPolling();
-      showPhase('');
-      applyResults(sels, results);
-      if (!pollFinished) showFinalSummary(sels);
-      pollFinished = true;
-    })
-    .withFailureHandler(function (err) {
-      /* The call can fail after the server actually finished — a network blip on
-         the way back. Ask the cache once more before calling anything failed. */
-      stopPolling();
-      google.script.run
-        .withSuccessHandler(function (p) {
-          if (p && Array.isArray(p.results)) applyResults(sels, p.results);
-          finalizeAfterError(sels, err);
-        })
-        .withFailureHandler(function () { finalizeAfterError(sels, err); })
-        .getBatchImportProgress(jobId);
-    })
-    .executeBatchImportAll(sels, jobId);
-
-  startPolling(jobId, sels);
+  runJob(sels);
 }
 
-function startPolling(jobId, sels) {
-  if (pollHandle) clearInterval(pollHandle);
+/* the bar under the table while it works: what to do, and what it is on */
+function working() {
+  var bar = document.getElementById('bar');
+  bar.style.display = 'block';
+  bar.innerHTML = '<div class="hint">You can close this window: the import carries on by itself, and each class’s pupils appear on the Students tab as it comes in.</div>' +
+    '<div id="phase" class="phase"></div>';
+}
+
+function runJob(list) {
+  importing = true; ended = false;
+  leftCount();                                     /* "Mark … as Left" waits while an import runs */
+  RUN = list;
+  JOB = 'batch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  working();
+  list.forEach(function (s, i) {
+    s._result = null; s._key = '';
+    setStatus(s, '<span class="spin">⏳</span> Waiting (' + (i + 1) + ' of ' + list.length + ')');
+  });
+  showPhase('Importing…');
+  lastSeen = ''; lastMove = Date.now();
+  google.script.run
+    .withSuccessHandler(function (results) { applyAll(results); })
+    .withFailureHandler(function () { pieceStopped = true; })
+    .executeBatchImportAll(list.map(function (s) { return { courseId: s.courseId, classCode: s.classCode, courseName: s.courseName }; }), JOB);
+  startPolling();
+}
+
+function startPolling() {
+  stopPolling();
   pollHandle = setInterval(function () {
     google.script.run
       .withSuccessHandler(function (p) {
-        if (!p) return;
-        applyResults(sels, p.results);
-        showPhase(p.phase);
-        if (p.done) {
-          stopPolling();
-          if (!pollFinished) showFinalSummary(sels);
-          pollFinished = true;
-        }
+        if (ended) return;
+        if (!p) { if (Date.now() - lastMove > STALL_MS) stalled(); return; }
+        var seen = JSON.stringify([p.ts, p.done, p.phase]);
+        if (seen !== lastSeen) { lastSeen = seen; lastMove = Date.now(); }
+        applyAll(p.results);
+        showPhase(p.done ? '' : (p.phase || 'Importing…'), !!p.continuing);
+        if (p.done) { stopPolling(); summary(p); }
+        else if (Date.now() - lastMove > STALL_MS) stalled();
       })
       .withFailureHandler(function () { /* one poll failed; try the next */ })
-      .getBatchImportProgress(jobId);
+      .getBatchImportProgress(JOB);
   }, POLL_INTERVAL_MS);
 }
 function stopPolling() { if (pollHandle) { clearInterval(pollHandle); pollHandle = null; } }
 
+/* the record has not moved for 12 minutes: say so, with what is safe to do */
+function stalled() {
+  stopPolling();
+  showPhase('');
+  summary({ stalled: true });
+}
+
+function applyAll(results) {
+  if (!Array.isArray(results)) return;
+  results.forEach(function (r, i) {
+    var s = RUN[i];
+    if (!s || !r || r.status === 'pending') return;
+    var key = JSON.stringify(r);
+    if (s._key === key) return;
+    s._key = key;
+    applyResult(s, r);
+  });
+}
+
 /* Fetching the names is the quick part. Building and formatting twenty-odd tabs afterwards
    is the long one, and with nothing on the screen it looked like the window had hung. This
    is the server saying what it is on. */
-function showPhase(text) {
+function showPhase(text, pause) {
   var el = document.getElementById('phase');
   if (!el) return;
   if (!text) { el.textContent = ''; return; }
-  el.innerHTML = '<span class="spin">⏳</span> ' + esc(text);
+  el.innerHTML = (pause ? '⏸ ' : '<span class="spin">⏳</span> ') + esc(text);
+}
+function setStatus(s, html) { var st = document.getElementById('st-' + s.idx); if (st) st.innerHTML = html; }
+function names(list) {
+  return list.length > 6 ? list.slice(0, 6).join(', ') + ' and ' + (list.length - 6) + ' more' : list.join(', ');
 }
 
-function applyResults(sels, results) {
-  if (!Array.isArray(results)) return;
-  results.forEach(function (r, i) {
-    var s = sels[i];
-    if (!s || !r || r.status === 'pending') return;
-    var key = r.status + ':' + (r.added || 0) + ':' + (r.skipped || 0) + ':' + (r.error || '');
-    if (s._renderedKey === key) return;
-    s._renderedKey = key; s._result = r;
-    var st = document.getElementById('st-' + s.idx);
-    if (!st) return;
-    if (r.status === 'success') {
-      st.innerHTML = '<span style="color:#3fb950">✅ ' + r.added + ' added</span>' +
-        (r.skipped ? ' <span style="color:#8b949e">(' + r.skipped + ' already here)</span>' : '') +
-        (r.moved ? ' <span style="color:#d29922">(' + r.moved + ' moved class)</span>' : '');
-    } else if (r.status === 'empty') {
-      st.innerHTML = '<span style="color:#d29922">⚠ No students in that course</span>';
-    } else {
-      st.innerHTML = '<span style="color:#f85149">❌ ' + esc(r.error || 'Error').substring(0, 60) + '</span>';
-    }
+function applyResult(s, r) {
+  s._result = r;
+  var html;
+  if (r.status === 'success') {
+    var bits = ['<span class="ok">✅ ' + (r.added || 0) + ' added</span>'];
+    if (r.skipped) bits.push('<span class="dim">' + r.skipped + ' already here</span>');
+    if (r.moved) bits.push('<span class="amber">' + r.moved + ' moved from another class</span>');
+    html = (typeof r.listed === 'number' ? '<span class="dim">' + r.listed + ' in Classroom:</span> ' : '') + bits.join(' · ');
+  } else if (r.status === 'empty') {
+    html = '<span class="amber">⚠ No pupils have joined this course yet</span>';
+  } else if (r.status === 'busy') {
+    html = '<span class="bad">❌ ' + esc(String(r.error || 'The spreadsheet was busy, so nothing was changed').slice(0, 140)) + '</span>';
+  } else if (r.status === 'refused') {
+    html = '<span class="bad">❌ Only the owner of this spreadsheet, or a teacher on its 👩‍🏫 Teachers list, can import</span>';
+  } else {
+    html = '<span class="bad">❌ ' + esc(String(r.error || 'Error').slice(0, 120)) + '</span>';
+  }
+  if (r.noEmail && r.noEmail.length) {
+    html += '<div class="note amber">⚠ Classroom gives no school address for ' + esc(names(r.noEmail)) + ', so ' +
+      (r.noEmail.length === 1 ? 'this pupil was' : 'these pupils were') + ' not added.</div>';
+  }
+  if (r.clashes && r.clashes.length) {
+    var was = {};
+    r.clashes.forEach(function (c) { was[c.was] = true; });
+    var one = r.clashes.length === 1;
+    html += '<div class="note amber">⚠ ' + (one ? '1 pupil is' : r.clashes.length + ' pupils are') + ' also in ' +
+      esc(Object.keys(was).join(', ')) + ', imported above. ' + (one ? 'This pupil is' : 'They are') + ' in ' +
+      esc(s.classCode) + ' now: ' + esc(names(r.clashes.map(function (c) { return c.name; }))) + '.</div>';
+  }
+  setStatus(s, html);
+}
+
+function summary(f) {
+  importing = false; ended = true;
+  leftCount();                                     /* the list's button, if it is open, may be pressed again */
+  f = f || {};
+  var ok = 0, failed = [], added = 0, already = 0, moved = 0;
+  /* stopped before a class was tried: that row says so, not "Waiting" (the audit, 7 Oct 2026) */
+  if (f.stalled || f.noTrigger || f.stopped) RUN.forEach(function (s) {
+    if (!s._result) setStatus(s, '<span class="bad">❌ Not tried: the import stopped before this class</span>');
   });
-}
-
-function finalizeAfterError(sels, err) {
-  if (pollFinished) return;
-  sels.forEach(function (s) {
-    if (s._result) return;
-    s._result = { status: 'error', error: (err && err.message) || 'Server error' };
-    var st = document.getElementById('st-' + s.idx);
-    if (st) st.innerHTML = '<span style="color:#f85149">❌ ' + esc((err && err.message) || 'Error').substring(0, 60) + '</span>';
-  });
-  showFinalSummary(sels);
-  pollFinished = true;
-}
-
-function showFinalSummary(sels) {
-  importing = false;
-  var ok = 0, fail = 0, added = 0, skipped = 0;
-  sels.forEach(function (s) {
+  SELS.forEach(function (s) {
     var r = s._result || {};
-    if (r.status === 'success') { ok++; added += (r.added || 0); skipped += (r.skipped || 0); }
-    else if (r.status !== 'empty') fail++;
+    if (r.status === 'success') { ok++; added += r.added || 0; already += r.skipped || 0; moved += r.moved || 0; }
+    else if (r.status !== 'empty') failed.push(s);
   });
-  var hint = document.getElementById('close-hint'); if (hint) hint.remove();
-  document.getElementById('bar').innerHTML =
-    '<div class="summary">' +
-      '<strong>' + ok + '</strong> class(es) imported. ' +
-      '<strong>' + added + '</strong> student(s) added' +
-      (skipped ? ', ' + skipped + ' already here' : '') + '.' +
-      (fail ? ' <span style="color:#f85149">' + fail + ' failed.</span>' : '') +
-    '</div>' +
-    '<button class="btn btn-close" style="margin-top:10px" onclick="google.script.host.close()">Close</button>';
+  /* beside each class: how many it has on the Students tab now */
+  if (f && f.counts) SELS.forEach(function (s) {
+    var r = s._result || {}, st = document.getElementById('st-' + s.idx);
+    if (r.status !== 'success' || !st) return;
+    var old = document.getElementById('now-' + s.idx); if (old) old.remove();
+    var now = f.counts[s.classCode] || 0;
+    st.insertAdjacentHTML('beforeend', '<div class="note ' + (now < (r.listed || 0) ? 'amber' : 'dim') + '" id="now-' + s.idx +
+      '">Now ' + now + ' in ' + esc(s.classCode) + ' on the Students tab.</div>');
+  });
+  var html = '<div class="summary"><strong>' + (f.stalled || f.noTrigger || f.stopped ? 'Stopped.' : 'Finished.') + '</strong> ' + ok + ' of ' + SELS.length + ' class(es) imported: <strong>' + added +
+    '</strong> pupil(s) added' + (already ? ', ' + already + ' already here' : '') +
+    (moved ? ' (' + moved + ' moved from another class)' : '') + '.';
+  if (f.stalled) {
+    html += '<p class="bad">The import has not moved for 12 minutes. Every class above with a ✅ is in; Try again imports the others ' +
+      '(nobody is added twice), and builds the tabs.</p>';
+  } else if (f.stopped) {
+    html += '<p class="bad">' + esc(f.phase || 'It stopped before every class was tried.') + '</p>';
+  } else if (f.noTrigger) {
+    html += '<p class="bad">Google would not let the import carry on by itself, so it stopped here. ' + (failed.length
+      ? 'Every class above with a ✅ is in. Try again imports the others and builds the tabs (nobody is added twice); or use 🧪 Biology Labs ▸ 🎨 Tidy up once.'
+      : 'Every name is in. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to build and format the tabs.') + '</p>';
+  } else if (f.formatStopped) {
+    html += '<p class="bad">Every name is in, but building and formatting the tabs was stopped twice. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to finish it.</p>';
+  } else if (added || moved || f.built) html += ' Every tab is built and formatted.';
+  else if (ok) html += ' No pupil was added or moved, so the tabs were left as they are.';
+  if (failed.length) {
+    html += '<p class="bad">' + failed.length + ' class(es) did not import: ' +
+      esc(failed.map(function (s) { return s.classCode; }).join(', ')) +
+      '. Trying again is safe: a pupil already here is never added twice.</p>';
+  }
+  html += '</div><div id="leftbox2"></div><div class="btns">' +
+    (failed.length ? '<button class="btn btn-primary" onclick="retryFailed()">Try the ' + failed.length + ' again</button>' : '') +
+    '<button class="btn btn-close" onclick="google.script.host.close()">Close</button></div>';
+  document.getElementById('bar').innerHTML = html;
+  /* the pupils in none of this year's classes, worked out again now the import is in: under the summary, and only after an
+     import that went through (after one that stopped or failed, the classes that did not come in were listed, all ticked:
+     the audit, 7 Oct 2026) */
+  if (!f.stalled && !f.stopped && !f.noTrigger && !failed.length) google.script.run
+    .withSuccessHandler(function (L) {
+      if (!L) return;
+      LEFT = L; leftOpen = true; leftMsg = null; leftHost = 'leftbox2';
+      var top = document.getElementById('leftbox'); if (top) top.innerHTML = '';
+      paintLeft();
+    })
+    .withFailureHandler(function () { /* the list waits for the next time the window opens */ })
+    .getNotThisYear();
+}
+
+/* ── A new school year (7 Oct 2026): the pupils in none of the classes imported since 1 August ──
+   A pupil who left, or whose class was not imported again, keeps last year's class code, and next year another group has
+   that code. Listed by class, nobody ticked at first (the audit, 7 Oct 2026: classes not imported yet, or pupils who have
+   not joined a course yet, were listed and all ticked); one press puts the ticked ones in the class "LEFT <year>"
+   (markPupilsLeft): their records stay, they drop out of every class list and every new homework, and importing their
+   class again puts them back. A whole class listed because its course was not imported is said, since it is most likely
+   a class not imported yet. */
+var LEFT = null, leftOpen = false, leftBusy = false, leftMsg = null, leftHost = 'leftbox';
+function leftHtml() {
+  var L = LEFT, msg = leftMsg ? '<p id="lmsg" class="' + (leftMsg.bad ? 'bad' : 'ok') + '">' + esc(leftMsg.text) + '</p>' : '<p id="lmsg"></p>';
+  if (!L || !L.n || !L.imported) return leftMsg ? '<div class="leftbox">' + msg + '</div>' : '';
+  var head = '<strong>' + L.n + ' pupil' + (L.n === 1 ? ' is' : 's are') + ' in none of the classes imported since ' + esc(L.since) + '.</strong>';
+  if (!leftOpen) return '<div class="leftbox">⚠ ' + head + '<button class="btn btn-close btn-small" onclick="leftShow()">See them</button></div>';
+  var html = '<div class="leftbox">' + head +
+    '<p>They may have left, or be in a class you have not imported yet. If you have not imported all of this year’s classes, import them first. Tick the ones who have left.</p>' +
+    '<div class="leftbox__list">';
+  L.groups.forEach(function (g, gi) {
+    var gone = g.pupils.filter(function (p) { return p.why === 'gone'; }).length, whole = !gone && g.pupils.length >= g.total;
+    var most = !whole && g.total > 2 && g.pupils.length * 2 >= g.total;
+    html += '<div class="lgrp"><label class="lgrp__h"><input type="checkbox" class="cb" data-lg="' + gi + '" onchange="leftGroup(' + gi + ', this.checked)"> ' +
+      '<b>' + esc(g.cls) + '</b> <span class="dim">' + g.pupils.length + ' of ' + g.total + '</span></label><div class="lpp">' +
+      g.pupils.map(function (p) {
+        return '<label class="lp"><input type="checkbox" class="cb" data-lp="' + gi + '" data-em="' + attr(p.email) + '" onchange="leftCount()"> ' +
+          esc(p.name || p.email) + (p.why === 'gone' ? ' <span class="dim">(not in its Classroom course now)</span>' : '') + '</label>';
+      }).join('') + '</div>' +
+      (whole ? '<div class="note amber">The whole class. If ' + esc(g.cls) + ' is still yours this year, import it first.</div>' :
+       most ? '<div class="note amber">Most of ' + esc(g.cls) + '. If it is still yours this year, its pupils may not have joined its Classroom course yet: import it again once they have.</div>' : '') + '</div>';
+  });
+  return html + '</div><div class="btns"><button class="btn btn-primary" id="lgo" onclick="leftMark()"></button></div>' +
+    '<p class="key">They go into the class “' + esc(L.label) + '”. Their records stay, and they drop out of every class list and every ' +
+    'new homework. Importing their class again puts them back.</p>' + msg + '</div>';
+}
+function paintLeft() { var el = document.getElementById(leftHost); if (el) { el.innerHTML = leftHtml(); leftCount(); } }
+function leftShow() { leftOpen = true; paintLeft(); }
+function leftGroup(gi, on) {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-lp="' + gi + '"]'), function (b) { b.checked = on; });
+  leftCount();
+}
+function leftTicked() {
+  return Array.prototype.filter.call(document.querySelectorAll('[data-em]'), function (b) { return b.checked; })
+    .map(function (b) { return b.getAttribute('data-em'); });
+}
+/* the button says how many are ticked; a class's box is ticked when all its pupils are, half when some are */
+function leftCount() {
+  (LEFT && LEFT.groups || []).forEach(function (g, gi) {
+    var all = document.querySelectorAll('[data-lp="' + gi + '"]'), on = Array.prototype.filter.call(all, function (x) { return x.checked; }).length;
+    var gb = document.querySelector('[data-lg="' + gi + '"]');
+    if (gb) { gb.checked = on === all.length; gb.indeterminate = on > 0 && on < all.length; }
+  });
+  var b = document.getElementById('lgo');
+  if (!b || leftBusy) return;
+  var n = leftTicked().length;
+  b.textContent = importing ? 'Wait until the import has finished' : n ? 'Mark the ' + n + ' ticked pupil' + (n === 1 ? '' : 's') + ' as Left' : 'Tick the pupils who have left';
+  b.disabled = n === 0 || importing;
+}
+function leftMark() {
+  var emails = leftTicked(), b = document.getElementById('lgo');
+  if (!emails.length || leftBusy || importing) return;
+  leftBusy = true;
+  if (b) { b.disabled = true; b.textContent = 'Marking…'; }
+  var m = document.getElementById('lmsg'); if (m) { m.textContent = ''; m.className = ''; }
+  google.script.run
+    .withSuccessHandler(function (r) {
+      leftBusy = false;
+      if (r && r.ok) { leftMsg = { text: r.note, bad: false }; LEFT = r.left || LEFT; paintLeft(); return; }
+      leftSay((r && r.why) || 'That did not work.');
+    })
+    .withFailureHandler(function (e) { leftBusy = false; leftSay('That did not work: ' + ((e && e.message) || 'the spreadsheet could not be reached') + '.'); })
+    .markPupilsLeft(emails);
+}
+/* a refusal keeps the ticks as they were: only the words and the button change */
+function leftSay(text) {
+  var m = document.getElementById('lmsg'); if (m) { m.textContent = text; m.className = 'bad'; }
+  leftCount();
+}
+
+function retryFailed() {
+  var again = SELS.filter(function (s) { var r = s._result || {}; return r.status !== 'success' && r.status !== 'empty'; });
+  if (again.length) runJob(again);
 }
 </script>
 </body>
