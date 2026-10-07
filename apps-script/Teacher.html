@@ -30,6 +30,7 @@
   --ink:#0A141C;--card:#101D27;--cardhi:#16242F;--line:rgba(150,190,215,.17);--line2:rgba(150,190,215,.32);
   --chalk:#EDF4F8;--dim:#AFC2CE;--mute:#7E93A1;--cyan:#4FC3F7;--lede:#C5D4DD;
   --good:#2DD4BF;--warn:#F5A623;--bad:#EF6B6B;--magenta:#E879F9;
+  --sqink:#06212A;
   --good-ink:#9BEFE3;--good-edge:rgba(45,212,191,.4);--good-bg:rgba(45,212,191,.1);
   --warn-ink:#F6D08A;--warn-edge:rgba(245,166,35,.4);--warn-bg:rgba(245,166,35,.08);
   --bad-ink:#F3B4B4;--bad-edge:rgba(239,107,107,.4);--bad-bg:rgba(239,107,107,.08);
@@ -48,6 +49,7 @@
   --ink:#F2F5F7;--card:#FFFFFF;--cardhi:#F5F8FA;--line:rgba(15,30,40,.11);--line2:rgba(15,30,40,.22);
   --chalk:#0F1E28;--dim:#3E5361;--mute:#5B707E;--cyan:#0369A1;--lede:#3E5361;
   --good:#0F766E;--warn:#B45309;--bad:#DC2626;--magenta:#A21CAF;
+  --sqink:#FFFFFF;
   --good-ink:#115E59;--good-edge:rgba(15,118,110,.4);--good-bg:#CCFBF1;
   --warn-ink:#78350F;--warn-edge:rgba(180,83,9,.4);--warn-bg:#FEF3C7;
   --bad-ink:#991B1B;--bad-edge:rgba(220,38,38,.4);--bad-bg:#FEE2E2;
@@ -211,8 +213,10 @@ table.hm{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hm td.name{position:sticky;left:0;z-index:2;background:var(--card);border-bottom:1px solid var(--line);border-right:1px solid var(--line2);
   text-align:left;padding:8px 11px 8px 15px;cursor:pointer;width:100%}
 .hm tbody tr:hover td.name{background:var(--cardhi)}
-.hm .nm{font-weight:600;font-size:12.5px;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px}
-.hm .cl{font:500 10px/1.2 var(--mono);color:var(--mute);margin-top:1px}
+.hm .nm{font-weight:600;font-size:12.5px;color:var(--chalk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px;
+  display:inline-block;vertical-align:baseline}
+/* one line per pupil (6 Oct 2026, Daniel: the class took too much of the screen): the class beside the name; under it on a phone */
+.hm .cl{font:500 10px/1.2 var(--mono);color:var(--mute);display:inline-block;margin:0 0 0 8px;white-space:nowrap}
 .hm td.cell{border-bottom:1px solid var(--line);padding:5px;width:84px}
 .cbox{position:relative;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font:600 12px/1 var(--mono);
   border:1px solid transparent;cursor:help}   /* it answers on hover; it has never been clickable */
@@ -276,6 +280,59 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 .dst__n{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dst__v{font:600 11px/1 var(--mono);color:var(--mute)}
 .dst__bar{grid-column:1/3;height:6px;border-radius:3px;background:var(--track);overflow:hidden;margin-bottom:4px}.dst__bar>i{display:block;height:100%}
+/* each question as a square (6 Oct 2026): a station in a pupil's card opens to its questions, coloured by the FIRST round
+   (the one Right first time counts); "Where they get stuck" opens to the questions the class most often missed at the first check */
+details.dqd>summary,details.hq>summary{list-style:none;cursor:pointer}
+details.dqd>summary::-webkit-details-marker,details.hq>summary::-webkit-details-marker{display:none}
+details.dqd>summary:focus-visible,details.hq>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+details.dqd>summary:hover .dst__n{color:var(--chalk)}
+.chev{display:inline-block;width:13px;color:var(--mute);transition:transform .15s}
+details[open]>summary .chev{transform:rotate(90deg)}
+.dq{margin:2px 0 6px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+.sqs{display:flex;flex-wrap:wrap;gap:4px}
+.sq{position:relative;width:21px;height:21px;border-radius:5px;border:1px solid transparent;padding:0;cursor:pointer;
+  font:600 9.5px/19px var(--mono);text-align:center;color:var(--sqink);-webkit-appearance:none;appearance:none}
+.sq.f{background:var(--good)}.sq.m{background:var(--warn)}.sq.t{background:var(--bad)}
+.sq.z{background:none;border-color:var(--line2);color:var(--mute)}
+.sq.later::after{content:"";position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 1.5px var(--card)}
+.sq:focus-visible{outline:2px solid var(--chalk);outline-offset:1px}.sq.on{box-shadow:0 0 0 2px var(--chalk)}
+.dq__say{margin-top:8px;font-size:12px;line-height:1.45;color:var(--dim);min-height:2.9em}.dq__say b{color:var(--chalk);font-weight:600}
+.sqintro{margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.45;color:var(--dim)}
+.sqkey{display:flex;flex-wrap:wrap;gap:3px 11px;margin-top:7px;font:500 10.5px/1.35 var(--mono);color:var(--mute)}
+.sqkey i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.hq{margin:0 0 12px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
+.hq>summary{padding:11px 14px;font-weight:600;font-size:13px;color:var(--chalk)}
+.hq>summary .sec__n{margin-left:6px}
+.hq[open]>summary{border-bottom:1px solid var(--line)}
+.hq__b{padding:4px 14px 12px}
+.hqrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,36%);gap:5px 16px;padding:10px 0;border-bottom:1px solid var(--line);align-items:center}
+.hqrow:last-of-type{border-bottom:0}
+.hqrow__n{font-size:12.5px;color:var(--chalk);font-weight:600}.hqrow__n span{color:var(--mute);font-weight:500}
+.hqrow__w{grid-column:1/-1;font-size:12px;color:var(--dim);line-height:1.45}
+.hqbar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--track)}.hqbar i{display:block;height:100%}
+.hqrow__c{margin-top:4px;font:500 10.5px/1.35 var(--mono);color:var(--mute)}
+.sqnote{margin-top:9px;font-size:11.5px;color:var(--mute);line-height:1.45}
+/* rounds (7 Oct 2026): one row of squares per round under the question numbers, every round added up below; the labels
+   stay put while a long station scrolls sideways */
+.rq{overflow-x:auto;padding-bottom:3px}
+.rq__r{display:flex;align-items:center;gap:4px;margin-top:4px;min-width:max-content}
+.rq__l{position:sticky;left:0;z-index:1;flex:none;width:66px;padding-right:4px;background:var(--card);font:600 9.5px/1.2 var(--mono);
+  color:var(--mute);letter-spacing:.03em;cursor:help}
+.rq__l i{font-style:normal;color:var(--cyan)}
+.rq__q{width:21px;flex:none;text-align:center;font:600 9px/1 var(--mono);color:var(--mute)}
+.rq__q.ag{color:var(--bad);cursor:help}
+.rq__q.ag::after{content:"\2715";display:block;font-size:8px;margin-top:1px}
+.sq.u{background:repeating-linear-gradient(135deg,var(--track2) 0 3px,transparent 3px 6px);border-color:var(--line2);cursor:help}
+.rq__t{width:21px;height:21px;flex:none;border-radius:5px;font:600 9.5px/21px var(--mono);text-align:center;color:var(--chalk);
+  background:var(--track);background:color-mix(in srgb,var(--cyan) calc(var(--k,0)*60%),transparent)}
+.rq__t.ag{box-shadow:inset 0 0 0 1.5px var(--bad)}
+.rq__s{margin:9px 0 0;font-size:11.5px;color:var(--dim);line-height:1.5}.rq__s b{color:var(--chalk);font-weight:600}
+.rq__x{margin:5px 0 0;font-size:11px;color:var(--mute);line-height:1.45}
+.rbadge{display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;border:1px solid var(--line2);font:600 9px/1.2 var(--mono);color:var(--cyan);cursor:help}
+.rbadge.ag{color:var(--bad-ink);border-color:var(--bad-edge);background:var(--bad-bg)}
+.cbox.again::before{content:"\21BA";position:absolute;left:4px;bottom:2px;font:600 9px/1 var(--mono);opacity:.85}
+.agw{color:var(--bad);font-weight:600}
+@media (max-width:560px){.hqrow{grid-template-columns:1fr}}
 /* homework */
 .labs{display:grid;gap:8px;margin-top:6px}
 .lab{border:1px solid var(--line);border-radius:11px;background:var(--cardhi);overflow:hidden}
@@ -325,9 +382,23 @@ table.cmp{border-collapse:separate;border-spacing:0;width:100%;font-variant-nume
 /* homework reminders (🔔) and the list's sort switch, 1 Oct 2026 */
 .hw__r{font:500 11px/1.4 var(--mono);color:var(--dim);margin-top:4px;overflow-wrap:anywhere}.hw__r.bad{color:var(--warn)}
 .hwrem{margin-top:9px;font-size:12.5px;color:var(--dim)}
+.duechg{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.duechg__b{display:flex;gap:7px;flex-wrap:wrap}.duechg .tmsg{flex-basis:100%}
+.outside{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.outside__h{font-size:12.5px;font-weight:600;color:var(--chalk);margin-bottom:8px}
+.outside__l{display:flex;flex-direction:column;gap:6px;margin-bottom:9px}
+.outside__w{color:var(--mute);font-size:11.5px}
+.outside .duechg__b{margin-top:9px}
+.mvrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:9px;width:100%}
+.mvrow select{max-width:150px}
+.card--mv{flex-wrap:wrap}
 .hsort{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
 .hsort__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
 .hwgrp{margin:22px 0 0}.hwlist>.hwgrp:first-child{margin-top:8px}
+/* the Archive of Set homework (7 Oct 2026): homework past its due date, folded; its dates calm, since all of them have passed */
+.arch__n{font:600 10px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
+.hwarch .hw__due.over b{color:var(--dim)}
+.archhid{margin-top:16px}.archhid>.hwlist{margin-top:12px}
 /* Bio English */
 .yrs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
 .hmcard{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;margin-top:14px}
@@ -351,10 +422,11 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hb td.name{position:sticky;left:0;z-index:2;background:var(--card);border-bottom:1px solid var(--line);border-right:1px solid var(--line2);
   text-align:left;padding:7px 10px 7px 15px}
 .hb tbody tr:hover td.name{background:var(--cardhi)}
-.hbn{display:block;max-width:200px;padding:0;border:0;background:none;color:var(--chalk);font:600 12.5px/1.3 var(--sans);text-align:left;
+.hbn{display:inline-block;vertical-align:baseline;max-width:200px;padding:0;border:0;background:none;color:var(--chalk);font:600 12.5px/1.3 var(--sans);text-align:left;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .hbn:hover{color:var(--accent)}.hbn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.hbh{font:500 10.5px/1.3 var(--mono);color:var(--accent);margin-top:2px;cursor:help;white-space:nowrap}.hbh.none{color:var(--mute)}
+/* the habit beside the name, one line per pupil (6 Oct 2026); under it on a phone */
+.hbh{font:500 10.5px/1.3 var(--mono);color:var(--accent);display:inline-block;margin:0 0 0 10px;cursor:help;white-space:nowrap}.hbh.none{color:var(--mute)}
 .hb td.cell{border-bottom:1px solid var(--line);padding:6px 4px}
 .hb td.hbfl{border-bottom:1px solid var(--line);padding:6px 8px}
 .hbm{position:relative;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;
@@ -384,7 +456,17 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hbwhy{font-size:12.5px;color:var(--dim);line-height:1.5;margin:0 0 6px}.hbwhy b{color:var(--chalk)}
 .hbwhen{font:500 11px/1.4 var(--mono);color:var(--mute);margin-top:4px}
 .hbflagw{margin-top:9px;padding:9px 11px;border:1px solid var(--mag-edge);border-radius:9px;background:var(--mag-bg);color:var(--mag-ink);font-size:12.5px;line-height:1.45}
-@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal}}
+@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal;display:block;margin:2px 0 0}.hm .cl{display:block;margin:1px 0 0}}
+/* A class's table and its key, together, are at most as tall as the window below the pinned header (6 Oct 2026, Daniel:
+   on his screen the table ran past the foot of the window, and its key with it). One scroll of the page shows the whole
+   box and its key, however many lines the key takes; the pupils scroll inside the box. While the table is on screen
+   before that, the key waits at the foot of the window. --topbar is the pinned header's height, measured by the script
+   (it wraps on a narrow window); the card clips instead of hiding, or the key could not stick to the window. */
+.panel--keyed,.hmcard{display:flex;flex-direction:column;
+  max-height:max(300px,calc(100vh - var(--topbar,140px) - 14px));max-height:max(300px,calc(100dvh - var(--topbar,140px) - 14px))}
+@supports (overflow:clip){.panel--keyed,.hmcard{overflow:clip}}
+.panel--keyed>.hbwrap,.panel--keyed>.hmwrap,.hmcard>.hmwrap{flex:1 1 auto;min-height:0;max-height:none}
+.panel--keyed>.hbkey,.panel--keyed>.hmleg,.hmcard>.hmleg{flex:none;position:sticky;bottom:0;z-index:6;background:var(--card)}
 /* ← Biology Hub: the way back, where the page's name stood (the hub opens this page in the same tab since 2 Oct 2026). */
 .backhub{color:inherit;text-decoration:none;border-bottom:1px solid transparent}.backhub:hover{color:var(--chalk);border-bottom-color:currentColor}
 .backhub:focus-visible{outline:2px solid var(--ana-ring);outline-offset:3px}.backhub:not([hidden])::after{content:' · '}
@@ -442,6 +524,10 @@ var BOOT = __BOOT__;
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
+  /* the pinned header's height, for the class tables (CSS --topbar, 6 Oct 2026): measured, because it wraps on a narrow
+     window and grows when its parts arrive. Never a reason for the page to stop. */
+  function topbar(){ try { var t=document.querySelector('.top'); if (t) document.documentElement.style.setProperty('--topbar', t.offsetHeight+'px'); } catch(e){} }
+  try { topbar(); addEventListener('resize', topbar); new ResizeObserver(topbar).observe(document.querySelector('.top')); } catch(e){}
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function r0(x){ return Math.round(x); }
   function r1(x){ return Math.round(x*10)/10; }
@@ -454,6 +540,8 @@ var BOOT = __BOOT__;
     var na=ma?+ma[0]:999, nb=mb?+mb[0]:999;
     return na-nb || String(a==null?'':a).localeCompare(String(b==null?'':b));
   }
+  /* "LEFT 2027": the class of a pupil in none of the classes (7 Oct 2026): never offered as a class */
+  function isLeft(c){ return /^LEFT(\s|$)/i.test(String(c==null?'':c).trim()); }
   function short(n){ return String(n).replace(/\s*lab\s*$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}).trim(); }
 
   /* The note under each view (Daniel, 2 Oct 2026: "any text that you add at the bottom needs to be useful … put things that
@@ -466,7 +554,7 @@ var BOOT = __BOOT__;
       note:'Each link opens only for the people its spreadsheet is shared with — this page lists them, it does not share them. To change anything: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.' },
     progress:{ label:'Lab progress', accent:'#4FC3F7', accentL:'#0369A1', h1:'Lab <em>progress</em>',
       lede:'How each class is getting on — who has done what, and where they are getting stuck.',
-      note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. “Reviewed” ticks are kept in this browser only.' },
+      note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. A lab’s % is their best, in any round: practising a station again (a new round) never lowers anything. Hover over any number for how it is worked out. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
       note:'A copied link opens that pupil’s tracker only for a teacher and for the pupil: anyone else is refused.' },
@@ -645,7 +733,7 @@ var BOOT = __BOOT__;
       un.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', ')+'. '+
       (un.length===1?'Its Link is a smart chip':'Their Links are smart chips')+
       (g.chipsOn
-        ? ', and the address inside could not be read'+(g.chipTrouble?' ('+esc(g.chipTrouble)+')':'')+'. In the labs spreadsheet’s script, Run ▸ checkChips shows what Google returns; or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.'
+        ? ', and the address inside could not be read'+(g.chipTrouble?' ('+esc(g.chipTrouble)+')':'')+'. Replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.'
         : '. This page reads chips once the Google Sheets API is switched on in the labs spreadsheet’s script — in the Apps Script editor: Services ▸ + ▸ Google Sheets API ▸ Add. Or replace '+(un.length===1?'it':'each')+' with the spreadsheet’s plain address.')+
       '</div>' : '';
     /* Rows whose Link was typed without https:// (http://…, docs.google.com/… on its own, a javascript:)
@@ -717,7 +805,7 @@ var BOOT = __BOOT__;
   });
 
   /* ─────────── Students ─────────── */
-  var stState = { grad:'all', cls:'all', q:'' }, stTimer = null;
+  var stState = { grad:'all', cls:'all', q:'', move:'', msg:null }, stTimer = null;   /* move: the pupil whose Move is open (6 Oct 2026) */
   function vStudents(dir, base){
     var STUD = dir.students||[];
     if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
@@ -734,6 +822,42 @@ var BOOT = __BOOT__;
         if ((s.name||'').toLowerCase().indexOf(t)<0 && (s.cls||'').toLowerCase().indexOf(t)<0) return false; }
       return true;
     }
+    /* one pupil: tracker links, and Move to another class (Daniel, 6 Oct 2026: "there should be an option to move a student
+       between classes … and then everything is ported"): studentMove writes the new class on the Students tab and on their
+       row of every lab tab; their homework and work go with them. Google Classroom is moved by the teacher. "Left: in no
+       class" (7 Oct 2026) puts a pupil who leaves part way through the year in LEFT <year>; a class brings them back. */
+    function card(s){ var u=link(s.email), open=stState.move===s.email;
+      return '<div class="card'+(open?' card--mv':'')+'"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
+        '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
+        '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
+        (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
+           :'<span class="card__d">no address set</span>')+
+        '<button class="act" data-mv="'+esc(s.email)+'" aria-expanded="'+(open?'true':'false')+'">Move</button></div>'+
+        (open?'<div class="mvrow"><label class="card__d" for="mv-to">Move to</label><select id="mv-to"><option value="">Choose a class…</option>'+
+          (dir.classes||[]).filter(function(c){ return c!==s.cls; }).map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('')+
+          (isLeft(s.cls)?'':'<option value="__left">Left: in no class</option>')+
+          '</select><button class="act" data-mvgo="'+esc(s.email)+'">Move them</button><button class="act" data-mvno="1">Cancel</button>'+
+          '<span class="card__d">Their homework and work go with them. Move them in Google Classroom too.</span></div>':'')+'</div>';
+    }
+    function wireMove(){
+      document.querySelectorAll('[data-mv]').forEach(function(b){ b.addEventListener('click', function(){
+        var e=b.getAttribute('data-mv'); stState.move=stState.move===e?'':e; stState.msg=null; paint();
+        var sel=$('mv-to'); if(sel) sel.focus(); }); });
+      document.querySelectorAll('[data-mvno]').forEach(function(b){ b.addEventListener('click', function(){ stState.move=''; paint(); }); });
+      document.querySelectorAll('[data-mvgo]').forEach(function(b){ b.addEventListener('click', function(){
+        var e=b.getAttribute('data-mvgo'), sel=$('mv-to'), to=sel?sel.value:'';
+        if(!to){ stState.msg={ text:'Choose the class to move them to.', bad:true }; paint(); return; }
+        b.disabled=true; b.textContent='Moving…';
+        google.script.run.withSuccessHandler(function(r){
+            if(r&&r.ok){ dir=r.data; STUD=dir.students||[]; stState.move=''; stState.msg={ text:r.note, bad:false };
+              cache.students={ ok:true, data:dir, trackerBase:base }; ssPut('students', cache.students);
+              /* every other view shows the pupil's class: read them again rather than show the old one */
+              ORDER.forEach(function(k){ if(k!=='students'){ delete cache[k]; ssDel(k); } });
+              vStudents(dir, base); }
+            else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
+          .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
+          .studentMove(to==='__left'?{ email:e, left:true }:{ email:e, cls:to }); }); });
+    }
     function paint(){
       var shown=STUD.filter(match), body='';
       if (!shown.length) body='<p class="empty">No students match that.</p>';
@@ -744,34 +868,29 @@ var BOOT = __BOOT__;
           body+='<section class="grp"><div class="coh"><span class="coh__t">'+esc(c.title)+'</span>'+
             (c.yg?'<span class="pill--yg">'+esc(c.yg)+' this year</span>':'<span class="pill--past">not in school</span>')+
             '<span class="n">'+list.length+'</span></div><div class="cards cards--wide">'+
-            list.map(function(s){ var u=link(s.email);
-              return '<div class="card"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
-                '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
-                '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
-                (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
-                   :'<span class="card__d">no address set</span>')+'</div></div>';
-            }).join('')+'</div></section>';
+            list.map(card).join('')+'</div></section>';
         });
         /* These were counted in the heading and then never listed, so a pupil in a class with no
            year number (a set, an intervention group) could never be opened at all. */
-        var loose=shown.filter(function(s){ return !s.cohort; });
+        var loose=shown.filter(function(s){ return !s.cohort && !isLeft(s.cls); }), gone=shown.filter(function(s){ return isLeft(s.cls); });
         if (loose.length) body+='<section class="grp"><div class="coh"><span class="coh__t">Class not recognised</span>'+
           '<span class="pill--past">no year group</span><span class="n">'+loose.length+'</span></div>'+
-          '<div class="cards cards--wide">'+loose.map(function(s){ var u=link(s.email);
-            return '<div class="card"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
-              '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
-              '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
-              (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
-                 :'<span class="card__d">no address set</span>')+'</div></div>'; }).join('')+'</div></section>';
+          '<div class="cards cards--wide">'+loose.map(card).join('')+'</div></section>';
+        /* in none of the classes (LEFT …): last, records kept; Move brings one back */
+        if (gone.length) body+='<section class="grp"><div class="coh"><span class="coh__t">In none of the classes</span>'+
+          '<span class="pill--past">left · records kept</span><span class="n">'+gone.length+'</span></div>'+
+          '<div class="cards cards--wide">'+gone.map(card).join('')+'</div></section>';
       }
+      if (stState.msg) body='<div class="msg '+(stState.msg.bad?'bad':'ok')+'" role="status" style="margin:0 0 12px">'+esc(stState.msg.text)+'</div>'+body;
       $('slist2').innerHTML = body;
+      wireMove();
       $('scount').textContent = shown.length+' of '+STUD.length;
     }
     /* If the remembered cohort is gone (left the school, classes renamed), the select shows
        "All cohorts" because no option matches — while the filter still rejects everybody. The
        view then looks broken with a control that says nothing is filtered. */
     if (stState.grad!=='all' && !COH.some(function(c){ return String(c.grad)===String(stState.grad); })) stState.grad='all';
-    var pool = stState.grad==='all' ? Object.keys(byClass).sort(cmpClass)
+    var pool = stState.grad==='all' ? Object.keys(byClass).filter(function(c){ return !isLeft(c); }).sort(cmpClass)
              : (COH.filter(function(c){return String(c.grad)===String(stState.grad);})[0]||{classes:[]}).classes;
     if (pool.indexOf(stState.cls)<0) stState.cls='all';
     $('view').innerHTML =
@@ -929,7 +1048,9 @@ var BOOT = __BOOT__;
 
   /* ─────────────────────── Lab progress ─────────────────────── */
   var STRUGGLE = 50, STUCK_CPQ = 2, STUCK_MAX = 75;
-  var pState = { grad:'all', cls:'all', q:'', sort:'attention', lab:null, showRvd:false }, pTimer = null;
+  var pState = { grad:'all', cls:'all', q:'', sort:'attention', lab:null, labPicked:false, showRvd:false, hq:false }, pTimer = null;
+  /* a station id is a key of the pupil's own data, never of every object ("constructor", "toString"): the second audit */
+  function has(o, k){ return !!o && Object.prototype.hasOwnProperty.call(o, k); }
   var REVIEWED = (function(){ try { return new Set(JSON.parse(localStorage.getItem('labprogress.reviewed')||'[]')); } catch(e){ return new Set(); } })();
   function keyOf(s){ return (s.cls||'')+'|'+(s.name||''); }
   function isRvd(s){ try { return REVIEWED.has(keyOf(s)); } catch(e){ return false; } }
@@ -943,15 +1064,25 @@ var BOOT = __BOOT__;
        would fall back to another lab's data while still translating ids against the dead one */
     if (!pState.lab || !LABS.some(function(l){ return l.id===pState.lab; })) pState.lab = LABS[0].id;
     STUD.forEach(function(s,i){ s.__i = i; });
-    function stName(labId,id){ var m=NAMES[labId]; return (m&&m[id])||id; }
+    function stName(labId,id){ var m=has(NAMES,labId)?NAMES[labId]:null; return (m&&has(m,id)&&m[id])||id; }
+    /* A student's numbers over the labs they have saved work in. Stuck reads the checks of their FIRST rounds (e.c1, 7 Oct
+       2026): practising a station again is not being stuck. A row from before rounds were counted has only its total. */
     function summ(s){
-      var sum=0,st=0,cp=0,ck=0,q=0,ft=0,hi=0;
-      LABS.forEach(function(l){ var e=s.byLab[l.id]; if(e){ st++; sum+=e.pct; if(e.complete)cp++; ck+=e.checks; q+=e.total; ft+=e.firstTime; hi+=e.handIns; } });
-      return { attain: st?sum/st:0, started:st, complete:cp, ft:ft, q:q, handIns:hi, cpq:q?ck/q:0, coverage:st/LABS.length };
+      var sum=0,st=0,cp=0,ck=0,q=0,ft=0,hi=0,ag=0;
+      LABS.forEach(function(l){ var e=s.byLab[l.id]; if(e){ st++; sum+=e.pct; if(e.complete)cp++; ck+=(e.c1!=null?e.c1:e.checks); q+=e.total; ft+=e.firstTime; hi+=e.handIns; if(e.ag)ag++; } });
+      return { attain: st?sum/st:0, started:st, complete:cp, ft:ft, q:q, handIns:hi, cpq:q?ck/q:0, coverage:st/LABS.length, again:ag };
     }
+    /* a heatmap cell, said in full: the best score, every check (and round 1's), practising again, resets */
+    function cellSays(l, e){
+      return l.name+': '+e.done+'/'+e.total+' right (their best, in any round) · '+e.checks+' check'+(e.checks===1?'':'s')+' in all'+
+        (e.c1!=null&&e.c1<e.checks?' ('+e.c1+' in round 1)':'')+
+        (e.ag?'\n\u21ba Started '+e.ag+' station'+(e.ag===1?'':'s')+' again'+(e.rs?'; reset the whole lab '+e.rs+'\u00d7':''):'')+
+        '\nClick the name to see each round.';
+    }
+    function avgSays(sm){ return 'Their average: the mean of their % in each of the '+sm.started+' lab'+(sm.started===1?'':'s')+' they have saved work in. A lab they have not opened is left out, not counted as 0.'; }
     function flags(sm){ var f=[]; if(!sm.started) return f;
-      if(sm.attain<STRUGGLE) f.push({t:'Struggling',k:'bad'});
-      if(sm.cpq>=STUCK_CPQ&&sm.attain<STUCK_MAX) f.push({t:'Stuck',k:'mid'});
+      if(sm.attain<STRUGGLE) f.push({t:'Struggling',k:'bad',tip:'Their average is '+r0(sm.attain)+'%, under '+STRUGGLE+'%. '+avgSays(sm)});
+      if(sm.cpq>=STUCK_CPQ&&sm.attain<STUCK_MAX) f.push({t:'Stuck',k:'mid',tip:'In their first rounds they pressed Check '+r1(sm.cpq)+' times per question ('+STUCK_CPQ+' or more counts), and their average is '+r0(sm.attain)+'%, still under '+STUCK_MAX+'%. Per question: their checks in round 1, divided by every question in the labs they have started. Practising again is not counted.'});
       return f; }
     function concern(sm){ if(!sm.started) return 0; var c=0;
       if(sm.attain<STRUGGLE) c+=200+(STRUGGLE-sm.attain);
@@ -968,10 +1099,10 @@ var BOOT = __BOOT__;
         if(q&&(s.name||'').toLowerCase().indexOf(q)<0&&(s.cls||'').toLowerCase().indexOf(q)<0) return false;
         return true; }); }
     function agg(list){
-      var per={}; LABS.forEach(function(l){ per[l.id]={sum:0,st:0,cp:0,ck:0,q:0,ft:0,S:{},order:[]}; });
+      var per={}; LABS.forEach(function(l){ per[l.id]={sum:0,st:0,cp:0,ck:0,q:0,ft:0,ag:0,rs:0,S:{},order:[]}; });
       list.forEach(function(s){ LABS.forEach(function(l){ var e=s.byLab[l.id]; if(!e)return; var P=per[l.id];
-        P.st++; P.sum+=e.pct; if(e.complete)P.cp++; P.ck+=e.checks; P.q+=e.total; P.ft+=e.firstTime;
-        (e.stations||[]).forEach(function(x){ var S=P.S[x.name]; if(!S){S=P.S[x.name]={d:0,t:0};P.order.push(x.name);} S.d+=x.done; S.t+=x.total; }); }); });
+        P.st++; P.sum+=e.pct; if(e.complete)P.cp++; P.ck+=e.checks; P.q+=e.total; P.ft+=e.firstTime; if(e.ag)P.ag++; if(e.rs)P.rs++;
+        (e.stations||[]).forEach(function(x){ var S=has(P.S,x.name)?P.S[x.name]:null; if(!S){S=P.S[x.name]={d:0,t:0};P.order.push(x.name);} S.d+=x.done; S.t+=x.total; }); }); });
       return per; }
     var byClass={}, cm={};
     STUD.forEach(function(s){ if(s.cls)(byClass[s.cls]=byClass[s.cls]||[]).push(s);
@@ -981,24 +1112,31 @@ var BOOT = __BOOT__;
     function paint(){
       var list=pick(), out='';
       /* tiles */
-      var n=list.length, started=0, sumA=0, att=0, ftS=0, qS=0, flagged=0;
+      var n=list.length, started=0, sumA=0, att=0, ftS=0, qS=0, flagged=0, again=0;
       list.forEach(function(s){ var sm=summ(s); if(sm.started){started++;sumA+=sm.attain;} att+=sm.started; ftS+=sm.ft; qS+=sm.q;
+        if(sm.again) again++;
         if(concern(sm)>0&&!isRvd(s)) flagged++; });
       out += '<div class="tiles">'+
-        tile('cyan','Students',n,'in view','How many students match the filters above.')+
+        tile('cyan','Students',n,'in view','How many students match the cohort, class and search above.')+
         tile('good','Avg score', started?pc(sumA/started):'—','on labs they have done',
-          'Each student\u2019s own average across the labs they have SAVED WORK IN, then averaged over those students. '+
-          'A lab nobody has started is not counted at all, so a class is never marked down for work that was never set.')+
+          'Two steps. First each student\u2019s own average: the mean of their % in each lab they have SAVED WORK IN '+
+          '(80% in one lab and 40% in another make 60%). Then the mean of those, over the '+started+' student'+(started===1?'':'s')+' in view who have saved work in at least one lab. '+
+          'A lab a student has not opened is left out, never counted as 0, so nobody is marked down for work that was never set. '+
+          'The % in a lab is their best: a question right in any round counts.')+
         tile('magenta','Labs attempted', n?r1(att/n)+'<small> / '+LABS.length+'</small>':'—','per student',
-          'How many of the '+LABS.length+' live labs an average student has saved work in.')+
+          'How many of the '+LABS.length+' live labs a student has saved work in: the mean over all '+n+' student'+(n===1?'':'s')+' in view, so a student with none counts as 0 here.')+
         tile('cyan','Right first time', qS?pc(100*ftS/qS):'—','answered right at the first try',
-          'Out of every question inside the labs these students have saved work in, the share they got right on '+
-          'their FIRST press of Check. It is not a share of students: it counts questions. '+
-          'A low number with a high average score means they are working answers out rather than knowing them.')+
+          'Of every question in the labs these students have saved work in (each lab\u2019s questions counted once for each student who started it), '+
+          'the share they got right at their FIRST press of Check, in their FIRST round. It counts questions, not students; a question not answered yet counts as not right. '+
+          'Practising again never changes it. A low number beside a high Avg score means they work answers out rather than know them.')+
+        tile('cyan','Practised again', again, again===1?'student started a station again':'students started a station again',
+          'Students in view who pressed \u201cStart this station again\u201d or Reset at least once, in any lab. That starts a new ROUND: '+
+          'the page empties so they can answer the questions again, and their record keeps every round. It is practice, so it is never counted against them: '+
+          'Score keeps their best, and Right first time and Stuck come from their first round. Click a name to compare their rounds.')+
         tile('bad','Need a look', flagged, flagged?'flagged below':'nobody flagged',
-          'Students flagged as Struggling (under '+STRUGGLE+'% on the labs they have done) or Stuck '+
-          '(pressing Check '+STUCK_CPQ+'\u00d7 or more per question yet still under '+STUCK_MAX+'%). '+
-          'Not having started a lab is never flagged.')+'</div>';
+          'Students flagged as Struggling or Stuck, and not ticked Reviewed. Struggling: their own average (as in Avg score: the mean of their % in the labs they have saved work in) is under '+STRUGGLE+'%. '+
+          'Stuck: in their first rounds they pressed Check '+STUCK_CPQ+' or more times per question (their round-1 checks divided by every question in the labs they have started), '+
+          'and their average is still under '+STUCK_MAX+'%. Not having started a lab is never flagged, and nor is practising again.')+'</div>';
       /* heatmap */
       var arr=list.map(function(s){return {s:s,sm:summ(s)};});
       arr.sort(function(a,b){
@@ -1017,10 +1155,10 @@ var BOOT = __BOOT__;
           LABS.map(function(l){ var e=s.byLab[l.id];
             if(!e) return '<td class="cell"><div class="cbox none" data-tip="'+esc(l.name)+': nothing saved yet.">·</div></td>';
             var h=heat(e.pct);
-            return '<td class="cell"><div class="cbox'+(e.complete?' done':'')+'" style="background:'+h.bg+';border-color:'+h.bd+';color:'+h.fg+'" data-tip="'+esc(l.name+': '+e.done+'/'+e.total+' · '+e.checks+' checks')+'">'+r0(e.pct)+'</div></td>'; }).join('')+'</tr>'; }).join('');
-      out += sec('Every student, every lab','Colour and number are the score so far; a small dot in the corner means finished, and a faint · means nothing saved yet. Click a name for the full picture.',
-        '<div class="panel"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
-        '<div class="hmleg"><span>Lower</span><span class="hmgrad"></span><span>Higher</span></div></div>', arr.length+' shown');
+            return '<td class="cell"><div class="cbox'+(e.complete?' done':'')+(e.ag?' again':'')+'" style="background:'+h.bg+';border-color:'+h.bd+';color:'+h.fg+'" data-tip="'+esc(cellSays(l, e))+'">'+r0(e.pct)+'</div></td>'; }).join('')+'</tr>'; }).join('');
+      out += sec('Every student, every lab','Colour and number are their best score so far; a small dot in the corner means finished, \u21ba means they started a station again to practise, and a faint · means nothing saved yet. Click a name for the full picture.',
+        '<div class="panel panel--keyed"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
+        '<div class="hmleg"><span>Lower</span><span class="hmgrad"></span><span>Higher</span><span data-tip="A new round: they pressed \u201cStart this station again\u201d or Reset, and answered the questions again. Their record keeps every round.">\u21ba started a station again</span></div></div>', arr.length+' shown');
       /* lab by lab */
       var per=agg(list);
       out += sec('Lab by lab','Average score, how many started and finished, and the part they find hardest.',
@@ -1030,20 +1168,21 @@ var BOOT = __BOOT__;
           return '<div class="labc"><div class="labc__h"><span class="labc__n">'+esc(short(l.name))+'</span><span class="labc__t">'+esc(l.topic||'')+'</span></div>'+
             '<div class="pbar"><i style="width:'+r0(avg)+'%;background:'+g.bd+'"></i></div>'+
             '<div class="stat">'+
-            '<div data-tip="Average score of the students who have saved work in THIS lab."><b>'+pc(avg)+'</b><span>Avg score</span></div>'+
-            '<div data-tip="Share of the students in view who have saved work in this lab."><b>'+pc(n?100*P.st/n:0)+'</b><span>Started</span></div>'+
-            '<div data-tip="Share of the students in view who have finished every question in this lab."><b>'+pc(n?100*P.cp/n:0)+'</b><span>Finished</span></div>'+
-            '<div data-tip="Of every question answered in this lab, the share right at the first press of Check."><b>'+pc(P.q?100*P.ft/P.q:0)+'</b><span>Right 1st</span></div></div>'+
-            (hd?'<div class="hard">Hardest: <b>'+esc(stName(l.id,hd.n))+'</b> · '+pc(hd.p)+'</div>':'')+'</div>'; }).join('')+'</div>');
+            '<div data-tip="'+esc('The mean of their % in THIS lab, over the '+P.st+' student'+(P.st===1?'':'s')+' in view who have saved work in it. A student who has not opened it is left out, not counted as 0.')+'"><b>'+pc(avg)+'</b><span>Avg score</span></div>'+
+            '<div data-tip="'+esc(P.st+' of the '+n+' students in view have saved some work in this lab.')+'"><b>'+pc(n?100*P.st/n:0)+'</b><span>Started</span></div>'+
+            '<div data-tip="'+esc(P.cp+' of the '+n+' students in view have every question in this lab right (in any round).')+'"><b>'+pc(n?100*P.cp/n:0)+'</b><span>Finished</span></div>'+
+            '<div data-tip="'+esc('Of every question in this lab, counted once for each of the '+P.st+' student'+(P.st===1?'':'s')+' who started it ('+P.q+' in all), the share right at the first press of Check in their FIRST round. A question not answered yet counts as not right.')+'"><b>'+pc(P.q?100*P.ft/P.q:0)+'</b><span>Right 1st</span></div></div>'+
+            (hd?'<div class="hard" data-tip="'+esc('The station with the lowest share of its questions right (their best, in any round), over the students in view who started this lab.')+'">Hardest: <b>'+esc(stName(l.id,hd.n))+'</b> · '+pc(hd.p)+'</div>':'')+
+            (P.ag||P.rs?'<div class="hard" data-tip="'+esc('Students in view who started at least one station of this lab again (a new round, to practise), and how many pressed Reset, which starts every station with answers again at once.')+'">\u21ba Practised again: <b style="color:var(--cyan)">'+P.ag+'</b> of '+P.st+(P.rs?' · reset the whole lab: <b style="color:var(--cyan)">'+P.rs+'</b>':'')+'</div>':'')+'</div>'; }).join('')+'</div>');
       /* who needs a look */
       var all=list.map(function(s){return {s:s,sm:summ(s)};}).filter(function(o){return concern(o.sm)>0;})
                   .sort(function(a,b){return concern(b.sm)-concern(a.sm);});
       var act=all.filter(function(o){return !isRvd(o.s);}), done=all.filter(function(o){return isRvd(o.s);});
       function arow(o,rv){ var s=o.s, sm=o.sm;
-        return '<div class="attr'+(rv?' rvd':'')+'" data-i="'+s.__i+'"><div class="attr__i '+(sm.attain<STRUGGLE?'bad':'mid')+'">'+r0(sm.attain)+'</div>'+
+        return '<div class="attr'+(rv?' rvd':'')+'" data-i="'+s.__i+'"><div class="attr__i '+(sm.attain<STRUGGLE?'bad':'mid')+'" data-tip="'+esc(avgSays(sm))+'">'+r0(sm.attain)+'</div>'+
           '<div class="attr__m"><div class="attr__n">'+esc(s.name||'(no name)')+'<span class="cl">'+esc(s.cls||'')+'</span></div>'+
-          '<div class="flags">'+flags(sm).map(function(f){return '<span class="flag '+f.k+'">'+esc(f.t)+'</span>';}).join('')+'</div></div>'+
-          '<div class="attr__p"><b>'+r0(sm.attain)+'</b><span>avg · '+sm.started+' lab'+(sm.started===1?'':'s')+'</span></div>'+
+          '<div class="flags">'+flags(sm).map(function(f){return '<span class="flag '+f.k+'" data-tip="'+esc(f.tip)+'">'+esc(f.t)+'</span>';}).join('')+'</div></div>'+
+          '<div class="attr__p" data-tip="'+esc(avgSays(sm))+'"><b>'+r0(sm.attain)+'</b><span>avg · '+sm.started+' lab'+(sm.started===1?'':'s')+'</span></div>'+
           '<button class="act" data-rvd="'+esc(keyOf(s))+'" data-on="'+(rv?'1':'0')+'">'+(rv?'Undo':'Reviewed')+'</button></div>'; }
       var body = !all.length
         ? '<div class="panel"><div style="padding:18px;color:var(--good)"><b>Nobody flagged.</b> No one in view is under '+STRUGGLE+'% or stuck.</div></div>'
@@ -1051,25 +1190,33 @@ var BOOT = __BOOT__;
           (act.length>20?'<p class="sec__d" style="margin-top:10px">Showing the 20 most pressing of '+act.length+'. Filter by class to work through the rest.</p>':'')+
           (done.length?'<div style="margin-top:12px"><button class="act" id="rvdtog">'+(pState.showRvd?'Hide':'Show')+' '+done.length+' reviewed</button></div>'+
             '<div class="att" style="margin-top:9px"'+(pState.showRvd?'':' hidden')+'>'+done.map(function(o){return arow(o,true);}).join('')+'</div>':'');
-      out += sec('Who needs a look','Only two things flag, both about labs with work saved in them — never about labs not started, which may simply not be set yet. Struggling: under '+STRUGGLE+'%. Stuck: checking a lot yet still under '+STUCK_MAX+'%.',
+      out += sec('Who needs a look','Only two things flag, both about labs with work saved in them — never about labs not started, which may simply not be set yet, and never about practising again. Struggling: their average (the mean of their % in the labs they have started) is under '+STRUGGLE+'%. Stuck: '+STUCK_CPQ+' or more checks per question in their first rounds, yet still under '+STUCK_MAX+'%. Hover over a flag for the numbers.',
         body, act.length?act.length+' to look at':'all clear');
-      /* stations */
-      var lid=pState.lab, P=per[lid]||per[LABS[0].id];
+      /* stations. The menu starts on a lab the students in view have worked in: it started on the first lab in the list, and
+         a class that had not opened that lab saw "No station data for this lab yet" with no reason (Daniel, 7 Oct 2026) */
+      if (!pState.labPicked && !(per[pState.lab]||{}).st) {
+        var most=null; LABS.forEach(function(l){ var Q=per[l.id]; if(Q&&Q.st&&(!most||Q.st>per[most].st)) most=l.id; });
+        if (most) pState.lab=most;
+      }
+      var lid=pState.lab, P=per[lid]||per[LABS[0].id], labName=short((LABS.filter(function(l){return l.id===lid;})[0]||LABS[0]).name);
       var names=(P.order||[]).filter(function(nm){return P.S[nm].t>0;})
         .sort(function(a,b){return (P.S[a].d/P.S[a].t)-(P.S[b].d/P.S[b].t);});
       out += sec('Where they get stuck','Each lab is a set of stations. Weakest first — a low bar is a topic to reteach.',
         '<div class="fld" style="margin-bottom:12px;max-width:260px"><label for="stl">Show stations for</label><select id="stl">'+
         LABS.map(function(l){return '<option value="'+esc(l.id)+'"'+(l.id===lid?' selected':'')+'>'+esc(short(l.name))+'</option>';}).join('')+'</select></div>'+
+        hardestBox(list, lid)+
         (names.length?names.map(function(nm){ var S=P.S[nm], p2=100*S.d/S.t, h=heat(p2);
           return '<div class="strow"><div class="strow__n">'+esc(stName(lid,nm))+'</div>'+
             '<div class="strow__b"><i style="width:'+r0(p2)+'%;background:'+h.bd+'"></i></div>'+
             '<div class="strow__v" style="color:'+h.fg+'">'+pc(p2)+'</div></div>'; }).join('')
-          :'<div class="empty">No station data for this lab yet.</div>'));
+          :'<div class="empty">'+(P.st
+              ? esc('The '+P.st+' student'+(P.st===1?'':'s')+' in view who started '+labName+' have no station results in the sheet yet: their saves came before the lab sent them. Their next save brings them.')
+              : esc('None of the '+n+' student'+(n===1?'':'s')+' in view has saved any work in '+labName+' yet, so it has no stations to show. Choose another lab above, or another class or cohort.'))+'</div>'));
       /* class against class */
       var clist=cohortOnly(), cls={}; clist.forEach(function(s){ if(s.cls)cls[s.cls]=1; });
       var cn=Object.keys(cls).sort(cmpClass);
       if (cn.length>1){
-        out += sec('Class against class','Average score on the labs each class has actually done.',
+        out += sec('Class against class','Each lab: the mean % of the class\u2019s students who started it. Avg score: the mean of each student\u2019s own average, as at the top. A lab a student has not opened is left out, not counted as 0.',
           '<div class="panel cmpwrap"><table class="cmp"><thead><tr><th class="rowh">Class</th>'+
           LABS.map(function(l){return '<th>'+esc(short(l.name))+'</th>';}).join('')+'<th>Avg score</th><th>Pupils</th></tr></thead><tbody>'+
           cn.map(function(c){ var sub=clist.filter(function(s){return s.cls===c;}), pp=agg(sub);
@@ -1107,26 +1254,223 @@ var BOOT = __BOOT__;
         if (t){ var nn=0; pick().forEach(function(x){ if(concern(summ(x))>0 && !isRvd(x)) nn++; }); t.textContent=nn; }
       }); });
       var tg=$('rvdtog'); if(tg) tg.addEventListener('click', function(){ pState.showRvd=!pState.showRvd; paint(); });
-      var stl=$('stl'); if(stl) stl.addEventListener('change', function(){ pState.lab=stl.value; paint(); });
-      document.querySelectorAll('.hm th.lab').forEach(function(th){ th.addEventListener('click', function(){ pState.lab=th.getAttribute('data-lab'); paint(); }); });
+      var stl=$('stl'); if(stl) stl.addEventListener('change', function(){ pState.lab=stl.value; pState.labPicked=true; paint(); });
+      var hq=$('hq'); if(hq){ hq.addEventListener('toggle', function(){ pState.hq=hq.open; fillHardest(hq); }); fillHardest(hq); }
+      document.querySelectorAll('.hm th.lab').forEach(function(th){ th.addEventListener('click', function(){ pState.lab=th.getAttribute('data-lab'); pState.labPicked=true; paint(); }); });
     }
+    function chip(v, s, tip){ return '<span class="dchip" data-tip="'+esc(tip)+'"><b>'+esc(String(v))+'</b>'+esc(s)+'</span>'; }
     function drawStudent(s){
       if(!s) return;
-      var sm=summ(s);
+      var sm=summ(s), anyQ=LABS.some(function(l){ var e=s.byLab[l.id]; return !!(e&&(e.q||e.rd)); });
       V.openDraw(s.name||'(no name)',
-        esc(s.cls||'—')+(s.cohort?' · '+esc(s.cohort.title):'')+' &nbsp;·&nbsp; '+pc(sm.attain)+' average',
+        esc(s.cls||'—')+(s.cohort?' · '+esc(s.cohort.title):'')+' &nbsp;·&nbsp; <span data-tip="'+esc(avgSays(sm))+'">'+pc(sm.attain)+' average</span>',
+        (anyQ?'<div class="sqintro">Open a station (<span aria-hidden="true">▸</span>) to see each question as a square, one row for each <b>round</b> '+
+          '(one time through the station\u2019s questions; \u201cStart this station again\u201d or Reset begins the next). '+
+          'The colour is how the question went in that round; the number in it, how many times they pressed Check on it in that round. '+
+          '<b>All rounds</b> adds the checks up. \u2715 marks a question they <b>failed again</b>: not right at the first check in round 1, and again not right at the first check in a later round.'+sqKey()+'</div>':'')+
         LABS.map(function(l){ var e=s.byLab[l.id];
           if(!e) return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(short(l.name))+'</span><span class="dlab__p" style="color:var(--mute)">not started</span></div></div>';
           var h=heat(e.pct);
           return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(short(l.name))+'</span>'+
-            '<span class="dlab__p" style="color:'+h.fg+'">'+e.done+'/'+e.total+' · '+pc(e.pct)+'</span></div>'+
-            '<div class="dchips"><span class="dchip"><b>'+e.checks+'</b> checks</span>'+
-            '<span class="dchip"><b>'+e.firstTime+'</b>/'+e.total+' right 1st</span>'+
-            '<span class="dchip"><b>'+e.handIns+'</b> save'+(e.handIns===1?'':'s')+'</span>'+
-            (e.complete?'<span class="dchip" style="color:var(--good)">finished</span>':'')+'</div>'+
-            (e.stations||[]).map(function(x){ var p2=x.total?100*x.done/x.total:0, hh=heat(p2);
-              return '<div class="dst"><span class="dst__n">'+esc(stName(l.id,x.name))+'</span><span class="dst__v">'+x.done+'/'+x.total+'</span>'+
-                '<span class="dst__bar"><i style="width:'+r0(p2)+'%;background:'+hh.bd+'"></i></span></div>'; }).join('')+'</div>'; }).join(''));
+            '<span class="dlab__p" style="color:'+h.fg+'" data-tip="'+esc('Their best: '+e.done+' of the '+e.total+' questions right, in any round.')+'">'+e.done+'/'+e.total+' · '+pc(e.pct)+'</span></div>'+
+            '<div class="dchips">'+
+              chip(e.checks, ' checks', 'Every press of Check in this lab, in every round.')+
+              (e.c1!=null&&e.c1<e.checks?chip(e.c1, ' in round 1', 'Their checks in their first round of each station. Stuck is worked out from these, so practising again never counts against them.'):'')+
+              chip(e.firstTime, '/'+e.total+' right 1st', 'Questions right at their first press of Check in their FIRST round, out of all '+e.total+' questions in this lab. Practising again never changes it.')+
+              chip(e.handIns, ' save'+(e.handIns===1?'':'s'), 'How many times the lab has saved their work to the sheet: it saves on its own every couple of minutes while they work.')+
+              (e.ag?chip('\u21ba '+e.ag, ' station'+(e.ag===1?'':'s')+' again', 'Stations they started again to practise (\u201cStart this station again\u201d, or Reset). Every round is kept: open a station below to compare them.'):'')+
+              (e.rs?chip(e.rs+'\u00d7', ' reset', 'How many times they pressed Reset, which starts every station that has answers again, all at once.'):'')+
+            (e.complete?'<span class="dchip" style="color:var(--good)" data-tip="Every question in this lab right, in some round.">finished</span>':'')+'</div>'+
+            (e.stations||[]).map(function(x){ return dstRow(l, e, x); }).join('')+'</div>'; }).join(''));
+      wireSquares($('drawb'));
+    }
+    /* ── each question as a square (6 Oct 2026, Daniel: "so that I know exactly where the students had to check
+       multiple times") ── The letters come with Lab progress: e.q[station] = the FIRST round (f right first time,
+       1 right after more checks, t tried and not right, 0 not tried), e.b[station] = the best ever where it differs.
+       A lab's question words are asked for only when a teacher opens one of its stations, then kept for this tab. */
+    var SQ = { f:['f','right first time'], '1':['m','right after more checks'], t:['t','tried, not right yet'], '0':['z','not tried'] };
+    function sqKey(){
+      return '<div class="sqkey"><span><i style="background:var(--good)"></i>right first time</span>'+
+        '<span><i style="background:var(--warn)"></i>right after more checks</span>'+
+        '<span><i style="background:var(--bad)"></i>tried, not right yet</span>'+
+        '<span><i style="border:1px solid var(--line2)"></i>not tried</span>'+
+        '<span><i style="background:repeating-linear-gradient(135deg,var(--track2) 0 2px,transparent 2px 4px);border:1px solid var(--line2)"></i>not kept (before 7 Oct 2026)</span>'+
+        '<span><i style="background:var(--good);border-radius:50%"></i>right in a later round</span></div>'; }
+    /* ── rounds (7 Oct 2026, Daniel: "a total checks per question, no matter the number of rounds, and per round … if they're
+       failing the same questions despite the rounds") ── e.rd[station]: every round, oldest first, the round they are on
+       last; each "<letters>.<checks>[*k]": the letters of the squares, then the checks at each question (0–9, a = 10 … z = 35
+       or more), "*k" for k rounds kept together. Round 1's letters come from e.q, the record Right first time is read from. */
+    var B36='0123456789abcdefghijklmnopqrstuvwxyz';
+    function rTok(t){ var m=String(t==null?'':t).match(/^([01tf]*)\.([0-9a-z]*)(?:\*(\d+))?$/);
+      return m?{l:m[1],c:m[2],k:m[3]?Math.max(1,+m[3]):1}:{l:'',c:'',k:1}; }
+    function rN(ch){ var i=B36.indexOf(ch||''); return i<0?0:i; }
+    function roundsOf(list, n, q){
+      var out=[], at=1, i, tot=[], again=[], redo=[];
+      (list||[]).forEach(function(t){ var x=rTok(t); x.a=at; at+=x.k; out.push(x); });
+      /* round 1's letters from e.q, the record Right first time reads; all "0" there means not recorded, not "nothing tried"
+         (the second audit, 7 Oct 2026) */
+      if (q&&/[^0]/.test(q)&&out.length&&out[0].a===1&&out[0].k===1) out[0].l=q;
+      for(i=0;i<n;i++){ tot.push(0); again.push(false); redo.push(false); }
+      var r1=out.length?out[0].l:'';
+      out.forEach(function(x,j){ for(i=0;i<n;i++){ tot[i]+=rN(x.c.charAt(i));
+        if(!j) continue;
+        var c=x.l.charAt(i), f=r1.charAt(i);
+        if(c&&c!=='0') redo[i]=true;
+        if((c==='t'||c==='1')&&(f==='t'||f==='1')) again[i]=true; } });
+      return { rounds:out, n:n, tot:tot, again:again, redo:redo, last:at-1 };
+    }
+    /* the rounds of one station in words, one line: what a teacher reads before pointing at a square. Round 1 and the
+       round they are on are said in full; more than one round between them, together (the squares show each). */
+    function roundsSay(R){
+      var L=R.rounds, last=L.length-1;
+      function one(x,j){
+        var lbl=x.k>1?'Rounds '+x.a+'\u2013'+(x.a+x.k-1):'Round '+x.a;
+        if(!x.l) return '<b>'+lbl+'</b>: answers not kept';
+        var tr=0, ok=0, f=0, ck=0, i;
+        for(i=0;i<R.n;i++){ var c=x.l.charAt(i); if(c&&c!=='0')tr++; if(c==='1'||c==='f')ok++; if(c==='f')f++; ck+=rN(x.c.charAt(i)); }
+        return '<b>'+lbl+'</b>'+(j===last&&j>0?' (now)':'')+': '+tr+' of '+R.n+' tried, '+(j?ok+' right':f+' right first time')+(x.c?', '+ck+' check'+(ck===1?'':'s'):'');
+      }
+      if (L.length<=3) return L.map(one).join(' \u00b7 ');
+      var mid=L.slice(1,last), a=mid[0].a, b=mid[mid.length-1].a+mid[mid.length-1].k-1, ck=0, known=false;
+      mid.forEach(function(x){ if(x.c) known=true; for(var i=0;i<R.n;i++) ck+=rN(x.c.charAt(i)); });
+      return one(L[0],0)+' \u00b7 <b>Rounds '+a+'\u2013'+b+'</b>: '+(b-a+1)+' rounds'+(known?', '+ck+' check'+(ck===1?'':'s'):'')+' (a row each above)'+' \u00b7 '+one(L[last],last);
+    }
+    function roundGrid(R, rx){
+      var n=R.n, i, ag=[];
+      var head='<div class="rq__r rq__h"><span class="rq__l"></span>';
+      for(i=0;i<n;i++){ if(R.again[i]) ag.push(i+1);
+        head+='<span class="rq__q'+(R.again[i]?' ag':'')+'"'+(R.again[i]?' data-tip="Failed again: not right at the first check in round 1, and again not right at the first check in a later round."':'')+'>'+(i+1)+'</span>'; }
+      head+='</div>';
+      var rows=R.rounds.map(function(x,j){
+        var lbl=x.k>1?'Rounds '+x.a+'\u2013'+(x.a+x.k-1):'Round '+x.a, now=j===R.rounds.length-1&&j>0;
+        var tip=(x.k>1?'Rounds '+x.a+' to '+(x.a+x.k-1)+', kept together so the record stays small: each square is the best that question got in them; its number, every check in them.'
+                :j===0?'Their first time through this station. Right first time and Stuck are counted from this round.'
+                :'They started the station again and answered the questions again.')+
+                (now?' The round they are on now.':'')+(!x.l?' What they answered in it was not kept: it was before 7 Oct 2026, when the lab began to keep every round.':'');
+        var cells='';
+        for(var i=0;i<n;i++){
+          var c=x.l?(x.l.charAt(i)||'0'):'', k=c?(SQ[c]||SQ['0']):null, ck=x.c?rN(x.c.charAt(i)):null;
+          cells+='<button type="button" class="sq '+(k?k[0]:'u')+'" data-q="'+i+'" data-r="'+j+'" data-rl="'+esc(lbl.toLowerCase())+'" data-l="'+esc(c)+'"'+
+            ' data-c="'+(ck==null?'':ck)+'" data-t="'+R.tot[i]+'" data-ag="'+(R.again[i]?1:0)+'"'+
+            ' aria-label="'+esc('Question '+(i+1)+', '+lbl.toLowerCase()+': '+(k?k[1]:'not kept')+(ck?', '+ck+' check'+(ck===1?'':'s'):''))+'">'+(ck?(ck>=35?'35+':ck):'')+'</button>';
+        }
+        return '<div class="rq__r"><span class="rq__l" data-tip="'+esc(tip)+'">'+esc(lbl)+(now?' <i>now</i>':'')+'</span>'+cells+'</div>'; }).join('');
+      var all='';
+      if (R.rounds.length>1){
+        var mx=Math.max.apply(null, R.tot.concat([1]));
+        all='<div class="rq__r"><span class="rq__l" data-tip="Every press of Check at each question, all rounds added up. The darker, the more checks.">All rounds</span>';
+        for(i=0;i<n;i++){ var t=R.tot[i];
+          all+='<span class="rq__t'+(R.again[i]?' ag':'')+'" style="--k:'+(t?(0.18+0.82*t/mx).toFixed(2):0)+'">'+(t||'')+'</span>'; }
+        all+='</div>';
+      }
+      return '<div class="rq" role="group" aria-label="Each question, round by round">'+head+rows+all+'</div>'+
+        '<p class="rq__s">'+roundsSay(R)+(ag.length?' \u00b7 <span class="agw">failed again: question'+(ag.length===1?' ':'s ')+ag.join(', ')+'</span>':'')+'</p>'+
+        (rx?'<p class="rq__x">+'+rx+' check'+(rx===1?'':'s')+' at this station not split by question: made before 7 Oct 2026, when the lab began to count each question, or on an earlier version of the station.</p>':'');
+    }
+    function oneRow(q, b){
+      b=b||q;
+      return '<div class="sqs">'+q.split('').map(function(c,i){ var k=SQ[c]||SQ['0'], later=(c==='t'||c==='0')&&(b.charAt(i)==='1'||b.charAt(i)==='f');
+        return '<button type="button" class="sq '+k[0]+(later?' later':'')+'" data-q="'+i+'" data-l="'+c+'" data-later="'+(later?1:0)+'"'+
+          ' aria-label="Question '+(i+1)+': '+k[1]+(later?', right in a later round':'')+'">'+(i+1)+'</button>'; }).join('')+'</div>';
+    }
+    function dstRow(l, e, x){
+      var p2=x.total?100*x.done/x.total:0, hh=heat(p2), q=has(e.q,x.name)?String(e.q[x.name]):null, rd=has(e.rd,x.name)&&Array.isArray(e.rd[x.name])?e.rd[x.name]:null, n=x.total||(q?q.length:0);
+      var R=rd&&n?roundsOf(rd, n, q):null, agN=R?R.again.filter(Boolean).length:0, rx=has(e.rx,x.name)?(Number(e.rx[x.name])||0):0;
+      var badges=(R&&R.last>1?'<span class="rbadge" data-tip="'+esc('They started this station again: it is on round '+R.last+'. Open it to compare the rounds.')+'">\u21ba '+R.last+'</span>':'')+
+                 (agN?'<span class="rbadge ag" data-tip="'+esc(agN+' question'+(agN===1?'':'s')+' failed again: not right at the first check in round 1, and again not right at the first check in a later round.')+'">\u2715 '+agN+'</span>':'');
+      var row='<span class="dst__n">'+((q||R)?'<span class="chev" aria-hidden="true">▸</span>':'')+esc(stName(l.id,x.name))+'</span>'+
+        '<span class="dst__v">'+badges+'<span data-tip="'+esc('Their best: '+x.done+' of '+x.total+' right, in any round'+(x.checks?'; '+x.checks+' press'+(x.checks===1?'':'es')+' of Check here, every round':'')+'.')+'">'+x.done+'/'+x.total+(x.checks?' · '+x.checks+' check'+(x.checks===1?'':'s'):'')+'</span></span>'+
+        '<span class="dst__bar"><i style="width:'+r0(p2)+'%;background:'+hh.bd+'"></i></span>';
+      if (!q && !R) return '<div class="dst">'+row+'</div>';
+      return '<details class="dqd" data-lab="'+esc(l.id)+'" data-st="'+esc(x.name)+'"><summary class="dst">'+row+'</summary>'+
+        '<div class="dq">'+(R?roundGrid(R, rx):oneRow(q, has(e.b,x.name)?String(e.b[x.name]):null))+'<div class="dq__say" aria-live="polite"></div></div></details>';
+    }
+    var QW = window.__qWords || (window.__qWords = {}), QWAIT = {};
+    function withWords(labId, cb){
+      if (QW[labId]) return cb(QW[labId], '');
+      try { var raw=sessionStorage.getItem('teach.q.'+labId), o=raw&&JSON.parse(raw);
+        if (o&&o.w&&o.at&&(Date.now()-o.at)<60*60*1000) { QW[labId]=o.w; return cb(o.w, ''); } } catch(e){}
+      if (QWAIT[labId]) { QWAIT[labId].push(cb); return; }
+      QWAIT[labId]=[cb];
+      google.script.run
+        .withSuccessHandler(function(r){ var w=r&&r.ok&&r.data?r.data:null, cbs=QWAIT[labId]; delete QWAIT[labId];
+          if (w) { QW[labId]=w; try { sessionStorage.setItem('teach.q.'+labId, JSON.stringify({at:Date.now(), w:w})); } catch(e){} }
+          cbs.forEach(function(f){ f(w, w?'':((r&&r.why)||'the lab’s page could not be read')); }); })
+        .withFailureHandler(function(err){ var cbs=QWAIT[labId]; delete QWAIT[labId];
+          cbs.forEach(function(f){ f(null, (err&&err.message)||'the spreadsheet could not be reached'); }); })
+        .uiData('questions', labId);
+    }
+    /* the line under the squares: the square pointed at; or else a question failed again, or else the first one not right
+       first time in round 1 */
+    function sayFor(d, btn){
+      if (!d) return;
+      var say=d.querySelector('.dq__say'), all=[].slice.call(d.querySelectorAll('.sq'));
+      var first=all.filter(function(x){ return (x.getAttribute('data-r')||'0')==='0'; });
+      if (!btn) btn=first.filter(function(x){ return x.getAttribute('data-ag')==='1'; })[0]||
+                    first.filter(function(x){ var c=x.getAttribute('data-l'); return c==='1'||c==='t'; })[0]||null;
+      all.forEach(function(x){ x.classList.toggle('on', x===btn); });
+      if (!btn) { var nt=first.filter(function(x){ return x.getAttribute('data-l')==='0'; }).length;
+        say.innerHTML = nt===first.length ? 'Nothing tried here in the first round yet. Point at a square to read its question.'
+          : 'Every question they tried here was right first time'+(nt?' ('+nt+' not tried yet)':'')+'. Point at a square to read its question.'; return; }
+      var i=+btn.getAttribute('data-q'), c0=btn.getAttribute('data-l'), k=c0?(SQ[c0]||SQ['0']):null, later=btn.getAttribute('data-later')==='1', head;
+      if (btn.hasAttribute('data-r')) {
+        var ck=btn.getAttribute('data-c'), t=+btn.getAttribute('data-t')||0, ag=btn.getAttribute('data-ag')==='1';
+        head='<b>Question '+(i+1)+'</b> · '+esc(btn.getAttribute('data-rl'))+': '+esc(k?k[1]:'not kept (before 7 Oct 2026)')+
+          (ck!==''?', '+ck+' check'+(ck==='1'?'':'s'):'')+(t&&all.length>first.length?' · all rounds: '+t+' check'+(t===1?'':'s'):'')+
+          (ag?' · <span class="agw">failed again</span>':'');
+      } else head='<b>Question '+(i+1)+'</b> · '+esc(k[1])+(later?' · right in a later round':'');
+      say.innerHTML=head+'<br>…';
+      withWords(d.getAttribute('data-lab'), function(w, why){
+        if (!btn.classList.contains('on')) return;                 /* another square was pointed at meanwhile */
+        var st=w&&w[d.getAttribute('data-st')], t=st&&st[i];
+        say.innerHTML=head+'<br>'+(t?'“'+esc(t)+'”':esc(w?'The words of this question are not in the lab’s page now: the station has changed since.':'The question’s words could not be read: '+why));
+      });
+    }
+    function wireSquares(box){
+      if (!box) return;
+      box.querySelectorAll('details.dqd').forEach(function(d){ d.addEventListener('toggle', function(){ if (d.open) sayFor(d, null); }); });
+      box.querySelectorAll('.sq').forEach(function(b){
+        ['mouseenter','focus','click'].forEach(function(ev){ b.addEventListener(ev, function(){ sayFor(b.closest('details'), b); }); }); });
+    }
+    /* "Where they get stuck": every question of one lab, counted over the pupils in view from their FIRST round */
+    /* also, from later rounds (7 Oct 2026): `re` pupils who answered it again, `ag` of them failed again; `ck` every check
+       at it by these pupils, every round */
+    function hardest(list, lid){
+      var C={}, rows=[], withQ=0;
+      list.forEach(function(s){ var e=s.byLab[lid]; if(!e||!e.q) return; withQ++;
+        Object.keys(e.q).forEach(function(sid){ var L=String(e.q[sid]), arr=has(C,sid)?C[sid]:(C[sid]=[]), R=has(e.rd,sid)&&Array.isArray(e.rd[sid])?roundsOf(e.rd[sid], L.length, L):null;
+          for (var i=0;i<L.length;i++){ var c=arr[i]||(arr[i]={f:0,m:0,t:0,re:0,ag:0,ck:0}), ch=L.charAt(i);
+            if(ch==='f')c.f++; else if(ch==='1')c.m++; else if(ch==='t')c.t++;
+            if(R){ c.ck+=R.tot[i]; if(R.redo[i])c.re++; if(R.again[i])c.ag++; } } }); });
+      Object.keys(C).forEach(function(sid){ C[sid].forEach(function(c,i){ var tried=c.f+c.m+c.t, hard=c.m+c.t;
+        if (hard) rows.push({ sid:sid, i:i, c:c, tried:tried, hard:hard }); }); });
+      rows.sort(function(a,b){ return b.hard-a.hard || b.c.ag-a.c.ag || (b.hard/b.tried)-(a.hard/a.tried) || a.sid.localeCompare(b.sid) || a.i-b.i; });
+      return { rows:rows, withQ:withQ };
+    }
+    function hardestBox(list, lid){
+      var H=hardest(list, lid), top=H.rows.slice(0,10);
+      var seg=function(n,tot,col){ return n?'<i style="width:'+(100*n/tot)+'%;background:'+col+'"></i>':''; };
+      return '<details class="hq" id="hq" data-lab="'+esc(lid)+'"'+(pState.hq?' open':'')+'><summary><span class="chev" aria-hidden="true">▸</span>'+
+        'The questions they most often did not get right at the first check'+(top.length?'<span class="sec__n">'+top.length+(H.rows.length>top.length?' of '+H.rows.length:'')+'</span>':'')+'</summary>'+
+        '<div class="hq__b">'+(top.length ? top.map(function(r){ var c=r.c;
+          return '<div class="hqrow" data-st="'+esc(r.sid)+'" data-q="'+r.i+'"><div class="hqrow__n">'+esc(stName(lid,r.sid))+' <span>· question '+(r.i+1)+'</span></div>'+
+            '<div><div class="hqbar" aria-hidden="true">'+seg(c.f,r.tried,'var(--good)')+seg(c.m,r.tried,'var(--warn)')+seg(c.t,r.tried,'var(--bad)')+'</div>'+
+            '<div class="hqrow__c">'+r.hard+' of '+r.tried+' not right at the first check'+
+              (c.m&&c.t?' ('+c.m+' right after more checks, '+c.t+' not yet)':c.t?' (not right yet)':' (right after more checks)')+
+              (c.re?' \u00b7 answered again by '+c.re+(c.ag?', <span class="agw">'+c.ag+' failed again</span>':''):'')+
+              (c.ck?' \u00b7 '+c.ck+' check'+(c.ck===1?'':'s')+' in all rounds':'')+'</div></div>'+
+            '<div class="hqrow__w" data-w></div></div>'; }).join('')+
+          '<p class="sqnote">From the FIRST round of the '+H.withQ+' pupil'+(H.withQ===1?'':'s')+' in view with work in this lab. A pupil who has not tried a question is not counted for it. Green: right first time; amber: right after more checks; red: not right yet. '+
+            'Answered again: pupils who started the station again and answered the question in a later round; failed again: of those, the ones who again did not get it right at the first check. Checks in all rounds: every press of Check at the question by these pupils, all rounds added up (counted since 7 Oct 2026).</p>'
+          : '<div class="empty">'+(H.withQ?'No question here was missed at the first check by the pupils in view.':'None of the pupils in view has work in this lab yet.')+'</div>')+
+        '</div></details>';
+    }
+    function fillHardest(hq){
+      if (!hq||!hq.open) return;
+      withWords(hq.getAttribute('data-lab'), function(w, why){
+        hq.querySelectorAll('.hqrow').forEach(function(r){ var st=w&&w[r.getAttribute('data-st')], t=st&&st[+r.getAttribute('data-q')], el=r.querySelector('[data-w]');
+          if (el) el.textContent = t ? '“'+t+'”' : (w ? 'The words of this question are not in the lab’s page now: the station has changed since.' : 'The question’s words could not be read: '+why); });
+      });
     }
     if (pState.grad!=='all' && !COH.some(function(c){ return String(c.grad)===String(pState.grad); })) pState.grad='all';
     var pool = pState.grad==='all' ? Object.keys(byClass).sort(cmpClass)
@@ -1225,11 +1569,33 @@ var BOOT = __BOOT__;
   /* ─────────────────────── Set homework ─────────────────────── */
   /* `later` (2 Oct 2026): the homework is set for a later date; each class row then has its own start date and time */
   var hState = { title:'', rows:[{cls:'',due:'',time:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
-                 post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'' };
+                 post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'',
+                 editDue:null, dueDraft:null, cardMsg:null, outPick:{},   /* 6 Oct 2026: Change the due date (the card open for it, what is typed), a card's answer, the ticks of its pupils outside it */
+                 arch:false, hidOpen:false, archMsg:null };   /* 7 Oct 2026: the Archive (homework past its due date) open, its hidden homework shown, its answer */
+  /* Remove and Hide (Daniel, 7 Oct 2026): "remove before the due date and hide after the due date"; "make sure that the hover
+     tip explains what removing does and that it's going to affect the homework habits. And that actually hiding is the one
+     that should be used and only remove when you have incorrectly set homework"; "if you only made a mistake about the due
+     date … you can just change the due date". Remove deletes the row (homeworkDelete); Hide only takes it off this list
+     (homeworkHide): it still counts everywhere else. */
+  var HW_TIP = {
+    delNow: 'Deletes this homework, and it cannot be undone. Students stop seeing it in the labs, and it leaves ⏱️ Homework habits and every student’s record. '+
+            'Use it only for homework set by mistake. If only the date is wrong, press “Change the due date” instead. '+
+            'A post students can already see in Google Classroom stays there: delete it in Classroom too.',
+    delPast: 'Deletes this homework, and it cannot be undone. It leaves ⏱️ Homework habits and every student’s record, as if it had never been set. '+
+             'Use it only for homework set by mistake. To take it off this list and keep its record, press “Hide”. Its post in Google Classroom stays there.',
+    hide: 'Takes it off this list. Nothing is deleted: it still counts in ⏱️ Homework habits and in every student’s record. '+
+          'Hidden homework waits at the end of the Archive, where you can show it again.',
+    unhide: 'Lists it in the Archive again. Nothing else changes: hidden or not, it counts in ⏱️ Homework habits.',
+    askNow: 'Remove deletes it, and it cannot be undone: students stop seeing it, and it leaves ⏱️ Homework habits and every student’s record. '+
+            'Use it only for homework set by mistake. If only the date is wrong, press “Keep it”, then “Change the due date”.',
+    askPast: 'Remove deletes it, and it cannot be undone: it leaves ⏱️ Homework habits and every student’s record. '+
+             'Use it only for homework set by mistake. To keep its record, press “Keep it”, then “Hide”.'
+  };
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   var WUID = 'write-up-lab';      /* and the Write-Up Lab (3 Oct 2026): its parts are the stations */
   window.vHomework = function(D){
     var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
+    hState.archMsg=null;   /* the Archive's last answer belongs to the list it was given for, not to a fresh read */
     /* "Sort by: Due date · Class" (Daniel, 1 Oct 2026), remembered in this browser */
     if(!hState.sort){ var s0=''; try { s0=localStorage.getItem('homework.sort')||''; } catch(e){} hState.sort=(s0==='class')?'class':'due'; }
     if(!hState.whose){ var w0=''; try { w0=localStorage.getItem('homework.whose')||''; } catch(e){} hState.whose=(w0==='all')?'all':'mine'; }
@@ -1450,8 +1816,10 @@ var BOOT = __BOOT__;
           (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
       function card(h){
         var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id], rm=h.remind||null;
+        var hid=!!(h.overdue&&h.hidden);    /* hidden from the list (7 Oct 2026); a hidden row due again later is listed as ever */
         var w=n||1;   /* nobody left is "nobody left", not "0 of 1 done" */
-        var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+(h.joined?'<span class="churn">'+h.joined+' joined since</span>':'')+
+        /* who left the Students tab since it was set; pupils who joined its class are in it (6 Oct 2026), so none "joined since" */
+        var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+
           (h.dueBad?'<span class="churn">the due date cannot be read</span>':'');
         return '<div class="hw"><div class="hw__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-hw="'+esc(h.id)+'">'+
           '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
@@ -1467,16 +1835,49 @@ var BOOT = __BOOT__;
               '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
               '<div><span class="st-pill '+esc(x.state)+'">'+(x.state==='none'?'not started':x.state)+'</span></div></div>'; }).join('')
             ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
+            (h.outside&&h.outside.length?outsideBox(h):'')+
             (h.dueBad?'<div class="gone">The Due cell for this homework in the 📚 Homework tab is not a date, so it has no due date: it is never shown as overdue, and no summary is emailed. Type the date into that cell, then press Refresh.</div>':'')+
             (h.missing&&h.missing.length?'<div class="gone">Not scored: '+esc(h.missing.join(', '))+' — that part is no longer in the lab, so it is left out rather than counted as nothing done.</div>':'')+
             (h.start?'<div class="hwrem">🗓 '+(h.waiting?'Pupils get it on '+esc(h.startText)+'. Until then they see nothing, in Google Classroom or in the labs. If you remove it here before then, its scheduled Classroom post is removed too.'
               :'Pupils got it on '+esc(h.startText)+' (it was set for a later date).')+'</div>':'')+
             (rm&&rm.plan?'<div class="hwrem">🔔 '+esc(rm.plan)+'</div>':'')+
             '<div class="acts"><button class="act" data-again="'+esc(h.id)+'">Set again</button>'+
+            (hid?'':'<button class="act" data-duechg="'+esc(h.id)+'" aria-expanded="'+(hState.editDue===h.id?'true':'false')+'">Change the due date</button>')+
             (rm&&rm.can?'<button class="act" data-remind="'+esc(h.id)+'" data-on="'+(rm.on?'0':'1')+'">'+(rm.on?'Switch reminders off':'Switch reminders on')+'</button>':'')+
+            /* after the due date: Hide, the button to use (it keeps everything); hidden: Show it again */
+            (h.overdue?(hid?'<button class="act" data-unhide="'+esc(h.id)+'" data-tip="'+esc(HW_TIP.unhide)+'">Show it again</button>'
+              :'<button class="act" data-hide="'+esc(h.id)+'" data-tip="'+esc(HW_TIP.hide)+'">Hide</button>'):'')+
             (hState.confirmDel===h.id
               ? '<button class="act danger" data-del="'+esc(h.id)+'">Yes, remove it</button><button class="act" data-keep="1">Keep it</button>'
-              : '<button class="act danger" data-ask="'+esc(h.id)+'">Remove</button>')+'</div></div>':'')+'</div>'; }
+              : '<button class="act danger" data-ask="'+esc(h.id)+'" data-tip="'+esc(h.overdue?HW_TIP.delPast:HW_TIP.delNow)+'">Remove</button>')+'</div>'+
+            /* the same warning in words while Remove waits for a yes: a tip never shows on a touch screen */
+            (hState.confirmDel===h.id?'<div class="gone" role="status">'+esc(h.overdue?HW_TIP.askPast:HW_TIP.askNow)+'</div>':'')+
+            (hState.editDue===h.id?dueForm(h):'')+
+            (hState.cardMsg&&hState.cardMsg.id===h.id?'<div class="msg '+(hState.cardMsg.bad?'bad':'ok')+'" role="status">'+esc(hState.cardMsg.text)+'</div>':'')+
+            '</div>':'')+'</div>'; }
+      /* Pupils in its class now who are not in it (Daniel, 6 Oct 2026): homework set before a pupil joined the class never counts
+         against them. The teacher ticks only those who were in the class the day it was set and came onto the Students tab
+         later (an import that stopped part way: his 11C), and counts them in (homeworkAddPupils). */
+      function outsideBox(h){
+        var cls=(h.targets&&h.targets.cls)||'', picked=hState.outPick[h.id]||{};
+        return '<div class="outside"><div class="outside__h">In '+esc(cls)+' now, not in this homework, so it does not count for them:</div>'+
+          '<div class="outside__l">'+h.outside.map(function(p){
+            return '<label class="ck"><input type="checkbox" data-outpick="'+esc(h.id)+'" value="'+esc(p.email)+'"'+(picked[p.email]?' checked':'')+'>'+
+              '<span>'+esc(p.name||p.email)+' <span class="outside__w">· '+(p.late?'came onto the Students tab after it was set':'was in another class when it was set')+'</span></span></label>'; }).join('')+'</div>'+
+          '<div class="tmsg">Homework set before a pupil joined the class never counts against them. Tick a pupil only if they were in '+esc(cls)+
+          ' on the day it was set and came onto the Students tab later (an import that stopped part way).</div>'+
+          '<div class="duechg__b"><button class="act" id="outadd-'+esc(h.id)+'" data-outadd="'+esc(h.id)+'"'+(Object.keys(picked).length?'':' disabled')+'>Count the ticked pupils in it</button></div></div>';
+      }
+      /* Change the due date (Daniel, 6 Oct 2026): the boxes start at the due it has now, in the school's zone; an empty
+         time is the end of the day, as in Set homework */
+      function dueForm(h){
+        var dr=hState.dueDraft&&hState.dueDraft.id===h.id?hState.dueDraft:{ day:h.dueDay||'', hm:(h.dueHm&&h.dueHm!=='23:59'?h.dueHm:'') };
+        return '<div class="duechg"><div class="fld"><label for="dd-'+esc(h.id)+'">New due date</label><input type="date" id="dd-'+esc(h.id)+'" data-dueday="'+esc(h.id)+'" value="'+esc(dr.day)+'"></div>'+
+          '<div class="fld"><label for="dt-'+esc(h.id)+'">Time (empty: end of the day)</label><input type="time" id="dt-'+esc(h.id)+'" data-duehm="'+esc(h.id)+'" value="'+esc(dr.hm)+'"></div>'+
+          '<div class="duechg__b"><button class="act" data-duesave="'+esc(h.id)+'">Save the new date</button><button class="act" data-duecancel="1">Cancel</button></div>'+
+          '<div class="tmsg">'+(h.inClassroom?'Its Google Classroom assignment gets the new date too.':'It was not posted to Google Classroom, so only this list changes.')+
+          ' Reminders already sent are not sent again; reminders still to come follow the new date.</div></div>';
+      }
       /* Due date: what is not yet due first, the soonest first; then what is past, the most recent first; a due date that
          cannot be read last. Class: one group per class in year order, each in that same order, and homework set for
          chosen pupils in a group of its own at the end. The server judged "overdue" in the school's zone. */
@@ -1490,15 +1891,39 @@ var BOOT = __BOOT__;
          has "All teachers" beside the sort; the choice is kept in this browser. */
       var all=D.whose==='all', showAll=all&&hState.whose==='all';
       var L=all&&!showAll?HW.filter(function(h){ return h.mine; }):HW, others=all?HW.length-HW.filter(function(h){ return h.mine; }).length:0;
+      /* The Archive (Daniel, 7 Oct 2026: "instead of deleting everything, kind of have a archived section where you have
+         assessments that are already, uh, the due date is over"): homework past its due date leaves this list for a folded
+         Archive below it, the most recent first, sorted as this list is; what the teacher hid waits at its end. Nothing in
+         it is deleted, and all of it counts in Homework habits. */
+      var live=L.filter(function(h){ return !h.overdue; }), past=L.filter(function(h){ return h.overdue&&!h.hidden; }),
+          hidden=L.filter(function(h){ return h.overdue&&h.hidden; });
+      function listOf(A){
+        if (hState.sort==='class') {
+          var grp={}; A.forEach(function(h){ var k=(h.targets&&h.targets.cls)||''; (grp[k]=grp[k]||[]).push(h); });
+          var keys=Object.keys(grp).filter(function(k){ return k; }).sort(cmpClass); if(grp['']) keys.push('');
+          return keys.map(function(k){ return '<div class="hwgrp"><div class="coh"><span class="coh__t">'+esc(k||'Chosen pupils')+'</span>'+
+            '<span class="n">'+grp[k].length+'</span></div>'+grp[k].slice().sort(byDue).map(card).join('')+'</div>'; }).join('');
+        }
+        return A.slice().sort(byDue).map(card).join('');
+      }
       var list;
       if (!L.length) list='<div class="empty">'+(all&&!showAll&&others?'You have set nothing yet. Other teachers have set '+others+': choose “All teachers” to see '+(others===1?'it':'them')+'.':'You have set nothing yet.')+'</div>';
-      else if (hState.sort==='class') {
-        var grp={}; L.forEach(function(h){ var k=(h.targets&&h.targets.cls)||''; (grp[k]=grp[k]||[]).push(h); });
-        var keys=Object.keys(grp).filter(function(k){ return k; }).sort(cmpClass); if(grp['']) keys.push('');
-        list=keys.map(function(k){ return '<div class="hwgrp"><div class="coh"><span class="coh__t">'+esc(k||'Chosen pupils')+'</span>'+
-          '<span class="n">'+grp[k].length+'</span></div>'+grp[k].slice().sort(byDue).map(card).join('')+'</div>'; }).join('');
+      else if (!live.length) list='<div class="empty">Nothing is waiting for its due date. Homework whose due date has passed is in the Archive below.</div>';
+      else list=listOf(live);
+      var arch='';
+      if (past.length||hidden.length) {
+        var ao=!!hState.arch, ho=ao&&!!hState.hidOpen;
+        arch='<section class="sec hwarch" id="harch"><div class="sec__h"><span class="sec__t">Archive</span>'+
+          '<span class="arch__n">'+past.length+' past '+(past.length===1?'its':'their')+' due date'+(hidden.length?' · '+hidden.length+' hidden':'')+'</span>'+
+          '<div class="hsort"><button class="chip'+(ao?' on':'')+'" data-arch="1" aria-expanded="'+(ao?'true':'false')+'" aria-controls="harchb">'+(ao?'Close':'Open')+'</button></div></div>'+
+          '<p class="sec__d">Homework whose due date has passed, the most recent first. All of it still counts in ⏱️ Homework habits and in every student’s record. “Hide” takes one off this list without deleting anything.</p>'+
+          (hState.archMsg?'<div class="msg '+(hState.archMsg.bad?'bad':'ok')+'" role="status">'+esc(hState.archMsg.text)+'</div>':'')+
+          '<div id="harchb">'+(ao?'<div class="hwlist">'+(past.length?listOf(past):'<div class="empty">Every homework past its due date is hidden.</div>')+'</div>'+
+            (hidden.length?'<div class="archhid"><button class="chip'+(ho?' on':'')+'" data-hidopen="1" aria-expanded="'+(ho?'true':'false')+'">'+
+              (ho?'Close the hidden homework':'Show the '+hidden.length+' hidden')+'</button>'+
+              (ho?'<div class="hwlist">'+listOf(hidden)+'</div>':'')+'</div>':''):'')+'</div>'+
+          '</section>';
       }
-      else list=L.slice().sort(byDue).map(card).join('');
       var sortBar = L.length>1 ? '<div class="hsort" role="group" aria-label="Sort the homework"><span class="hsort__k">Sort by</span>'+
         [['due','Due date'],['class','Class']].map(function(o){ var on=hState.sort===o[0];
           return '<button class="chip'+(on?' on':'')+'" data-hsort="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+'</div>' : '';
@@ -1511,7 +1936,7 @@ var BOOT = __BOOT__;
         '<section class="sec"><div class="sec__h"><span class="sec__t">'+(showAll?'What every teacher has set':'What you have set')+'</span>'+sortBar+whoseBar+'</div>'+
         '<p class="sec__d">'+(showAll?'':'Only the homework you set is listed here. ')+'Open one to see each student. “Set again” refills the form above.</p>'+
         (D.remindAllowed===false?'<div class="warn">The reminders cannot be posted: Google has not been allowed to post Classroom announcements for this script. 🧪 Biology Labs ▸ 🩺 Check the set-up says what to do.</div>':'')+
-        '<div class="hwlist">'+list+'</div></section>';
+        '<div class="hwlist">'+list+'</div></section>'+arch;
       wireH();
     }
     function say(t,bad){ var m=$('hmsg'); if(m){ m.textContent=t||''; m.className='msg'+(t?(bad?' bad':' ok'):''); } }
@@ -1585,6 +2010,31 @@ var BOOT = __BOOT__;
         hState.confirmDel=null; paint(); }); });
       document.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         hState.confirmDel=null; send('homeworkDelete', b.getAttribute('data-del')); }); });
+      document.querySelectorAll('[data-duechg]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        var id=b.getAttribute('data-duechg'); hState.editDue=hState.editDue===id?null:id; hState.dueDraft=null; hState.cardMsg=null; paint();
+        var i=$('dd-'+id); if(i) i.focus(); }); });
+      ['data-dueday','data-duehm'].forEach(function(a){ document.querySelectorAll('['+a+']').forEach(function(i){ i.addEventListener('input', function(){
+        var id=i.getAttribute(a), dd=$('dd-'+id), dt=$('dt-'+id);
+        hState.dueDraft={ id:id, day:dd?dd.value:'', hm:dt?dt.value:'' }; }); }); });
+      document.querySelectorAll('[data-duecancel]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        hState.editDue=null; hState.dueDraft=null; hState.cardMsg=null; paint(); }); });
+      document.querySelectorAll('[data-outpick]').forEach(function(i){ i.addEventListener('change', function(ev){ ev.stopPropagation();
+        var id=i.getAttribute('data-outpick'), m=hState.outPick[id]=hState.outPick[id]||{};
+        if(i.checked) m[i.value]=1; else delete m[i.value];
+        var b=document.getElementById('outadd-'+id); if(b) b.disabled=!Object.keys(m).length; }); });
+      document.querySelectorAll('[data-outadd]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(hState.busy) return;
+        var id=b.getAttribute('data-outadd'), emails=Object.keys(hState.outPick[id]||{});
+        if(!emails.length) return;
+        b.disabled=true; b.textContent='Counting…';
+        cardCall('homeworkAddPupils', { id:id, emails:emails }, id, function(){ delete hState.outPick[id]; }); }); });
+      document.querySelectorAll('[data-duesave]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(hState.busy) return;
+        var id=b.getAttribute('data-duesave'), dd=$('dd-'+id), dt=$('dt-'+id);
+        hState.dueDraft={ id:id, day:dd?dd.value:'', hm:dt?dt.value:'' };
+        if(!hState.dueDraft.day){ hState.cardMsg={ id:id, text:'Choose the new due date.', bad:true }; paint(); return; }
+        b.disabled=true; b.textContent='Saving…';
+        cardCall('homeworkChangeDue', { id:id, due:hState.dueDraft.day, time:hState.dueDraft.hm }, id, function(){ hState.editDue=null; hState.dueDraft=null; }); }); });
       document.querySelectorAll('[data-enyr]').forEach(function(b){ b.addEventListener('click', function(){ hState.enYr=b.getAttribute('data-enyr'); paint(); }); });
       document.querySelectorAll('[data-enu]').forEach(function(h){ h.addEventListener('click', function(ev){
         if(ev.target.closest('[data-enall]')) return;
@@ -1622,7 +2072,41 @@ var BOOT = __BOOT__;
       document.querySelectorAll('[data-remind]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         if(hState.busy) return; b.disabled=true; b.textContent='Switching…';
         send('homeworkRemind', { id:b.getAttribute('data-remind'), on:b.getAttribute('data-on')==='1' }); }); });
+      /* the Archive (7 Oct 2026): open and close it, its hidden homework, and Hide / Show it again */
+      document.querySelectorAll('[data-arch]').forEach(function(b){ b.addEventListener('click', function(){
+        hState.arch=!hState.arch; if(!hState.arch) hState.hidOpen=false; hState.archMsg=null; paint(); }); });
+      document.querySelectorAll('[data-hidopen]').forEach(function(b){ b.addEventListener('click', function(){
+        hState.hidOpen=!hState.hidOpen; paint(); }); });
+      document.querySelectorAll('[data-hide]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(hState.busy) return; b.disabled=true; b.textContent='Hiding…'; hideCall(b.getAttribute('data-hide'), true); }); });
+      document.querySelectorAll('[data-unhide]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(hState.busy) return; b.disabled=true; b.textContent='Showing…'; hideCall(b.getAttribute('data-unhide'), false); }); });
       var g=$('hset'); if(g) g.addEventListener('click', submit);
+    }
+    /* Hide, or Show it again (7 Oct 2026). The answer is said at the top of the Archive: the card has just moved, to the
+       hidden homework at its end or back into it. */
+    function hideCall(id, hide){
+      var t=''; HW.forEach(function(x){ if(x.id===id) t=x.title||''; });
+      hState.busy=true;
+      google.script.run.withSuccessHandler(function(r){ hState.busy=false;
+          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn(); V.put('homework', {ok:true, data:D});
+            hState.archMsg={ text: hide ? '“'+t+'” is hidden. It still counts in ⏱️ Homework habits and in every student’s record. It waits at the end of the Archive, with the hidden homework.'
+                                        : '“'+t+'” is listed in the Archive again.', bad:false }; }
+          else hState.archMsg={ text:(r&&r.why)||'That did not work.', bad:true };
+          paint(); })
+        .withFailureHandler(function(){ hState.busy=false; hState.archMsg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
+        .homeworkHide({ id:id, hide:hide });
+    }
+    /* a change to one homework, answered in its own card (the due date, pupils counted in): the note says, for a due date,
+       whether Google Classroom took it too */
+    function cardCall(fn, arg, id, onOk){
+      hState.busy=true;
+      google.script.run.withSuccessHandler(function(r){ hState.busy=false;
+          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn(); V.put('homework', {ok:true, data:D});
+            if(onOk) onOk(); hState.cardMsg={ id:id, text:r.note||'Done.', bad:/by hand/.test(r.note||'') }; }
+          else hState.cardMsg={ id:id, text:(r&&r.why)||'That did not work.', bad:true };
+          paint(); })
+        .withFailureHandler(function(){ hState.busy=false; hState.cardMsg={ id:id, text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })[fn](arg);
     }
     function send(fn, arg){
       if (hState.busy) return; hState.busy=true;
@@ -1754,7 +2238,7 @@ var BOOT = __BOOT__;
         '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(hbState.cls||'No class')+'</span><span class="sec__n">'+
         list.length+' pupil'+(list.length===1?'':'s')+' · '+cols.length+' homework'+(nFlag?' · '+nFlag+' worth a look':'')+'</span></div>'+
         '<p class="sec__d">Oldest homework on the left. Hover over or tap a mark for when they finished; click a name for their timeline.</p>'+
-        '<div class="panel"><div class="hbwrap"><table class="hb"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+key+'</div></section>'+
+        '<div class="panel panel--keyed"><div class="hbwrap"><table class="hb"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+key+'</div></section>'+
         (D.left?'<p class="sec__d" style="margin-top:12px">'+D.left+' homework left out: '+(D.left===1?'it has':'they have')+' no due time to measure against.</p>':'');
       wireHb();
     }

@@ -217,7 +217,7 @@ secret — it sits in plain sight in the page. One long string ending
 
 | # | Do this |
 |:--:|---|
-| **17** | In your Sheet: **🧪 Biology Labs ▸ Import students from Classroom…** Tick your courses, check the class codes it guesses, **Import**. Every lab tab fills with names. |
+| **17** | In your Sheet: **🧪 Biology Labs ▸ Import students from Classroom…** Tick your courses, check the class codes it guesses, **Import**. It imports one class at a time and says, for each, how many pupils Classroom lists and how many it added. You may close the window: the import carries on by itself (it pauses a minute now and then, to stay inside Google's six-minute limit) and says *Finished* at the end. A class that fails is named, and *Try again* imports only that one. Every lab tab fills with names. Once a class has been imported this school year (from 1 August), the window also lists the pupils in none of this year's classes: tick the ones who have left and press *Mark … as Left*; their records stay. |
 | **18** | Open **your** lab link, sign in as yourself (the button at the top right) and answer one question. Within two minutes the lab saves it. |
 
 If you are on the Students tab, your row fills in. If you are not — you are the teacher, after
@@ -323,10 +323,10 @@ It has six tabs:
 | Tab | What it shows |
 |---|---|
 | **Spreadsheets** | every spreadsheet you put on it — each assessment's, the test copies, the tracker — grouped by **cohort, the year they graduate** (in 2026–27, Y10 is Class of 2028), with the current year group (Y9/Y10/Y11) worked out for you, so it never goes stale. Records are pinned at the top; within a cohort the spreadsheets are grouped by **type** (Reflection · Test · Survey · …, colour-coded). There is a **search box**, **filter chips** by type, an **Only current cohorts** toggle (on by default) that hides cohorts who have left, and a **Copy** button on every card for pasting into Google Classroom or an email. |
-| **Lab progress** | how each class is doing in the labs: every student against every lab, who needs a look, and the stations a class finds hardest |
+| **Lab progress** | how each class is doing in the labs: every student against every lab, who needs a look, and the stations a class finds hardest. Click a student, then open a station: each question is a small square, coloured by their first try (right first time, right after more checks, tried and not right yet, not tried), with the question's words. *Where they get stuck* opens to the questions the class most often did not get right at the first check. A pupil who started a station again gets one row of squares per round, each with how many times they pressed Check, and the *Practised again* tile counts who did; practising again is never flagged as stuck |
 | **Bio English** | how far each student has got with the Bio English Lab sets of their year |
 | **Students** | find any pupil and open their own reflection tracker, the same page they see |
-| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
+| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. To change a due date, open the homework in the list and press *Change the due date*: its Google Classroom assignment gets the new date too. Homework past its due date moves to an *Archive* under the list: *Hide* tidies one away there and keeps it everywhere else; *Remove* deletes it, from ⏱️ Homework habits and every pupil's record too, so use it only for homework set by mistake. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
 | **⏱️ Homework habits** | when each pupil finishes each homework, against the time it was set and its due time: *done before it was set*, *early* (by half the time), *in good time* (by 85%), *last minute*, *late*, *not done* or *still open*; ⏰ when they finished after a reminder had gone to them; their checks and right first time; and the time *from their first try to their finish* (between two saves: never time spent working). Each pupil gets a habit line from their last six homework (*Usually early*, *Usually in good time*, *Usually the last minute*, *Often late or not done*, *Only after a reminder*, *Getting better*, *Getting worse* or *Mixed*), and a neutral *Worth a look* when a homework is finished very fast and almost all right first time by a pupil whose results are usually low (teacher-marked tests under 50%): a reason to talk with them, never proof of anything. Pick a class; click a name for that pupil's timeline. The times are kept, per station, from the first save after the script is pasted |
 
 If you also run the analysis website (its own script in the Student Progress Tracker), the teachers on its 👥 list see
@@ -440,9 +440,9 @@ Never a class's times, anyone else's, or a single question.
 | Tab | What is in it |
 |---|---|
 | 🟢 **Students** | the dashboard — every student, their class, and their best score in **every** lab, red through amber to green; a lab not built yet has a paler heading and an empty grey column |
-| 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported. Its last column, *Station times* (hidden), notes when each station was first tried and first finished, for ⏱️ Homework habits |
+| 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported. Two hidden columns end it: *Station times* notes when each station was first tried and first finished, for ⏱️ Homework habits; *Rounds*, the last, keeps every round of every station a pupil practised, with the checks at each question and how often they reset the whole lab, for Lab progress |
 | 🟢 **✍️ Bio English** | a row per student, made at their first save in Bio English Lab: keyword and answer-writing questions answered, how many right first time, sets finished; the last column, *Set times* (hidden), notes when each set was first tried and first finished |
-| 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title, its due date, or its reminders (Remind: on or off) here; the last columns say when each reminder went and to how many pupils, never who |
+| 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title, its due date, or its reminders (Remind: on or off) here (a due date changed in this tab does not reach Google Classroom: change it on the teacher page, *Change the due date*, and Classroom follows); the reminder columns say when each reminder went and to how many pupils, never who; the last, Hidden, is when a homework was hidden from the teacher page's Archive (hidden homework still counts everywhere; only a date there hides it) |
 | 🟣 **👩‍🏫 Teachers** | the other teachers who may open the teacher page |
 | 🔵 **🔗 Teacher links** | the spreadsheets the teacher page lists |
 | 🟡 **Labs** | one row for each lab in the script, written afresh by every Tidy up, and how many saves each has had |
@@ -472,7 +472,7 @@ stays in the browser and is sent the moment the student signs in.
 
 | 🧪 Biology Labs ▸ | What it does |
 |---|---|
-| **🎓 Import students from Classroom…** | the main one. Adds new students, then builds and formats everything |
+| **🎓 Import students from Classroom…** | the main one. Adds new students one class at a time, then builds and formats everything |
 | **🩺 Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up — and each optional part: the record card, the teacher page, homework, the morning email, the homework reminders and the Classroom permission they need |
 | **📊 Refresh everyone's progress** | re-reads the lab tabs into the dashboard |
 | **🎨 Tidy up** | rebuild anything missing, write the **Labs** tab afresh from the script's list of labs, and re-apply the formatting |
@@ -481,6 +481,7 @@ stays in the browser and is sent the moment the student signs in.
 | **👥 Teacher page: teachers and addresses…** | the page's addresses (the page, the tracker, the hub), and who may open it |
 | **🤝 Let the teachers on the list edit this spreadsheet…** | gives each teacher on the list edit access to this Sheet, after one question that names them. Only addresses at the school's own domain; nobody is ever removed. An editor can change any cell and open the script |
 | **📬 Email me when homework falls due (every morning)** | at about 7:00 each teacher gets a summary of their homework that has just fallen due: who finished, who started, who did not |
+| **🔑 Make every pupil sign in again (cancel their saving passes)…** | each pupil's browser keeps a pass from this script, so their work is still saved after Google's one-hour sign-in ends, for up to 30 days. Use this if a laptop is lost or a pass was seen where it should not be: every pass stops at once, each pupil sees "sign in again" once, and nothing they did is lost |
 
 *Refresh everyone's progress* and *Tidy up* also sit as tick-box buttons on the **Setup** tab.
 The import opens a window, which a spreadsheet button is not allowed to do.
@@ -538,7 +539,7 @@ the other three goes into an HTML file with the same name.
 |---|---|
 | **[`apps-script/Code.gs`](apps-script/Code.gs)** | the whole script: receiving each student's work, the roster, the tabs, Classroom import, and giving a student their own scores back |
 | **[`apps-script/ClassroomImport.html`](apps-script/ClassroomImport.html)** | HTML file `ClassroomImport`: the little window that imports your classes |
-| **[`apps-script/Teacher.html`](apps-script/Teacher.html)** | HTML file `Teacher`: the teacher page — Spreadsheets, Lab progress, Bio English, Students and Set homework |
+| **[`apps-script/Teacher.html`](apps-script/Teacher.html)** | HTML file `Teacher`: the teacher page — Spreadsheets, Lab progress, Bio English, Students, Set homework and ⏱️ Homework habits |
 | **[`apps-script/TeacherPage.html`](apps-script/TeacherPage.html)** | HTML file `TeacherPage`: the window behind **🔗 Add or remove links on the teacher page** and **👥 Teacher page: teachers and addresses** |
 
 ---
