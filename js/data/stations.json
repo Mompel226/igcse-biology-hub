@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-07T12:21:08.205Z",
+  "generated": "2026-10-07T13:27:36.145Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -362,6 +362,90 @@
           "questions": 6,
           "sig": "6:1266t98",
           "syl": "9.4.7|9.4.4|9.4.7|9.4.7,9.4.3|9.4.3|9.4.7"
+        }
+      ]
+    },
+    "cells-lab": {
+      "name": "Cells Lab",
+      "tab": "Cells",
+      "questions": 103,
+      "stations": [
+        {
+          "id": "levels",
+          "name": "From body to cell",
+          "questions": 10,
+          "sig": "10:1zhrvo",
+          "syl": "2.1.7|2.1.7|2.1.7,2.1.6|2.1.7|2.1.7|2.1.7|2.1.7|2.1.7|2.1.7|2.1.7,2.1.2"
+        },
+        {
+          "id": "microscope",
+          "name": "The light microscope",
+          "questions": 8,
+          "sig": "8:adyiue",
+          "syl": "AO3.4|AO3.4|AO3.4|AO3.4|AO3.4|AO3.4|AO3.4|AO3.4"
+        },
+        {
+          "id": "magnification",
+          "name": "Magnification",
+          "questions": 10,
+          "sig": "10:8ka1on",
+          "syl": "2.2.1|2.2.1,2.2.2|2.2.1,2.2.2|2.2.1,2.2.2|2.2.1|2.2.2,AO3.6|2.2.1,2.2.2,AO3.4|2.2.2|2.2.1|2.2.1"
+        },
+        {
+          "id": "units",
+          "name": "Millimetres and micrometres",
+          "questions": 8,
+          "sig": "8:1nlfcjx",
+          "syl": "2.2.3|2.2.3|2.2.3|2.2.3|2.2.3|2.2.3|2.2.1,2.2.2,2.2.3|2.2.1,2.2.2,2.2.3"
+        },
+        {
+          "id": "animal",
+          "name": "The animal cell",
+          "questions": 11,
+          "sig": "11:1uj5ve",
+          "syl": "2.1.3|2.1.3,2.1.4|2.1.4|2.1.4|2.1.4|2.1.4|2.1.1,AO3.4|2.1.1|2.1.4|2.1.4|2.1.4"
+        },
+        {
+          "id": "plant",
+          "name": "The plant cell",
+          "questions": 11,
+          "sig": "11:tx7fl5",
+          "syl": "2.1.3|2.1.3|2.1.4|2.1.1|2.1.1,2.1.4|2.1.1,2.1.6|2.1.4|2.1.4|2.1.4|2.1.1,3.2.8|2.1.1"
+        },
+        {
+          "id": "bacterium",
+          "name": "The bacterial cell",
+          "questions": 10,
+          "sig": "10:ncqg8w",
+          "syl": "2.1.3|2.1.2,2.1.4|2.1.2|2.1.1,2.1.2|2.1.2|2.1.2|2.1.2|2.2.3|2.1.4|2.1.2,2.1.7"
+        },
+        {
+          "id": "compare",
+          "name": "Three cells compared",
+          "questions": 10,
+          "sig": "10:alke9q",
+          "syl": "2.1.1,2.1.2|2.1.1,2.1.2|2.1.1,2.1.2|2.1.1,2.1.2|2.1.1|2.1.2,2.1.3|2.1.1|2.1.3,AO3.4|2.2.3|2.2.3"
+        },
+        {
+          "id": "specialised",
+          "name": "Specialised cells",
+          "questions": 12,
+          "sig": "12:84fvmn",
+          "syl": "2.1.6|2.1.5|2.1.6|2.1.6|2.1.6|2.1.6|2.1.6|2.1.6|2.1.6,2.1.4|2.1.6|2.1.6,2.1.7|2.1.6"
+        },
+        {
+          "id": "drawing",
+          "name": "Drawing what you see",
+          "questions": 8,
+          "sig": "8:1ceby12",
+          "syl": "AO3.2|AO3.2|AO3.2|2.2.1,2.2.2|AO3.2|AO3.2,2.1.3|AO3.2|2.2.1,2.2.2"
+        },
+        {
+          "id": "measuring",
+          "name": "Measuring a cell",
+          "questions": 5,
+          "sig": "5:gkt159",
+          "syl": "2.2.2,AO3.6|2.2.3|AO3.2,AO3.6|AO3.6,2.2.2|AO3.3"
         }
       ]
     }
