@@ -1350,6 +1350,7 @@
       try { localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); } catch (e2) {}
       footer(true);
       if (last && acting) render(last.who, last.j);
+      else if (!acting && resting) { var rw = SI.who(); if (rw && rw.email === resting) rest(rw); }
       /* ask again rather than redraw the last answer: a teacher switches mode to SEE the test as it
          is now — after changing a time or a row — not as it was when they signed in */
       if (acting) sitAsk(acting); else sitDraw();
@@ -1374,8 +1375,10 @@
        it arrive a second later; the check still runs and shuts the door if the answer has
        changed. Only a definite answer shuts it — a network failure leaves it as it was, because
        a door that vanishes whenever the wifi blinks teaches a student not to trust it. Whether
-       they are a teacher is remembered too, only so that teacher mode does not flash a student's
-       door first; the teacher page's address is never kept. */
+       they are a teacher is remembered too, and the teacher page's address with it (Daniel, 7 Oct 2026: coming back
+       from the assessment system, "it does the checking again… can it not save the check-in?"): the door stands at
+       once and the check runs quietly behind it. The address opens nothing by itself: the teacher page checks the
+       Google account of whoever opens it. */
     var MINE_KEY = 'biology-hub.mine';
     function mineRemembered(who) {
       try {
@@ -1385,6 +1388,7 @@
     }
     function remember(who, t) {
       try { localStorage.setItem(MINE_KEY, JSON.stringify({ email: who.email, teacher: !!teacher,
+                                                          teacherPage: teacher && teacher.page ? teacher.page : '',
                                                           reflected: t ? t.reflected : 0,
                                                           assessments: t ? t.assessments : null,
                                                           unfinished: t ? t.unfinished : 0,
@@ -1438,6 +1442,40 @@
       showPersonal(null);
       if (who && teacher) remember(who, null);                 /* still a teacher, with nothing to show */
       else { try { localStorage.removeItem(MINE_KEY); } catch (e) {} }
+    }
+
+    /* A remembered answer, drawn at once: the teacher's door in teacher mode, else My assessments when there is
+       anything on it. False when there is nothing to draw (the card is left as it was). */
+    var KEEP_MS = 30 * 864e5;                    /* (as long as the labs script's own pass: 30 days) */
+    function okPage(u) { u = String(u || ''); return /^https:\/\/script\.google\.com\//.test(u) ? u : ''; }
+    function drawKnown(v, known, instant) {
+      if (!known || !(Date.now() - (known.at || 0) < KEEP_MS)) return false;
+      if (known.teacher && (!teacher || !teacher.page)) teacher = { page: okPage(known.teacherPage) };
+      footer(true);
+      var nm = tidyName(v.name) || (REC.label || 'Your Biology');
+      if (known.teacher && mode() === 'teacher') {
+        var pg = okPage(known.teacherPage);
+        if (!pg) return false;
+        if (sysEl) { sysEl.href = pg; showPersonal('system', instant); } else showPersonal(null);
+        asLink(pg, nm, 'Assessment system', 'Signed in · teacher mode', true);
+        return true;
+      }
+      var kt = tally(known);
+      if (!worthOpening(kt)) return false;
+      mineSay(kt);
+      showPersonal('mine', instant);
+      asLink(goMine(kt), nm, 'My assessments · ' + cardLine(kt), known.teacher ? 'Signed in · test mode' : '');
+      return true;
+    }
+    /* Google's hour is up and Google would not renew it without a click: still signed in on this computer (nobody
+       signed out), so the card stays as it was last seen, its doors open; the next fresh sign-in, here or in a lab,
+       checks everything again. Signing out ends it. (`resting`: whose remembered card stands) */
+    var resting = '';
+    function rest(v) {
+      var kn = mineRemembered(v);
+      if (!drawKnown(v, kn, true)) return false;
+      resting = v.email; tools(v);
+      return true;
     }
 
     /* What the labs script said, drawn. Called again, with the same answer, when a teacher
@@ -1567,18 +1605,12 @@
       acting = v;
       tools(v);
       watchExpiry(v);
+      resting = '';
       var known = mineRemembered(v);
       if (known && known.teacher && !teacher) teacher = { page: '' };   /* only so the switch shows at once */
       footer(true);
-      var kt = known ? tally(known) : null;
-      var studentView = !(known && known.teacher && mode() === 'teacher');
-      if (kt && studentView && worthOpening(kt)) {                   /* at once, then confirmed below */
-        mineSay(kt);
-        showPersonal('mine', instant);
-        asLink(goMine(kt), tidyName(v.name) || (REC.label || 'Your Biology'), 'My assessments · ' + cardLine(kt),
-               known.teacher ? 'Signed in · test mode' : '');
-        ask(v, true);
-      } else {
+      if (drawKnown(v, known, instant)) ask(v, true);               /* at once, then confirmed below, quietly */
+      else {
         showPersonal(null);
         ask(v, false);
       }
@@ -1589,7 +1621,7 @@
        one made or ended in another tab of the site — a lab's "not you?" included. */
     SI.on(function (v) {
       if (!v) {
-        stopActing(); teacher = null;
+        stopActing(); teacher = null; resting = '';
         mineShut();
         asSignIn();
         return;
@@ -1632,7 +1664,9 @@
     }
     function ranOut() {
       if (!acting) return;
+      var was_ = acting;
       stopActing();
+      if (rest(was_)) return;
       showPersonal(null);
       asSignIn('Your sign-in ran out after an hour — sign in again');
     }
@@ -1665,6 +1699,10 @@
     var have = SI.live(), was = SI.who();
     if (have) {
       start(have, true);                                  /* already signed in, here or in a lab */
+    } else if (was && rest(was)) {
+      /* Signed in before and never signed out, Google's hour is up, and this computer remembers the card: it stands
+         at once; a new token, if Google gives one without a click, comes through SI.on and checks everything again */
+      SI.renew(CID, function () {});
     } else if (was) {
       /* Signed in before and never signed out, but Google's hour is up. Ask Google for a new token
          for the same account — without a click when it can — before offering the button. A door
