@@ -6023,7 +6023,7 @@ console.log('— keep: a reworded station keeps its fingerprint (the practice-qu
 /* "even if you shuffle the questions, even if you rephrase the questions … the students still have the correct answer"
    (Daniel). The teacher page shows a pupil's squares and words only where _labSig_ matches the fingerprint their letters
    were saved under, so it must honour `keep` exactly as every lab's own stationSig does. */
-ok &= run('_labSig_ honours keep exactly as the four labs’ stationSig do; reworded again, the station is new', () => {
+ok &= run('_labSig_ honours keep exactly as the five labs’ stationSig do; reworded again, the station is new', () => {
   const vm = require('vm');
   const appSig = lab => {
     const src = fs.readFileSync('../../labs/' + lab + '-lab/js/app.js', 'utf8');
@@ -6033,7 +6033,7 @@ ok &= run('_labSig_ honours keep exactly as the four labs’ stationSig do; rewo
   };
   const w = {}; vm.runInNewContext(fs.readFileSync('../../labs/plants-lab/js/data/stations.js', 'utf8'), { window: w });
   const st = JSON.parse(JSON.stringify(w.STATIONS.filter(s => (s.activities || []).some(a => a.type === 'mcq'))[0]));
-  const labs = ['plants', 'circulation', 'classification', 'digestion'].map(l => [l, appSig(l)]);
+  const labs = ['plants', 'circulation', 'classification', 'digestion', 'cells'].map(l => [l, appSig(l)]);
   const was = _labSig_(st);
   labs.forEach(([l, sig]) => { if (sig(st) !== was) throw new Error(l + ' and _labSig_ disagree on a station as published'); });
   const q = st.activities.findIndex(a => a.type === 'mcq');
@@ -6077,9 +6077,9 @@ console.log('— each question as a square on the teacher page (Daniel, 6 Oct 20
   try {
     HUB_URL = 'https://hub.test'; setMan(REAL_MAN); SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
 
-    ok &= run('the script works out a station’s fingerprint exactly as each lab’s own page does (every station of the four labs)', () => {
+    ok &= run('the script works out a station’s fingerprint exactly as each lab’s own page does (every station of the five labs)', () => {
       let n = 0;
-      ['digestion', 'classification', 'plants', 'circulation'].forEach(lab => {
+      ['digestion', 'classification', 'plants', 'circulation', 'cells'].forEach(lab => {
         const app = fs.readFileSync('../../labs/' + lab + '-lab/js/app.js', 'utf8');
         const h = app.slice(app.indexOf('function hash36('), app.indexOf('\n  }\n', app.indexOf('function hash36(')) + 4);
         const sg = app.slice(app.indexOf('function stationSig('), app.indexOf('\n  }\n', app.indexOf('function stationSig(')) + 4);
