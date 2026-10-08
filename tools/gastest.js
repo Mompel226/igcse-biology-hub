@@ -621,7 +621,6 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'homeworkHide',                                                          /* gated: _hwCaller_ (the Archive, 7 Oct 2026) */
     'uiData',                                                                /* gated: _hwCaller_ */
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
-    'portRoundsOnce',        /* TEMPORARY (7 Oct 2026), gated: _isAdminCaller_; run once from the editor, then deleted */
     'sendDueSummaries',      /* a trigger must be callable: it only ever emails the teacher who set each
                                 overdue homework, once, and hands back a count */
     'sendHomeworkReminders'  /* a trigger must be callable (1 Oct 2026): it takes nothing from its caller, posts only the
@@ -638,8 +637,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the ones that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress', 'getNotThisYear', 'markPupilsLeft',
-   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'studentAccommodation', 'uiData', 'installDailySummary', 'homeworkHide',
-   'portRoundsOnce'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'studentAccommodation', 'uiData', 'installDailySummary', 'homeworkHide'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -999,49 +997,6 @@ ok &= run('rounds (audit): the pull gives the Rounds column only when it is ours
   const no = _roundsColOk_(sh);
   sh.getRange(1, LAB_ROUNDS).setValue(keep);
   if (no !== false || _roundsColOk_(ss.getSheetByName('Digestion')) !== true) throw new Error('column check: ' + no);
-});
-ok &= run('portRoundsOnce (audit): a station with two fingerprints is not counted twice, however often it runs', () => {
-  const sh = ss.getSheetByName('Digestion');
-  _upsertStudents_([{ name: 'Ivy Ko', email: 'ivy@x.kr', userId: 'u13' }], '9A', 'Y9 Biology', 'c1');
-  _seedLab_(_labById_('digestion-lab'));
-  const r = sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === 'ivy@x.kr') + 2;
-  sh.getRange(r, 3).setValue(1); sh.getRange(r, 7).setValue(7); sh.getRange(r, 14).setValue('mouth 1/8 in 7');
-  sh.getRange(r, LAB_SNAP).setValue('mouth~8:bbbb:f0000000');
-  sh.getRange(r, LAB_ROUNDS).setValue('mouth~8:aaaa:^5|mouth~8:bbbb:f0000000.20000000');
-  portRoundsOnce();
-  const one = sh.getRange(r, LAB_ROUNDS).getValue();
-  portRoundsOnce();
-  const two = sh.getRange(r, LAB_ROUNDS).getValue(), t = _roundsSums_(_rParse_(two)).total;
-  if (t !== 7 || one !== two) throw new Error('total ' + t + ': ' + one + ' → ' + two);
-});
-ok &= run('portRoundsOnce: starts every row’s rounds from what it holds, writes nothing else, and a second run changes nothing', () => {
-  const sh = ss.getSheetByName('Classification');
-  _upsertStudents_([{ name: 'Gus Han', email: 'gus@x.kr', userId: 'u12' }], '9A', 'Y9 Biology', 'c1');
-  _seedLab_(_labById_('classification-lab'));
-  const r = sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === 'gus@x.kr') + 2;
-  if (r < 2) throw new Error('no row for Gus');
-  sh.getRange(r, 3).setValue(15); sh.getRange(r, 7).setValue(101);
-  sh.getRange(r, 14).setValue('alive 9/9 in 94 · naming 6/6 in 7');
-  sh.getRange(r, LAB_SNAP).setValue('alive~9:abc:fffffffff@2|naming~6:def:ff1ft0');
-  sh.getRange(r, LAB_FIRST).setValue('alive~9:abc:ff1ft1fff|naming~6:def:ff1ft0');
-  sh.getRange(r, LAB_ROUNDS).setValue('');
-  const before = sh.getRange(1, 1, sh.getLastRow(), LAB_ROUNDS - 1).getValues().map(x => x.join('|'));
-  const say = portRoundsOnce();
-  const cell = sh.getRange(r, LAB_ROUNDS).getValue();
-  if (cell !== 'alive~9:abc:^94;ff1ft1fff.;fffffffff.|naming~6:def:^7;ff1ft0.') throw new Error('ported: ' + cell);
-  if (!/Classification: \d+ rows with work, \d+ written; 1 on round 2 or later/.test(say)) throw new Error('log: ' + say);
-  const after = sh.getRange(1, 1, sh.getLastRow(), LAB_ROUNDS - 1).getValues().map(x => x.join('|'));
-  if (after.join('\n') !== before.join('\n')) throw new Error('it changed a column other than Rounds');
-  portRoundsOnce();
-  if (sh.getRange(r, LAB_ROUNDS).getValue() !== cell) throw new Error('a second run changed it: ' + sh.getRange(r, LAB_ROUNDS).getValue());
-  /* the pupil's page then sends its round: nothing is counted twice */
-  TOKEN_EMAIL = 'gus@x.kr';
-  const out = hand({ app: 'classification-lab', name: 'Gus Han', total: 64, score: 15, checks: 101, snap: 'alive~9:abc:fffffffff@2|naming~6:def:ff1ft0',
-                     stations: { alive: '9/9 in 101', naming: '6/6 in 7' }, rounds: 'alive~9:abc:+94;ff1ft1fff.;fffffffff.700000000|naming~6:def:ff1ft0.112300' });
-  TOKEN_EMAIL = 'ana@x.kr';
-  if (!/^recorded/.test(out)) throw new Error(out);
-  const g = sh.getRange(r, 1, 1, LAB_ROUNDS).getValues()[0];
-  if (g[6] !== 108 || g[LAB_ROUNDS - 1] !== 'alive~9:abc:+94;ff1ft1fff.;fffffffff.700000000|naming~6:def:ff1ft0.112300') throw new Error('after the page: ' + g[6] + ' / ' + g[LAB_ROUNDS - 1]);
 });
 ok &= run('a pupil whose answers are all still wrong gets them back too (Score 0)', () => {
   _upsertStudents_([{ name: 'Eli Kim', email: 'eli@x.kr', userId: 'u10' }], '9A', 'Y9 Biology', 'c1');
