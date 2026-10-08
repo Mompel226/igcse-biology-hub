@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '8 Oct 2026 — best kept; Write-Up view; Accommodation';
+var SCRIPT_EDITION = '8 Oct 2026 (night) — the one-off portRoundsOnce removed';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -627,8 +627,8 @@ function _stationsBest_(stored, sent, bestSnap, roundsBy) {
    letters '' (".*6": six such rounds, folded) or its checks '' (not counted by question). A round is found by counting k
    from round 1, never by its place in the list, which folding changes.
        +U   checks no question can be given: made before rounds were kept, or past the 35 one character holds
-       ^F   at least this many: the station's checks in Per station when this cell began (portRoundsOnce, or a page from
-            before rounds), so a total here is never lower than the sheet said before
+       ^F   at least this many: the station's checks in Per station when this cell began (the one-off port of 7 Oct 2026,
+            or a page from before rounds), so a total here is never lower than the sheet said before
    A station's checks: the larger of F and U + every round's checks. Merged question by question — each round its further
    letter and its larger count — never added, so a save that arrives twice counts once; resets by the larger count. A
    station rewritten since keeps its old part under its old fingerprint, whole (it was shrunk to its total until the
@@ -849,7 +849,7 @@ function _roundsSay_(P, names, here, current) {
   if (again.length) out.push('failed again: ' + again.slice(0, 12).join(', ') + (again.length > 12 ? ' and ' + (again.length - 12) + ' more' : ''));
   return out.join(' · ').slice(0, 900);
 }
-/* Two cells as one, floors and all (portRoundsOnce; the tests). */
+/* Two cells as one, floors and all (the tests). */
 function _rMergeCells_(a, b) {
   var P = _rParse_(a), Q = _rParse_(b);
   P.resets = Math.max(P.resets, Q.resets);
@@ -858,64 +858,6 @@ function _rMergeCells_(a, b) {
     else if (P.order.length < 120) { P.by[key] = _rCap_(Q.by[key]); P.order.push(key); }
   });
   return _rJoin_(P);
-}
-
-/* ── TEMPORARY (7 Oct 2026): run ONCE from the script editor (choose portRoundsOnce, then ▶ Run). The next edition deletes it.
-   It starts the hidden Rounds column on every lab tab from what each row already holds, so the work done before rounds were
-   kept is counted too. It writes ONLY that new column (nothing a teacher reads changes) and it merges, never replaces: a
-   save that arrived first is kept, and a second run changes nothing.
-     · round 1: the First round letters (a station still on its first round: its letters now); checks by question not known
-     · a station on round 2 or later: the rounds between are known to have happened, nothing more; the round on the page:
-       its letters now
-     · each station's checks in Per station are kept as its least (^F), so no total drops
-   What it could not fill is written to the log (Executions). */
-function portRoundsOnce() {
-  if (!_isAdminCaller_()) throw new Error('Only the owner, or a teacher on the list, can run this.');
-  var ss = _ss_(), lines = [], lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    LABS.forEach(function (lab) {
-      var sh = ss.getSheetByName(lab.name);
-      if (!sh || sh.getLastRow() < 2) return;
-      _labColsReady_(sh);
-      var n = sh.getLastRow() - 1, v = _labRows_(sh, 2, n), out = [], started = 0, later = 0, bare = 0, changed = 0;
-      v.forEach(function (r) {
-        var cell = String(r[LAB_ROUNDS - 1] || '');
-        if (r[2] === '' || r[2] == null) { out.push([cell]); return; }          /* nothing saved */
-        var H = _snapParse_(r[LAB_SNAP - 1]), F = _snapParse_(r[LAB_FIRST - 1]), per = Object.create(null), parts = [], noSig = 0;
-        _parseStations_(r[13]).forEach(function (x) { per[x.name] = x.checks; });
-        /* Per station counts every fingerprint a station has had; the least given to the one in use is what the others do
-           not hold already (the second audit, 7 Oct 2026: the whole of it was given, and counted twice, more at each run) */
-        var Ex = _rParse_(cell), others = Object.create(null);
-        Ex.order.forEach(function (key) { var x = Ex.by[key], h = H.by[x.id]; if (h && h.sig !== x.sig) others[x.id] = (others[x.id] || 0) + _rTotal_(x); });
-        Object.keys(others).forEach(function (id) { if (per[id]) per[id] = Math.max(0, per[id] - others[id]); });
-        H.order.forEach(function (id) {
-          var h = H.by[id], f = F.by[id], list = [];
-          if (h.go > 1) {
-            list.push(f && f.sig === h.sig && /[^0]/.test(f.q) ? f.q + '.' : '');
-            for (var g = 2; g < h.go; g++) list.push('');
-          }
-          list.push(h.q + '.');
-          parts.push(id + '~' + h.sig + ':' + (per[id] ? '^' + per[id] + ';' : '') + list.join(';'));
-        });
-        Object.keys(per).forEach(function (id) { if (per[id] && !H.by[id]) noSig++; });
-        var next = _rMergeCells_(cell, parts.join('|'));
-        if (next !== cell) changed++;
-        started++;
-        if (H.order.some(function (id) { return H.by[id].go > 1; })) later++;
-        if (noSig) bare++;
-        out.push([_plain_(next)]);
-      });
-      sh.getRange(2, LAB_ROUNDS, n, 1).setValues(out);
-      lines.push(lab.name + ': ' + started + ' rows with work, ' + changed + ' written' +
-        (later ? '; ' + later + ' on round 2 or later (their earlier rounds’ checks are kept as a total, not by question)' : '') +
-        (bare ? '; ' + bare + ' with checks at a station that has no letters (from before 27 Sep 2026): those stay in Checks and Per station only' : ''));
-    });
-  } finally { lock.releaseLock(); }
-  SpreadsheetApp.flush();
-  var say = lines.length ? lines.join('\n') : 'No lab tab has any work in it yet.';
-  Logger.log(say);
-  return say;
 }
 
 /* A cell given text that starts with = + - or @ reads it as a formula, and a formula can reach
