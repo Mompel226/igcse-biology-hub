@@ -130,6 +130,22 @@ class Sheet {
     this.maxC += 1;
     return this;
   }
+  /* the real one works on the LAST column too, which insertColumnBefore cannot reach once Tidy up has trimmed the spare ones */
+  insertColumnAfter(c) { if (c < 1 || c > this.maxC) throw new Error(`insertColumnAfter out of bounds on "${this.name}": ${c} of ${this.maxC}`); return this.insertColumnBefore(c + 1); }
+  /* as the real one: the range's columns go to just before the column that stood at destIndex BEFORE the move ("A:B to 5
+     makes them C:D"); every cell goes with its column */
+  moveColumns(range, destIndex) {
+    const from = range.c, w = range.nc;
+    if (destIndex < 1 || destIndex > this.maxC + 1 || from + w - 1 > this.maxC) throw new Error(`moveColumns out of bounds on "${this.name}"`);
+    const order = []; for (let c = 1; c <= this.maxC; c++) order.push(c);
+    const moving = order.splice(from - 1, w);
+    order.splice(destIndex - 1 - (destIndex > from ? w : 0), 0, ...moving);
+    const to = new Map(); order.forEach((oldC, i) => to.set(oldC, i + 1));
+    const next = new Map();
+    for (const [k, v] of this.cells) { const [r, c] = k.split(':').map(Number); next.set(this.key(r, to.get(c) || c), v); }
+    this.cells = next;
+    return this;
+  }
   /* Really removes the cells and slides everything to the right of them left, the way the real
      thing does. Only shrinking maxC would have let a repair "delete" a column while its data
      stayed exactly where it was, and the test would have passed on a lie. */
@@ -403,7 +419,7 @@ ok &= run('every google.script.run call in every window exists — the import di
   }
   /* and the scan itself still sees the calls it must, or it could pass by finding nothing (renamed one? change it here too) */
   const want = { ClassroomImport: ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress', 'getNotThisYear', 'markPupilsLeft'],
-                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'homeworkHide', 'studentMove'],
+                 Teacher: ['uiData', 'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'homeworkHide', 'studentMove', 'studentAccommodation'],
                  TeacherPage: ['teacherPanelData', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherAddLink', 'teacherSetHubUrl'] };
   Object.keys(want).forEach(f => { const lost = want[f].filter(n => seen[f].indexOf(n) < 0);
     if (lost.length) throw new Error('the scan no longer finds ' + f + '.html calling ' + lost.join(', ')); });
@@ -601,7 +617,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'teacherPanelData', 'teacherAddTeacher', 'teacherRemoveTeacher',          /* gated: _isAdminCaller_ */
     'teacherAddLink', 'teacherRemoveLink', 'teacherFindSpreadsheets', 'teacherFindAgain', 'teacherCheckSpreadsheet', 'teacherAddChecked', 'teacherUnwatchFolder', 'teacherWatchFolder',
     'teacherSetPageUrl', 'teacherSetTrackerUrl', 'teacherSetHubUrl',
-    'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove',   /* gated: _hwCaller_ */
+    'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'studentAccommodation',   /* gated: _hwCaller_ */
     'homeworkHide',                                                          /* gated: _hwCaller_ (the Archive, 7 Oct 2026) */
     'uiData',                                                                /* gated: _hwCaller_ */
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
@@ -622,7 +638,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the ones that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress', 'getNotThisYear', 'markPupilsLeft',
-   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'uiData', 'installDailySummary', 'homeworkHide',
+   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'studentAccommodation', 'uiData', 'installDailySummary', 'homeworkHide',
    'portRoundsOnce'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
@@ -1751,6 +1767,34 @@ console.log('— importing several classes: a job that carries on by itself —'
       const end = said('jobQ').pop();
       if (!end || !end.done || !end.built || end.results[0].added !== 0) throw new Error(JSON.stringify(end).slice(0, 300));
       if (!rowOf('Digestion', 'twice30@x.kr')) throw new Error('no lab row for the pupil written before the stop');
+    });
+    ok &= run('the final verification audit (8 Oct 2026): an import whose Tidy up does not restyle the Students tab says so in its last words, and the import window prints it', () => {
+      const sh = ss.getSheetByName(T_STUDENTS), keep = { cells: new Map(sh.cells), maxC: sh.maxC };
+      const at = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(h => String(h).replace(/^✎\s*/, '').trim()).indexOf('Labs started') + 1;
+      try {
+        if (!at) throw new Error('set-up: no Labs started column');
+        sh.moveColumns(sh.getRange(1, at), 3);                       /* Labs started dragged next to the names */
+        _saveImportJob_({ id: 'jobG', sels: [{ courseId: 'cQ', classCode: '7Q2' }], i: 0, phase: 'classes', tickAt: Date.now() - 9 * 60 * 1000, finishTries: 0, tries: { 0: 1 } });
+        cacheWrites.length = 0; global.Classroom = classroom();
+        try { continueBatchImport_(); } finally { global.Classroom = undefined; }
+        const end = said('jobG').pop();
+        if (!end || !end.done || !end.built || end.phase !== 'Finished.' || !/^The Students tab was NOT restyled/.test(end.studentsNote || '')) throw new Error(JSON.stringify(end).slice(0, 300));
+        /* the import window's own script, on a stand-in page: it prints the note, never "Every tab is built and formatted"
+           (the final verification audit: a note inside the phase was dropped by the window) */
+        const vm = require('vm'), page = fs.readFileSync('apps-script/ClassroomImport.html', 'utf8');
+        const els = new Map(), el = (id) => { if (!els.has(id)) els.set(id, { id, innerHTML: '', textContent: '', style: {}, classList: { add() {}, remove() {}, toggle() {} },
+          insertAdjacentHTML(w, x) { this.innerHTML += x; }, remove() { els.delete(id); }, querySelectorAll: () => [], addEventListener() {} }); return els.get(id); };
+        const span = () => { const o = { t: '' }; Object.defineProperty(o, 'textContent', { set(v) { this.t = String(v); }, get() { return this.t; } });
+          Object.defineProperty(o, 'innerHTML', { get() { return this.t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }); return o; };
+        const quiet = () => { const p = new Proxy({}, { get: (t, k) => (/^with/.test(String(k)) ? () => p : () => {}) }); return p; };
+        const win = { document: { getElementById: el, createElement: span, querySelectorAll: () => [] }, google: { script: { get run() { return quiet(); }, host: { close() {} } } },
+          setInterval: () => 1, clearInterval() {}, setTimeout: () => 0, console, Date, JSON, Math, String, Object, Array, __f: end };
+        vm.createContext(win);
+        vm.runInContext(page.slice(page.indexOf('<script>') + 8, page.lastIndexOf('</script>')), win);
+        vm.runInContext('SELS = [{ courseId: "cQ", classCode: "7Q2", courseName: "Q", idx: 0, _result: __f.results[0] }]; RUN = SELS; summary(__f);', win);
+        const shown = el('bar').innerHTML;
+        if (!/NOT restyled/.test(shown) || /Every tab is built and formatted/.test(shown)) throw new Error('the import window shows: ' + shown.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 300));
+      } finally { sh.cells = keep.cells; sh.maxC = keep.maxC; }
     });
     ok &= run('audit: a job Google will not keep is said in words and is over (it imported nothing, in silence)', () => {
       const keepSet = PropertiesService.getScriptProperties;
@@ -3325,6 +3369,185 @@ ok &= run('Write-Up: writeup.mine gives a pupil their own work back, and nobody 
   if (stranger.onList || Object.keys(stranger.parts).length || stranger.homework.length) throw new Error('a stranger was told something');
   if (!wuPost({ action:'writeup.mine' }, OWNER).teacher) throw new Error('the owner was not recognised as a teacher');
 });
+ok &= run('Accommodation on a tab from before (8 Oct 2026): it is INSERTED after Course id, never written over a column of the teacher’s own; the switch and Tidy up agree', () => {
+  const sh = ss.getSheetByName(T_STUDENTS), heads = () => sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(h => String(h).replace(/^✎\s*/, '').trim());
+  const ac = heads().indexOf('Accommodation') + 1;
+  if (ac) sh.deleteColumns(ac, 1);                                  /* the tab as it was before this change */
+  const cid = heads().indexOf('Course id') + 1;
+  sh.insertColumnAfter(cid); sh.getRange(1, cid + 1).setValue('My notes'); sh.getRange(2, cid + 1).setValue('needs glasses');
+  if (heads()[cid] !== 'My notes') throw new Error('set-up: ' + heads().slice(-3));
+  const r = studentAccommodation({ email: enA.email, on: true });
+  if (!r.ok) throw new Error('refused: ' + JSON.stringify(r).slice(0, 160));
+  let h = heads();
+  if (h[cid] !== 'Accommodation' || h[cid + 1] !== 'My notes') throw new Error('the switch put it in the wrong place: ' + h.slice(-4));
+  if (String(sh.getRange(2, cid + 2).getValue()) !== 'needs glasses') throw new Error('the teacher’s own column lost what it held');
+  _repairStudentSheet_(); _styleStudents_();                        /* Tidy up, as Daniel presses it */
+  h = heads();
+  if (h.filter(x => x === 'Accommodation').length !== 1 || h.indexOf('Accommodation') !== h.indexOf('Course id') + 1 || h.indexOf('My notes') < 0)
+    throw new Error('Tidy up wrote over a column: ' + h.slice(-4));
+  if (_studentTrailColumns_(sh).length) throw new Error('a second Tidy up added something again');
+  studentAccommodation({ email: enA.email, on: false });
+  sh.deleteColumns(h.indexOf('My notes') + 1, 1);                   /* leave the tab as it was found */
+});
+ok &= run('Accommodation (8 Oct 2026): a teacher turns it on for one pupil; only that pupil is told, on all three pages; typed Yes works; Tidy up keeps it after Course id; never a pupil', () => {
+  const heads = () => { const sh = ss.getSheetByName(T_STUDENTS); return sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(h => String(h).replace(/^✎\s*/, '').trim()); };
+  let r = studentAccommodation({ email: ' ' + enA.email.toUpperCase(), on: true });
+  if (!r.ok || !/has the accommodation now/.test(r.note)) throw new Error('refused: ' + JSON.stringify(r).slice(0, 160));
+  if (!r.data.students.some(x => x.email === enA.email && x.acc === true)) throw new Error('the Students view does not show it');
+  if (r.data.students.some(x => x.email !== enA.email && x.acc)) throw new Error('another pupil shows it');
+  if (heads().indexOf('Accommodation') !== heads().indexOf('Course id') + 1) throw new Error('the column is not after Course id: ' + heads().slice(-4));
+  const told = e => [enPost({ action:'english.mine' }, e).acc, wuPost({ action:'writeup.mine' }, e).acc, pullFor(e).acc];
+  if (told(enA.email).join() !== '1,1,1') throw new Error('the pupil was not told on every page: ' + told(enA.email));
+  if (told(enB.email).some(x => x !== undefined)) throw new Error('a pupil without it was told: ' + told(enB.email));
+  if (told('stranger@elsewhere.com').some(x => x !== undefined)) throw new Error('a stranger was told');
+  VISITOR = 'pupil@pupils.x.kr';
+  if (studentAccommodation({ email: enB.email, on: true }).ok !== false) throw new Error('a pupil turned it on');
+  VISITOR = OWNER;
+  if (told(enB.email).some(x => x !== undefined)) throw new Error('the refused call changed something');
+  if (studentAccommodation({ email: 'nobody@x.kr', on: true }).ok !== false) throw new Error('somebody not on the tab was accepted');
+  /* Tidy up: the heading is one it knows, so the column stays (even empty for others), last, with the Yes in it */
+  _repairStudentSheet_(); _styleStudents_();
+  if (heads().filter(h => h === 'Accommodation').length !== 1 || heads().indexOf('Accommodation') !== heads().indexOf('Course id') + 1)
+    throw new Error('Tidy up moved, repeated or removed it: ' + heads().slice(-4));
+  if (told(enA.email).join() !== '1,1,1') throw new Error('Tidy up lost the Yes');
+  r = studentAccommodation({ email: enA.email, on: false });
+  if (!r.ok || r.data.students.some(x => x.acc)) throw new Error('it did not go off');
+  if (told(enA.email).some(x => x !== undefined)) throw new Error('still told after it went off');
+  /* a teacher who types into the cell: yes / ✓ count, anything else does not */
+  const sh = ss.getSheetByName(T_STUDENTS), C = _studentCols_(sh), rowOfB = sh.getRange(2, C.email, sh.getLastRow() - 1, 1).getValues().findIndex(x => _cleanEmail_(x[0]) === enB.email) + 2;
+  sh.getRange(rowOfB, C.acc).setValue('yes');
+  if (told(enB.email).join() !== '1,1,1') throw new Error('a typed yes did not count');
+  sh.getRange(rowOfB, C.acc).setValue('no');
+  if (told(enB.email).some(x => x !== undefined)) throw new Error('a typed no counted');
+  sh.getRange(rowOfB, C.acc).setValue('');
+});
+ok &= run('Accommodation, the audits of 8 Oct 2026: 📊 Refresh and Tidy up insert it after Course id by themselves, never over a teacher’s column; X and O are not a yes', () => {
+  const sh = ss.getSheetByName(T_STUDENTS);
+  const heads = () => sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(h => String(h).replace(/^✎\s*/, '').trim());
+  /* the fake's moveColumns (used below only to play a teacher's drag) does what Google documents: A:B moved to 5 become C:D */
+  const t = ss.insertSheet('__move test'); t.getRange(1, 1, 1, 5).setValues([['a', 'b', 'c', 'd', 'e']]); t.moveColumns(t.getRange('A1:B1'), 5);
+  const moved = t.getRange(1, 1, 1, 5).getValues()[0].join(''); ss.deleteSheet(t);
+  if (moved !== 'cdabe') throw new Error('the fake moveColumns is wrong: ' + moved);
+  const acCol = () => heads().indexOf('Accommodation') + 1, cidCol = () => heads().indexOf('Course id') + 1;
+  const removeAcc = () => { if (acCol()) sh.deleteColumns(acCol(), 1); };
+  const rowOf = (e) => { const C = _studentCols_(sh); return sh.getRange(2, C.email, sh.getLastRow() - 1, 1).getValues().findIndex(x => _cleanEmail_(x[0]) === e) + 2; };
+  const told = (e) => pullFor(e).acc;
+  /* 1. 📊 Refresh on a tab from before, with a column of the teacher's own right after Course id holding a "y" */
+  removeAcc();
+  const g = cidCol(), rA = rowOf(enA.email);
+  sh.insertColumnAfter(g); sh.getRange(1, g + 1).setValue('Glasses?'); sh.getRange(rA, g + 1).setValue('y');
+  refreshDashboard();
+  let h = heads();
+  if (h[g] !== 'Accommodation' || h[g + 1] !== 'Glasses?') throw new Error('Refresh wrote over a column: ' + h.slice(-4));
+  if (String(sh.getRange(rA, g + 2).getValue()) !== 'y') throw new Error('the teacher’s column lost what it held');
+  if (told(enA.email) !== undefined) throw new Error('a "y" in the teacher’s own column turned the help on');
+  /* 2. Tidy up on its own, the switch never pressed */
+  removeAcc();
+  setup();
+  h = heads();
+  if (h.indexOf('Accommodation') !== h.indexOf('Course id') + 1 || h[h.indexOf('Accommodation') + 1] !== 'Glasses?') throw new Error('Tidy up alone: ' + h.slice(-4));
+  sh.deleteColumns(heads().indexOf('Glasses?') + 1, 1);
+  /* 3. X means no in Korea; O is not read either; a ticked box, Yes and the ticks a teacher may type are */
+  if (_accOn_('X') || _accOn_('x') || _accOn_('O') || _accOn_('') || !_accOn_(true) || !_accOn_('Yes') || !_accOn_(' yes ') || !_accOn_('✓') || !_accOn_('✔️') || !_accOn_('✅')) throw new Error('_accOn_ reads the wrong values');
+});
+ok &= run('the Students tab’s guard (the verification audits, 8 Oct 2026): a column dragged out of its place is refused by Tidy up and 📊 Refresh alike; an empty column or a heading typed twice is refused by Refresh and put right by Tidy up; a cleared heading is given back, never replaced by an empty column; every address and the Accommodation kept', () => {
+  const sh = ss.getSheetByName(T_STUDENTS);
+  const heads = () => sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(h => String(h).replace(/^✎\s*/, '').trim());
+  const col = (name) => heads().indexOf(name) + 1;
+  const emailsNow = () => { const C = _studentCols_(sh); return sh.getRange(2, C.email, sh.getLastRow() - 1, 1).getValues().map(x => _cleanEmail_(x[0])).filter(Boolean).sort().join(','); };
+  const rowOf = (e) => { const C = _studentCols_(sh); return sh.getRange(2, C.email, sh.getLastRow() - 1, 1).getValues().findIndex(x => _cleanEmail_(x[0]) === e) + 2; };
+  const found = (e) => { const j = pullFor(e); return j.ok && 'homework' in j; };
+  const accRead = () => pullFor(enA.email).acc === 1 && pullFor(enB.email).acc === undefined;
+  setup();                                                  /* a tab as Tidy up lays it out */
+  sh.getRange(rowOf(enA.email), col('Accommodation')).setValue('Yes');
+  const lab0 = LABS.find(l => col(l.name) > 0).name;
+  const keep = { cells: new Map(sh.cells), maxC: sh.maxC }, reset = () => { sh.cells = new Map(keep.cells); sh.maxC = keep.maxC; };
+  const addresses = emailsNow(), layout = heads().join('|');
+  /* refused by Tidy up and Refresh alike: a column out of its place */
+  const refused = [
+    ['Accommodation next to the names', () => sh.moveColumns(sh.getRange(1, col('Accommodation')), 3)],
+    ['Labs started next to the names', () => sh.moveColumns(sh.getRange(1, col('Labs started')), 3)],
+    ['Labs started and Average next to the names', () => sh.moveColumns(sh.getRange(1, col('Labs started'), 1, 2), 3)],
+    ['a lab between Labs started and Average', () => sh.moveColumns(sh.getRange(1, col(lab0)), col('Average'))],
+    ['a column of the teacher’s own between Course id and Accommodation', () => { const c = col('Course id'); sh.insertColumnAfter(c); sh.getRange(1, c + 1).setValue('My notes'); sh.getRange(2, c + 1).setValue('x'); }],
+  ];
+  /* refused by 📊 Refresh, put right by Tidy up (the final verification audit: written over, the empty column became the
+     one every save reads; and a note once said to type the heading back, which made two) */
+  const healed = [
+    ['an empty column inserted before Accommodation', () => sh.insertColumnBefore(col('Accommodation')), /"Accommodation" stands in column [A-Z]+, but belongs in column [A-Z]+, which has no heading\. Tidy up removes that column when it is empty/],
+    ['two empty columns inserted before Course id', () => { const c = col('Course id'); sh.insertColumnBefore(c); sh.insertColumnBefore(c); }, /"Course id" stands in column [A-Z]+, but belongs in column [A-Z]+, which has no heading/],
+    ['"Accommodation" typed into an empty column inserted before it', () => { const c = col('Accommodation'); sh.insertColumnBefore(c); sh.getRange(1, c).setValue('Accommodation'); }, /two columns are headed "Accommodation" \([A-Z]+ and [A-Z]+\), and the script reads only the first/],
+    ['"Course id" typed into the first of two empty columns inserted before it', () => { const c = col('Course id'); sh.insertColumnBefore(c); sh.insertColumnBefore(c); sh.getRange(1, c).setValue('Course id'); }, /two columns are headed "Course id"/],
+  ];
+  try {
+    for (const [name, drag] of refused) {
+      reset(); drag();
+      const dragged = heads().join('|');
+      const said = setup();
+      refreshDashboard(); refreshDashboard();
+      if (heads().join('|') !== dragged) throw new Error(name + ': a heading was written over: ' + heads().join(' | '));
+      if (emailsNow() !== addresses) throw new Error(name + ': addresses lost or changed');
+      if (!found(enA.email) || !found(enB.email)) throw new Error(name + ': a pupil is no longer found');
+      if (!accRead()) throw new Error(name + ': the Accommodation is read wrongly');
+      if (!/NOT restyled/.test(said) || !/NOT restyled/.test(_STUDENTS_NOT_STYLED_)) throw new Error(name + ': Tidy up did not say the tab was not restyled: ' + String(said).slice(0, 160));
+      if (/type back a heading/.test(_STUDENTS_NOT_STYLED_)) throw new Error(name + ': the note still says to type a heading back');
+    }
+    for (const [name, drag, says] of healed) {
+      reset(); drag();
+      const dragged = heads().join('|');
+      refreshDashboard();
+      if (heads().join('|') !== dragged) throw new Error(name + ': Refresh wrote a heading over: ' + heads().join(' | '));
+      if (!says.test(_STUDENTS_NOT_STYLED_)) throw new Error(name + ': Refresh did not say where: ' + _STUDENTS_NOT_STYLED_.slice(0, 220));
+      if (emailsNow() !== addresses) throw new Error(name + ': addresses lost after Refresh');
+      const said = setup();
+      if (_STUDENTS_NOT_STYLED_ || /NOT restyled/.test(said)) throw new Error(name + ': Tidy up did not put it right: ' + String(said).slice(0, 220));
+      if (heads().join('|') !== layout) throw new Error(name + ': Tidy up left ' + heads().join(' | '));
+      if (emailsNow() !== addresses || !found(enA.email) || !accRead()) throw new Error(name + ': an address or the Accommodation was lost');
+    }
+    /* a heading cleared by mistake: nothing is inserted in its place (that empty column would become the one every save
+       reads); the heading is given back over its own column */
+    for (const name of ['School email', 'Accommodation', 'Classroom user id']) {
+      reset();
+      const width = sh.getLastColumn();
+      sh.getRange(1, col(name)).setValue('');
+      refreshDashboard();
+      if (sh.getLastColumn() !== width) throw new Error('a column was inserted for the cleared ' + name + ' heading: ' + heads().join(' | '));
+      if (heads().join('|') !== layout) throw new Error('the cleared ' + name + ' heading was not given back: ' + heads().join(' | '));
+      if (emailsNow() !== addresses || !accRead()) throw new Error('the cleared ' + name + ' heading lost an address or the Accommodation');
+    }
+    /* a heading retyped ("Accommodations"): nothing inserted; the note says to type it exactly */
+    reset();
+    let width = sh.getLastColumn();
+    sh.getRange(1, col('Accommodation')).setValue('Accommodations');
+    refreshDashboard();
+    if (sh.getLastColumn() !== width) throw new Error('a column was inserted beside "Accommodations"');
+    if (!/holds "Accommodations", where "Accommodation" belongs\. If it is that column, type "Accommodation" as its heading/.test(_STUDENTS_NOT_STYLED_)) throw new Error('the retyped heading: ' + _STUDENTS_NOT_STYLED_.slice(0, 220));
+    /* a hidden column deleted whole (Imported): Tidy up puts it back and restyles */
+    reset();
+    sh.deleteColumns(col('Imported'), 1);
+    setup();
+    if (_STUDENTS_NOT_STYLED_ || heads().join('|') !== layout) throw new Error('a deleted Imported column was not put back: ' + heads().join(' | ') + ' / ' + _STUDENTS_NOT_STYLED_.slice(0, 120));
+    /* a tab from before Accommodation, with notes under no heading after Course id: Accommodation goes in before them */
+    reset();
+    sh.deleteColumns(col('Accommodation'), 1);
+    const cid = col('Course id');
+    sh.insertColumnAfter(cid); sh.getRange(rowOf(enB.email), cid + 1).setValue('sits at the front');
+    refreshDashboard();
+    if (heads()[cid] !== 'Accommodation' || String(sh.getRange(rowOf(enB.email), cid + 2).getValue()) !== 'sits at the front') throw new Error('notes under no heading were written over: ' + heads().slice(-3).join(' | '));
+    /* the Setup tab's ↻ tick says a refusal as a warning (amber ⚠️), never a green tick */
+    reset();
+    sh.moveColumns(sh.getRange(1, col('Labs started')), 3);
+    const setupTab = ss.getSheetByName(T_SETUP), tick = setupTab.getRange(BTN_ROW.refresh, 3);
+    tick.setValue(true);
+    onButtonTicked({ range: tick, source: ss, value: 'TRUE' });
+    const beside = String(setupTab.getRange(BTN_ROW.refresh, 4).getValue());
+    if (!/^⚠️/.test(beside) || !/NOT restyled/.test(beside)) throw new Error('the ↻ line reads: ' + beside.slice(0, 160));
+  } finally { reset(); }   /* whatever happened, the tab as it was: no later case inherits a broken one */
+  /* the tab as it was, restyled by a Tidy up that has nothing to refuse */
+  sh.getRange(rowOf(enA.email), col('Accommodation')).setValue('');
+  const said = setup();
+  if (/NOT restyled/.test(said) || _STUDENTS_NOT_STYLED_) throw new Error('a tab in its own order was refused: ' + _STUDENTS_NOT_STYLED_);
+});
 ok &= run('Write-Up parts can be set as homework beside lab stations: named in words, scored as red-pen mistakes + questions', () => {
   const r = homeworkCreate({ title:'Planning a report', classes:[{ cls: enA.cls, due: enDay(40) }],
     tasks:[ { labId:'digestion-lab', stationIds:['mouth'] }, { labId:'write-up-lab', stationIds:['variables', 'background'] } ] });
@@ -3396,6 +3619,109 @@ ok &= run('Write-Up: the Set homework form offers the parts and sends them as a 
   const page = fs.readFileSync('apps-script/Teacher.html', 'utf8');
   ['function wuBlock()', "var WUID = 'write-up-lab'", "tasks.push({labId:WUID,stationIds:wp})", "'[data-wupick]'", "'[data-wuall]'", "enBlock()+wuBlock()+"]
     .forEach(x => { if (page.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
+});
+
+/* ── The best kept across a new version (8 Oct 2026, Daniel: "if students have answered questions before … and they had a
+   score, then it'd be nice to have that score"): a rewritten Write-Up part or a rebuilt Bio English set starts its letters
+   again, but what homework, the tabs and the teacher page count never drops. ── */
+const keepRow = (tab, email, width) => { const sh = ss.getSheetByName(tab), n = sh.getLastRow() - 1;
+  const em = sh.getRange(2, tab === T_WRITEUP ? WU_EMAIL : EN_EMAIL, n, 1).getValues().map(x => String(x[0]).toLowerCase());
+  const r = em.indexOf(email) + 2; const vals = sh.getRange(r, 1, 1, width).getValues();
+  return () => sh.getRange(r, 1, 1, width).setValues(vals); };
+const wuRewrite = (vNew, run2) => { const keep = WRITEUP_JSON, j = JSON.parse(WRITEUP_JSON);
+  j.parts[0].v = vNew; WRITEUP_JSON = JSON.stringify(j);
+  try { CacheService.getScriptCache().put('WU_STAMP', 'rewritten-' + vNew, 600); } catch (e) {}
+  try { return run2(); } finally { WRITEUP_JSON = keep; try { CacheService.getScriptCache().put('WU_STAMP', 'back', 600); } catch (e) {} } };
+ok &= run('Write-Up: a rewritten part still counts what was done on the old version, before and after the next save', () => {
+  const restoreA = keepRow(T_WRITEUP, enA.email, WU_TIMES), restoreB = keepRow(T_WRITEUP, enB.email, WU_TIMES);
+  try {
+    wuRewrite('vv2', () => {
+      const man = _hwManifest_(), only = { tasks: [{ labId:'write-up-lab', stationIds:['variables'] }] };
+      let s1 = _hwScoreOne_(only, enA.email, _hwLabIndex_(['write-up-lab']), man);
+      if (s1.state !== 'done') throw new Error('the moment the part was rewritten, finished homework counted ' + s1.done + '/' + s1.total);
+      wuPost({ action:'writeup.save', parts:{ variables: { v:'vv2', r:{ g:'10000' }, q:'f0000000' } } }, enA.email);
+      const x = wuKept(enA.email).kept.variables;
+      if (x.v !== 'vv2' || x.q !== 'f0000000') throw new Error('the new version was not kept: ' + JSON.stringify(x));
+      if (x.x !== 17) throw new Error('the best of the old version was not carried: x = ' + x.x);
+      s1 = _hwScoreOne_(only, enA.email, _hwLabIndex_(['write-up-lab']), man);
+      if (s1.state !== 'done') throw new Error('after a save on the new version, homework fell to ' + s1.done + '/' + s1.total);
+      const row = wuKept(enA.email).row;
+      if (row[2] !== 2) throw new Error('Parts finished reads ' + row[2] + ', want 2');
+      if (!/Variables ✓ \[best 17\/17 from an earlier version\]/.test(row[8])) throw new Error('Per part reads "' + row[8] + '"');
+      const v = uiData('writeup');
+      if (!v.ok || !v.data.writeup || v.data.writeup.parts.length !== 2 || v.data.writeup.parts[0].marks !== 9) throw new Error('the view: ' + JSON.stringify(v).slice(0, 300));
+      const c = v.data.progress[enA.email].parts.variables;
+      if (c[0] !== 17 || c[1] !== 1 || c[2] !== 1 || c[3] !== 2 || c[4] !== 1) throw new Error('the view cell (right first time goes with the best: 2 of the old version): ' + JSON.stringify(c));
+      /* the page cannot raise the count: x is the script's own, never taken from a save */
+      wuPost({ action:'writeup.save', parts:{ background: { v:'bb1', x:999, q:'1' } } }, enB.email);
+      if ('x' in wuKept(enB.email).kept.background) throw new Error('a page-sent best was stored');
+    });
+  } finally { restoreA(); restoreB(); }
+});
+ok &= run('Bio English: a rebuilt set keeps its best answered count in homework, the tab and the teacher page', () => {
+  const restore = keepRow(T_ENGLISH, enB.email, EN_TIMES);
+  const keep = ENGLISH_JSON, j = JSON.parse(ENGLISH_JSON), set = j.sets.filter(s => s.id === 't3.describe.1')[0];
+  try {
+    enPost({ action:'english.save', sets:{ 't3.describe.1': { done:2, first:2, total:2, snap:'ff', v:'d1', go:1, snap1:'ff', best:'ff' } } }, enB.email);
+    set.v = 'd2'; ENGLISH_JSON = JSON.stringify(j);
+    try { CacheService.getScriptCache().put('EN_STAMP', 'rebuilt', 600); } catch (e) {}
+    enPost({ action:'english.save', sets:{ 't3.describe.1': { done:1, first:1, total:2, snap:'f0', v:'d2', go:1, snap1:'f0', best:'f0' } } }, enB.email);
+    const x = enKept(enB.email).kept['t3.describe.1'];
+    if (x.v !== 'd2' || x.d !== 1) throw new Error('the new version was not kept: ' + JSON.stringify(x));
+    if (x.x !== 2) throw new Error('the best of the old version was not carried: x = ' + x.x);
+    const sc = _hwScoreOne_({ tasks: [{ labId:'bio-english-lab', stationIds:['t3.describe.1'] }] }, enB.email, _hwLabIndex_(['bio-english-lab']), _hwManifest_());
+    if (sc.state !== 'done') throw new Error('homework fell to ' + sc.done + '/' + sc.total);
+    const p = uiData('english').data.progress[enB.email].sets['t3.describe.1'];
+    if (p[0] !== 2 || p[2] !== 1) throw new Error('the English view: ' + JSON.stringify(p));
+    if (!/2\/2 \(2\) \[best from an earlier version\]/.test(enKept(enB.email).row[8])) throw new Error('Per set reads "' + enKept(enB.email).row[8] + '"');
+  } finally { ENGLISH_JSON = keep; try { CacheService.getScriptCache().put('EN_STAMP', 'back2', 600); } catch (e) {} restore(); }
+});
+ok &= run('a carried best never turns unfinished work into finished when a set or part shrinks, and its right-first-time goes with it', () => {
+  const restore = keepRow(T_ENGLISH, enB.email, EN_TIMES);
+  const keep = ENGLISH_JSON, j = JSON.parse(ENGLISH_JSON), set = j.sets.filter(s => s.id === 't3.kw.meanings')[0];
+  try {
+    /* start from nothing on this set (an earlier test finished it) */
+    { const sh = ss.getSheetByName(T_ENGLISH), n = sh.getLastRow() - 1, em = sh.getRange(2, EN_EMAIL, n, 1).getValues().map(v => String(v[0]).toLowerCase());
+      const r = em.indexOf(enB.email) + 2, k = _enParse_(sh.getRange(r, EN_SNAP).getValue()); delete k['t3.kw.meanings']; sh.getRange(r, EN_SNAP).setValue(_enPack_(k)); }
+    /* 3 of 4 answered, 3 right first time, never finished; the set is rebuilt with 2 questions; one wrong try on it */
+    enPost({ action:'english.save', sets:{ 't3.kw.meanings': { done:3, first:3, total:4, snap:'fff0', v:'k1', go:1, snap1:'fff0', best:'fff0' } } }, enB.email);
+    set.v = 'k2'; set.total = 2; ENGLISH_JSON = JSON.stringify(j);
+    try { CacheService.getScriptCache().put('EN_STAMP', 'shrunk', 600); } catch (e) {}
+    enPost({ action:'english.save', sets:{ 't3.kw.meanings': { done:0, first:0, total:2, snap:'t0', v:'k2', go:1, snap1:'t0', best:'t0' } } }, enB.email);
+    const x = enKept(enB.email).kept['t3.kw.meanings'];
+    const b = _enBestOf_(x);
+    if (b.d !== 1 || b.f !== 1 || !b.old) throw new Error('3 of 4 on a set now of 2 should count 1 (and 1 right first time), not finished: ' + JSON.stringify(b) + ' ' + JSON.stringify(x));
+    const sc = _hwScoreOne_({ tasks: [{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] }, enB.email, _hwLabIndex_(['bio-english-lab']), _hwManifest_());
+    if (sc.state === 'done') throw new Error('unfinished work became a finished homework when the set shrank');
+    const mine = enPost({ action:'english.mine' }, enB.email).sets['t3.kw.meanings'];
+    if (mine.most !== 1) throw new Error('english.mine does not give the page the best: ' + JSON.stringify(mine));
+    /* once the new version catches up, the carried best is dropped */
+    enPost({ action:'english.save', sets:{ 't3.kw.meanings': { done:2, first:1, total:2, snap:'f1', v:'k2', go:1, snap1:'f1', best:'f1' } } }, enB.email);
+    const y = enKept(enB.email).kept['t3.kw.meanings'];
+    if ('x' in y || 'xt' in y || 'xf' in y) throw new Error('a carried best stayed after the new version caught up: ' + JSON.stringify(y));
+  } finally { ENGLISH_JSON = keep; try { CacheService.getScriptCache().put('EN_STAMP', 'back3', 600); } catch (e) {} restore(); }
+  /* the same for a Write-Up part: 8 of 17 units on the old version, the part now 6 units */
+  const restoreW = keepRow(T_WRITEUP, enB.email, WU_TIMES), keepW = WRITEUP_JSON, w = JSON.parse(WRITEUP_JSON);
+  try {
+    w.parts[0].v = 'vv3'; w.parts[0].units = 6; w.parts[0].questions = 1; w.parts[0].redpens = [{ l:'g', n:5 }]; WRITEUP_JSON = JSON.stringify(w);
+    try { CacheService.getScriptCache().put('WU_STAMP', 'shrunk', 600); } catch (e) {}
+    const rec = { v:'vv1', l:'', r:{ g:'11111', i:'0000' }, m:0, q:'ff10000', f:'' };   /* 5 + 3 = 8 of its own 16 units (9 marks + 7 questions) */
+    const b = _wuBestOf_(rec, _wuPartsById_(_writeupManifest_()).variables);
+    if (b.done !== 3 || !b.old) throw new Error('8 of 16 on a part now of 6 should count 3, not finished: ' + JSON.stringify(b));
+    if (_wuBest_({ v:'vv1', l:'', r:{ g:'11111', i:'1111' }, m:0, q:'ff1s1111', f:'' }, _wuPartsById_(_writeupManifest_()).variables) !== 6) throw new Error('a finished old version did not stay finished');
+    const mine = wuPost({ action:'writeup.mine' }, enA.email);
+    if (!mine.most || typeof mine.most.variables !== 'number') throw new Error('writeup.mine does not give the page the best: ' + JSON.stringify(mine.most));
+  } finally { WRITEUP_JSON = keepW; try { CacheService.getScriptCache().put('WU_STAMP', 'back4', 600); } catch (e) {} restoreW(); }
+});
+ok &= run('the teacher page has a Write-Up view: served by ?page=writeup, drawn by vWriteup, refused to pupils', () => {
+  VISITOR = 'pupil@pupils.x.kr';
+  if (uiData('writeup').ok !== false) throw new Error('a pupil read the Write-Up view');
+  VISITOR = OWNER;
+  const page = doGet({ parameter:{ page:'writeup' } }).html;
+  if (!/"tab":"writeup"/.test(page)) throw new Error('?page=writeup did not open on the Write-Up view');
+  const t = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+  ["'writeup','students'", 'window.vWriteup = function', "if (cur==='writeup') return window.vWriteup(r.data);"].forEach(x => { if (t.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
+  if (!/\?page=writeup$/.test(_writeupTeacherUrl_() || '?page=writeup')) throw new Error('the Write-Up site still sends teachers elsewhere: ' + _writeupTeacherUrl_());
 });
 
 /* ── Homework the pupils can see (Daniel, 29 Sep 2026) ─────────────────────────────────────────────────────────
@@ -4641,7 +4967,7 @@ console.log('— ⏱️ homework habits —');
       const hn = (h.match(/habits:\{[\s\S]*?note:'([^']*)'/) || ['', ''])[1];
       if (!/^Hover over or tap a mark/.test(hn) || !/never proof of anything/.test(hn) || !/not time spent working/.test(hn)) throw new Error('the habits note lost what only it can say: ' + hn.slice(0, 120));
       const notes = (h.match(/\n      note:'[^']*'/g) || []);
-      if (notes.length !== 6) throw new Error('not six notes: ' + notes.length);
+      if (notes.length !== 7) throw new Error('not seven notes (one per view; Write-Up since 8 Oct 2026): ' + notes.length);
       const lame = notes.filter(n => /Nothing here changes a mark|Start here: pick a class|stays hidden from pupils until its start|Completion is worked out|never a zero|because you are their teacher/.test(n));
       if (lame.length) throw new Error('a note says the obvious again: ' + lame[0].slice(0, 120));
       if (!/Reminders \(🔔\) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00\.' \},/.test(h)) throw new Error('the homework note is not the reminders rule alone');
@@ -4773,7 +5099,7 @@ console.log('— ⏱️ homework habits —');
       for (const k of ['before', 'early', 'good', 'last', 'late', 'none', 'unknown'])
         if (!new RegExp(':root\\[data-theme="light"\\] \\.hbm--' + k + '\\{').test(css)) throw new Error('the habit mark "' + k + '" has no bright version');
       const views = [...h.matchAll(/\n    (\w+):\{ label:'[^']*', accent:'(#[0-9A-F]{6})'(, accentL:'(#[0-9A-F]{6})')?/g)];
-      if (views.length !== 6 || views.some(v => !v[4])) throw new Error('a view has no bright accent: ' + views.filter(v => !v[4]).map(v => v[1]).join(', '));
+      if (views.length !== 7 || views.some(v => !v[4])) throw new Error('a view has no bright accent (seven views since 8 Oct 2026): ' + views.filter(v => !v[4]).map(v => v[1]).join(', '));
       if (!/function heat\(p\)\{[^\n]*var\(--hb\)[^\n]*var\(--hd\)[^\n]*var\(--hf\)/.test(h)) throw new Error('the colour scale does not take its lightness from the version');
       if (!/<button class="rf thm" id="thm" type="button">/.test(h) || !/\$\('thm'\)\.addEventListener\('click'/.test(h)) throw new Error('no ☀/☾ button');
       if (!/localStorage\.setItem\('biology\.theme', t\)/.test(h)) throw new Error('the choice is not kept');
