@@ -563,7 +563,7 @@ var BOOT = __BOOT__;
       note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. A lab’s % is their best, in any round: practising a station again (a new round) never lowers anything. Hover over any number for how it is worked out. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
-      note:'A copied link opens that pupil’s tracker only for a teacher and for the pupil: anyone else is refused. Accommodation is kept in the Students tab’s Accommodation column, after Course id (Yes, or empty): after a second, different wrong try, that pupil’s pages explain what they got wrong where an explanation is written (the labs’ multiple-choice questions, most Bio English cards, the Write-Up tests); Bio English also offers keyword meanings in Korean or Chinese (they choose 한국어 or 中文). They see it the next time a page loads.' },
+      note:'Copy gives a link to that pupil’s tracker: only a teacher or the pupil can open it. Accommodation is extra support for a pupil who needs it: press it on their card. With it on, when they give two different wrong answers to a question, the page explains why their answer is wrong (in the labs’ multiple-choice questions, most Bio English cards and the Write-Up tests), and Bio English can show keyword meanings in Korean or Chinese (the pupil chooses 한국어 or 中文). It starts the next time their page loads. The Students tab keeps it in its Accommodation column (Yes, or empty).' },
     homework:{ label:'Set homework', accent:'#F5A623', accentL:'#B45309', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets, Write-Up Lab parts — say who it is for and when it is due.',
       note:'Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
@@ -846,8 +846,8 @@ var BOOT = __BOOT__;
         /* Accommodation (Daniel, 8 Oct 2026): this pupil's pages explain the answer they chose after a SECOND wrong try, and
            Bio English offers keyword meanings in Korean or Chinese (the pupil chooses). Everyone else: as before. */
         '<button class="act'+(s.acc?' ok':'')+'" data-acc="'+esc(s.email)+'" aria-pressed="'+(s.acc?'true':'false')+'" data-tip="'+
-          (s.acc?'On: after a second, different wrong try their pages explain what they got wrong, where an explanation is written; Korean or Chinese meanings in Bio English. Press to turn it off.'
-                :'Off. Press to turn it on: after a second, different wrong try their pages explain what they got wrong, where an explanation is written; Korean or Chinese meanings in Bio English.')+
+          (s.acc?'Accommodation is on: when this pupil gives two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also see keyword meanings in Korean or Chinese. Press to turn it off.'
+                :'Accommodation is off. Turn it on for a pupil who needs extra support: when they give two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also see keyword meanings in Korean or Chinese.')+
           '">Accommodation'+(s.acc?': on':'')+'</button></div>'+
         (open?'<div class="mvrow"><label class="card__d" for="mv-to">Move to</label><select id="mv-to"><option value="">Choose a class…</option>'+
           (dir.classes||[]).filter(function(c){ return c!==s.cls; }).map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('')+
