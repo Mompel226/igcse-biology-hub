@@ -392,6 +392,12 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .mvrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:9px;width:100%}
 .mvrow select{max-width:150px}
 .card--mv{flex-wrap:wrap}
+.accon{color:var(--good);font-weight:600}
+/* a pupil's card holds four buttons (Copy, Open tracker, Move, Accommodation; 8 Oct 2026): when they do not fit beside the
+   name they take a row of their own, so the name never shrinks to nothing (the audit: names ran one letter per line) */
+.cards--wide .card{flex-wrap:wrap}
+.cards--wide .card__m{min-width:9em}
+.cards--wide .card__a{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;row-gap:6px}
 .hsort{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
 .hsort__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
 .hwgrp{margin:22px 0 0}.hwlist>.hwgrp:first-child{margin-top:8px}
@@ -557,18 +563,21 @@ var BOOT = __BOOT__;
       note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. A lab’s % is their best, in any round: practising a station again (a new round) never lowers anything. Hover over any number for how it is worked out. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
-      note:'A copied link opens that pupil’s tracker only for a teacher and for the pupil: anyone else is refused.' },
+      note:'A copied link opens that pupil’s tracker only for a teacher and for the pupil: anyone else is refused. Accommodation is kept in the Students tab’s Accommodation column, after Course id (Yes, or empty): after a second, different wrong try, that pupil’s pages explain what they got wrong where an explanation is written (the labs’ multiple-choice questions, most Bio English cards, the Write-Up tests); Bio English also offers keyword meanings in Korean or Chinese (they choose 한국어 or 中文). They see it the next time a page loads.' },
     homework:{ label:'Set homework', accent:'#F5A623', accentL:'#B45309', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets, Write-Up Lab parts — say who it is for and when it is due.',
       note:'Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
     english:{ label:'Bio English', accent:'#62D38A', accentL:'#15803D', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
       note:'Each cell is the share of a set answered, not the share right: hover over or tap it for how much was right first time.' },
+    writeup:{ label:'Write-Up', accent:'#FB7185', accentL:'#BE123C', h1:'Write-<em>Up</em>',
+      lede:'Lab reports: how far each student has got with the parts of the Write-Up Lab, red pens and questions together.',
+      note:'Each cell is the share of a part finished (red-pen mistakes found and questions answered), as homework counts it. It is their best ever: when a part is rewritten, what they did on the earlier version still counts.' },
     habits:{ label:'⏱️ Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'⏱️ Homework <em>habits</em>',
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
       note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
-  var ORDER = ['teachers','progress','english','students','homework','habits'];
+  var ORDER = ['teachers','progress','english','writeup','students','homework','habits'];
   var cache = {}, stamp = {}, cur = null, inflight = {}, prefetched = false;
   /* Cookies would be the wrong tool — they cap at about 4KB and the Lab-progress payload is
      hundreds. sessionStorage holds megabytes, is per-tab, and dies with the window, which is
@@ -704,6 +713,7 @@ var BOOT = __BOOT__;
     if (cur==='students') return vStudents(r.data, r.trackerBase);
     if (cur==='homework') return window.vHomework(r.data);
     if (cur==='english') return window.vEnglish(r.data);
+    if (cur==='writeup') return window.vWriteup(r.data);
     if (cur==='habits') return window.vHabits(r.data);
   }
 
@@ -829,10 +839,16 @@ var BOOT = __BOOT__;
     function card(s){ var u=link(s.email), open=stState.move===s.email;
       return '<div class="card'+(open?' card--mv':'')+'"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
         '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
-        '<div class="card__d">'+esc(s.cls||'—')+'</div></div><div class="card__a">'+
+        '<div class="card__d">'+esc(s.cls||'—')+(s.acc?' · <span class="accon">Accommodation</span>':'')+'</div></div><div class="card__a">'+
         (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
            :'<span class="card__d">no address set</span>')+
-        '<button class="act" data-mv="'+esc(s.email)+'" aria-expanded="'+(open?'true':'false')+'">Move</button></div>'+
+        '<button class="act" data-mv="'+esc(s.email)+'" aria-expanded="'+(open?'true':'false')+'">Move</button>'+
+        /* Accommodation (Daniel, 8 Oct 2026): this pupil's pages explain the answer they chose after a SECOND wrong try, and
+           Bio English offers keyword meanings in Korean or Chinese (the pupil chooses). Everyone else: as before. */
+        '<button class="act'+(s.acc?' ok':'')+'" data-acc="'+esc(s.email)+'" aria-pressed="'+(s.acc?'true':'false')+'" data-tip="'+
+          (s.acc?'On: after a second, different wrong try their pages explain what they got wrong, where an explanation is written; Korean or Chinese meanings in Bio English. Press to turn it off.'
+                :'Off. Press to turn it on: after a second, different wrong try their pages explain what they got wrong, where an explanation is written; Korean or Chinese meanings in Bio English.')+
+          '">Accommodation'+(s.acc?': on':'')+'</button></div>'+
         (open?'<div class="mvrow"><label class="card__d" for="mv-to">Move to</label><select id="mv-to"><option value="">Choose a class…</option>'+
           (dir.classes||[]).filter(function(c){ return c!==s.cls; }).map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('')+
           (isLeft(s.cls)?'':'<option value="__left">Left: in no class</option>')+
@@ -844,6 +860,17 @@ var BOOT = __BOOT__;
         var e=b.getAttribute('data-mv'); stState.move=stState.move===e?'':e; stState.msg=null; paint();
         var sel=$('mv-to'); if(sel) sel.focus(); }); });
       document.querySelectorAll('[data-mvno]').forEach(function(b){ b.addEventListener('click', function(){ stState.move=''; paint(); }); });
+      document.querySelectorAll('[data-acc]').forEach(function(b){ b.addEventListener('click', function(){
+        var e=b.getAttribute('data-acc'), on=b.getAttribute('aria-pressed')!=='true';
+        b.disabled=true; b.textContent='Saving…';
+        google.script.run.withSuccessHandler(function(r){
+            if(r&&r.ok&&r.data){ dir=r.data; STUD=dir.students||[]; stState.msg={ text:r.note, bad:false };
+              cache.students={ ok:true, data:dir, trackerBase:base }; ssPut('students', cache.students);
+              vStudents(dir, base); }
+            else if(r&&r.ok){ stState.msg={ text:r.note, bad:false }; delete cache.students; ssDel('students'); paint(); }   /* written, but the list could not be read again: its kept copy is out of date */
+            else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
+          .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
+          .studentAccommodation({ email:e, on:on }); }); });
       document.querySelectorAll('[data-mvgo]').forEach(function(b){ b.addEventListener('click', function(){
         var e=b.getAttribute('data-mvgo'), sel=$('mv-to'), to=sel?sel.value:'';
         if(!to){ stState.msg={ text:'Choose the class to move them to.', bad:true }; paint(); return; }
@@ -1039,7 +1066,7 @@ var BOOT = __BOOT__;
 })();
 </script>
 <script>
-/* Lab progress, Bio English, Set homework and ⏱️ Homework habits live here so the shell above stays readable. They take their
+/* Lab progress, Bio English, Write-Up, Set homework and ⏱️ Homework habits live here so the shell above stays readable. They take their
    helpers from window.__view rather than repeating them. */
 (function(){
   "use strict";
@@ -1535,11 +1562,12 @@ var BOOT = __BOOT__;
     $('ec').addEventListener('change', function(){ eState.cls=this.value; paint(); });
     $('eu').addEventListener('change', function(){ eState.unit=this.value; window.vEnglish(D); });
     $('eq').addEventListener('input', function(){ eState.q=this.value; clearTimeout(eTimer); eTimer=setTimeout(paint,150); });
-    function box(d, t, f){
+    function box(d, t, f, old){
       if (d<0 || !t) return '<div class="cbox none" data-tip="Not opened yet">·</div>';
       var p=100*d/t, hh=heat(p);
       return '<div class="cbox'+(d>=t?' done':'')+'" style="background:'+hh.bg+';border-color:'+hh.bd+';color:'+hh.fg+'" data-tip="'+
-        esc(d+' of '+t+' answered · '+f+' right first time'+(d?' ('+r0(100*f/d)+'%)':''))+'">'+r0(p)+'%</div>';
+        esc(d+' of '+t+' answered · '+f+' right first time'+(d?' ('+r0(100*f/d)+'%)':'')+
+            (old?' · their best, on an earlier version of this set (it was rewritten since)':''))+'">'+r0(p)+'%</div>';
     }
     function paint(){
       var q=eState.q.trim().toLowerCase();
@@ -1557,11 +1585,79 @@ var BOOT = __BOOT__;
         var g=(PROG[s.email]||{}).sets||{}, vd=0,vt=0,vf=0,wd=0,wt=0,wf=0;
         var cells=cols.map(function(c){ var x=g[c.id], d=x?Math.min(x[0],c.total):0, f=x?Math.min(x[1],d):0;
           if (c.kind==='kw'){ vt+=c.total; vd+=d; vf+=f; } else { wt+=c.total; wd+=d; wf+=f; }
-          return '<td class="cell">'+box(x?d:-1, c.total, f)+'</td>'; }).join('');
+          return '<td class="cell">'+box(x?d:-1, c.total, f, x&&x[2])+'</td>'; }).join('');
         return '<tr><td class="name"><div class="nm">'+esc(s.name||s.email)+'</div><div class="cl">'+esc(s.cls||'')+'</div></td>'+
           '<td class="cell">'+box(vt?vd:-1, vt, vf)+'</td><td class="cell">'+box(wt?wd:-1, wt, wf)+'</td>'+cells+'</tr>'; }).join('');
       $('elist').innerHTML='<div class="hmcard"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
         '<div class="hmleg"><span>Share of the set answered</span><span class="hmgrad"></span><span>· not opened yet</span></div></div>';
+    }
+    paint();
+  };
+
+  /* ─────────────────────── Write-Up ─────────────────────── */
+  /* (8 Oct 2026, Daniel: Bio English has a view and the Write-Up Lab had none.) Every pupil against the parts of a lab
+     report, in the report's order and grouped by its stages: the share of each part finished (red-pen mistakes found and
+     questions answered, as homework counts it, at their best in any version) and, on hover, the detail. One standard for
+     everyone (IB parts too), so there is no year to choose. A part not opened is a dot. */
+  var wState = { cls:'all', stage:'all', q:'' }, wTimer = null;
+  window.vWriteup = function(D){
+    var W = D.writeup, STUD = D.students||[], PROG = D.progress||{};
+    if (!W) return $('view').innerHTML = '<div class="warn">The list of Write-Up Lab parts could not be read from the site just now, so there is nothing to show. Try Refresh in a minute.</div>';
+    if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
+    var STAGES = (W.stages||[]).filter(function(g){ return (W.parts||[]).some(function(p){ return p.stage===g.id; }); });
+    if (wState.stage!=='all' && !STAGES.some(function(g){ return g.id===wState.stage; })) wState.stage='all';
+    var cset = {}; STUD.forEach(function(s){ if(s.cls) cset[s.cls]=1; });
+    var classes = Object.keys(cset).sort(cmpClass);
+    if (wState.cls!=='all' && classes.indexOf(wState.cls)<0) wState.cls='all';
+    var stageName = {}; STAGES.forEach(function(g){ stageName[g.id]=g.name; });
+    $('view').innerHTML =
+      '<div class="bar2"><div class="fld"><label for="wc">Class</label><select id="wc"><option value="all">All classes</option>'+
+      classes.map(function(c){ return '<option value="'+esc(c)+'"'+(c===wState.cls?' selected':'')+'>'+esc(c)+'</option>'; }).join('')+
+      '</select></div><div class="fld"><label for="wg">Stage of a report</label><select id="wg"><option value="all">Every stage</option>'+
+      STAGES.map(function(g){ return '<option value="'+esc(g.id)+'"'+(g.id===wState.stage?' selected':'')+'>'+esc(g.name)+'</option>'; }).join('')+
+      '</select></div><div class="fld fld--grow"><label for="wq">Find a student</label><input id="wq" type="search" placeholder="name or class" value="'+esc(wState.q)+'"></div></div>'+
+      '<div id="wlist"></div>';
+    $('wc').addEventListener('change', function(){ wState.cls=this.value; paint(); });
+    $('wg').addEventListener('change', function(){ wState.stage=this.value; paint(); });
+    $('wq').addEventListener('input', function(){ wState.q=this.value; clearTimeout(wTimer); wTimer=setTimeout(paint,150); });
+    function box(x, part){
+      if (!x || !part.units) return '<div class="cbox none" data-tip="Not opened yet">·</div>';
+      var d=Math.min(x[0], part.units), p=100*d/part.units, hh=heat(p), tip=d+' of '+part.units+' done';
+      if (x[4]) tip+=', their best, on an earlier version of this part (it was rewritten since)';   /* this version's detail would not add up to it */
+      else {
+        if (part.marks) tip+=' · red pen '+Math.min(x[1],part.marks)+' of '+part.marks;
+        if (part.questions) tip+=' · questions '+Math.min(x[2],part.questions)+' of '+part.questions+(x[2]?', '+x[3]+' right first time ('+r0(100*x[3]/x[2])+'%)':'');
+      }
+      return '<div class="cbox'+(d>=part.units?' done':'')+'" style="background:'+hh.bg+';border-color:'+hh.bd+';color:'+hh.fg+'" data-tip="'+esc(tip)+'">'+r0(p)+'%</div>';
+    }
+    function sum(done, units, fin, n){
+      if (!units) return '<div class="cbox none" data-tip="Nothing opened yet">·</div>';
+      var p=100*done/units, hh=heat(p);
+      return '<div class="cbox'+(fin>=n?' done':'')+'" style="background:'+hh.bg+';border-color:'+hh.bd+';color:'+hh.fg+'" data-tip="'+
+        esc(fin+' of '+n+' parts finished · '+done+' of '+units+' red-pen mistakes and questions done, in the parts shown')+'">'+fin+'/'+n+'</div>';
+    }
+    function paint(){
+      var q=wState.q.trim().toLowerCase();
+      var cols=(W.parts||[]).filter(function(p){ return wState.stage==='all' || p.stage===wState.stage; });
+      var list=STUD.filter(function(s){ return (wState.cls==='all'||s.cls===wState.cls) &&
+        (!q||((s.name||'')+' '+(s.cls||'')).toLowerCase().indexOf(q)>=0); });
+      if (!cols.length) return $('wlist').innerHTML='<div class="empty">No parts in this stage.</div>';
+      if (!list.length) return $('wlist').innerHTML='<div class="empty">Nobody matches.</div>';
+      var head='<tr><th class="cnr">Student</th>'+
+        '<th class="en sum" data-tip="Parts finished, out of the parts shown: every red-pen mistake found and every question answered">Finished<span class="lt">parts</span></th>'+
+        cols.map(function(c){
+          return '<th class="en" data-tip="'+esc(c.title+' · '+(stageName[c.stage]||c.stage)+' · '+c.marks+' red-pen mistakes, '+c.questions+' questions')+'">'+
+            esc(c.title.length>16?c.title.slice(0,15)+'…':c.title)+'<span class="lt">'+esc(stageName[c.stage]||c.stage||'')+'</span></th>'; }).join('')+'</tr>';
+      var rows=list.map(function(s){
+        var g=(PROG[s.email]||{}).parts||{}, done=0, units=0, fin=0, opened=false;
+        var cells=cols.map(function(c){ var x=g[c.id];
+          if (x) { opened=true; var d=Math.min(x[0],c.units); done+=d; if (c.units && d>=c.units) fin++; }
+          units+=c.units;
+          return '<td class="cell">'+box(x, c)+'</td>'; }).join('');
+        return '<tr><td class="name"><div class="nm">'+esc(s.name||s.email)+'</div><div class="cl">'+esc(s.cls||'')+'</div></td>'+
+          '<td class="cell">'+sum(opened?done:0, opened?units:0, fin, cols.length)+'</td>'+cells+'</tr>'; }).join('');
+      $('wlist').innerHTML='<div class="hmcard"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+
+        '<div class="hmleg"><span>Share of the part finished</span><span class="hmgrad"></span><span>· not opened yet</span></div></div>';
     }
     paint();
   };

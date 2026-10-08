@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-07T13:47:57.996Z",
+  "generated": "2026-10-07T16:47:49.742Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -402,21 +402,21 @@
           "id": "animal",
           "name": "The animal cell",
           "questions": 11,
-          "sig": "11:1uj5ve",
+          "sig": "11:bbltsh",
           "syl": "2.1.3|2.1.3,2.1.4|2.1.4|2.1.4|2.1.4|2.1.4|2.1.1,AO3.4|2.1.1|2.1.4|2.1.4|2.1.4"
         },
         {
           "id": "plant",
           "name": "The plant cell",
           "questions": 11,
-          "sig": "11:tx7fl5",
+          "sig": "11:edlguf",
           "syl": "2.1.3|2.1.3|2.1.4|2.1.1|2.1.1,2.1.4|2.1.1,2.1.6|2.1.4|2.1.4|2.1.4|2.1.1,3.2.8|2.1.1"
         },
         {
           "id": "bacterium",
           "name": "The bacterial cell",
           "questions": 10,
-          "sig": "10:ncqg8w",
+          "sig": "10:1u65bhd",
           "syl": "2.1.3|2.1.2,2.1.4|2.1.2|2.1.1,2.1.2|2.1.2|2.1.2|2.1.2|2.2.3|2.1.4|2.1.2,2.1.7"
         },
         {

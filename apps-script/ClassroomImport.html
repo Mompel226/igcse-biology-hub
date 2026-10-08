@@ -378,7 +378,9 @@ function summary(f) {
       : 'Every name is in. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to build and format the tabs.') + '</p>';
   } else if (f.formatStopped) {
     html += '<p class="bad">Every name is in, but building and formatting the tabs was stopped twice. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to finish it.</p>';
-  } else if (added || moved || f.built) html += ' Every tab is built and formatted.';
+  } else if (added || moved || f.built) html += f.studentsNote
+      ? ' Every name is in and every other tab is built.<p class="bad">' + esc(f.studentsNote) + '</p>'   /* the Students tab's guard refused */
+      : ' Every tab is built and formatted.';
   else if (ok) html += ' No pupil was added or moved, so the tabs were left as they are.';
   if (failed.length) {
     html += '<p class="bad">' + failed.length + ' class(es) did not import: ' +

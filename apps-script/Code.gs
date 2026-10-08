@@ -28,7 +28,7 @@
  *   3. Three HTML files: + (next to Files) ▸ HTML, three times, each named exactly as below,
  *      and paste in the file of the same name from apps-script/. Save.
  *        ClassroomImport   the window that imports your classes (🎓 in the menu)
- *        Teacher           the teacher page: Spreadsheets, Lab progress, Bio English,
+ *        Teacher           the teacher page: Spreadsheets, Lab progress, Bio English, Write-Up,
  *                          Students, Set homework, ⏱️ Homework habits
  *        TeacherPage       the window behind 🔗 Add or remove links on the teacher page
  *                          and 👥 Teacher page: teachers and addresses
@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '7 Oct 2026 — rounds and checks; the homework Archive';
+var SCRIPT_EDITION = '8 Oct 2026 — best kept; Write-Up view; Accommodation';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -186,7 +186,7 @@ var HUB_URL           = '';
    The counts are kept in labs-shared/labs.json, written by each lab's own build. */
 var LABS = [
   { id:'classification-lab',  name:'Classification',   topic:'1 · Characteristics and classification', questions:64 },
-  { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:0 },
+  { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:103 },
   { id:'cell-transport-lab',  name:'In and out of cells', topic:'3 · Movement into and out of cells', questions:0 },
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
@@ -1104,15 +1104,34 @@ function _studentOf_(email) {
   if (!email) return null;
   var sh = _sheet_(T_STUDENTS), last = sh.getLastRow();
   if (last < 2) return null;
-  var EMAIL_COL = _emailCol_(sh);
-  var vals = sh.getRange(2, 1, last - 1, EMAIL_COL).getValues();
+  var C = _studentCols_(sh), EMAIL_COL = C.email, width = Math.max(EMAIL_COL, C.acc || 0);
+  var vals = sh.getRange(2, 1, last - 1, width).getValues();
   for (var i = 0; i < vals.length; i++) {
     if (_cleanEmail_(vals[i][EMAIL_COL - 1]) === email) {
-      return { name: String(vals[i][0] || ''), cls: String(vals[i][1] || '').toUpperCase() };
+      var who = { name: String(vals[i][0] || ''), cls: String(vals[i][1] || '').toUpperCase() };
+      if (C.acc && _accOn_(vals[i][C.acc - 1])) who.acc = true;
+      return who;
     }
   }
   return null;
 }
+/* The Students tab's email and Accommodation columns, from ONE read of the heading row (as _emailCol_ alone did, so a
+   save costs no more calls). acc is 0 on a tab Tidy up has not given the column yet. */
+function _studentCols_(sh) {
+  var n = sh.getLastColumn(), out = { email: 3 + LABS.length + 2, acc: 0 }, seenEmail = false;
+  if (n > 0) {
+    var head = sh.getRange(1, 1, 1, n).getValues()[0];
+    for (var i = 0; i < head.length; i++) {
+      var h = String(head[i] || '').replace(/^✎\s*/, '').trim();
+      if (h === 'School email' && !seenEmail) { out.email = i + 1; seenEmail = true; }
+      else if (h === 'Accommodation' && !out.acc) out.acc = i + 1;
+    }
+  }
+  return out;
+}
+/* A pupil has the accommodation when the teacher put Yes (or ticked a box, or typed y / true / ✓) in their row. Never "x":
+   in Korea X means no (the audit, 8 Oct 2026), and O is not read as yes either. */
+function _accOn_(v) { return v === true || /^\s*(yes|y|true|[✓✔✅☑]\uFE0F?)\s*$/i.test(String(v == null ? '' : v)); }
 
 /* A save from a pupil on the roster whose numbers do not add up (a score above the total, an impossible
    total) lands here, with the reason, instead of in a lab's tab. A save that is not signed in, or from
@@ -1144,12 +1163,12 @@ function _reject_(lab, row) {
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
   var page = e && e.parameter ? String(e.parameter.page || '') : '';
-  /* All the teacher views (six since ⏱️ Homework habits, 1 Oct 2026) are ONE page now: the tabs swap in the browser instead of loading a
+  /* All the teacher views (seven since Write-Up, 8 Oct 2026; six since ⏱️ Homework habits, 1 Oct) are ONE page now: the tabs swap in the browser instead of loading a
      new document, so nothing flickers, the header never moves, and no link ever tries to open
      script.google.com inside the sandbox frame. The old ?page= values still work — each simply
      decides which tab opens first, so every bookmark and the hub's own door keep working. */
   if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework' ||
-      page === 'english' || page === 'habits') {
+      page === 'english' || page === 'writeup' || page === 'habits') {
     return _teacherAppPage_(page);
   }
   /* The health check names the script's edition, so a paste can be confirmed from outside
@@ -1329,6 +1348,7 @@ function _importPiece_(t0) {
       _PROGRESS_JOB = { id: job.id, results: results };
       try { _buildAndStyle_(); } finally { _PROGRESS_JOB = null; }
       extra.built = true;
+      if (_STUDENTS_NOT_STYLED_) extra.studentsNote = _STUDENTS_NOT_STYLED_;   /* the import window prints it (ClassroomImport.html summary) */
       try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_BUILD_KEY); } catch (e) {}
     }
   }
@@ -1961,6 +1981,8 @@ function _buildAndStyle_() {
   var added = _repairStudentColumns_();             /* a lab added since this sheet was built gets its column */
   if (added) notes.push(added + ' new lab column' + (added === 1 ? '' : 's') +
                         ' added to the Students tab.');
+  var trail = _studentTrailColumns_(_sheet_(T_STUDENTS));   /* and a column added to the script since (Accommodation, 8 Oct 2026) */
+  if (trail.length) notes.push('Added to the Students tab: ' + trail.join(', ') + '.');
   LABS.forEach(function (l, i) {                   /* every lab: a tab, and a row per student */
     _step_('Giving everyone a row: ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
     _seedLab_(l, notes);
@@ -1981,6 +2003,7 @@ function _buildAndStyle_() {
   restyleAll_();
   _step_('Working out everyone\u2019s progress…');
   refreshDashboard();
+  if (_STUDENTS_NOT_STYLED_) notes.push(_STUDENTS_NOT_STYLED_);
   _step_('Putting the tabs in syllabus order…');
   _orderTabs_();                     /* the teacher tabs first, then the labs in LABS order */
   return notes;
@@ -2283,7 +2306,10 @@ function onButtonTicked(e) {
     else { _btnSays_(row, ''); return; }
     _PROGRESS_ROW = null;
     var secs = Math.round((new Date() - started) / 1000);
-    _btnSays_(row, '✅  ' + did + ' at ' + _hhmm_(new Date()) + ' (took ' + secs + 's)');
+    /* the Students tab not restyled (its guard) is a warning: amber, the time first, then what to do (Tidy up's own text
+       already carries the note; Refresh's gets it here) */
+    _btnSays_(row, (_STUDENTS_NOT_STYLED_ ? '⚠️  ' : '✅  ') + did + ' at ' + _hhmm_(new Date()) + ' (took ' + secs + 's)' +
+                   (_STUDENTS_NOT_STYLED_ && row === BTN_ROW.refresh ? '. ' + _STUDENTS_NOT_STYLED_ : ''));
   } catch (err) {
     _PROGRESS_ROW = null;
     _btnSays_(row, '❌  That did not work: ' + err);
@@ -2318,12 +2344,17 @@ function _step_(msg) {
 function _btnSays_(row, text) {
   var sh = _sheet_(T_SETUP);
   sh.getRange(row, 4).setValue(text)
-    .setFontColor(text.indexOf('❌') === 0 ? '#A3342A' : (text.indexOf('⏳') === 0 ? '#7A5B00' : '#265C33'))
+    .setFontColor(text.indexOf('❌') === 0 ? '#A3342A' : (text.indexOf('⏳') === 0 || text.indexOf('⚠') === 0 ? '#7A5B00' : '#265C33'))
     .setFontWeight('bold').setVerticalAlignment('middle').setWrap(false);
 }
 
+var _STUDENTS_NOT_STYLED_ = '';   /* set by _styleStudents_ when its guard refused; Tidy up and Refresh say it */
 function _styleStudents_() {
   var sh = _sheet_(T_STUDENTS);
+  /* _dress2_ below writes the heading row BY POSITION: a trailing heading the tab lacks is inserted first (Tidy up, 📊 Refresh
+     everyone's progress, the restyle: every path comes here; the audit, 8 Oct 2026, found Refresh writing "Accommodation"
+     over a teacher's own column), and the guard below refuses to write over any heading that is not the one planned */
+  _studentTrailColumns_(sh);
   var built = {};
   /* built = live: its questions are counted in LABS, as Lab progress on the teacher page reads it. Every lab has a tab
      from the first Tidy up, so a tab is no sign of a built lab (labs-script-025, 1 Oct 2026). */
@@ -2357,6 +2388,52 @@ function _styleStudents_() {
   cols.push({ h:'Imported', w:110, fmt:'dd MMM yyyy', hide:true, note:'When they were first imported.' });
   cols.push({ h:'Classroom user id', w:160, hide:true, note:'Needed to post homework to Google Classroom (Set homework, on the teacher page).' });
   cols.push({ h:'Course id', w:140, hide:true, note:'Needed to post homework to Google Classroom (Set homework, on the teacher page).' });
+  /* 8 Oct 2026 (Daniel): help for the pupils who need it, by the teacher's choice. At the END: Tidy up writes these
+     headings by position, so a new column only ever goes last. */
+  cols.push({ h:'Accommodation', w:132, align:'center', edit:true, list:['Yes'], group:true,
+              note:'Yes = this pupil gets help the others do not, after a SECOND, different wrong try: an explanation of what they ' +
+                   'got wrong, where one is written (the labs\' multiple-choice questions; Bio English\'s fix, trim, mark, keyword and ' +
+                   'exam cards; the Write-Up tests). Bio English also shows keyword meanings in Korean or Chinese (the pupil chooses). Empty = no help, ' +
+                   'as for everyone else.\n\nType Yes here, or use ' +
+                   'the teacher page (Students, a pupil\'s card). Not X: in Korea X means no. The pupil sees it the next time a page ' +
+                   'loads. Keep it right after Course id: while a column is out of its place, Tidy up does not restyle this tab, and says so.' });
+
+  /* THE GUARD (the verification audit, 8 Oct 2026): _dress2_ writes the heading row BY POSITION, so it may only run where
+     every column already carries its own heading, or none. A column out of its place (Accommodation or Labs started
+     dragged next to the names, a lab among the trailing columns, a lab added to LABS before Tidy up gave it a column, a
+     teacher's own column among them) would otherwise take its neighbour's heading, and School email with it: every save
+     refused, and the next 📊 Refresh wrote over the addresses. Then the tab is NOT restyled, and Tidy up and Refresh say
+     which column is where. Saving, the import and Refresh find every column by its heading, so they go on working. */
+  _STUDENTS_NOT_STYLED_ = '';
+  var have = sh.getLastColumn() ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+               .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); }) : [];
+  var ORDER = ' Put the columns back in their order (Name, Class, the labs, Labs started, Average, School email, Classroom course, ' +
+              'Imported, Classroom user id, Course id, Accommodation; columns of your own after those), then press Tidy up again ' +
+              '(it also gives a newly added lab its column).';
+  for (var gi = 0; gi < cols.length; gi++) {
+    /* a heading twice (the script reads the first, which may be the empty one); the planned heading standing somewhere else
+       (an empty column inserted before it: written over, the empty one became the column every save reads); a different
+       heading in a planned column (the final verification audit, 8 Oct 2026) */
+    var want = cols[gi].h, seenAt = have.indexOf(want), twice = seenAt >= 0 ? have.indexOf(want, seenAt + 1) : -1, why = '';
+    if (twice >= 0) why = 'two columns are headed "' + want + '" (' + _colA1_(seenAt + 1) + ' and ' + _colA1_(twice + 1) + '), and ' +
+      'the script reads only the first. Keep the one that holds your entries and delete the other (Tidy up removes it by itself ' +
+      'when it is empty), then press Tidy up again.';
+    else if (seenAt >= 0 && seenAt !== gi) why = '"' + want + '" stands in column ' + _colA1_(seenAt + 1) + ', but belongs in column ' +
+      _colA1_(gi + 1) + (have[gi] ? ', where "' + have[gi] + '" is.' + ORDER
+        : ', which has no heading. Tidy up removes that column when it is empty; if it holds something of yours, move it after ' +
+          'the last column (Accommodation), then press Tidy up again.');
+    else if (have[gi] && have[gi] !== want) {
+      var k1 = have[gi].toLowerCase().replace(/[^a-z]/g, ''), k2 = want.toLowerCase().replace(/[^a-z]/g, '');
+      why = 'column ' + _colA1_(gi + 1) + ' holds "' + have[gi] + '", where "' + want + '" belongs.' + (k1.indexOf(k2) === 0 || k2.indexOf(k1) === 0
+        ? ' If it is that column, type "' + want + '" as its heading, exactly so, then press Tidy up again.'   /* retyped: "accommodation", "Accommodations" */
+        : ORDER);
+    }
+    if (why) {
+      _STUDENTS_NOT_STYLED_ = 'The Students tab was NOT restyled, so that no heading is written over another column: ' + why +
+                              ' Saving and the progress figures still work.';
+      return;
+    }
+  }
 
   var rows = _dress2_(sh, cols, { freezeCols: 2, tab:'#14572B' });
   if (!rows) return;
@@ -2386,7 +2463,11 @@ function refreshDashboard() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
   var sh = _sheet_(T_STUDENTS);
   var rows = Math.max(0, sh.getLastRow() - 1);
-  if (!rows) { _styleStudents_(); return; }
+  if (!rows) {
+    _styleStudents_();
+    if (_STUDENTS_NOT_STYLED_) { try { SpreadsheetApp.getActive().toast(_STUDENTS_NOT_STYLED_, 'Biology Labs', 30); } catch (e) {} }
+    return;
+  }
 
   var EMAIL_COL = _emailCol_(sh);
   var emails = sh.getRange(2, EMAIL_COL, rows, 1).getValues();
@@ -2441,7 +2522,8 @@ function refreshDashboard() {
     lo = hi + 1;
   }
   _styleStudents_();
-  SpreadsheetApp.getActive().toast('Progress updated for ' + rows + ' students.', 'Biology Labs', 5);
+  SpreadsheetApp.getActive().toast('Progress updated for ' + rows + ' students.' + (_STUDENTS_NOT_STYLED_ ? ' ' + _STUDENTS_NOT_STYLED_ : ''),
+                                   'Biology Labs', _STUDENTS_NOT_STYLED_ ? 30 : 5);
 }
 
 
@@ -2599,9 +2681,7 @@ function _sheet_(name) {
   if (name === T_LABS) {
     _labsRows_(sh);                                  /* one row per lab in LABS: _labsRows_ is this tab's one writer */
   } else if (name === T_STUDENTS) {
-    var head = ['Name', 'Class'].concat(LABS.map(function (l) { return l.name; }))
-               .concat(['Labs started', 'Average', 'School email', 'Classroom course',
-                        'Imported', 'Classroom user id', 'Course id']);
+    var head = ['Name', 'Class'].concat(LABS.map(function (l) { return l.name; })).concat(STUDENT_TRAIL);
     /* A new sheet has 26 columns and there are more headings than that once every topic has
        a lab, so make room before writing or the write is outside the grid. */
     if (sh.getMaxColumns() < head.length) {
@@ -2626,8 +2706,7 @@ function _sheet_(name) {
 function _studentHeadings_() {
   return ['Name', 'Class']
          .concat(LABS.map(function (l) { return l.name; }))
-         .concat(['Labs started', 'Average', 'School email', 'Classroom course',
-                  'Imported', 'Classroom user id', 'Course id']);
+         .concat(STUDENT_TRAIL);
 }
 
 function _repairStudentSheet_() {
@@ -2663,13 +2742,42 @@ function _repairStudentSheet_() {
     }
   }
 
-  /* 1. the same heading twice. The leftmost is the real one — it is where the script writes. */
-  var head = heads(), firstAt = {}, dupes = [];
+  /* 1. the same heading twice. The leftmost is the real one — it is where the script reads and writes. So an EMPTY leftmost
+        copy before a copy that holds entries goes first (an empty column given the heading by hand, as a note once said:
+        every save then read the empty one; the final verification audit, 8 Oct 2026), then every other empty copy. */
+  var head = heads(), copies = Object.create(null), lead = [];
+  head.forEach(function (h, i) { if (h) (copies[h] = copies[h] || []).push(i + 1); });
+  Object.keys(copies).forEach(function (h) {
+    var c = copies[h];
+    if (c.length > 1 && isEmpty(c[0]) && c.slice(1).some(function (x) { return !isEmpty(x); })) lead.push(c[0]);
+  });
+  if (lead.length) {
+    var leadNames = lead.map(function (c) { return '"' + head[c - 1] + '"'; }).join(', ');
+    lead.sort(function (a, b) { return b - a; }).forEach(function (c) { sh.deleteColumn(c); });
+    notes.push('An empty column headed ' + leadNames + ' stood before the column of that name that holds your entries, so the ' +
+               'script read the empty one. Removed.');
+  }
+  head = heads();
+  var firstAt = {}, dupes = [];
   head.forEach(function (h, i) {
     if (!h) return;
     if (firstAt[h] === undefined) firstAt[h] = i; else dupes.push(i + 1);
   });
   if (dupes.length) dropEmpty(dupes, 'repeated');
+
+  /* 1b. an EMPTY column with no heading among the script's own columns (put in by hand): the headings are written by
+         position, so it would take the next column's heading and place (the final verification audit, 8 Oct 2026). Removed
+         only when every cell in it is empty; one that holds something is left where it is, and the guard in
+         _styleStudents_ names it. */
+  head = heads();
+  var planned = _studentHeadings_(), lastPlanned = -1, blanks = [];
+  head.forEach(function (h, i) { if (h && planned.indexOf(h) >= 0) lastPlanned = i; });
+  for (var bi = 2; bi < lastPlanned; bi++) { if (!head[bi] && isEmpty(bi + 1)) blanks.push(bi + 1); }
+  if (blanks.length) {
+    blanks.sort(function (a, b) { return b - a; }).forEach(function (c) { sh.deleteColumn(c); });
+    notes.push(blanks.length + ' empty column' + (blanks.length === 1 ? '' : 's') + ' with no heading removed from among the ' +
+               'Students tab’s columns.');
+  }
 
   /* 2. a heading this script no longer knows: a lab taken out of LABS, a renamed lab under its
         old name, or something typed in by hand. */
@@ -2815,6 +2923,52 @@ function _repairStudentColumns_() {
     added++;
   }
   return added;
+}
+
+/* The columns after the labs, in their order (_studentHeadings_). A heading the sheet lacks is decided by the column right
+   after its neighbour, where it belongs:
+   - nothing there, or the NEXT heading of this list (its column was deleted): it is INSERTED there;
+   - for Accommodation, the one heading added after tabs were in use (STUDENT_TRAIL_NEW; every tab has had the others since
+     7 Sep 2026), a column of the teacher's own (another heading, or notes under none): it is INSERTED before it, never
+     written over it (found 8 Oct 2026, adding Accommodation);
+   - a column with NO heading that is empty or holds only this column's own kind of value (its heading cleared by mistake),
+     or one headed like it ("Accommodations"): nothing is inserted. The first gets its heading back from _dress2_; the
+     second is named by _styleStudents_' guard. An inserted empty column would have become the one every save reads, the
+     real one pushed aside (the final verification audit, 8 Oct 2026: School email, Accommodation).
+   Nothing is ever MOVED: a first version moved a misplaced column back next to its neighbour, and with Labs started dragged
+   next to the names it pulled the hidden addresses along and every save was refused (the verification audit, 8 Oct 2026).
+   A column out of its place is left where it is; the guard then refuses to restyle the tab and says which one. A heading
+   whose neighbour is missing too is left to _repairStudentSheet_ and the teacher. Returns the headings added. */
+var STUDENT_TRAIL = ['Labs started', 'Average', 'School email', 'Classroom course', 'Imported', 'Classroom user id', 'Course id', 'Accommodation'];
+var STUDENT_TRAIL_NEW = {                     /* the heading added after tabs were in use, and the values its own column holds */
+  'Accommodation': /^(yes|y|true|no|n|x|o|false|[✓✔✅☑✗✘]️?)$/i };
+function _studentTrailColumns_(sh) {
+  var n = sh.getLastColumn(), done = [];
+  if (n < 3) return done;
+  var heads = function () { return sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); }); };
+  var key = function (h) { return String(h || '').toLowerCase().replace(/[^a-z]/g, ''); };
+  var ownKind = function (c, like) {          /* every cell under column c is empty, or a value of that column's own kind */
+    var rows = sh.getLastRow() - 1;
+    if (rows < 1) return true;
+    return sh.getRange(2, c, rows, 1).getValues().every(function (r) { var v = String(r[0] == null ? '' : r[0]).trim(); return !v || like.test(v); });
+  };
+  var head = heads();
+  for (var t = 1; t < STUDENT_TRAIL.length; t++) {
+    var want = STUDENT_TRAIL[t], prev = head.indexOf(STUDENT_TRAIL[t - 1]);
+    if (prev < 0 || head.indexOf(want) >= 0) continue;
+    var next = prev + 1 < head.length ? head[prev + 1] : null, insert;
+    if (next === null || STUDENT_TRAIL.indexOf(next) > t) insert = true;
+    else if (!STUDENT_TRAIL_NEW[want]) insert = false;
+    else if (next) insert = key(next).indexOf(key(want)) !== 0;
+    else insert = !ownKind(prev + 2, STUDENT_TRAIL_NEW[want]);
+    if (!insert) continue;
+    sh.insertColumnAfter(prev + 1);
+    sh.getRange(1, prev + 2).setValue(want);
+    try { sh.showColumns(prev + 2); } catch (e) {}   /* inserted beside a hidden column (Course id), it must not be hidden too */
+    done.push(want);
+    head = heads();
+  }
+  return done;
 }
 
 /* Put the tabs in order: Setup, Labs, Students, ✍️ Bio English, 📚 Homework, 👩‍🏫 Teachers,
@@ -3095,8 +3249,11 @@ function _ownProgress_(d) {
       break;
     }
   }
-  /* their own homework in the labs, scored as the teacher's page scores it (29 Sep 2026); a page from before ignores it */
-  return _json_({ ok: true, name: who.name || '', labs: out, homework: _ownHomework_(who.email, me.cls) });
+  /* their own homework in the labs, scored as the teacher's page scores it (29 Sep 2026); a page from before ignores it.
+     acc: the teacher's accommodation for THIS pupil (8 Oct 2026), only when it is on */
+  var ans = { ok: true, name: who.name || '', labs: out, homework: _ownHomework_(who.email, me.cls) };
+  if (me.acc) ans.acc = 1;
+  return _json_(ans);
 }
 
 /* A pupil's own open homework in the labs, for the lab pages to colour each homework station and say what is left.
@@ -5058,15 +5215,18 @@ function _studentDirectory_(now) {
   var ss = _ss_(), out = [];
   var stu = ss.getSheetByName(T_STUDENTS);
   if (stu && stu.getLastRow() >= 2) {
-    var ec = _emailCol_(stu), last = stu.getLastRow();
+    var SC = _studentCols_(stu), ec = SC.email, last = stu.getLastRow();
     /* …and when each pupil was first imported (the import writes it two columns after the email), when the tab has it: the
-       teacher's list says which pupils outside a homework came onto the tab after it was set (6 Oct 2026; _homeworkData_) */
-    var width = Math.max(ec, Math.min(ec + 2, stu.getLastColumn()));
+       teacher's list says which pupils outside a homework came onto the tab after it was set (6 Oct 2026; _homeworkData_);
+       and the teacher's accommodation (8 Oct 2026), for the Students view's switch */
+    var width = Math.max(ec, Math.min(ec + 2, stu.getLastColumn()), SC.acc || 0);
     stu.getRange(2, 1, last - 1, width).getValues().forEach(function (r) {
       var email = _cleanEmail_(r[ec - 1]); if (!email) return;
       var cls = String(r[1] || '').trim().toUpperCase();
       var imp = width >= ec + 2 ? r[ec + 1] : '', since = (imp instanceof Date && !isNaN(imp.getTime())) ? imp.getTime() : 0;
-      out.push({ name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now), since: since });
+      var row = { name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now), since: since };
+      if (SC.acc && _accOn_(r[SC.acc - 1])) row.acc = true;
+      out.push(row);
     });
   }
   out.sort(function (a, b) { return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || ''); });
@@ -5191,7 +5351,7 @@ function _manifest_() {
 /* Who is asking: the active user, if they are a teacher on the list, else ''. On the school-only deployment
    Google has already proved who they are, and google.script.run calls from the page arrive with the same
    active user. Every read and write the teacher page makes checks this (uiData, homeworkCreate, homeworkDelete,
-   homeworkTopics, homeworkRemind, homeworkChangeDue, homeworkAddPupils, homeworkHide, studentMove). */
+   homeworkTopics, homeworkRemind, homeworkChangeDue, homeworkAddPupils, homeworkHide, studentMove, studentAccommodation). */
 function _hwCaller_() {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
@@ -6017,6 +6177,51 @@ function studentMove(d) {
   return { ok:true, note:note, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
 }
 
+/* Students ▸ a pupil's card ▸ Accommodation (Daniel, 8 Oct 2026): help for the pupils who need it, by the teacher's choice.
+   On: after a SECOND, different wrong try at a question the page explains what the pupil got wrong, where an explanation is
+   written: the labs' multiple-choice questions (their other types have none); Bio English's fix, trim, mark, keyword and exam
+   cards (pick and choose explain every choice to everyone already, and so do the etymology cards' notes; order, build,
+   gap and sort cards have no written explanation); every Write-Up test question. A keyword card's help never shows the
+   answer in any form (labs/bio-english-lab/js/engine.js kwMeaning). Bio English also offers keyword meanings in Korean or Chinese (the pupil chooses). Off: as everyone else. It writes Yes or nothing into the pupil's
+   Accommodation cell (the same cell a teacher can type in); a tab Tidy up has not given that column yet gets it inserted
+   right after Course id.
+   Each lab page reads it when it loads (the pupil's own answer: progress, english.mine, writeup.mine). Nothing else changes:
+   no record, no mark. */
+function studentAccommodation(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var email = _cleanEmail_(d.email), on = d.on === true;
+  if (!email) return { ok:false, why:'Which pupil?' };
+  var lock = null, name = '';
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  try {
+    var stu = _sheet_(T_STUDENTS), n = stu.getLastRow() - 1;
+    if (n < 1) return { ok:false, why:'There is nobody on the Students tab.' };
+    /* the column first: a tab without one gets it inserted right after Course id (never written over a column), then the rows */
+    _studentTrailColumns_(stu);
+    var C = _studentCols_(stu), ec = C.email, ac = C.acc, v = stu.getRange(2, 1, n, ec).getValues(), rows = [];
+    if (!ac) return { ok:false, why:'The Students tab has no Accommodation column, and one could not be added. Press Tidy up, then try again.' };
+    /* every row with that address: a save reads the first, and a second row (Tidy up names it) must not disagree */
+    for (var i = 0; i < v.length; i++) { if (_cleanEmail_(v[i][ec - 1]) === email) rows.push(i); }
+    if (!rows.length) return { ok:false, why:'That pupil is not on the Students tab.' };
+    name = String(v[rows[0]][0] || '').trim();
+    rows.forEach(function (r) { stu.getRange(r + 2, ac).setValue(on ? 'Yes' : ''); });
+  } catch (e) {
+    return { ok:false, why:'Could not change it.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  var note = on
+    ? (name || 'This pupil') + ' has the accommodation now: after a second, different wrong try, their pages explain what they got ' +
+      'wrong, where an explanation is written (the labs\' multiple-choice questions, most Bio English cards, the Write-Up tests); ' +
+      'Bio English also offers keyword meanings in Korean or Chinese (they choose 한국어 or 中文). They see it the next time a page loads.'
+    : (name || 'This pupil') + ' has no accommodation now: the pages work for them as for everyone else.';
+  /* the cell is written: a directory that cannot be read now must not turn that into "could not be reached" */
+  var dir = null, base = '';
+  try { dir = _studentDirectory_(); base = _trackerAppUrl_(); } catch (e) { dir = null; }
+  return { ok:true, note: note + (dir ? '' : ' Press ↻ Refresh, at the top of the page, to see it on the card.'), data:dir, trackerBase:base };
+}
+
 /* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
    👥 list only. The list is kept by the tracker's own script (AppScript Tracker Analysis, _publishViewers_) as
    SPREADSHEET-level developer metadata on the Student Progress Tracker: key ANALYSIS_VIEWERS, visibility DOCUMENT, value
@@ -6079,6 +6284,7 @@ function uiData(which, arg) {
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
     if (which === 'homework')  return { ok:true, data:_homeworkData_(undefined, who) };   /* their own homework (the owner: everyone's) */
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
+    if (which === 'writeup')   return { ok:true, data:_writeupProgressData_() };   /* the Write-Up view (8 Oct 2026): read only */
     if (which === 'habits')    return { ok:true, data:_habitsData_() };      /* ⏱️ Homework habits (1 Oct 2026): read only */
   } catch (err) { return { ok:false, why:String(err) }; }
   return { ok:false, why:'Unknown view.' };
@@ -6356,7 +6562,7 @@ var ENGLISH_COLS = [
   { h:'Vocabulary right first time', w:184, align:'center', fmt:'0%', note:'Of those keyword questions, the share they got right at the first attempt.' },
   { h:'Answer writing', w:120, align:'center', fmt:'0', group:true, note:'Describe, explain, plan and "how to answer" questions answered.' },
   { h:'Writing right first time', w:166, align:'center', fmt:'0%', note:'Of those writing questions, the share they got right at the first attempt.' },
-  { h:'Sets finished', w:106, align:'center', fmt:'0', group:true, note:'Sets with every question answered.' },
+  { h:'Sets finished', w:106, align:'center', fmt:'0', group:true, note:'Sets with every question answered. A set rebuilt since counts what they did on its earlier version (marked [best from an earlier version] in Per set).' },
   { h:'Last saved', w:132, fmt:'dd MMM, HH:mm', note:'When the site last saved their work.' },
   { h:'Per set', w:460, note:'Every set they have opened: questions answered / questions in the set, and in brackets how many were right first time.' },
   { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
@@ -6444,7 +6650,11 @@ function _enParse_(v) {
     out[k] = { d: Math.max(0, Number(x.d) || 0), f: Math.max(0, Number(x.f) || 0), t: Math.max(0, Number(x.t) || 0),
                s: String(x.s || '').replace(/[^01tfs]/g, ''), v: String(x.v || ''), k: String(x.k || ''),
                g: Math.max(1, Math.floor(Number(x.g) || 1)),                   /* goes, Sept 2026 */
-               s1: String(x.s1 || '').replace(/[^01tfs]/g, ''), b: String(x.b || '').replace(/[^01tfs]/g, '') };
+               s1: String(x.s1 || '').replace(/[^01tfs]/g, ''), b: String(x.b || '').replace(/[^01tfs]/g, ''),
+               x: Math.max(0, Math.floor(Number(x.x) || 0)),                   /* best of earlier versions (8 Oct 2026): */
+               xt: Math.max(0, Math.floor(Number(x.xt) || 0)),                 /*   out of this many, */
+               xf: Math.max(0, Math.floor(Number(x.xf) || 0)) };               /*   so many right first time */
+    if (!out[k].x) { delete out[k].x; delete out[k].xt; delete out[k].xf; }  /* kept only when it holds something */
   });
   return out;
 }
@@ -6474,6 +6684,32 @@ function _enMax_(a, b) {
   for (var i = 0; i < len; i++) { var x = a.charAt(i) || '0', y = b.charAt(i) || '0'; out += (EN_RANK[y] || 0) > (EN_RANK[x] || 0) ? y : x; }
   return out;
 }
+/* The most of a set ever answered, in ANY version of it (8 Oct 2026; Daniel: "if students have answered questions before
+   … and they had a score, then it'd be nice to have that score because that means that we can track their progress").
+   A rebuilt set starts its letters again (they are other questions), but `x` keeps the best answered count of every
+   earlier version, so homework, the Bio English tab, the teacher page and ⏱️ Homework habits never go backwards. Capped
+   at the set's size now. The labs keep their Per station the same way. */
+function _enBest_(x) { return _enBestOf_(x).d; }
+/* { d, f, old }: the answered count homework reads, the right-first-time count that goes WITH it (never this version's f
+   beside an earlier version's d: the audit of 8 Oct 2026), and 1 when both come from an earlier version. A carried best
+   is a SHARE of the size it was made on (`xt`), scaled to the size now: a finished version stays finished, an
+   unfinished one never becomes finished because the set shrank (12 of 18 is 6 of 10, never 10 of 10). */
+function _enBestOf_(x) {
+  var t = x.t || 0, d = t ? Math.min(x.d || 0, t) : (x.d || 0);
+  if (x.x) {
+    var sx = _bestScale_(x.x, x.xt, t), sf = Math.min(sx, _bestScale_(x.xf || 0, x.xt, t, true));
+    if (sx > d) return { d: sx, f: sf, old: 1 };
+  }
+  return { d: d, f: Math.min(x.f || 0, d), old: 0 };
+}
+/* n done out of `from`, as a count out of `to`: all of it stays all of it; part of it is scaled down, never up to all. */
+function _bestScale_(n, from, to, partOnly) {
+  n = n || 0;
+  if (!to) return n;
+  if (!from) return Math.min(n, to);
+  if (n >= from && !partOnly) return to;
+  return Math.min(n >= from ? to : to - 1, Math.floor(n * to / from));
+}
 function _enMerge_(old, inc) {
   inc.g = inc.g > 1 ? inc.g : 1;
   /* a page from before goes, on a set already past round 1: its letters (perhaps a later round's, pulled and
@@ -6499,6 +6735,16 @@ function _enMerge_(old, inc) {
     out.f = Math.max(old && old.v === inc.v ? old.f : 0, f);
   }
   if (out.t) { out.d = Math.min(out.d, out.t); out.f = Math.min(out.f, out.d); }
+  /* the best of every version before this one, as { x, t, f } on the size it was made on (8 Oct 2026) */
+  var c = old && old.x ? { x: old.x, t: old.xt || old.t || 0, f: old.xf || 0 } : null;
+  if (old && old.v !== inc.v && old.d > 0) {
+    var cand = { x: old.d, t: old.t || 0, f: old.f || 0 };
+    if (!c || (cand.t ? cand.x / cand.t : 0) > (c.t ? c.x / c.t : 0)) c = cand;
+  }
+  if (c) {
+    var T = out.t || c.t, sx = _bestScale_(c.x, c.t, T);
+    if (sx > out.d) { out.x = sx; out.xt = T; out.xf = Math.min(sx, _bestScale_(c.f, c.t, T, true)); }
+  }
   return out;
 }
 /* The columns a teacher reads, worked out from the stored sets. */
@@ -6507,16 +6753,16 @@ function _enSummary_(kept, en) {
   if (en) (en.sets || []).forEach(function (s, i) { bySet[s.id] = s; order[s.id] = i; });
   function at(k) { return order[k] == null ? 1e6 : order[k]; }
   var bits = Object.keys(kept).sort(function (a, b) { return at(a) - at(b) || (a < b ? -1 : 1); }).map(function (sid) {
-    var x = kept[sid], m = bySet[sid], kind = (m && m.kind) || x.k;
-    if (kind === 'kw') { vd += x.d; vf += x.f; } else { wd += x.d; wf += x.f; }
-    if (x.t && x.d >= x.t) fin++;
+    var x = kept[sid], m = bySet[sid], kind = (m && m.kind) || x.k, bo = _enBestOf_(x), bd = bo.d;
+    if (kind === 'kw') { vd += bd; vf += bo.f; } else { wd += bd; wf += bo.f; }
+    if (x.t && bd >= x.t) fin++;
     var u = m && m.unit && en.units[m.unit] ? en.units[m.unit] : null;
     var name = (u ? 'T' + u.n + ' ' : '') + (m ? m.title : sid);
     if (x.g > 1) {
       var now = 0; for (var i = 0; i < x.s.length; i++) { var c = x.s.charAt(i); if (c === 'f' || c === '1' || c === 's') now++; }
       again.push(name + ' (round ' + x.g + ', ' + now + '/' + x.t + ')');
     }
-    return name + ' ' + x.d + '/' + x.t + ' (' + x.f + ')';
+    return name + ' ' + bd + '/' + x.t + ' (' + bo.f + ')' + (bo.old ? ' [best from an earlier version]' : '');
   });
   return { vocab: vd, vocabFirst: vd ? vf / vd : '', writing: wd, writingFirst: wd ? wf / wd : '',
            finished: fin, perSet: bits.join(' · ').slice(0, 45000), again: again.join(' · ').slice(0, 45000) };
@@ -6606,6 +6852,7 @@ function _englishMine_(d) {
   var student = _studentOf_(who.email);
   if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
   out.onList = true; out.cls = student.cls;
+  if (student.acc) out.acc = 1;                       /* the teacher's accommodation: this pupil's own, never anyone else's */
   var sh = _ss_().getSheetByName(T_ENGLISH);
   if (sh && sh.getLastRow() >= 2) {
     var n = sh.getLastRow() - 1, v = sh.getRange(2, EN_EMAIL, n, 2).getValues();
@@ -6616,7 +6863,8 @@ function _englishMine_(d) {
         var x = kept[sid];
         /* `snap` is all a page from before goes reads, and it sends it back as its round 1: on a later round it
            is the FIRST round's letters, never this round's. A page that knows goes reads `here`. */
-        out.sets[sid] = { done: x.d, first: x.f, total: x.t, snap: x.g > 1 ? (x.s1 || '') : x.s, here: x.s, v: x.v, go: x.g, snap1: x.s1, best: x.b };
+        out.sets[sid] = { done: x.d, first: x.f, total: x.t, snap: x.g > 1 ? (x.s1 || '') : x.s, here: x.s, v: x.v, go: x.g, snap1: x.s1, best: x.b,
+                          most: _enBest_(x) };   /* the answered count homework reads, of any version (8 Oct 2026): the page's homework colour */
       });
       break;
     }
@@ -6658,7 +6906,7 @@ function _englishIndex_(need) {
     var em = _cleanEmail_(v[i][EN_EMAIL - 1]);
     if (!em || (need && !need[em])) continue;
     var kept = _enParse_(v[i][EN_SNAP - 1]), byId = {};
-    Object.keys(kept).forEach(function (sid) { byId[sid] = { done: kept[sid].d }; });
+    Object.keys(kept).forEach(function (sid) { byId[sid] = { done: _enBest_(kept[sid]) }; });   /* best of any version */
     out[em] = { byId: byId, at: v[i][EN_LAST - 1] ? new Date(v[i][EN_LAST - 1]).getTime() : 0 };
   }
   return out;
@@ -6675,7 +6923,8 @@ function _englishProgressData_(now) {
       var em = _cleanEmail_(v[i][EN_EMAIL - 1]);
       if (!em) continue;
       var kept = _enParse_(v[i][EN_SNAP - 1]), slim = {};
-      Object.keys(kept).forEach(function (sid) { slim[sid] = [kept[sid].d, kept[sid].f]; });
+      /* [answered (best of any version), right first time, 1 when the answered count comes from an earlier version] */
+      Object.keys(kept).forEach(function (sid) { var b = _enBestOf_(kept[sid]); slim[sid] = b.old ? [b.d, b.f, 1] : [b.d, b.f]; });
       prog[em] = { sets: slim, at: v[i][EN_LAST - 1] ? new Date(v[i][EN_LAST - 1]).toISOString() : null };
     }
   }
@@ -6708,7 +6957,9 @@ function _englishProgressData_(now) {
      • the tab "📝 Write-Up Lab": one row per pupil, made at their first save;
      • two POST actions, writeup.save and writeup.mine — the signed-in pupil's own row, no one else's;
      • homework: the Write-Up Lab is scored as one lab more, id 'write-up-lab', whose "stations" are its parts,
-       named and counted by the site's public data/parts.json (written by its tools/check.mjs --stamp).
+       named and counted by the site's public data/parts.json (written by its tools/check.mjs --stamp);
+     • the teacher page's "Write-Up" view (?page=writeup, 8 Oct 2026).
+   A part rewritten since (a new v) restarts its letters, never the most a pupil finished of it (`x`, _wuBestOf_).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 var T_WRITEUP   = '📝 Write-Up Lab';
@@ -6718,7 +6969,7 @@ var WU_TAB      = '#1E4FA8';
 var WRITEUP_COLS = [
   { h:'Name', w:200, note:'From the Students tab. A student appears here the first time the site saves their work.' },
   { h:'Class', w:80, align:'center', note:'From the Students tab, as it was at their last save.' },
-  { h:'Parts finished', w:116, align:'center', fmt:'0', group:true, note:'Parts with every red-pen mistake found (in every version the part has: IGCSE, IB IA, IB EE) and every Test yourself question answered, IB ones too. That is what homework counts.' },
+  { h:'Parts finished', w:116, align:'center', fmt:'0', group:true, note:'Parts with every red-pen mistake found (in every version the part has: IGCSE, IB IA, IB EE) and every Test yourself question answered, IB ones too. That is what homework counts. A part rewritten since counts what they did on its earlier version (marked [best … from an earlier version] in Per part).' },
   { h:'Red-pen mistakes found', w:170, align:'center', fmt:'0', group:true, note:'Mistakes found in the red pens, in every part they have opened.' },
   { h:'Questions answered', w:150, align:'center', fmt:'0', group:true, note:'Test yourself questions answered, in every part they have opened. An answer shown after three tries counts as answered.' },
   { h:'Right first time', w:130, align:'center', fmt:'0%', note:'Of those questions, the share they got right at their first attempt.' },
@@ -6782,12 +7033,17 @@ function _wuPartsById_(wm) { var by = {}; if (wm) (wm.parts || []).forEach(funct
    opened, q one letter per question 0 t s 1 f, f Go further panels). */
 function _wuClean_(x) {
   if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
-  var r = {};
+  var r = {}, out;
   if (x.r && typeof x.r === 'object' && !Array.isArray(x.r)) ['g', 'i', 'e'].forEach(function (l) { if (l in x.r) r[l] = String(x.r[l] || '').replace(/[^01]/g, '').slice(0, 100); });
-  return { v: String(x.v || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
+  out = { v: String(x.v || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
            l: String(x.l || '').replace(/[^01]/g, '').slice(0, 200), r: r, m: x.m ? 1 : 0,
            q: String(x.q || '').replace(/[^0tsf1]/g, '').slice(0, 200),
-           f: String(x.f || '').replace(/[^01]/g, '').slice(0, 50) };
+           f: String(x.f || '').replace(/[^01]/g, '').slice(0, 50),
+           x: Math.max(0, Math.min(2000, Math.floor(Number(x.x) || 0))),     /* best of earlier versions (8 Oct 2026): */
+           xt: Math.max(0, Math.min(2000, Math.floor(Number(x.xt) || 0))),   /*   out of this many units, */
+           xf: Math.max(0, Math.min(2000, Math.floor(Number(x.xf) || 0))) }; /*   so many right first time */
+  if (!out.x) { delete out.x; delete out.xt; delete out.xf; }               /* kept only when it holds something */
+  return out;
 }
 function _wuParse_(v) {
   var o = null, out = {};
@@ -6805,7 +7061,7 @@ function _wuFit_(x, p) {
   function pad(s, n) { s = String(s || '').slice(0, n); while (s.length < n) s += '0'; return s; }
   var r = {};
   (p.redpens || []).forEach(function (y) { r[y.l] = pad((x.r || {})[y.l], Number(y.n) || 0); });
-  return { v: x.v, l: pad(x.l, Number(p.steps) || 0), r: r, m: x.m ? 1 : 0, q: pad(x.q, Number(p.questions) || 0), f: pad(x.f, Number(p.further) || 0) };
+  return { v: x.v, l: pad(x.l, Number(p.steps) || 0), r: r, m: x.m ? 1 : 0, q: pad(x.q, Number(p.questions) || 0), f: pad(x.f, Number(p.further) || 0), x: x.x || 0, xt: x.xt || 0, xf: x.xf || 0 };
 }
 /* Two computers, one pupil: letter by letter, the better (EN_RANK: 0 < t < s < 1 < f, and 0 < 1 for the rest). A part
    rewritten since (a new v) starts again: the newer version's record wins outright. */
@@ -6829,16 +7085,38 @@ function _wuCount_(x, p) {
            learn: n(x.l, /1/g), steps: p ? Number(p.steps) || 0 : String(x.l || '').length, traps: !!x.m,
            further: n(x.f, /1/g), panels: p ? Number(p.further) || 0 : String(x.f || '').length };
 }
+/* The most of a part ever finished (red-pen marks found + questions answered), in ANY version of it (8 Oct 2026, as Bio
+   English's _enBest_): a rewritten part starts its letters again, but the count never drops. A record of an older version
+   still counts by its own lengths; `x` keeps that count once a save replaces it. Capped at what the part takes now. */
+function _wuBest_(rec, p) { return _wuBestOf_(rec, p).done; }
+/* { done, first, old }, as _enBestOf_: the carried best is a share of the units it was made on, scaled to the part now,
+   and its right-first-time count goes with it. */
+function _wuBestOf_(rec, p) {
+  if (!rec) return { done: 0, first: 0, old: 0 };
+  var fit = p ? _wuFit_(rec, p) : rec, c = fit ? _wuCount_(fit, p) : null;
+  var units = p ? (Number(p.units) || 0) : (c ? c.units : 0), now = c ? c.done : 0, first = c ? c.first : 0;
+  var cx = rec.x ? { x: rec.x, t: rec.xt || 0, f: rec.xf || 0 } : null;
+  if (!fit) {                                          /* a record of an older version: its own count, on its own size */
+    var raw = _wuCount_(rec, null);
+    if (raw.done && (!cx || (raw.units ? raw.done / raw.units : 0) > (cx.t ? cx.x / cx.t : 0))) cx = { x: raw.done, t: raw.units, f: raw.first };
+  }
+  if (cx) {
+    var sx = _bestScale_(cx.x, cx.t, units), sf = Math.min(sx, _bestScale_(cx.f, cx.t, units, true));
+    if (sx > now) return { done: sx, first: sf, old: 1 };
+  }
+  return { done: now, first: first, old: 0 };
+}
 /* The columns a teacher reads, worked out from the stored parts. */
 function _wuSummary_(kept, wm) {
   var by = _wuPartsById_(wm), order = {}, fin = 0, found = 0, answered = 0, first = 0, learn = 0;
   if (wm) (wm.parts || []).forEach(function (p, i) { order[p.id] = i; });
   function at(k) { return order[k] == null ? 1e6 : order[k]; }
   var bits = Object.keys(kept).sort(function (a, b) { return at(a) - at(b) || (a < b ? -1 : 1); }).map(function (id) {
-    var p = by[id] || null, c = _wuCount_(kept[id], p), done = c.units && c.done >= c.units;
+    var p = by[id] || null, fit = p ? _wuFit_(kept[id], p) : kept[id];
+    var c = _wuCount_(fit || { v: '', l: '', r: {}, m: 0, q: '', f: '' }, p), best = _wuBest_(kept[id], p), done = c.units && best >= c.units;
     if (done) fin++;
     found += c.found; answered += c.answered; first += c.first; learn += c.learn;
-    return (p ? p.title : id) + (done ? ' ✓' : '') + ' (red pen ' + c.found + '/' + c.marks + ', questions ' + c.answered + '/' + c.total +
+    return (p ? p.title : id) + (done ? ' ✓' : '') + (best > c.done ? ' [best ' + best + '/' + c.units + ' from an earlier version]' : '') + ' (red pen ' + c.found + '/' + c.marks + ', questions ' + c.answered + '/' + c.total +
       ', ' + c.first + ' first time, Learn ' + c.learn + '/' + c.steps + ', Mistakes to avoid ' + (c.traps ? 'opened' : 'not opened') +
       (c.panels ? ', Go further ' + c.further + '/' + c.panels : '') + ')';
   });
@@ -6890,7 +7168,11 @@ function _writeupSave_(d) {
       if (wm && !p) return;                                /* a part the site does not have */
       var inc = _wuFit_(_wuClean_(parts[id]), p);
       if (!inc) return;                                    /* a page from before the part was rewritten */
+      delete inc.x; delete inc.xt; delete inc.xf;          /* the best is the script's own: never taken from a page */
+      var was = _wuBestOf_(kept[id], p);                   /* the best so far, in any version, on this part's size (8 Oct 2026) */
       kept[id] = _wuMerge_(p ? _wuFit_(kept[id], p) : kept[id], inc);
+      delete kept[id].x; delete kept[id].xt; delete kept[id].xf;
+      if (was.done > _wuCount_(kept[id], p).done) { kept[id].x = was.done; kept[id].xt = p ? (Number(p.units) || 0) : 0; kept[id].xf = was.first; }
       saved++;
     });
     var sum = _wuSummary_(kept, wm), at = new Date(), times = cells[WU_TIMES - WU_SNAP];
@@ -6920,12 +7202,16 @@ function _writeupMine_(d) {
   var student = _studentOf_(who.email);
   if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
   out.onList = true; out.cls = student.cls;
+  if (student.acc) out.acc = 1;                       /* the teacher's accommodation: this pupil's own, never anyone else's */
   var sh = _ss_().getSheetByName(T_WRITEUP);
   if (sh && sh.getLastRow() >= 2) {
     var n = sh.getLastRow() - 1, v = sh.getRange(2, WU_EMAIL, n, 2).getValues();
     for (var i = 0; i < n; i++) {
       if (_cleanEmail_(v[i][0]) !== who.email) continue;
       out.parts = _wuParse_(v[i][1]);
+      /* what homework counts for each part, of any version (8 Oct 2026): the page's homework colour */
+      var byM = _wuPartsById_(_writeupManifest_()); out.most = {};
+      Object.keys(out.parts).forEach(function (id) { out.most[id] = _wuBest_(out.parts[id], byM[id] || null); });
       break;
     }
   }
@@ -6943,7 +7229,40 @@ function _writeupMine_(d) {
 }
 function _writeupTeacherUrl_() {
   var u = _teacherPageUrl_();
-  return u ? u.replace(/\?page=teachers$/, '?page=homework') : '';
+  return u ? u.replace(/\?page=teachers$/, '?page=writeup') : '';   /* its own view since 8 Oct 2026 (was Set homework) */
+}
+
+/* The teacher page's "Write-Up" view (8 Oct 2026, Daniel: Bio English has a view and the Write-Up Lab had none): every
+   pupil on the roster and, per part they have opened, [finished units at their best in any version, red-pen mistakes
+   found, questions answered, right first time, 1 when the best comes from an earlier version]. The page does the sums. */
+function _writeupProgressData_(now) {
+  var wm = null; try { wm = _writeupManifest_(); } catch (e) { wm = null; }
+  var by = _wuPartsById_(wm), dir = _studentDirectory_(now), prog = {};
+  var sh = _ss_().getSheetByName(T_WRITEUP);
+  if (sh && sh.getLastRow() >= 2) {
+    var n = sh.getLastRow() - 1, v = sh.getRange(2, 1, n, WU_SNAP).getValues();
+    for (var i = 0; i < n; i++) {
+      var em = _cleanEmail_(v[i][WU_EMAIL - 1]);
+      if (!em) continue;
+      var kept = _wuParse_(v[i][WU_SNAP - 1]), slim = {};
+      Object.keys(kept).forEach(function (id) {
+        var p = by[id] || null, fit = p ? _wuFit_(kept[id], p) : kept[id], c = fit ? _wuCount_(fit, p) : null, b = _wuBestOf_(kept[id], p);
+        /* found and answered are this version's; first goes with the best (an earlier version's when the best is) */
+        slim[id] = [b.done, c ? c.found : 0, c ? c.answered : 0, b.old ? b.first : (c ? c.first : 0), b.old];
+      });
+      prog[em] = { parts: slim, at: v[i][WU_LAST - 1] ? new Date(v[i][WU_LAST - 1]).toISOString() : null };
+    }
+  }
+  return {
+    generatedAt: new Date().toISOString(), manifestOk: !!wm,
+    writeup: wm ? { stages: wm.stages || [], parts: (wm.parts || []).map(function (p) {
+      var marks = 0; (p.redpens || []).forEach(function (y) { marks += Number(y.n) || 0; });
+      return { id: p.id, title: p.title, stage: p.stage, units: Number(p.units) || 0, marks: marks, questions: Number(p.questions) || 0 };
+    }) } : null,
+    students: dir.students.filter(function (s) { return !_isLeftClass_(s.cls); })
+                .map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
+    classes: dir.classes, progress: prog
+  };
 }
 
 /* The Write-Up tab read once, in the shape _hwScoreOne_ reads a lab's tab: per part, the units done (red-pen marks
@@ -6959,8 +7278,7 @@ function _writeupIndex_(need) {
     if (!em || (need && !need[em])) continue;
     var kept = _wuParse_(v[i][WU_SNAP - 1]), byId = {};
     Object.keys(kept).forEach(function (id) {
-      var p = by[id] || null, x = p ? _wuFit_(kept[id], p) : kept[id];
-      byId[id] = { done: x ? _wuCount_(x, p).done : 0 };       /* a record of an older version of the part counts nothing */
+      byId[id] = { done: _wuBest_(kept[id], by[id] || null) };   /* the best of any version of the part (8 Oct 2026) */
     });
     out[em] = { byId: byId, at: v[i][WU_LAST - 1] ? new Date(v[i][WU_LAST - 1]).getTime() : 0 };
   }
@@ -6970,7 +7288,7 @@ function _writeupIndex_(need) {
    (Learn steps opened are not a try); done = _hwScoreOne_ on the part, as the homework scorer counts it. */
 function _stWuState_(kept, ids, email, man, wm) {
   var by = _wuPartsById_(wm), byId = {}, idx = {}, out = {};
-  Object.keys(kept).forEach(function (id) { var p = by[id] || null, x = p ? _wuFit_(kept[id], p) : kept[id]; byId[id] = { done: x ? _wuCount_(x, p).done : 0 }; });
+  Object.keys(kept).forEach(function (id) { byId[id] = { done: _wuBest_(kept[id], by[id] || null) }; });   /* as _writeupIndex_ */
   idx[WRITEUP_ID] = {}; idx[WRITEUP_ID][email] = { byId: byId, at: 0 };
   (ids || []).forEach(function (id) {
     var x = kept[id]; if (!x) return;
@@ -7588,7 +7906,7 @@ function _stLabState_(labId, email, perStation, man) {
    answer at all (as _hasPractice_ asks); done: _hwScoreOne_ on the sets as the homework scorer counts them. */
 function _stEnState_(kept, sids, email, man) {
   var byId = {}, idx = {}, out = {};
-  Object.keys(kept).forEach(function (sid) { byId[sid] = { done: kept[sid].d }; });   /* as _englishIndex_ reads the tab */
+  Object.keys(kept).forEach(function (sid) { byId[sid] = { done: _enBest_(kept[sid]) }; });   /* as _englishIndex_ reads the tab */
   idx[ENGLISH_ID] = {}; idx[ENGLISH_ID][email] = { byId: byId, at: 0 };
   (sids || []).forEach(function (sid) {
     var x = kept[sid]; if (!x) return;
@@ -7764,7 +8082,7 @@ function _hwTimesIndex_(labIds, need) {
       en.getRange(2, EN_EMAIL, en.getLastRow() - 1, Math.min(EN_TIMES, en.getMaxColumns()) - EN_EMAIL + 1).getValues().forEach(function (r) {
         var em = _cleanEmail_(r[0]); if (!em || !need[em]) return;
         var kept = _enParse_(r[EN_SNAP - EN_EMAIL]), f = {};
-        Object.keys(kept).forEach(function (sid) { f[sid] = kept[sid].f; });
+        Object.keys(kept).forEach(function (sid) { f[sid] = _enBestOf_(kept[sid]).f; });   /* with the count homework reads */
         out[id][em] = { t: _stParse_(r[EN_TIMES - EN_EMAIL]), f: f };
       });
       return;
@@ -7772,10 +8090,11 @@ function _hwTimesIndex_(labIds, need) {
     if (id === WRITEUP_ID) {                                /* 3 Oct 2026: School email to Part times */
       var wt = ss.getSheetByName(T_WRITEUP);
       if (!wt || wt.getLastRow() < 2) return;
+      var byW = {}; try { byW = _wuPartsById_(_writeupManifest_()); } catch (eW) { byW = {}; }
       wt.getRange(2, WU_EMAIL, wt.getLastRow() - 1, Math.min(WU_TIMES, wt.getMaxColumns()) - WU_EMAIL + 1).getValues().forEach(function (r) {
         var em = _cleanEmail_(r[0]); if (!em || !need[em]) return;
         var kept = _wuParse_(r[WU_SNAP - WU_EMAIL]), f = {};
-        Object.keys(kept).forEach(function (pid) { f[pid] = (String(kept[pid].q || '').match(/f/g) || []).length; });
+        Object.keys(kept).forEach(function (pid) { f[pid] = _wuBestOf_(kept[pid], byW[pid] || null).first; });   /* with the count homework reads */
         out[id][em] = { t: _stParse_(r[WU_TIMES - WU_EMAIL]), f: f };
       });
       return;
