@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '11 Oct 2026 — 🔬 Practicals; job windows; Form · Dashboard · Spreadsheet';
+var SCRIPT_EDITION = '11 Oct 2026 (late) — the Dashboard column fixed';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -5132,6 +5132,7 @@ function _ensureTeacherTabs_() {
     _dress2_(lk, _linkColDefs_(), { tab:'#0ea5e9' });
   } else {
     _migrateLinksTab_(lk);
+    _fixDashCells_(lk);
   }
   return { teachers: T_TEACHERS, links: T_LINKS };
 }
@@ -5316,12 +5317,36 @@ function _readLinkRow_(r, kHead, rowNum, dHead, urls) {
      dashboard is that address + ?page=dashboard. A dashboard address gives its form by dropping ?page=dashboard (for a
      Test System with a separate dashboard web app, that one's form, which a teacher can open; the students' link is in
      Classroom). Anything that is not an Apps Script web app stays as it is, with no form. */
-  var app = dash.match(/^(https:\/\/script\.google\.com\/(?:a\/macros\/[^\/?#\s]+|macros)\/s\/[A-Za-z0-9_-]+\/exec)(?:\?([^#\s]*))?$/);
+  var app = dash.match(_EXEC_RE_);
   if (app && !app[2]) { form = app[1]; dash = app[1] + '?page=dashboard'; }
   else if (app && /(^|&)page=dashboard(&|$)/.test(app[2])) form = app[1];
 
   return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
            name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash, form: form };
+}
+
+/* An Apps Script web app's address: [1] the /exec address itself, [2] what follows its "?" (undefined when nothing does). */
+var _EXEC_RE_ = /^(https:\/\/script\.google\.com\/(?:a\/macros\/[^\/?#\s]+|macros)\/s\/[A-Za-z0-9_-]+\/exec)(?:\?([^#\s]*))?$/;
+
+/* The Dashboard column says the dashboard (11 Oct 2026, Daniel: "when I go to the teacher links the dashboard links are
+   actually not for dashboards"). A Dashboard cell holding a web app's bare /exec address opens the students' form. The page
+   and 🔗 Add or remove links read such a cell as the form, with the dashboard at that address + ?page=dashboard
+   (_readLinkRow_), but the tab itself still showed the form's address under "Dashboard". Each such cell is now written as
+   the dashboard's own address. Only a typed address is changed — never a formula, a chip or words carrying a link — one
+   cell at a time, so nothing else in the row or the column is touched. Safe to run every time; returns how many it put right. */
+function _fixDashCells_(sh) {
+  var d = _headerCol_(sh, 'Dashboard', 0), last = sh.getLastRow();
+  if (d < 1 || last < 2) return 0;
+  var rg = sh.getRange(2, d, last - 1, 1), vals = rg.getValues(), forms = [], fixed = 0;
+  try { forms = rg.getFormulas(); } catch (e) {}
+  for (var i = 0; i < vals.length; i++) {
+    if (forms[i] && forms[i][0]) continue;
+    var m = String(vals[i][0] == null ? '' : vals[i][0]).trim().match(_EXEC_RE_);
+    if (!m || m[2]) continue;                                   /* not a web app, or already says which page */
+    sh.getRange(i + 2, d).setValue(m[1] + '?page=dashboard');
+    fixed++;
+  }
+  return fixed;
 }
 
 /* The links tab has had three shapes: the old four columns (Section · Name · Link · Note), then six
@@ -7300,6 +7325,8 @@ function teacherAddLink(d) {
     return { ok: false, why: 'The dashboard address must be a full https:// address, or left empty.' };
   if (dash && dash === url)
     return { ok: false, why: 'The dashboard address is the same as the link. Leave it empty unless it is the separate /exec?page=dashboard address.' };
+  var dm = dash.match(_EXEC_RE_);   /* a bare /exec opens the students' form: the Dashboard column keeps the dashboard's own address */
+  if (dm && !dm[2]) dash = dm[1] + '?page=dashboard';
   var assessment = String(d.assessment || '').trim();
   var name = String(d.name || '').trim() || assessment;
   if (!name) return { ok: false, why: 'Give it an assessment name (or a name).' };

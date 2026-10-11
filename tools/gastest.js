@@ -2409,6 +2409,34 @@ ok &= run('Form, Dashboard and Spreadsheet: a bare web-app address in Dashboard 
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
+ok &= run('the 🔗 Teacher links tab says the dashboard: a bare /exec in its Dashboard column is written as that address + ?page=dashboard (11 Oct 2026)', () => {
+  /* Daniel, 11 Oct 2026: "when I go to the teacher links the dashboard links are actually not for dashboards" — the page read a
+     bare /exec as the form, but the tab kept showing the form's address under "Dashboard" */
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  teacherPanelData();
+  const lk = ss.getSheetByName(T_LINKS), first = lk.getLastRow() + 1;
+  const A = 'https://script.google.com/a/macros/x.kr/s/AKfycbBAREEXEC00000000000000/exec';
+  const B = 'https://script.google.com/macros/s/AKfycbRIGHTDASH0000000000000/exec?page=dashboard';
+  const F = '=HYPERLINK("' + A + '","Dashboard")';
+  const cells = [A, B, 'https://example.org/dash', '', F, A + '?'];
+  cells.forEach((d, i) => lk.appendRow(['Reflection', 'Topic ' + i, '2028', 'T' + i, 'https://docs.google.com/spreadsheets/d/SHEET' + i + '/edit', 'note ' + i, d]));
+  const col = () => cells.map((_, i) => lk.getRange(first + i, 7).getValues()[0][0]);
+  const rest = () => JSON.stringify(cells.map((_, i) => lk.getRange(first + i, 1, 1, 6).getValues()[0]));
+  const before = rest();
+  _ensureTeacherTabs_();
+  const want = [A + '?page=dashboard', B, 'https://example.org/dash', '', F, A + '?page=dashboard'];
+  if (JSON.stringify(col()) !== JSON.stringify(want)) throw new Error('the Dashboard column is not put right: ' + JSON.stringify(col()));
+  if (rest() !== before) throw new Error('another column of those rows changed');
+  if (_fixDashCells_(lk) !== 0 || JSON.stringify(col()) !== JSON.stringify(want)) throw new Error('a second run changed something');
+  const g = _teacherPageGroups_(new Date(2026, 8, 15));
+  const l = [].concat(...g.cohorts.map(c => [].concat(...c.types.map(t => t.links)))).filter(x => x.name === 'T0')[0];
+  if (!l || l.form !== A || l.dash !== A + '?page=dashboard') throw new Error('the page no longer gives that row its form and dashboard: ' + JSON.stringify(l));
+  teacherAddLink({ type: 'Reflection', assessment: 'Typed by hand', grad: '2028', url: 'https://docs.google.com/spreadsheets/d/TYPED/edit', dash: A });
+  if (lk.getRange(lk.getLastRow(), 7).getValues()[0][0] !== A + '?page=dashboard') throw new Error('🔗 Add or remove links stored a bare /exec as the dashboard');
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+});
 ok &= run('classes list in YEAR order, not alphabetical', () => {
   /* sorted as plain text, "10A" and "11A" both come before "9A" — so every dropdown put Y10 and
      Y11 ahead of Y9, which is the opposite of how the school reads a list */
