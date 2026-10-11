@@ -37,7 +37,8 @@ PC, and progress is saved in the student's own browser.
 | **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
 
 Also here: the [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/), and an
-[IB B1.1 practical](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) behind the
+[IB B1.1 practical](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) and the
+[IB rocky shore fieldwork](https://nlcsbiology.com/rocky-shore-fieldwork-pract/) behind the
 **IB extension** toggle. The year tabs show which topics each year meets, the year of its IGCSE
 exams and which syllabus those follow; `…/#y10` opens a year and `…/#plants` a door — both are
 useful links to hand a class.

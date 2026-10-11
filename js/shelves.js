@@ -144,7 +144,10 @@ window.HUB = {
       url:'https://nlcsbiology.com/protein-enzyme-sim/', ib:'also IB B1.2' },
     { title:'Starch calibration curve', kind:'practical', shelf:'foundations',
       sub:'IB B1.1 · worksheet, workbook and a guide to R',
-      url:'https://nlcsbiology.com/B11-starch-calibration-curve-pract/', ibOnly:true }
+      url:'https://nlcsbiology.com/B11-starch-calibration-curve-pract/', ibOnly:true },
+    { title:'Rocky shore fieldwork', kind:'practical', shelf:'life-on-earth',
+      sub:'IB B4.1.4, C4.1.15 · transects and quadrats on a virtual shore, chi-squared and correlation',
+      url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract/', ibOnly:true }
   ],
 
   credits: [
