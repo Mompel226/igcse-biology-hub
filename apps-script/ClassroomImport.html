@@ -233,8 +233,22 @@ function startImport() {
 function working() {
   var bar = document.getElementById('bar');
   bar.style.display = 'block';
-  bar.innerHTML = '<div class="hint">You can close this window: the import carries on by itself, and each class’s pupils appear on the Students tab as it comes in.</div>' +
-    '<div id="phase" class="phase"></div>';
+  /* 10 Oct 2026, late evening (Daniel): "tell them in big, do not close this window" — Google runs the later parts in the
+     background, with no "Running script" bar: this window is the one place the import reports */
+  bar.innerHTML = '<div class="hint" style="background:#FEF3C7;border:1px solid #F59E0B;color:#7A4B00;border-radius:8px;padding:10px 12px;font-size:15px;font-weight:bold">⚠️ Do not close this window until it says Finished.</div>' +
+    '<div class="hint">Each class’s pupils appear on the Students tab as it comes in.</div>' +
+    '<div id="phase" class="phase"></div>' +
+    '<button id="stopImp" type="button" style="margin-top:8px;padding:5px 12px;border:1px solid #b91c1c;background:#fff;color:#b91c1c;border-radius:6px;cursor:pointer">⏹ Stop (what is done is kept)</button>';
+  document.getElementById('stopImp').onclick = stopImport;
+}
+/* ⏹ Stop (10 Oct 2026): the import ends after the class it is on; the classes already done are kept, and the box says so */
+function stopImport() {
+  var b = document.getElementById('stopImp');
+  if (!b || b.disabled) return;
+  b.disabled = true; b.textContent = '⏹ Stopping…';
+  google.script.run.withSuccessHandler(function () {})
+    .withFailureHandler(function () { b.disabled = false; b.textContent = '⏹ Stop (what is done is kept)'; })
+    .stopLabsJob('imp');
 }
 
 function runJob(list) {
@@ -343,6 +357,7 @@ function applyResult(s, r) {
 
 function summary(f) {
   importing = false; ended = true;
+  var sb = document.getElementById('stopImp'); if (sb) sb.style.display = 'none';
   leftCount();                                     /* the list's button, if it is open, may be pressed again */
   f = f || {};
   var ok = 0, failed = [], added = 0, already = 0, moved = 0;
@@ -377,7 +392,7 @@ function summary(f) {
       ? 'Every class above with a ✅ is in. Try again imports the others and builds the tabs (nobody is added twice); or use 🧪 Biology Labs ▸ 🎨 Tidy up once.'
       : 'Every name is in. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to build and format the tabs.') + '</p>';
   } else if (f.formatStopped) {
-    html += '<p class="bad">Every name is in, but building and formatting the tabs was stopped twice. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to finish it.</p>';
+    html += '<p class="bad">Every name is in, but part of building and formatting the tabs did not finish. Use 🧪 Biology Labs ▸ 🎨 Tidy up once to finish it.</p>';
   } else if (added || moved || f.built) html += f.studentsNote
       ? ' Every name is in and every other tab is built.<p class="bad">' + esc(f.studentsNote) + '</p>'   /* the Students tab's guard refused */
       : ' Every tab is built and formatted.';

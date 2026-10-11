@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '8 Oct 2026 (late) — no portRoundsOnce; Accommodation help';
+var SCRIPT_EDITION = '11 Oct 2026 — 🔬 Practicals; job windows; Form · Dashboard · Spreadsheet';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -191,7 +191,7 @@ var LABS = [
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
-  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:115 },
+  { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:120 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
   { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
@@ -311,8 +311,8 @@ function onOpen() {
     .addItem('🎓  Import students from Classroom…', 'showClassroomImport')
     .addItem('🩺  Check the set-up', 'checkSetup')
     .addSeparator()
-    .addItem('📊  Refresh everyone\'s progress', 'refreshDashboard')
-    .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'setup')
+    .addItem('📊  Refresh everyone\'s progress', 'refreshDashboardMENU_')
+    .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'tidyUpMENU_')
     .addSeparator()
     .addItem('🔗  Add or remove links on the teacher page (tests, reflections, surveys)…', 'showTeacherPanel')
     .addItem('🔎  Find new reflection and test spreadsheets', 'findSpreadsheetsMENU_')
@@ -354,6 +354,10 @@ function doPost(e) {
     /* The Write-Up Lab the same way (3 Oct 2026): its parts saved as a pupil works, and asked for back. */
     if (String(d.action || '') === 'writeup.save') return _writeupSave_(d);
     if (String(d.action || '') === 'writeup.mine') return _writeupMine_(d);
+
+    /* An IB practical (11 Oct 2026, §practicals): every check and choice per question, saved as a pupil works, and asked for back. */
+    if (String(d.action || '') === 'lesson.save') return _lessonSave_(d);
+    if (String(d.action || '') === 'lesson.mine') return _lessonMine_(d);
 
     var lab = _labById_(String(d.app || ''));
     if (!lab) return _text_('unknown lab');
@@ -555,8 +559,6 @@ function _snapForOldPages_(here, first) {
   });
   return out.join('|');
 }
-/* Kept for the tests of the one-record days: this go, merged. */
-function _mergeSnap_(oldSnap, newSnap) { return _snapMerge_(oldSnap, '', '', newSnap, '', '').here; }
 /* How many questions, over every station, carry this letter (or, for 'right', 1 or f). */
 function _snapCount_(snap, what) {
   var p = _snapParse_(snap), n = 0;
@@ -849,16 +851,6 @@ function _roundsSay_(P, names, here, current) {
   if (again.length) out.push('failed again: ' + again.slice(0, 12).join(', ') + (again.length > 12 ? ' and ' + (again.length - 12) + ' more' : ''));
   return out.join(' · ').slice(0, 900);
 }
-/* Two cells as one, floors and all (the tests). */
-function _rMergeCells_(a, b) {
-  var P = _rParse_(a), Q = _rParse_(b);
-  P.resets = Math.max(P.resets, Q.resets);
-  Q.order.forEach(function (key) {
-    if (P.by[key]) _rMergeV_(P.by[key], Q.by[key]);
-    else if (P.order.length < 120) { P.by[key] = _rCap_(Q.by[key]); P.order.push(key); }
-  });
-  return _rJoin_(P);
-}
 
 /* A cell given text that starts with = + - or @ reads it as a formula, and a formula can reach
    out of the sheet — IMAGE, IMPORTXML — the moment the teacher opens it. Everything a page sends
@@ -1110,7 +1102,7 @@ function doGet(e) {
      script.google.com inside the sandbox frame. The old ?page= values still work — each simply
      decides which tab opens first, so every bookmark and the hub's own door keep working. */
   if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework' ||
-      page === 'english' || page === 'writeup' || page === 'habits') {
+      page === 'english' || page === 'writeup' || page === 'habits' || page === 'practicals') {
     return _teacherAppPage_(page);
   }
   /* The health check names the script's edition, so a paste can be confirmed from outside
@@ -1198,7 +1190,7 @@ function _classCounts_() {
    minute, `done` with each class's count at the end. Closed, the job finishes anyway. */
 var IMPORT_JOB_KEY = 'IMPORT_JOB', IMPORT_TRIGGER_FN = 'continueBatchImport_';
 var IMPORT_CLASS_BY_MS = 3 * 60 * 1000;     /* a piece starts another class only in its first 3 minutes */
-var IMPORT_FINISH_BY_MS = 2 * 60 * 1000;    /* …and the formatting (Tidy up's work, minutes) only in its first 2 */
+var IMPORT_FINISH_BY_MS = 2 * 60 * 1000;    /* (until 9 Oct 2026: the formatting only in a piece's first 2; now Tidy up's steps, TIDY_STEP_BY_MS) */
 var IMPORT_NEXT_MS = 60 * 1000;             /* a handed-over job carries on a minute later */
 var IMPORT_SAFETY_MS = 8 * 60 * 1000;       /* the safety trigger: after any piece's six minutes */
 var IMPORT_STALE_MS = 10 * 60 * 1000;       /* a job not heard from for 10 minutes is dead: a new import may start */
@@ -1215,19 +1207,30 @@ function executeBatchImportAll(sels, jobId) {
              courseName: String(s.courseName || '').slice(0, 60) };
   });
   if (!list.length) return [];
-  var cur = _importJob_();
-  if (cur && cur.id !== id && Date.now() - (cur.tickAt || 0) < IMPORT_STALE_MS) {
-    var busy = list.map(function () {
-      return { status: 'busy', error: 'Another import is still running (it carries on by itself). Try again once it says Finished.' };
-    });
-    /* the refusal is the end of THIS job: the window says so at once (it said "Importing…" for twelve minutes) */
-    _publish_(id, busy, true, 'Another import is still running. Try again once it says Finished.', { stopped: true });
-    return busy;
-  }
-  /* an import that stopped before its tabs were built leaves word for the next one to build them (IMPORT_BUILD_KEY) */
+  /* 10 Oct 2026, the job engine: Tidy up running (it built and sorted the same tabs), a full storage or the day's brake
+     refuses it too, in words; decided and saved under the script lock (two presses at once both started one) */
   var owed = false;
   try { owed = !!PropertiesService.getScriptProperties().getProperty(IMPORT_BUILD_KEY); } catch (e) { owed = false; }
-  if (!_saveImportJob_({ id: id, sels: list, i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0, tries: {}, needBuild: owed })) {
+  /* the full check first, outside the lock (it may send the owner an email); inside it, a quick look again */
+  var can = _jeCanStart_('imp'), why = can.refuse || '', saved = false, lkI = LockService.getScriptLock(), gotI = false;
+  if (!why) { try { lkI.waitLock(20000); gotI = true; } catch (eLk) { gotI = false; } if (!gotI) why = 'The spreadsheet is busy (pupils saving). Nothing was imported; try again in a minute.'; }
+  if (gotI) {
+    try {
+      var cur = _importJob_(), curS = cur ? _jeStatus_('imp').state : 'none';
+      why = (cur && cur.id !== id && (curS === 'running' || curS === 'waiting'))
+        ? 'Another import is still running (it carries on by itself). Try again once it says Finished.' : _jeBusyWith_('imp');
+      if (!why) saved = _saveImportJob_(_jeStamp_({ id: id, sels: list, i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0, tries: {}, needBuild: owed }));
+    } finally { try { lkI.releaseLock(); } catch (eRl) {} }
+  }
+  if (why) {
+    var busy = list.map(function () { return { status: 'busy', error: why }; });
+    /* the refusal is the end of THIS job: the window says so at once (it said "Importing…" for twelve minutes) */
+    _publish_(id, busy, true, why, { stopped: true });
+    return busy;
+  }
+  /* an import that stopped before its tabs were built leaves word for the next one to build them (IMPORT_BUILD_KEY: read
+     above, before the lock) */
+  if (!saved) {
     /* a job Google will not keep (Script Properties full, or more than 9 KB) never starts in silence */
     var none = list.map(function () {
       return { status: 'error', error: 'The import could not start: Google would not keep where it is (Script Properties). Tick fewer classes, or try again in a minute.' };
@@ -1235,35 +1238,62 @@ function executeBatchImportAll(sels, jobId) {
     _publish_(id, none, true, 'Stopped.', { stopped: true, counts: _classCounts_() });
     return none;
   }
-  _publish_(id, list.map(function () { return { status: 'pending' }; }), false, '');
+  _publish_(id, list.map(function () { return { status: 'pending' }; }), false, can.warn || '');
   return _importPiece_(Date.now());
 }
 
 /* The trigger that carries an import on: after a piece handed over, or the safety one after a piece was stopped. Private
    (a trigger runs it; google.script.run cannot), and as the teacher who pressed Import. */
 function continueBatchImport_() {
-  if (!_importJob_()) { _deleteImportTriggers_(); return; }
-  _importPiece_(Date.now());
+  if (!_importJob_()) { _jeTriggersClear_('imp'); return; }
+  _LABS_JOB_TRUSTED_ = true;   /* 10 Oct 2026: as continueTidyUp_ */
+  try { _importPiece_(Date.now()); } finally { _LABS_JOB_TRUSTED_ = false; }
 }
 
-/* One piece of the job, started at t0: classes while there is time, then the formatting, then done. */
+/* One piece of the job, started at t0: classes while there is time, then the formatting, then done.
+   10 Oct 2026, the job engine: one piece at a time by its lease (_jePieceBegin_: it also sets the safety run, and ends the
+   job for ⏹ Stop, the day's brake, or runs that finish nothing); an error outside a class is counted (_jeError_). */
 function _importPiece_(t0) {
   var job = _importJob_();
-  if (!job) { _deleteImportTriggers_(); return []; }
-  _scheduleImport_(IMPORT_SAFETY_MS);
+  if (!job) { _jeTriggersClear_('imp'); return []; }
   var env = _importEnv_(job.id), n = job.sels.length;
   var results = env && Array.isArray(env.results) && env.results.length === n ? env.results
               : job.sels.map(function () { return { status: 'pending' }; });
+  var b = _jePieceBegin_('imp', job);
+  if (b.gone) return results;
+  if (b.busy || b.wait) {
+    var tooLong = _jeBusyCount_('imp', b.wait || '');
+    if (tooLong) { _importEnd_(job, tooLong, results); return results; }
+    return _importLater_(job, results, b.wait ? 'Waiting for ' + b.wait + ' to finish.' : 'Waiting for pupils’ saves to finish.');
+  }
+  if (b.stop) { _importEnd_(job, b.stop, results); return results; }
+  /* the window hears from each piece as it starts (a long first part after a stopped piece could pass its 12 minutes
+     without a word, and it said "Stopped." while the import was going) */
+  _publish_(job.id, results, false, job.phase === 'finish' ? 'Building and formatting every tab…' : 'Importing…');
+  try { return _importPieceRun_(t0, job, results); }
+  catch (e) {
+    var w = _jeError_('imp', e), now = _importJob_() || job;
+    if (w) { _importEnd_(now, w, results); return results; }
+    return _importLater_(now, results, 'Something went wrong (' + String((e && e.message) || e).slice(0, 160) + ').');
+  }
+  finally { _jePieceEnd_('imp'); }
+}
+function _importPieceRun_(t0, job, results) {
+  var n = job.sels.length;
   while (job.phase === 'classes') {
     if (job.i >= n) { job.phase = 'finish'; break; }
+    var stopW = _jeStopWords_('imp', job);   /* ⏹ Stop, seen between classes */
+    if (stopW) { _importEnd_(job, stopW, results); return results; }
     if (Date.now() - t0 > IMPORT_CLASS_BY_MS) return _importLater_(job, results);
-    /* a class Google has stopped twice before it was done is said and passed over (it was tried again every 8 minutes for
-       ever, and the job never went stale, so every later import was refused: the audit, 7 Oct 2026) */
+    /* a class Google has stopped before it was done is begun again (nobody is added twice); only after BUILD_MAX_TRIES
+       stops is it said and passed over (it was tried again every 8 minutes for ever, and the job never went stale, so
+       every later import was refused: the audit, 7 Oct 2026; 10 Oct 2026, Daniel: "they must finish" — four tries) */
     var tk = String(job.i); job.tries = job.tries || {};
-    if ((job.tries[tk] || 0) >= 2) {
-      results[job.i] = { status: 'error', error: 'Google stopped this class twice before it was done. Import it again on its own: nobody is added twice.' };
+    if ((job.tries[tk] || 0) >= BUILD_MAX_TRIES) {
+      results[job.i] = { status: 'error', error: 'Google stopped this class ' + BUILD_MAX_TRIES + ' times before it was done. Import it again on its own: nobody is added twice.' };
       job.needBuild = true; job.i++; job.tickAt = Date.now(); _saveImportJob_(job);
       _publish_(job.id, results, false, '');
+      _jeProgress_('imp');
       continue;
     }
     if (job.tries[tk]) job.needBuild = true;                    /* done again after a stop: what it wrote before must be built */
@@ -1275,46 +1305,75 @@ function _importPiece_(t0) {
     if (r && r.status === 'success' && (r.added || r.moved)) job.needBuild = true;
     results[job.i] = r; job.i++; job.tickAt = Date.now(); _saveImportJob_(job);
     _publish_(job.id, results, false, '');
+    _jeProgress_('imp');
   }
   var extra = {};
   /* An import leaves the spreadsheet finished: every lab tab gets its rows and every tab is built and dressed (Tidy up's
      work), unless no class added or moved anybody. It is the long part, so it starts only early in a piece. */
   if (job.phase === 'finish' && (job.needBuild || results.some(function (r) { return r && r.status === 'success' && (r.added || r.moved); }))) {
-    if (Date.now() - t0 > IMPORT_FINISH_BY_MS) return _importLater_(job, results);
-    job.finishTries = (job.finishTries || 0) + 1; job.tickAt = Date.now(); _saveImportJob_(job);
-    if (job.finishTries > 2) {
-      extra.formatStopped = true;      /* stopped by Google twice: every name is in; Tidy up finishes it */
+    /* 9 Oct 2026: Tidy up's steps (_buildRun_), a step at a time, carried on by the next piece when time runs out — it
+       used to be one go, started only in a piece's first two minutes, and given up after two stops */
+    job.build = job.build || { i: 0, notes: [], tries: {} };
+    _publish_(job.id, results, false, 'Names imported. Building and formatting every tab…');
+    _PROGRESS_JOB = { id: job.id, results: results };
+    var built = false;
+    try { built = _buildRun_(job.build, t0, TIDY_STEP_BY_MS, function () { job.tickAt = Date.now(); _saveImportJob_(job); }, { kind: 'imp', job: job }); }
+    finally { _PROGRESS_JOB = null; }
+    if (!built) {
+      var stopB = _jeStopWords_('imp', job);   /* ⏹ Stop pressed while the tabs were being built */
+      if (stopB) { _importEnd_(job, stopB, results); return results; }
+      if (job.build.busyStop) {   /* pupils' saves held the lock: a wait, counted apart (as Tidy up's) */
+        var tooLongI = _jeBusyWait_('imp', 'pupils’ saves');
+        if (tooLongI) { _importEnd_(job, tooLongI, results); return results; }
+        return _importLater_(job, results, 'Waiting for pupils’ saves to finish.');
+      }
+      return _importLater_(job, results);
+    }
+    extra.built = true;
+    if (job.build.studentsNote) extra.studentsNote = job.build.studentsNote;   /* the import window prints it (ClassroomImport.html summary) */
+    if (_tidyPartly_(job.build.notes, job.build)) {
+      extra.formatStopped = true;      /* a part stopped by Google twice, or one that failed: every name is in; Tidy up finishes it */
       try { PropertiesService.getScriptProperties().setProperty(IMPORT_BUILD_KEY, '1'); } catch (e) {}
     } else {
-      _publish_(job.id, results, false, 'Names imported. Building and formatting every tab…');
-      _PROGRESS_JOB = { id: job.id, results: results };
-      try { _buildAndStyle_(); } finally { _PROGRESS_JOB = null; }
-      extra.built = true;
-      if (_STUDENTS_NOT_STYLED_) extra.studentsNote = _STUDENTS_NOT_STYLED_;   /* the import window prints it (ClassroomImport.html summary) */
       try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_BUILD_KEY); } catch (e) {}
     }
   }
-  _clearImportJob_(); _deleteImportTriggers_();
   extra.counts = _classCounts_();
-  _publish_(job.id, results, true, 'Finished.', extra);
+  _publish_(job.id, results, true, 'Finished.', extra);   /* 10 Oct 2026: the words first, then the job goes */
+  _clearImportJob_(); _jeEnd_('imp');
   return results;
 }
 /* out of time: save where the job is, and carry on a minute later */
-function _importLater_(job, results) {
+/* lead: what it waits for (the default: Google's time limit); the restart time and that it is an estimate follow it */
+function _importLater_(job, results, lead) {
+  if (!_jeStillThere_('imp', job)) return results;   // ended (⏹ Stop) meanwhile: never saved back (the reflection's engine check, 10 Oct)
   job.tickAt = Date.now();
-  if (!_saveImportJob_(job) || !_scheduleImport_(IMPORT_NEXT_MS)) {
+  if (!_saveImportJob_(job) || !_jeHandOn_('imp')) {
     /* names written and tabs not yet built: the next import (or Tidy up) builds them */
     if (job.needBuild) { try { PropertiesService.getScriptProperties().setProperty(IMPORT_BUILD_KEY, '1'); } catch (e) {} }
     /* Google would not set the trigger that carries it on (7 Oct 2026): stop now and say so, rather than leave the window
        waiting twelve minutes for a job nothing will pick up. Every class done is in; Try again imports the rest, or Tidy up
        does the formatting when only that was left. */
-    _clearImportJob_(); _deleteImportTriggers_();
     _publish_(job.id, results, true, 'Stopped.', { noTrigger: true, namesIn: job.phase === 'finish', counts: _classCounts_() });
+    _clearImportJob_(); _jeEnd_('imp');
     return results;
   }
-  _publish_(job.id, results, false, 'Paused for a minute, to stay inside Google’s time limit. It carries on by itself: you can close this window.',
+  _publish_(job.id, results, false, (lead || 'Paused, to stay inside Google’s time limit.') + ' It restarts by itself at about ' + _jeDueAt_('imp') + '. ' + JOB_WAIT_WORDS,
             { continuing: true });
   return results;
+}
+/* 10 Oct 2026, the job engine: the import ends in words before it is done (⏹ Stop, the day's brake, too many errors): the
+   window says them; names already in are kept, and what is still to build is owed to the next import or Tidy up. */
+function _importEnd_(job, words, results) {
+  if (!results) {
+    var env = _importEnv_(job.id);
+    results = env && Array.isArray(env.results) && env.results.length === job.sels.length ? env.results
+            : job.sels.map(function () { return { status: 'pending' }; });
+  }
+  if (job.needBuild || job.phase === 'finish') { try { PropertiesService.getScriptProperties().setProperty(IMPORT_BUILD_KEY, '1'); } catch (e) {} }
+  _publish_(job.id, results, true, words, { stopped: true, namesIn: job.phase === 'finish', counts: _classCounts_() });
+  _clearImportJob_(); _jeEnd_('imp');
+  return { words: words, ended: true };
 }
 
 /* One class from Classroom into the Students tab. Every lab tab gets its rows at the end of the job, once. Who the course
@@ -1356,36 +1415,23 @@ function _clearImportJob_() { try { PropertiesService.getScriptProperties().dele
 function _importEnv_(id) {
   try { var raw = CacheService.getScriptCache().get('BATCH_IMPORT_' + id); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
 }
-/* at most one carry-on trigger at a time */
-function _deleteImportTriggers_() {
-  try {
-    ScriptApp.getProjectTriggers().forEach(function (t) {
-      if (t.getHandlerFunction() === IMPORT_TRIGGER_FN) { try { ScriptApp.deleteTrigger(t); } catch (e) {} }
-    });
-  } catch (e) {}
-}
-/* the new trigger is made FIRST, and only then are the others taken away (a refusal used to leave none at all, in
-   silence: the audit, 7 Oct 2026). Says whether Google set it. */
-function _scheduleImport_(ms) {
-  var made = null;
-  try { made = ScriptApp.newTrigger(IMPORT_TRIGGER_FN).timeBased().after(ms).create(); } catch (e) { return false; }
-  var keep = null;
-  try { keep = made.getUniqueId(); } catch (e) { keep = null; }
-  try {
-    ScriptApp.getProjectTriggers().forEach(function (t) {
-      if (t.getHandlerFunction() !== IMPORT_TRIGGER_FN) return;
-      var same = false;
-      try { same = keep ? t.getUniqueId() === keep : t === made; } catch (e) { same = false; }
-      if (!same) { try { ScriptApp.deleteTrigger(t); } catch (e) {} }
-    });
-  } catch (e) {}
-  return true;
-}
 
 function getBatchImportProgress(jobId) {
   if (!_isAdminCaller_()) return null;   /* google.script.run reaches ANY function without a trailing underscore */
-  var raw = CacheService.getScriptCache().get('BATCH_IMPORT_' + jobId);
-  return raw ? JSON.parse(raw) : null;
+  var raw = CacheService.getScriptCache().get('BATCH_IMPORT_' + jobId), p = raw ? JSON.parse(raw) : null;
+  /* 10 Oct 2026, the job engine: this import left with no run due (Google did not start one) is said */
+  var job = _importJob_();
+  if (p && !p.done && job && job.id === jobId && _jeStatus_('imp').state === 'stopped') {
+    p.done = true; p.stopped = true; p.continuing = false;
+    p.phase = 'It stopped part way: the next run never came (Google did not start it). Every class marked ✓ is in; Try again imports the others.';
+  }
+  /* 10 Oct 2026, late evening: once the estimate has passed, the window says Google is starting the next part (it said the
+     old time for ever) */
+  if (p && !p.done && job && job.id === jobId) {
+    var stI = _jeStatus_('imp');
+    if (stI.state === 'waiting' && Date.now() >= (stI.at || 0)) p.phase = 'Google is starting the next part. It is a little later than the estimate (' + _jeHHMM_(stI.at) + '). This is normal: please wait.';
+  }
+  return p;
 }
 /* the window's view of a job: each class's result, `done`, what it is on (`phase`), and when it last moved (`ts`) */
 function _publish_(jobId, results, done, phase, extra) {
@@ -1416,7 +1462,7 @@ function _isLeftClass_(cls) { return /^LEFT(\s|$)/.test(String(cls == null ? '' 
 function _schoolStartYear_(now) { var d = now || new Date(); return d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1; }
 /* the class of a pupil who is in none of the classes: LEFT and the year they were marked */
 function _leftLabel_(now) { return 'LEFT ' + (now || new Date()).getFullYear(); }
-function _importRunning_() { var cur = _importJob_(); return !!(cur && Date.now() - (cur.tickAt || 0) < IMPORT_STALE_MS); }
+function _importRunning_() { var s = _jeStatus_('imp').state; return s === 'running' || s === 'waiting'; }   /* 10 Oct 2026: the engine's view */
 
 /* This school year's record of the courses imported, made the first time it is asked for. In the first school year it is
    used, the courses on the Students tab count as imported, so nobody is listed before their course is imported again; but
@@ -1540,6 +1586,8 @@ function markPupilsLeft(emails) {
   (Array.isArray(emails) ? emails : []).slice(0, 3000).forEach(function (e) { e = _cleanEmail_(e); if (e) want[e] = 1; });
   if (!Object.keys(want).length) return { ok: false, why: 'Tick the pupils first.' };
   if (_importRunning_()) return { ok: false, why: 'An import is still running. Wait until it says Finished, then try again.' };
+  var busyL = _jeBusyWith_('');   /* 10 Oct 2026: nor while 🎨 Tidy up (which writes the Students tab) or a refresh runs */
+  if (busyL) return { ok: false, why: busyL };
   var lock = LockService.getScriptLock();
   try { lock.waitLock(20000); }
   catch (e) { return { ok: false, why: 'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
@@ -1564,13 +1612,13 @@ function markPupilsLeft(emails) {
   return { ok: true, left: _notThisYearView_(),
            note: n + ' pupil' + (n === 1 ? ' is' : 's are') + ' in ' + label + ' now. Their records stay. Importing their class again, or Move on the teacher page, puts one back.' };
 }
-/* A pupil's class, written on their row of every tab that copies it (every lab, Bio English and Write-Up): one read of the
+/* A pupil's class, written on their row of every tab that copies it (every lab, Bio English, Write-Up and 🔬 Practicals): one read of the
    address column per tab, one write per run of rows. `to`: { email: class }. The first row of an address wins, as for a
    save. Tidy up would put the lab rows right later; this does it at once. */
 function _classEverywhere_(to) {
   var tabs = [];
   LABS.forEach(function (l) { tabs.push([l.name, LAB_EMAIL]); });
-  tabs.push([T_ENGLISH, EN_EMAIL], [T_WRITEUP, WU_EMAIL]);
+  tabs.push([T_ENGLISH, EN_EMAIL], [T_WRITEUP, WU_EMAIL], [T_PRACT, PR_EMAIL]);
   tabs.forEach(function (t) {
     var sh = _ss_().getSheetByName(t[0]);
     if (!sh || sh.getLastRow() < 2 || sh.getMaxColumns() < t[1]) return;
@@ -1866,13 +1914,13 @@ function checkSetup() {
   var remWant = false, remOn = false, remNew = false;
   try {
     var hwTab = openOk ? _ss_().getSheetByName(T_HOMEWORK) : null;
-    if (hwTab && hwTab.getLastRow() > 1) remWant = _homeworkRows_().some(function (h) { return h.remindOn && h.course && h.courseWork; });
+    if (hwTab && hwTab.getLastRow() > 1) remWant = _hwRemindLeft_(Date.now());   /* 10 Oct 2026: only while a reminder is still to come */
   } catch (e) {}
   try { remOn = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sendHomeworkReminders'; }); } catch (e) {}
   if (remWant && !remOn) remOn = remNew = _hwReminderTrigger_();
   lines.push(remOn ? '✅  homework reminders: checked every 15 minutes' + (remNew ? ' (started just now)' : '')
            : remWant ? '❌  some homework has reminders switched on, but the 15-minute check could not be started. Run this check again; if it says the same, open Triggers (the clock in the left sidebar of the Apps Script editor) and see whether sendHomeworkReminders is there.'
-           : '•  homework reminders: none yet. They start by themselves when homework is posted in Google Classroom with “Remind pupils who have not finished” ticked.');
+           : '•  homework reminders: none waiting. The 15-minute check starts by itself when homework is posted in Google Classroom with “Remind pupils who have not finished” ticked, and stops when no reminder is left to send.');
   if (clsOk) {
     var annOk = _hwAnnounceAllowed_();
     lines.push(annOk === true ? '✅  the reminders can be posted: Google Classroom announcements are allowed'
@@ -1882,6 +1930,19 @@ function checkSetup() {
       : '•  whether Google Classroom announcements are allowed (for the reminders) could not be checked here.');
   }
   if (openOk) lines.push(_tzLine_());
+  /* 10 Oct 2026, the job engine: the script's storage (Google's 500 KB a script), a job that stopped itself for today, and
+     a job that stopped part way with no run to carry it on */
+  var jst = _jeStore_();
+  if (jst) {
+    lines.push((jst.level === 'ok' ? '✅  ' : jst.level === 'warn' ? '⚠️  ' : '❌  ') + _jeStoreLine_(jst) +
+      (jst.level === 'full' ? ' 🎨 Tidy up and the import will not start until there is room: tell Claude.' : jst.level === 'warn' ? ' At 95 % they will not start: tell Claude.' : ''));
+    _jeStoreNotify_(jst);
+  }
+  Object.keys(JE_KINDS).forEach(function (k) {
+    var jsk = _jeState_(k), js2 = _jeStatus_(k);
+    if (jsk.day === _jeToday_() && jsk.braked) lines.push('⛔  ' + JE_KINDS[k].title + ' stopped itself for today: ' + jsk.braked);
+    if (js2.state === 'stopped') lines.push('⚠️  ' + JE_KINDS[k].title + ' stopped part way (' + js2.how + '): ' + _jeNeverCame_(js2.at) + '. ' + _jePressAgain_(k));
+  });
   lines.push('');
   lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy, on each of your deployments.');
 
@@ -1907,69 +1968,875 @@ function _tzLine_() {
 /* ============================================================
    5. The tabs, and making them readable
    ============================================================ */
-/* Everything the spreadsheet needs, in the right order. Safe to run at any time: it
-   creates only what is missing and never touches what is in the cells. Both the menu's
-   Tidy up and the end of an import call this, so importing a class leaves the whole
-   spreadsheet built, dressed and up to date — there is nothing else to press. */
-function _buildAndStyle_() {
-  var notes = [];
-  _step_('Checking the Setup, Labs and Students tabs…');
-  _sheet_(T_SETUP);
-  var labsSaid = _labsRows_(_sheet_(T_LABS));        /* written afresh from LABS every time (labs-script-019) */
-  if (labsSaid) notes.push(labsSaid);
-  _sheet_(T_STUDENTS);
-  _step_('Repairing the Students tab: repeated, unused and untidy columns…');
-  notes = notes.concat(_repairStudentSheet_());     /* repeated, stray and dirty columns first */
-  var added = _repairStudentColumns_();             /* a lab added since this sheet was built gets its column */
-  if (added) notes.push(added + ' new lab column' + (added === 1 ? '' : 's') +
-                        ' added to the Students tab.');
-  var trail = _studentTrailColumns_(_sheet_(T_STUDENTS));   /* and a column added to the script since (Accommodation, 8 Oct 2026) */
-  if (trail.length) notes.push('Added to the Students tab: ' + trail.join(', ') + '.');
-  LABS.forEach(function (l, i) {                   /* every lab: a tab, and a row per student */
-    _step_('Giving everyone a row: ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
-    _seedLab_(l, notes);
+/* Everything the spreadsheet needs, in the right order, as a list of short STEPS (_buildSteps_), each safe to run again: it
+   creates only what is missing and never touches what is in the cells. Tidy up and the end of an import run them as a job,
+   a step at a time (_buildRun_), so importing a class leaves the whole spreadsheet built, dressed and up to date, and
+   Google's six minutes can stop a step but never leave the spreadsheet half done: the step is done again a minute later
+   (9 Oct 2026, Daniel: a long job must never stop half-way). */
+/* The steps, in order: the tabs, the Students tab, a lab tab's rows each, the addresses, the other tabs, the buttons,
+   the formatting (the three main tabs, then each lab, then the rest), the progress, the order of the tabs. */
+function _buildSteps_() {
+  var s = ['tabs', 'students'];
+  LABS.forEach(function (l, i) { s.push('seed:' + i); });
+  s.push('emails', 'extra', 'buttons', 'style:main');
+  LABS.forEach(function (l, i) { s.push('style:' + i); });
+  s.push('style:more', 'dashboard', 'order');
+  return s;
+}
+function _buildStep_(key, notes, st) {
+  var keepSkip = _STYLE_SKIP_;
+  _STYLE_SKIP_ = true;   /* inside Tidy up, a tab already formatted as it was is left (10 Oct 2026) */
+  try { return _buildStepRun_(key, notes, st); } finally { _STYLE_SKIP_ = keepSkip; }
+}
+function _buildStepRun_(key, notes, st) {
+  var m;
+  if (key === 'tabs') {
+    _step_('Checking the Setup, Labs and Students tabs…');
+    _sheet_(T_SETUP);
+    var labsSaid = _labsRows_(_sheet_(T_LABS));        /* written afresh from LABS every time (labs-script-019) */
+    if (labsSaid) notes.push(labsSaid);
+    _sheet_(T_STUDENTS);
+  } else if (key === 'students') {
+    _step_('Repairing the Students tab: repeated, unused and untidy columns…');
+    _repairStudentSheet_().forEach(function (x) { notes.push(x); });   /* repeated, stray and dirty columns first */
+    var added = _repairStudentColumns_();             /* a lab added since this sheet was built gets its column */
+    if (added) notes.push(added + ' new lab column' + (added === 1 ? '' : 's') +
+                          ' added to the Students tab.');
+    var trail = _studentTrailColumns_(_sheet_(T_STUDENTS));   /* and a column added to the script since (Accommodation, 8 Oct 2026) */
+    if (trail.length) notes.push('Added to the Students tab: ' + trail.join(', ') + '.');
+  } else if ((m = /^seed:(\d+)$/.exec(key))) {        /* every lab: a tab, and a row per student */
+    var l = LABS[+m[1]];
+    if (!l) return;
+    _step_('Giving everyone a row: ' + l.name + '  (' + (+m[1] + 1) + ' of ' + LABS.length + ')');
+    if (_seedLab_(l, notes, st) === 'more') return 'more';
+  } else if (key === 'emails') {
+    _step_('Checking the addresses on every lab tab…');
+    _repairLabEmails_().forEach(function (x) { notes.push(x); });
+  } else if (key === 'extra') {
+    var gone = _ss_().getSheetByName('Summary');
+    if (gone && gone.getLastRow() < 2) _ss_().deleteSheet(gone);      /* the Students tab is the summary now */
+    /* Make the teacher-facing tabs exist, rather than waiting for somebody to open the window that
+       happens to create them. Tidy up is where a teacher expects the workbook to be put right, and a
+       tab that only appears the first time a page is opened looks like it is missing. */
+    _step_('Making the homework, Bio English and teacher tabs…');
+    try { _ensureHomeworkTab_(); } catch (e) {}
+    try { _englishSheet_(); } catch (e) {}
+    try { _ensureTeacherTabs_(); } catch (e) {}
+  } else if (key === 'buttons') {
+    _step_('Putting the buttons back on the Setup tab…');
+    _installButtons_();
+  } else if (key === 'style:main') {
+    _restyleMain_();
+    if (_STUDENTS_NOT_STYLED_ && st) st.studentsNote = _STUDENTS_NOT_STYLED_;   /* a step of a job: kept for the end */
+  } else if ((m = /^style:(\d+)$/.exec(key))) {
+    _restyleLab_(+m[1]);
+  } else if (key === 'style:more') {
+    _restyleMore_();
+  } else if (key === 'dashboard') {
+    _step_('Working out everyone’s progress…');
+    refreshDashboard();
+    var said = _STUDENTS_NOT_STYLED_ || (st && st.studentsNote) || '';
+    if (said) { notes.push(said); if (st) st.studentsNote = said; }
+  } else if (key === 'order') {
+    _step_('Putting the tabs in syllabus order…');
+    _orderTabs_();                     /* the teacher tabs first, then the labs in LABS order */
+  }
+}
+/* Runs the steps from st.i (st: { i, notes, tries }, kept by the job between pieces). budgetMs 0 = no budget; else no step
+   is begun after it, and false comes back (the job carries on later from st.i). A step is counted BEFORE it runs, so a
+   step Google stopped twice is passed over and named (it would else be tried for ever). A busy lock (pupils saving) does
+   not count: the step waits for the next piece. save() keeps st. */
+var BUILD_BUSY = 'build: busy';
+/* 10 Oct 2026 (Daniel: "they must finish"): a part is begun only when the time left in this run fits the slowest part so
+   far (with room to spare), so Google's 6 minutes never stop one half way; the first part of a run always begins (it has
+   the whole run). A part that is long by nature (the rows of pupils who left) stops itself at st.deadline between two
+   short batches and says 'more': the next run goes on from what is left. A part Google still stops (it should not
+   happen) is begun again at the start of the next run, with the whole run to itself; only after BUILD_MAX_TRIES such runs
+   is it passed over — every other part is still done — and named in the last words (⚠️), never in silence. */
+var BUILD_HARD_MS = 5 * 60 * 1000 + 15 * 1000, BUILD_FIRST_GUESS_MS = 20 * 1000, BUILD_MAX_TRIES = 4;
+/* eng (10 Oct 2026, the job engine): { kind, job } — ⏹ Stop is looked for before each part (the run returns false; the
+   caller ends the job in words), and a part finished, passed over, or done in part ('more') counts as progress */
+function _buildRun_(st, t0, budgetMs, save, eng) {
+  var steps = _buildSteps_();
+  st.i = st.i || 0; st.notes = st.notes || []; st.tries = st.tries || {};
+  st.deadline = budgetMs ? t0 + BUILD_HARD_MS - 30 * 1000 : 0;
+  st.busyStop = false;   /* set when pupils' saves held the lock: the job counts the stop as a wait (_jeBusyWait_) */
+  var began = 0;
+  var moved = function () { if (eng) _jeProgress_(eng.kind); };
+  while (st.i < steps.length) {
+    if (eng && _jeStopWords_(eng.kind, eng.job)) return false;
+    var el = Date.now() - t0;
+    if (budgetMs && began && (el > budgetMs || el + 1.25 * Math.max(st.slow || 0, BUILD_FIRST_GUESS_MS) > BUILD_HARD_MS)) return false;
+    var key = steps[st.i];
+    if ((st.tries[key] || 0) >= BUILD_MAX_TRIES) {
+      st.notes.push('Google stopped one part of the work ' + BUILD_MAX_TRIES + ' times, each time with a whole run to itself (' + _buildStepName_(key) + '): tick 🎨 Tidy up again to finish it; if it stops there again, tell Claude.');
+      st.partly = true;
+      delete st.tries[key]; st.i++; save(); moved();
+      continue;
+    }
+    st.tries[key] = (st.tries[key] || 0) + 1; save();
+    began++;
+    var s0 = Date.now(), r;
+    try { r = _buildStep_(key, st.notes, st); }
+    catch (e) {
+      if (String((e && e.message) || e) === BUILD_BUSY) { st.tries[key]--; st.busyStop = true; save(); return false; }
+      st.notes.push('One part of the work did not finish (' + _buildStepName_(key) + '): ' + String((e && e.message) || e).slice(0, 160));
+      st.partly = true;
+    }
+    if (r === 'more') { st.tries[key]--; save(); moved(); return false; }   /* part done, the rest in the next run (progress made: not a try) */
+    var took = Date.now() - s0;
+    if (took > (st.slow || 0)) st.slow = took;
+    delete st.tries[key]; st.i++;
+    if (budgetMs) st.notes = _capNotes_(st.notes);   /* a job is kept in one Script Property (9 KB) */
+    save(); moved();
+  }
+  return true;
+}
+/* A job's notes, kept small: each at most 400 characters, all together about 2,000 (a Korean name is 3 bytes in a
+   Script Property's 9 KB), the rest counted. A part that did not finish is named first, never cut. */
+function _capNotes_(notes) {
+  var first = function (n) { return /^(One part of the work did not finish|Google stopped one part of the work)/.test(n); };
+  var all = (notes || []).map(function (n) { n = String(n); return n.length > 400 ? n.slice(0, 397) + '…' : n; });
+  var out = all.filter(first).concat(all.filter(function (n) { return !first(n) && !/^…and \d+ more notes?\.$/.test(n); }));
+  var more = 0; (notes || []).forEach(function (n) { var m = /^…and (\d+) more notes?\.$/.exec(String(n)); if (m) more += +m[1]; });
+  var keep = [], total = 0;
+  for (var i = 0; i < out.length; i++) {
+    if (!first(out[i]) && total + out[i].length > 2000) { more += out.length - i; break; }
+    keep.push(out[i]); total += out[i].length;
+  }
+  if (more) keep.push('…and ' + more + ' more note' + (more === 1 ? '' : 's') + '.');
+  return keep;
+}
+function _buildStepName_(key) {
+  var m = /^(seed|style):(\d+)$/.exec(key);
+  if (m) return (m[1] === 'seed' ? 'the rows of ' : 'the formatting of ') + ((LABS[+m[2]] || {}).name || key);
+  return ({ tabs: 'the Setup, Labs and Students tabs', students: 'the Students tab', emails: 'the addresses on the lab tabs',
+            extra: 'the homework, Bio English and teacher tabs', buttons: 'the buttons', 'style:main': 'the formatting of the main tabs',
+            'style:more': 'the formatting of the other tabs', dashboard: 'everyone’s progress', order: 'the order of the tabs' })[key] || key;
+}
+
+/* ── One engine for the jobs that carry on by themselves (10 Oct 2026, afternoon) ──
+   Daniel, 10 Oct 2026, after the trigger-time check found jobs that could start again every 8 minutes all day: "go ahead
+   with the shared engine and the fixes … notifications for when the … script storage … has been reached or is going to
+   be reached … if two functions should not run at the same time … a mechanism to prevent that, or … that warns the
+   teachers." Google gives an account a daily allowance of trigger time (6 hours on Google Workspace, 90 minutes on a
+   Gmail account) shared by ALL its scripts; when it is used up every trigger fails until the next day. 🎨 Tidy up (tidy)
+   and 👥 the Classroom import (imp) now go through these functions, as the Test System's jobs do (its v4.42):
+   • one piece at a time: a lease in Script Property JE_<kind> (taken under the script lock; a piece that began more than
+     7 minutes ago is over, since Google stops any run at 6);
+   • two triggers whenever work is left: the next run a minute out AND a safety run 8 minutes out (a hand-over used to keep
+     the next one only, so a next run that died at its start left the job with none, "Paused" for ever);
+   • runs that finish nothing are counted: a part is passed over after its own tries (4); after JE_NO_PROGRESS_MAX (6) runs
+     in a row that finished nothing the job stops and says why; JE_ERRORS_MAX (3) errors in a row that a piece catches stop
+     it at once; a wait for another job is counted apart, 2 hours at most;
+   • a brake per job per day: more than JE_DAY_RUNS_MAX runs, or JE_DAY_MS_MAX of run time, and it stops itself for the day,
+     says so (its line, the next press, 🩺 Check the set-up) and emails the spreadsheet's owner once;
+   • ⏹ Stop, in the job's window (Tidy up's, the import's): the job ends after the part it is on and says what was done;
+   • one heavy job at a time (_jeBusyWith_): Tidy up, an import and 📊 Refresh everyone's progress refuse to start while
+     another runs, and say what runs, who began it, when and how far it is;
+   • the script's storage (500 KB of Script Properties, Google's limit): from 80 % 🩺 and every press say how full it is
+     and what fills it, and the owner is emailed once a day; from 95 % no job starts.
+   gastest's "— the job engine —" tests prove it. */
+var JE_NEXT_MS = 60 * 1000, JE_SAFETY_MS = 8 * 60 * 1000, JE_DEAD_MS = 7 * 60 * 1000;
+var JE_NO_PROGRESS_MAX = 6, JE_ERRORS_MAX = 3, JE_BUSY_MAX = 150, JE_WAIT_MAX_MS = 2 * 60 * 60 * 1000;
+var JE_DAY_RUNS_MAX = 150, JE_DAY_MS_MAX = 120 * 60 * 1000;
+var JE_STORE_LIMIT = 500 * 1024, JE_STORE_WARN = 0.8, JE_STORE_FULL = 0.95;
+var JE_ONEGO_CACHE = 'JE_ONEGO', JE_MAILED_KEY = 'JE_MAILED';
+/* The jobs. load(): the record (null when none); end(job, words): it ends with these words first (what was done after
+   them, said where its teacher looks); how(job): how far it is. */
+var JE_KINDS = {
+  tidy: { title: '🎨 Tidy up', fn: 'continueTidyUp_',
+          load: function () { return _tidyJob_(); }, end: function (job, w) { return _tidyEnd_(job, w); },
+          how: function (job) { return (job.i || 0) + ' of ' + _buildSteps_().length + ' parts done'; } },
+  imp:  { title: '🎓 Import students from Classroom', fn: 'continueBatchImport_',
+          load: function () { return _importJob_(); }, end: function (job, w) { return _importEnd_(job, w); },
+          how: function (job) { return Math.min(job.i || 0, (job.sels || []).length) + ' of ' + (job.sels || []).length + ' classes done' + (job.phase === 'finish' ? ', building the tabs' : ''); } }
+};
+var _JE_TOK_ = {}, _JE_BEGAN_ = {};   /* this run's lease of each job, and when its piece began */
+function _jeToday_() { return Utilities.formatDate(new Date(Date.now()), _tz_(), 'yyyyMMdd'); }
+function _jeHHMM_(ms) { return Utilities.formatDate(new Date(ms), _tz_(), 'HH:mm'); }
+function _jeWho_() {
+  var e = ''; try { e = Session.getActiveUser().getEmail(); } catch (x) {}
+  if (!e) { try { e = Session.getEffectiveUser().getEmail(); } catch (x2) {} }
+  return String(e || '');
+}
+function _jeState_(kind) {
+  try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty('JE_' + kind) || 'null'); if (o && typeof o === 'object') return o; }
+  catch (e) {}
+  return {};
+}
+function _jeSaveState_(kind, st) {
+  try { PropertiesService.getScriptProperties().setProperty('JE_' + kind, JSON.stringify(st)); return true; } catch (e) { return false; }
+}
+/* A new job's own fields: who began it and when (for a refusal's words). */
+function _jeStamp_(job) { job.by = job.by || _jeWho_(); job.began = job.began || Date.now(); return job; }
+/* Made new before the old ones go: one trigger per delay, then every other trigger of the job removed. True when the FIRST
+   was set (the safety at a piece's start, the next at a hand-over); a refusal of all of them leaves the old ones. */
+function _jeTriggers_(kind, delays) {
+  var fn = JE_KINDS[kind].fn, keep = [], first = false;
+  delays.forEach(function (ms, i) {
+    try {
+      var t = ScriptApp.newTrigger(fn).timeBased().after(ms).create();
+      var id = null; try { id = t.getUniqueId(); } catch (e) {}
+      keep.push(id || t); if (i === 0) first = true;
+    } catch (e) { try { Logger.log('_jeTriggers_ (' + kind + ', ' + ms + ' ms): ' + e); } catch (eL) {} }
   });
-  _step_('Checking the addresses on every lab tab…');
-  notes = notes.concat(_repairLabEmails_());
-  var gone = _ss_().getSheetByName('Summary');
-  if (gone && gone.getLastRow() < 2) _ss_().deleteSheet(gone);      /* the Students tab is the summary now */
-  /* Make the teacher-facing tabs exist, rather than waiting for somebody to open the window that
-     happens to create them. Tidy up is where a teacher expects the workbook to be put right, and a
-     tab that only appears the first time a page is opened looks like it is missing. */
-  _step_('Making the homework, Bio English and teacher tabs…');
-  try { _ensureHomeworkTab_(); } catch (e) {}
-  try { _englishSheet_(); } catch (e) {}
-  try { _ensureTeacherTabs_(); } catch (e) {}
-  _step_('Putting the buttons back on the Setup tab…');
-  _installButtons_();
-  restyleAll_();
-  _step_('Working out everyone\u2019s progress…');
-  refreshDashboard();
-  if (_STUDENTS_NOT_STYLED_) notes.push(_STUDENTS_NOT_STYLED_);
-  _step_('Putting the tabs in syllabus order…');
-  _orderTabs_();                     /* the teacher tabs first, then the labs in LABS order */
-  return notes;
+  if (!keep.length) return false;
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() !== fn) return;
+      var id = null; try { id = t.getUniqueId(); } catch (e) {}
+      if (keep.indexOf(id) < 0 && keep.indexOf(t) < 0) { try { ScriptApp.deleteTrigger(t); } catch (e2) {} }
+    });
+  } catch (e) {}
+  return first;
+}
+function _jeTriggersClear_(kind) {
+  var fn = JE_KINDS[kind].fn;
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() === fn) { try { ScriptApp.deleteTrigger(t); } catch (e) {} }
+    });
+  } catch (e) {}
+}
+/* A piece begins. → { tok } to go on; { busy: true } when another piece holds the job (or the script lock was busy), or
+   { wait: what } when another job goes first: the caller counts the wait (_jeBusyCount_) and hands on; { gone: true } when
+   the job ended since this run loaded it (it does nothing); { stop: words } when the job must end now (⏹ Stop, the day's
+   brake, runs that finish nothing). */
+function _jePieceBegin_(kind, job) {
+  // a wait or a busy lock looks at the job again first (the reflection's engine check, 10 Oct: ⏹ Stop could end the job while
+  // this run waited for the lock; the run then saved the copy it had loaded and the job came back)
+  var earlier = _jeEarlier_(kind, job);
+  if (earlier) return _jeStillThere_(kind, job) ? { wait: earlier } : { gone: true };
+  var lk = LockService.getScriptLock(), got = false, out = null, st = null, now = Date.now(), me = _jeOwner_(), foreign = false;
+  try { lk.waitLock(20000); got = true; } catch (e) { got = false; }   /* the labs' way: waitLock throws when the lock stays busy */
+  if (!got) return _jeStillThere_(kind, job) ? { busy: true } : { gone: true };
+  try {
+    // the job as it is NOW (the engine check, 10 Oct: ⏹ Stop could end it after this run loaded it and before the lease;
+    // the run then wrote it back and carried on, while the window said "Stopped")
+    var live = null; try { live = JE_KINDS[kind].load(); } catch (eLd) { live = null; }
+    if (!live || live.id !== job.id) return { gone: true };
+    st = _jeState_(kind);
+    var today = _jeToday_();
+    // a trigger left by another account while this job's own chain is alive (the reflection's engine check, 10 Oct: Google
+    // lets no account see or remove another's triggers; a colleague's left-over trigger ran a piece of the next job and
+    // handed on, and the job ran in two chains for its whole life): this run removes its own triggers and does nothing
+    if (me && st.owner && st.owner !== me && st.id === job.id && _jeChainAlive_(st, now)) { foreign = true; return { gone: true }; }
+    if (st.tok && st.id === job.id && now - (st.at || 0) < JE_DEAD_MS) return { busy: true };   // a piece is running
+    if (st.day !== today) { st.day = today; st.runs = 0; st.ms = 0; st.braked = ''; }
+    if (st.tok && st.at) st.ms = (st.ms || 0) + Math.min(now - st.at, 6 * 60 * 1000);   // a piece Google stopped: its time
+    if (st.id !== job.id) { st.id = job.id; st.n = 0; st.errs = 0; st.err1 = ''; st.busy = 0; st.busySince = 0; }
+    st.tok = ''; st.at = 0; st.due = 0; st.safe = 0; st.waitFor = '';
+    var stop = _jeStopWords_(kind, job);
+    if (!stop && !st.braked) {
+      st.runs = (st.runs || 0) + 1;
+      if (st.runs > JE_DAY_RUNS_MAX || (st.ms || 0) > JE_DAY_MS_MAX) { st.braked = _jeBrakeWords_(kind, st); _jeMailOnce_('brake_' + kind, '⛔ ' + JE_KINDS[kind].title + ' stopped itself for today', st.braked); }
+    }
+    if (!stop && st.braked) stop = st.braked;
+    if (!stop && (st.n || 0) >= JE_NO_PROGRESS_MAX) {
+      stop = '⚠️ Stopped: it began ' + st.n + ' times in a row without finishing anything' +
+        (st.err1 ? ' (the error: ' + st.err1 + ')' : ' (Google stopped each run before it could finish one part)') +
+        '. ' + _jePressAgain_(kind) + ' If it stops like this again, tell Claude.';
+    }
+    if (!stop) {
+      st.n = (st.n || 0) + 1;
+      st.tok = String(now) + '_' + Math.random().toString(36).slice(2, 8); st.at = now;
+    }
+    if (!_jeSaveState_(kind, st) && !stop) {
+      out = { stop: '⚠️ Stopped: Google would not keep where the job is (the script\'s storage is full). ' + _jeStoreLine_(_jeStore_()) };
+    } else out = stop ? { stop: stop } : { tok: st.tok };
+  } finally {
+    try { lk.releaseLock(); } catch (eR) {}
+    if (foreign) _jeTriggersClear_(kind);   // only this account's own: Google lets no account see another's
+  }
+  if (out.tok) {
+    _JE_TOK_[kind] = out.tok; _JE_BEGAN_[kind] = now;
+    // if Google stops this piece, the job goes on 8 minutes from now — noted only once Google has set it (the engine check:
+    // noted before, a refused safety left the job "waiting" for 11 minutes with no trigger)
+    if (_jeTriggers_(kind, [JE_SAFETY_MS])) _jeUpdate_(kind, function (s2) { if (s2.tok === out.tok) { s2.safe = now + JE_SAFETY_MS; s2.owner = me; } });
+  }
+  return out;
+}
+// The job is still the one this run loaded (not ended by ⏹ Stop, nor made new, since).
+function _jeStillThere_(kind, job) {
+  var live = null; try { live = JE_KINDS[kind].load(); } catch (e) { live = null; }
+  return !!(live && live.id === job.id);
+}
+// The account whose triggers carry the job on (a trigger runs as its owner; a press, as the teacher who pressed).
+function _jeOwner_() {
+  var e = ''; try { e = Session.getEffectiveUser().getEmail(); } catch (x) {}
+  return String(e || '').toLowerCase();
+}
+// The job's chain of triggers is alive: a piece is running, or its next run (or its safety run) is still to come.
+function _jeChainAlive_(st, now) {
+  return !!((st.tok && now - (st.at || 0) < JE_DEAD_MS) || now < Math.max(st.due || 0, st.safe || 0) + JE_NEXT_MS);
+}
+// The engine's own record of a job, changed under the script lock (the engine check: two runs rewriting it side by side put
+// an old lease back). A run that already holds the lock just changes it; one that cannot have it within 5 s changes it all
+// the same (a wrong count is better than none).
+function _jeUpdate_(kind, fn) {
+  var lk = null, mine = false;
+  try { lk = LockService.getScriptLock(); if (!(lk.hasLock && lk.hasLock())) { lk.waitLock(3000); mine = true; } } catch (e) { mine = false; }
+  try { var st = _jeState_(kind), r = fn(st); if (r !== false) _jeSaveState_(kind, st); return st; }
+  finally { if (mine) { try { lk.releaseLock(); } catch (e2) {} } }
+}
+// The piece ends (in a finally): the lease given back, its time counted for the day's brake.
+function _jePieceEnd_(kind) {
+  var tok = _JE_TOK_[kind]; if (!tok) return;
+  delete _JE_TOK_[kind];
+  var began = _JE_BEGAN_[kind] || Date.now();
+  _jeUpdate_(kind, function (st) {
+    if (st.tok !== tok) return false;
+    st.ms = (st.ms || 0) + Math.max(0, Date.now() - began);
+    st.tok = ''; st.at = 0;
+  });
+}
+// A unit was finished (or passed over by its own tries): the runs-without-progress count starts again.
+function _jeProgress_(kind) {
+  _jeUpdate_(kind, function (st) {
+    if (!(st.n || st.errs || st.busy || st.busySince || st.waitFor)) return false;
+    st.n = 0; st.errs = 0; st.err1 = ''; st.busy = 0; st.busySince = 0; st.waitFor = '';
+  });
+}
+// Who goes first when two jobs meet: a job begun from an edit or a trigger (a trigger's) is never refused by a
+// press, and two presses at the same moment can both pass the press's check. A heavy action that holds the one-go mark (📊
+// Refresh everyone's progress) and a piece that is RUNNING always go first; between jobs waiting for their next run, the one begun
+// earlier goes first and the other waits (never both: a tie lets both go). The engine check, 10 Oct: in the Test System a job
+// brought back after it had stopped kept its old start time and ran beside another job's piece.
+function _jeEarlier_(kind, job) {
+  var og = _jeOneGoNow_();
+  if (og && og.what !== kind) return og.title;
+  var mine = job.began || 0;
+  for (var k in JE_KINDS) {
+    if (k === kind) continue;
+    var s = _jeStatus_(k);
+    if (s.state === 'running' || (s.state === 'waiting' && (s.began || 0) < mine)) return JE_KINDS[k].title;
+  }
+  return '';
+}
+// A run that did not begin (another piece held the job, the script lock was busy, or an earlier job ran): counted apart
+// from runs without progress, and what it waits for is noted for its window. "" = try again; words = it has waited too
+// long and stops.
+function _jeBusyCount_(kind, what) {
+  return _jeWaitedTooLong_(kind, what, false);
+}
+// This run began, then waited for something else (pupils' saves): not counted as a run without progress, but
+// counted apart. "" = wait again; words = it has waited too long and stops.
+function _jeBusyWait_(kind, what) {
+  return _jeWaitedTooLong_(kind, what, true);
+}
+// A wait is limited in time (JE_WAIT_MAX_MS, or the job's own waitMax) and in runs (JE_BUSY_MAX): then the job stops.
+function _jeWaitedTooLong_(kind, what, began) {
+  var now = Date.now();
+  // the job's id noted too: a job whose FIRST run waits had none yet, and its window could not say what it waits for
+  var jid = null; try { var jw = JE_KINDS[kind].load(); jid = jw && jw.id; } catch (eJ) { jid = null; }
+  var st = _jeUpdate_(kind, function (s) {
+    if (jid && s.id !== jid) { s.id = jid; s.n = 0; s.errs = 0; s.err1 = ''; s.busy = 0; s.busySince = 0; s.due = 0; s.safe = 0; }
+    if (began) s.n = Math.max(0, (s.n || 0) - 1);
+    s.busy = (s.busy || 0) + 1; s.busySince = s.busySince || now; s.waitFor = what || 'the script to be free';
+  });
+  var max = (JE_KINDS[kind] && JE_KINDS[kind].waitMax) || JE_WAIT_MAX_MS;
+  return (now - (st.busySince || now) > max || st.busy > JE_BUSY_MAX)
+    ? '⚠️ Stopped: it waited ' + Math.round((now - (st.busySince || now)) / 60000) + ' minutes for ' + (what || 'the script to be free') +
+      (/ to be free$/.test(what || 'the script to be free') ? '' : ' to finish') + ', and did not wait any longer. ' + _jePressAgain_(kind)
+    : '';
+}
+// An error a piece caught outside a unit: counted; the JE_ERRORS_MAX-th in a row stops the job. "" = try again.
+function _jeError_(kind, e) {
+  var msg = String((e && e.message) || e).slice(0, 200);
+  try { Logger.log('job ' + kind + ': ' + msg + (e && e.stack ? '\n' + e.stack : '')); } catch (eL) {}
+  var st = _jeUpdate_(kind, function (s) { s.errs = (s.errs || 0) + 1; if (!s.err1) s.err1 = msg; });
+  return st.errs >= JE_ERRORS_MAX
+    ? '⚠️ Stopped: it went wrong ' + st.errs + ' times in a row (' + st.err1 + '). ' + _jePressAgain_(kind) + ' If it stops like this again, tell Claude.'
+    : '';
+}
+// Work is left: the next run a minute out and the safety run 8 minutes out. False when Google would not set the next
+// one (the caller ends the job in words).
+function _jeHandOn_(kind, ms) {
+  var ok = _jeTriggers_(kind, [ms || JE_NEXT_MS, JE_SAFETY_MS]);
+  if (ok) {   // only a run Google set is noted as due (noted when refused, the job looked alive with no trigger)
+    var now = Date.now();
+    var me = _jeOwner_();
+    _jeUpdate_(kind, function (st) { st.due = now + (ms || JE_NEXT_MS); st.safe = now + JE_SAFETY_MS; st.owner = me; });
+  }
+  return ok;
+}
+// The words for a job whose next run never came: when it was due, or (no run was set: Google refused it) that Google
+// stopped its last run with nothing to carry it on (in the Test System it said "due at 09:00", midnight UTC).
+function _jeNeverCame_(at) {
+  return at ? 'the run due at ' + _jeHHMM_(at) + ' never came (Google did not start it)' : 'Google stopped its last run, and no run was set to carry it on';
+}
+// The job has ended (its own end function calls this AFTER keeping its last words): no trigger, no Stop left.
+function _jeEnd_(kind) {
+  _jeTriggersClear_(kind);
+  try { PropertiesService.getScriptProperties().deleteProperty('JE_STOP_' + kind); } catch (e) {}
+  _jeUpdate_(kind, function (st) { st.id = ''; st.n = 0; st.errs = 0; st.err1 = ''; st.busy = 0; st.busySince = 0; st.due = 0; st.safe = 0; st.waitFor = ''; st.owner = ''; });
+}
+/* When the next run is due, for a line that says when the job carries on ("" when not known). */
+function _jeDueAt_(kind) { var st = _jeState_(kind); return st.due ? _jeHHMM_(st.due) : ''; }
+function _jePressAgain_(kind) { return kind === 'tidy' ? 'Tick 🎨 Tidy up again to do the rest.' : 'Import again to do the rest: nobody is added twice.'; }
+/* ⏹ Stop pressed for THIS job: its words ('' when not). A Stop left from an older job is removed. */
+function _jeStopWords_(kind, job) {
+  var sp = PropertiesService.getScriptProperties(), o = null;
+  try { o = JSON.parse(sp.getProperty('JE_STOP_' + kind) || 'null'); } catch (e) { o = null; }
+  if (!o) return '';
+  if (o.id !== job.id) { try { sp.deleteProperty('JE_STOP_' + kind); } catch (e2) {} return ''; }
+  return '⏹ Stopped by ' + (o.by || 'a teacher') + ' at ' + _jeHHMM_(o.at) + '. What was done is kept. ' + _jePressAgain_(kind);
+}
+function _jeBrakeWords_(kind, st) {
+  return '⛔ Stopped for today: it had begun ' + st.runs + ' times today (' + Math.round((st.ms || 0) / 60000) +
+    ' minutes of Google\'s run time), more than this job ever needs, so something keeps going wrong' +
+    (st.err1 ? ' (the error: ' + st.err1 + ')' : '') + '. Each run uses the account\'s daily allowance of trigger time, which ' +
+    'every script of the account shares. It can be started again tomorrow; tell Claude what this says.';
+}
+/* How a job is: { state: 'running' | 'waiting' | 'stopped' | 'none', how, at, by, began }. stopped: no run has come when
+   one was due (Google did not start it); the next press begins it again. */
+function _jeStatus_(kind) {
+  var K = JE_KINDS[kind], job = null;
+  try { job = K.load(); } catch (e) { job = null; }
+  if (!job) return { state: 'none' };
+  var st = _jeState_(kind), now = Date.now(), how = '';
+  try { how = K.how(job); } catch (e2) {}
+  var mine = !!job.id && st.id === job.id;   /* a job saved by the code before the engine has no id: judged by its own last save */
+  var o = { how: how, by: job.by || '', began: job.began || 0, waitFor: mine ? (st.waitFor || '') : '' };
+  if (st.tok && mine && now - (st.at || 0) < JE_DEAD_MS) { o.state = 'running'; return o; }
+  /* the safety run only as noted for THIS job (noted once Google set it); a job no piece has begun yet counts from its own
+     last save */
+  var due = mine ? (st.due || 0) : 0, safe = mine ? (st.safe || 0) : ((job.tickAt || 0) + JE_SAFETY_MS);
+  if (due && now < due + 3 * 60 * 1000) { o.state = 'waiting'; o.at = due; return o; }
+  if (safe && now < safe + 3 * 60 * 1000) { o.state = 'waiting'; o.at = safe; return o; }
+  o.state = 'stopped'; o.at = Math.max(due, safe); return o;
+}
+/* What else heavy runs now, as words ('' when nothing): another job (running or waiting for its next run), or a heavy menu
+   action (_jeOneGoBegin_). Each press asks this first. */
+function _jeBusyWith_(kind) {
+  for (var k in JE_KINDS) {
+    if (k === kind) continue;
+    var s = _jeStatus_(k);
+    if (s.state === 'running' || s.state === 'waiting') return _jeBusyWords_(JE_KINDS[k].title, s.how, s.by, s.began);
+  }
+  var og = _jeOneGoNow_();
+  if (og && og.what !== kind) return _jeBusyWords_(og.title, '', og.by, og.at);
+  return '';
+}
+function _jeBusyWords_(title, how, by, began) {
+  return '⏳ ' + title + ' is still going' + (how ? ' (' + how + ')' : '') + (began ? ', begun at ' + _jeHHMM_(began) : '') +
+    (by ? ' by ' + by : '') + '. Wait until it has finished, then try again: two heavy jobs at once can write over each other\'s work. Nothing was changed.';
+}
+/* A heavy action that runs in one go (📊 Refresh everyone's progress): marked as running (script cache, 6 minutes: no run
+   lasts longer) so a job is not begun meanwhile. → '' to go on, or the refusal's words. */
+function _jeOneGoBegin_(what, title) {
+  var busy = _jeBusyWith_(what);
+  if (busy) return busy;
+  try { CacheService.getScriptCache().put(JE_ONEGO_CACHE, JSON.stringify({ what: what, title: title, by: _jeWho_(), at: Date.now() }), 360); } catch (e) {}
+  return '';
+}
+function _jeOneGoEnd_(what) {
+  try { var c = CacheService.getScriptCache(), o = JSON.parse(c.get(JE_ONEGO_CACHE) || 'null'); if (o && o.what === what) c.remove(JE_ONEGO_CACHE); } catch (e) {}
+}
+function _jeOneGoNow_() {
+  try { var o = JSON.parse(CacheService.getScriptCache().get(JE_ONEGO_CACHE) || 'null'); if (o && Date.now() - (o.at || 0) < 6 * 60 * 1000) return o; } catch (e) {}
+  return null;
+}
+/* The script's storage: { bytes, pct, level ('ok' | 'warn' | 'full'), top: [[what, bytes] …] } (null when it cannot be read).
+   Google counts every Script Property's name and value; 500 KB a script. */
+function _jeStore_() {
+  var all = null;
+  try { all = PropertiesService.getScriptProperties().getProperties() || {}; } catch (e) { return null; }
+  var bytes = 0, fam = {};
+  Object.keys(all).forEach(function (k) {
+    var b = _jeBytes_(k) + _jeBytes_(String(all[k] == null ? '' : all[k]));
+    bytes += b;
+    var f = k.replace(/[_\-:.|@]?[0-9a-f]{8,}.*$/i, '').replace(/[_\-.]?\d+$/, '').replace(/@.*$/, '') || k;
+    fam[f] = (fam[f] || 0) + b;
+  });
+  var top = Object.keys(fam).sort(function (a, b) { return fam[b] - fam[a]; }).filter(function (f, i) { return i === 0 || fam[f] >= 1024; })
+    .slice(0, 3).map(function (f) { return [f, fam[f]]; });
+  var pct = bytes / JE_STORE_LIMIT;
+  return { bytes: bytes, pct: pct, top: top, level: pct >= JE_STORE_FULL ? 'full' : pct >= JE_STORE_WARN ? 'warn' : 'ok' };
+}
+function _jeBytes_(s) {
+  var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : (c >= 0xD800 && c < 0xDC00) ? 4 : (c >= 0xDC00 && c < 0xE000) ? 0 : 3;
+  }
+  return n;
+}
+function _jeStoreLine_(s) {
+  if (!s) return '';
+  return 'The script\'s storage is ' + Math.round(s.pct * 100) + '% full (' + Math.round(s.bytes / 1024) + ' KB of 500 KB; most of it: ' +
+    s.top.map(function (t) { return t[0] + ' ' + Math.round(t[1] / 1024) + ' KB'; }).join(', ') + ').';
+}
+/* From 80 %: the owner is emailed, once a day for each level. Called by every press and by 🩺 Check the set-up. */
+function _jeStoreNotify_(s) {
+  if (!s || s.level === 'ok') return;
+  _jeMailOnce_('store_' + s.level, (s.level === 'full' ? '⛔ The labs script\'s storage is almost full' : '⚠️ The labs script\'s storage is filling up'),
+    _jeStoreLine_(s) + (s.level === 'full' ? ' 🎨 Tidy up and the Classroom import will not start until there is room, and other saves may fail.'
+                                           : ' At 95 % 🎨 Tidy up and the Classroom import will not start.') + ' Tell Claude: it can clear what is no longer needed.');
+}
+/* The day's mark is kept in the script cache AND in Document Properties (a store of its own; a full Script store does not
+   stop it), so an email goes once a day. */
+function _jeMailOnce_(what, subject, body) {
+  try {
+    var key = JE_MAILED_KEY + '_' + what, today = _jeToday_(), c = CacheService.getScriptCache(), dp = null;
+    try { dp = PropertiesService.getDocumentProperties(); } catch (e0) { dp = null; }
+    if (c.get(key) === today || (dp && dp.getProperty(key) === today)) return;
+    var ss = _ss_(), to = '';
+    try { var o = ss.getOwner(); to = o ? o.getEmail() : ''; } catch (e) {}
+    if (!to) { try { to = Session.getEffectiveUser().getEmail(); } catch (e2) {} }
+    if (!to) return;
+    var name = '', url = '';
+    try { name = ss.getName(); url = ss.getUrl(); } catch (e5) {}
+    MailApp.sendEmail(to, subject + (name ? ' — ' + name : ''), body + (url ? '\n\nSpreadsheet: ' + url : ''));
+    try { c.put(key, today, 21600); } catch (e3) {}
+    if (dp) { try { dp.setProperty(key, today); } catch (e4) {} }
+  } catch (e) { try { Logger.log('_jeMailOnce_ (' + what + '): ' + e); } catch (eL) {} }
+}
+/* Before a press makes a job: { refuse: words } when it must not start, else { warn: words or '' }. */
+function _jeCanStart_(kind) {
+  var st = _jeState_(kind);
+  if (st.day === _jeToday_() && st.braked) return { refuse: JE_KINDS[kind].title + ' stopped itself earlier today: ' + st.braked };
+  var busy = _jeBusyWith_(kind);
+  if (busy) return { refuse: busy };
+  var s = _jeStore_();
+  _jeStoreNotify_(s);
+  if (s && s.level === 'full') return { refuse: '⛔ ' + JE_KINDS[kind].title + ' did not start: ' + _jeStoreLine_(s) + ' A job needs room to keep where it is. Tell Claude.' };
+  return { warn: s && s.level === 'warn' ? '⚠️ ' + _jeStoreLine_(s) + ' At 95 % no job will start.' : '' };
+}
+/* ⏹ Stop, for a job's window: 'none' (no job), 'fail' (Google would not keep the Stop), 'ended' (it ended now)
+   or 'later' (a piece is running: it ends after the part it is on). Decided under the script lock: a piece beginning holds
+   it and sees the Stop itself; with the lock and no piece running, the job ends now (its end is called after the lock goes). */
+function _labsStop_(kind) {
+  var K = JE_KINDS[kind];
+  if (!K) return 'none';
+  var job = K.load();
+  if (!job) return 'none';
+  try { PropertiesService.getScriptProperties().setProperty('JE_STOP_' + kind, JSON.stringify({ id: job.id, by: _jeWho_(), at: Date.now() })); }
+  catch (e) { return 'fail'; }
+  var lk = LockService.getScriptLock(), got = false, j2 = null;
+  try { lk.waitLock(10000); got = true; } catch (eL) { got = false; }
+  if (got) {
+    try { if (_jeStatus_(kind).state !== 'running') j2 = K.load(); } finally { try { lk.releaseLock(); } catch (eR) {} }
+    if (j2 && j2.id === job.id) { K.end(j2, _jeStopWords_(kind, j2)); return 'ended'; }
+  }
+  return 'later';
+}
+
+/* 10 Oct 2026, late evening (Daniel): 🎨 Tidy up shows ONE window, the one place it reports. Only its first part runs from
+   the press; Google runs the others in the background, with no "Running script" bar, and their pop-ups never reach the
+   screen. So the window says in large letters not to close it until it says Finished (a teacher who closed it would never
+   learn how it ended, or would fear something broke); while it runs, how far it is (a bar, and the part it is on); while
+   it waits, when the next part should begin — an estimate: Google can start it a few minutes late — and, once that time
+   has passed, that Google is starting it; ⏹ Stop (the only Stop: the menu's is gone); at the end, how it went, and that
+   the window may now be closed. While it is open no pop-up repeats it (_TIDY_WINDOW_, job.window). Pressing 🎨 Tidy up
+   again while it runs opens it again. The line beside the button on the Setup tab still keeps every word. */
+var _TIDY_WINDOW_ = false;   /* this run showed the window: no toast repeats what it says */
+var JOB_WAIT_WORDS = 'This is an estimate: Google can take a few minutes longer.';
+function _labsJobWindow_(kind) {
+  var K = JE_KINDS[kind];
+  if (!K) return false;
+  var html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#1f2937">' +
+    '<div id="w" style="background:#FEF3C7;border:1px solid #F59E0B;color:#7A4B00;border-radius:8px;padding:10px 12px;font-size:16px;font-weight:bold">⚠️ Do not close this window until it says Finished.</div>' +
+    '<div id="h" style="margin-top:12px;font-size:15px;font-weight:bold">Starting…</div>' +
+    '<div style="margin-top:8px;height:10px;background:#E5E7EB;border-radius:5px;overflow:hidden"><div id="b" style="height:10px;width:0;background:#16A34A"></div></div>' +
+    '<div id="n" style="margin-top:4px;font-size:12px;color:#64748b"></div>' +
+    '<div id="l" style="margin-top:8px;color:#334155;white-space:pre-wrap"></div>' +
+    '<button id="x" style="margin-top:12px;display:none;padding:6px 14px;border:1px solid #b91c1c;background:#fff;color:#b91c1c;border-radius:6px;cursor:pointer">⏹ Stop (what is done is kept)</button></div>' +
+    '<script>var K=' + JSON.stringify(String(kind)) + ',T0=Date.now(),seen=false,busy=false,ended=false,STOP="⏹ Stop (what is done is kept)";' +
+    'function g(i){return document.getElementById(i);}' +
+    'function bar(p){if(!p.total)return;var d=Math.max(0,Math.min(p.total,p.done||0));g("b").style.width=Math.round(100*d/p.total)+"%";g("n").textContent=d+" of "+p.total+" parts done";}' +
+    'function show(p){if(!p||ended)return;var x=g("x");if(p.job)seen=true;bar(p);' +
+    'if(!p.job&&(seen||Date.now()-T0>20000)){ended=true;var ok=/Finished/.test(p.endHead||""),w=g("w");' +
+    'w.textContent=(ok?"✅ ":"")+"You can close this window now.";w.style.background=ok?"#DCFCE7":"#F1F5F9";w.style.borderColor=ok?"#16A34A":"#94A3B8";w.style.color=ok?"#14532D":"#334155";' +
+    'g("h").textContent=p.endHead||"";g("l").textContent=p.line||"";x.style.display="none";if(ok)g("b").style.width="100%";return;}' +
+    'g("h").textContent=p.job?(p.head||"Working…"):"Starting…";g("l").textContent=p.job?(p.line||""):"";' +
+    'x.style.display=p.job?"inline-block":"none";x.disabled=!!p.stopping||busy;x.textContent=(p.stopping||busy)?"⏹ Stopping…":STOP;setTimeout(ask,4000);}' +
+    'function ask(){google.script.run.withSuccessHandler(show).withFailureHandler(function(){setTimeout(ask,8000);}).getLabsJobWindow(K);}' +
+    'g("x").onclick=function(){if(busy)return;busy=true;var x=this;x.disabled=true;x.textContent="⏹ Stopping…";' +
+    'google.script.run.withSuccessHandler(function(){busy=false;}).withFailureHandler(function(){busy=false;x.disabled=false;x.textContent=STOP;}).stopLabsJob(K);};' +
+    'setTimeout(ask,1500);</script>';
+  try { SpreadsheetApp.getUi().showModelessDialog(HtmlService.createHtmlOutput(html).setWidth(480).setHeight(300), K.title); return true; }
+  catch (e) { Logger.log('_labsJobWindow_ (' + kind + '): ' + e); return false; }
+}
+/* What the window asks (Tidy up's). Teachers only. While the job runs or waits: { job: true, head, line, done, total,
+   stopping }; once it has ended (or stopped part way with no run to carry it on): { job: false, endHead, line }. */
+function getLabsJobWindow(kind) {
+  if (!_isAdminCaller_()) return null;
+  if (String(kind || '') !== 'tidy') return null;   /* the import has its own window (ClassroomImport.html) */
+  var K = JE_KINDS.tidy, job = null;
+  try { job = K.load(); } catch (e) { job = null; }
+  var s = _jeStatus_('tidy'), line = '', total = _buildSteps_().length, now = Date.now();
+  try { line = String(_sheet_(T_SETUP).getRange(BTN_ROW.restyle, 4).getDisplayValue() || ''); } catch (e) { line = ''; }
+  if (job && s.state === 'stopped') {
+    return { job: false, done: job.i || 0, total: total, endHead: '⚠️ It stopped part way',
+             line: 'It stopped part way (' + s.how + '): ' + _jeNeverCame_(s.at) + '. Press 🎨 Tidy up again to finish it.' };
+  }
+  if (job) {
+    var stopping = false; try { stopping = !!PropertiesService.getScriptProperties().getProperty('JE_STOP_tidy'); } catch (e) {}
+    var w = { job: true, stopping: stopping, done: job.i || 0, total: total };
+    if (s.state === 'running') {
+      w.head = 'Working…';
+      w.line = /^⏳\s+Tidy up/.test(line) ? '' : line.replace(/^⏳\s+/, '');   /* the part it is on (never last pause's words) */
+    } else if (now < (s.at || 0)) {
+      w.head = s.waitFor ? '⏸ Waiting for ' + s.waitFor + (/ to be free$/.test(s.waitFor) ? '.' : ' to finish.') : '⏸ Paused, to stay inside Google’s time limit.';
+      w.line = 'It restarts by itself at about ' + _jeHHMM_(s.at) + '. ' + JOB_WAIT_WORDS;
+    } else {
+      w.head = '⏳ Google is starting the next part.';
+      w.line = 'It is a little later than the estimate (' + _jeHHMM_(s.at) + '). This is normal: please wait.';
+    }
+    return w;
+  }
+  return { job: false, done: total, total: total, line: line.replace(/^(✅|⚠️|❌|⏳)\uFE0F?\s+/, ''),   /* its sign is in the heading */
+           endHead: /^❌/.test(line) ? '❌ It did not finish' : /did not (run|start)/.test(line) ? '⚠️ Tidy up did not start'
+                  : (line.indexOf('⏹') >= 0 || /^Tidy up stopped/.test(line)) ? '⏹ Stopped'
+                  : /^⚠/.test(line) ? '⚠️ Finished, with a warning' : '✅ Finished' };
+}
+/* ⏹ Stop in a job's window (Tidy up's and the import's). Teachers only. Returns what Tidy up's window shows next. */
+function stopLabsJob(kind) {
+  if (!_isAdminCaller_()) return null;
+  _labsStop_(String(kind || ''));
+  return getLabsJobWindow(kind);
+}
+/* 🎨 Tidy up from the menu: the window first, then the job */
+function tidyUpMENU_() {
+  _TIDY_WINDOW_ = _labsJobWindow_('tidy');
+  return setup();
+}
+/* A pop-up, only when no window shows the same words (a run that showed the window, or a later part of its job) */
+function _tidyToast_(text, title, secs, job) {
+  if (_TIDY_WINDOW_ || (job && job.window)) return;
+  try { SpreadsheetApp.getActive().toast(text, title, secs); } catch (e) {}
+}
+
+/* ── 🎨 Tidy up as a JOB (9 Oct 2026) ──
+   Daniel (8 Oct): "if I click on the tidy up or other functions that might actually take more than six minutes … we need
+   to make sure that they do not stop abruptly leaving something incomplete or broken"; he chose (9 Oct) that such a job
+   carries on by itself. Before: one call ran everything; after pupils left the Students tab it deleted their empty rows
+   one at a time on every lab tab (minutes), and a stop left some tabs trimmed and others not, the Setup line stuck on
+   "Working…". Now the steps (_buildSteps_) are a job in Script Property TIDY_JOB: no step is begun after 4 minutes, and
+   a one-off trigger a minute later (continueTidyUp_) carries on, with a safety trigger 8 minutes out (the new trigger made
+   before the old one goes). The line beside the Tidy up button (and a toast) says how far it is and, at the end, what it
+   did. A second press while it runs says so. */
+var TIDY_JOB_KEY = 'TIDY_JOB', TIDY_TRIGGER_FN = 'continueTidyUp_';
+var TIDY_STEP_BY_MS = 4 * 60 * 1000, TIDY_NEXT_MS = 60 * 1000, TIDY_SAFETY_MS = 8 * 60 * 1000, TIDY_STALE_MS = 10 * 60 * 1000;
+var _TIDY_CONTINUES_ = false, _TIDY_PARTLY_ = false;   /* set when this call handed the rest to the trigger (the button's line says so) */
+/* a part that did not finish, or was passed over: the line beside the button is amber (⚠️), not ✅ */
+function _tidyPartly_(notes, st) {
+  return !!(st && st.partly) || (notes || []).some(function (n) { return /^(One part of the work did not finish|Google stopped one part of the work)/.test(String(n)); });
 }
 
 function setup() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
-  var notes = _buildAndStyle_();
-  try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_BUILD_KEY); } catch (e) {}   /* what a stopped import owed */
-  var said = notes.length ? notes.join('  ')
+  var t0 = Date.now();
+  _TIDY_CONTINUES_ = false;
+  var imp = _importJob_(), impS = imp ? _jeStatus_('imp').state : 'none';
+  if (impS === 'running' || impS === 'waiting') {
+    _TIDY_CONTINUES_ = true;
+    /* 10 Oct 2026: amber, with the time, not ⏳ — nothing will come back to this line (it stayed "⏳" for ever) */
+    var impSaid = 'Tidy up did not run at ' + _hhmm_(new Date()) + ': a Classroom import is still going. It builds and formats every tab itself at its end, so Tidy up is not needed now.';
+    _tidyToast_(impSaid, 'Biology Labs', 15);
+    if (_PROGRESS_ROW) { try { _btnSays_(_PROGRESS_ROW, '⚠️  ' + impSaid); } catch (e) {} }
+    return impSaid;
+  }
+  var cur = _tidyJob_(), curS = cur ? _jeStatus_('tidy').state : 'none';
+  if (curS === 'running' || curS === 'waiting') {
+    _TIDY_CONTINUES_ = true;
+    var busy = 'Tidy up is already running (' + _jeStatus_('tidy').how + '). Its window shows how far it is.';
+    if (_TIDY_WINDOW_) return busy;   /* the window just opened shows the job that runs: nothing else to say */
+    _tidyToast_(busy, 'Biology Labs', 15);
+    if (_PROGRESS_ROW) { try { _btnSays_(_PROGRESS_ROW, '\u23F3  ' + busy); } catch (e) {} }
+    return busy;
+  }
+  /* 10 Oct 2026, the job engine: another heavy job, a full storage or the day's brake refuses it, in words */
+  var can = _jeCanStart_('tidy');
+  if (can.refuse) {
+    _TIDY_CONTINUES_ = true;
+    var no = 'Tidy up did not start at ' + _hhmm_(new Date()) + ': ' + can.refuse;
+    _tidyToast_(no, 'Biology Labs', 30);
+    if (_PROGRESS_ROW) { try { _btnSays_(_PROGRESS_ROW, '⚠️  ' + no); } catch (e) {} }
+    return no;
+  }
+  /* the job always reports on the Tidy up button's line (a menu Tidy up that carried on had no end words anywhere: the
+     audit, 9 Oct); fromButton: the button's own handler writes the end of a press it saw finish */
+  var job = _jeStamp_({ id: 'tidy_' + t0, i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, fromButton: !!_PROGRESS_ROW, window: !!_TIDY_WINDOW_, started: t0, tickAt: t0 });
+  if (!_saveTidyJob_(job)) {
+    /* 10 Oct 2026: Google would not keep where it is. It used to do the work in one go, which Google stops at 6 minutes
+       part way: now it says so and does nothing */
+    _TIDY_CONTINUES_ = true;
+    var full = 'Tidy up did not start at ' + _hhmm_(new Date()) + ': Google would not keep where it is (the script\'s storage is full). ' + _jeStoreLine_(_jeStore_()) + ' Tell Claude.';
+    _tidyToast_(full, 'Biology Labs', 30);
+    if (_PROGRESS_ROW) { try { _btnSays_(_PROGRESS_ROW, '❌  ' + full); } catch (e) {} }
+    return full;
+  }
+  return _tidyPiece_(t0, true);
+}
+/* The trigger that carries Tidy up on. Private: a trigger runs it, google.script.run cannot. */
+function continueTidyUp_() {
+  if (!_tidyJob_()) { _jeTriggersClear_('tidy'); return; }
+  _LABS_JOB_TRUSTED_ = true;
+  try { _tidyPiece_(Date.now(), false); }
+  finally { _LABS_JOB_TRUSTED_ = false; }
+}
+var TIDY_NO_TRIGGER = 'Google would not let Tidy up carry on by itself, so it stopped part way. Tick 🎨 Tidy up again: it does only what is still to do, and nothing twice that matters.';
+/* fromPress: the piece the press itself runs (the button's own handler then writes the end line, as before).
+   10 Oct 2026, the job engine: one piece at a time by its lease (_jePieceBegin_: it also sets the safety run, and ends the
+   job for ⏹ Stop, the day's brake, or runs that finish nothing); an error outside a part is counted (_jeError_; three in
+   a row stop it, in words — it used to be _tidyFailed_, for the trigger's runs only). */
+function _tidyPiece_(t0, fromPress) {
+  var job = _tidyJob_();
+  if (!job) { _jeTriggersClear_('tidy'); return ''; }
+  var b = _jePieceBegin_('tidy', job);
+  if (b.gone) return '';
+  if (b.busy || b.wait) {
+    var tooLong = _jeBusyCount_('tidy', b.wait || '');
+    if (tooLong) return _tidyEnd_(job, tooLong);
+    if (!_jeHandOn_('tidy')) return _tidyEnd_(job, TIDY_NO_TRIGGER);
+    _TIDY_CONTINUES_ = true;
+    var waitLine = 'Tidy up: waiting for ' + (b.wait || 'the script to be free') + '; it carries on by itself at about ' + _jeDueAt_('tidy') + '.';
+    if (job.row) { try { _btnSays_(job.row, '⏳  ' + waitLine); } catch (e) {} }
+    return waitLine;
+  }
+  if (b.stop) return _tidyEnd_(job, b.stop);
+  try { return _tidyPieceRun_(t0, fromPress, job); }
+  catch (e) {
+    var why = String((e && e.message) || e).slice(0, 160), w = _jeError_('tidy', e), now = _tidyJob_() || job;
+    if (w) return _tidyEnd_(now, w);
+    if (!_jeHandOn_('tidy')) return _tidyEnd_(now, TIDY_NO_TRIGGER);
+    _TIDY_CONTINUES_ = true;
+    var again = 'Tidy up: something went wrong (' + why + '). It tries again by itself at about ' + _jeDueAt_('tidy') + '.';
+    if (now.row) { try { _btnSays_(now.row, '⏳  ' + again); } catch (eB) {} }
+    return again;
+  }
+  finally { _jePieceEnd_('tidy'); }
+}
+function _tidyPieceRun_(t0, fromPress, job) {
+  var keepRow = _PROGRESS_ROW, keepWin = _TIDY_WINDOW_;
+  if (job.row) _PROGRESS_ROW = job.row;             /* the button's line follows the job, piece after piece */
+  if (job.window) _TIDY_WINDOW_ = true;             /* its window shows the words: no pop-up repeats them */
+  try {
+    var save = function () { job.tickAt = Date.now(); _saveTidyJob_(job); };
+    var done = _buildRun_(job, t0, TIDY_STEP_BY_MS, save, { kind: 'tidy', job: job });
+    if (!done) {
+      var stopW = _jeStopWords_('tidy', job);   /* ⏹ Stop pressed: it ends here, in words */
+      if (stopW) return _tidyEnd_(job, stopW);
+      /* pupils' saves held the lock: a wait, counted apart from runs that finish nothing (10 Oct 2026: _jeBusyWait_ was
+         never called here, so six busy runs in a row stopped Tidy up "without finishing anything"); 2 hours at most */
+      if (job.busyStop) { var tooLongB = _jeBusyWait_('tidy', 'pupils’ saves'); if (tooLongB) return _tidyEnd_(job, tooLongB); }
+      job.tickAt = Date.now();
+      if (!_saveTidyJob_(job) || !_jeHandOn_('tidy')) return _tidyEnd_(job, TIDY_NO_TRIGGER);
+      _TIDY_CONTINUES_ = true;
+      var steps = _buildSteps_().length;
+      /* the time of the next run — an estimate (Google can start it a few minutes late) — so a line that stays long after
+         it shows the job has stopped */
+      var line = (job.busyStop ? 'Waiting for pupils’ saves to finish' : 'Paused, to stay inside Google’s time limit') +
+                 ' (' + job.i + ' of ' + steps + ' parts done). It restarts by itself at about ' + _jeDueAt_('tidy') + '. ' + JOB_WAIT_WORDS;
+      if (job.row) { try { _btnSays_(job.row, '⏳  Tidy up: ' + line); } catch (e) {} }
+      _tidyToast_(line, 'Tidy up', 20, job);
+      return line;
+    }
+    /* the words first, then the job goes (the engine audit, 10 Oct 2026: cleared first, a run Google stopped in between left
+       the line on "Paused … carries on at HH:MM" for good, with no job behind it) */
+    _TIDY_PARTLY_ = _tidyPartly_(job.notes, job);
+    var said = _tidySaid_(job.notes, (fromPress && job.fromButton) ? null : job);
+    _clearTidyJob_(); _jeEnd_('tidy');
+    try { PropertiesService.getScriptProperties().deleteProperty(IMPORT_BUILD_KEY); } catch (e) {}   /* what a stopped import owed */
+    return said;
+  } finally { _PROGRESS_ROW = keepRow; _TIDY_WINDOW_ = keepWin; }
+}
+/* Tidy up ends in words before it is done (⏹ Stop, the day's brake, too many errors, Google refusing a trigger): the line
+   beside the button says them (❌, or ⏹ for a Stop) and what was done; the job and its triggers go. */
+function _tidyEnd_(job, words) {
+  _TIDY_CONTINUES_ = true;   /* the button's handler must not write ✅ over this line */
+  var done = (job.i || 0) + ' of ' + _buildSteps_().length + ' parts were done';
+  var line = (/^⏹/.test(words) ? '' : '❌  ') + 'Tidy up stopped at ' + _hhmm_(new Date()) + ' (' + done + '): ' + words.replace(/^⚠️ /, '');
+  if (job.row) { try { _btnSays_(job.row, line); } catch (e) {} }
+  _tidyToast_(line, 'Biology Labs', 30, job);
+  _clearTidyJob_(); _jeEnd_('tidy');
+  return line;
+}
+/* The end: the toast, and (job: a job begun from the button and ended by the trigger) the button's line. */
+function _tidySaid_(notes, job) {
+  var said = notes && notes.length ? notes.join('  ')
            : 'Every tab is built and styled. Nothing needed repairing.';
-  SpreadsheetApp.getActive().toast(said, 'Biology Labs', 20);
+  _tidyToast_(said, 'Biology Labs', 20, job);
+  if (job && job.row) {
+    try { _btnSays_(job.row, ((job.studentsNote || _tidyPartly_(notes, job)) ? '⚠️  ' : '✅  ') + 'Tidied up at ' + _hhmm_(new Date()) +
+                     ' (took ' + Math.round((Date.now() - (job.started || Date.now())) / 60000) + ' min). ' + said); } catch (e) {}   /* the time first (it read "… repairing. at 23:41") */
+  }
   return said;
 }
+function _tidyJob_() {
+  try { var raw = PropertiesService.getScriptProperties().getProperty(TIDY_JOB_KEY); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+function _saveTidyJob_(job) {
+  try { PropertiesService.getScriptProperties().setProperty(TIDY_JOB_KEY, JSON.stringify(job)); return true; } catch (e) { return false; }
+}
+function _clearTidyJob_() { try { PropertiesService.getScriptProperties().deleteProperty(TIDY_JOB_KEY); } catch (e) {} }
 
-function restyleAll_() {
+/* 10 Oct 2026 (Daniel: "if everything was already there, why is it reformatting it?"): Tidy up formatted every tab from
+   scratch every time — the font on every cell, the headings, widths, banding, filter, borders, dropdowns, number formats and
+   colour rules — about two thirds of its time, for nothing when the tab was already right. Each tab now remembers how it was
+   last formatted (its columns, its size, the style version: Script Property TIDY_STYLED_<sheet id>), and Tidy up first takes
+   a quick look (the headings and their colours, the frozen row, the banding, the filter, the colour rules). When all of it
+   matches, the tab is left as it is; a tab whose pupils, columns or look changed is formatted as before, and every tab is
+   formatted in full at least once a week. Only inside Tidy up (_STYLE_SKIP_): 📊 Refresh and a new tab format as before. */
+var STYLE_VERSION = 1, STYLE_KEY = 'TIDY_STYLED_', STYLE_FULL_EVERY_MS = 7 * 24 * 60 * 60 * 1000, _STYLE_SKIP_ = false;
+function _styleSig_(sh, cols) {
+  var parts = [STYLE_VERSION, sh.getLastRow(), sh.getMaxRows(), sh.getMaxColumns()];
+  cols.forEach(function (c) {
+    parts.push([c.h, c.w || '', c.edit ? 1 : 0, c.fmt || '', c.align || '', c.wrap ? 1 : 0, (c.list || []).join('|'), c.hide ? 1 : 0,
+                c.group ? 1 : 0, c.bold ? 1 : 0, c.head || '', c.note || ''].join('~'));
+  });
+  var str = parts.join('§'), h = 5381;
+  for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36) + '.' + str.length.toString(36);
+}
+function _styleLooksRight_(sh, cols, rules) {
+  try {
+    var n = cols.length, head = sh.getRange(1, 1, 1, n), got = head.getValues()[0], bg = head.getBackgrounds()[0];
+    for (var i = 0; i < n; i++) {
+      if (String(got[i]) !== (cols[i].edit ? '✎ ' : '') + cols[i].h) return false;
+      if (String(bg[i]).toLowerCase() !== String(cols[i].head || (cols[i].edit ? HDR_EDIT : HDR_AUTO)).toLowerCase()) return false;
+    }
+    if (sh.getFrozenRows() !== 1) return false;
+    if (sh.getLastRow() > 1) {
+      if (sh.getBandings().length !== 1 || !sh.getFilter()) return false;
+      if (sh.getConditionalFormatRules().length !== rules) return false;
+    }
+    return true;
+  } catch (e) { return false; }
+}
+/* true: this tab is formatted as it was, and Tidy up leaves it */
+function _styleSkip_(sh, cols) {
+  if (!_STYLE_SKIP_) return false;
+  var was = null;
+  try { was = JSON.parse(PropertiesService.getScriptProperties().getProperty(STYLE_KEY + sh.getSheetId()) || 'null'); } catch (e) { was = null; }
+  if (!was || was.sig !== _styleSig_(sh, cols) || !(Date.now() - (was.at || 0) < STYLE_FULL_EVERY_MS)) return false;
+  return _styleLooksRight_(sh, cols, was.rules || 0);
+}
+function _styleNoted_(sh, cols) {
+  try {
+    PropertiesService.getScriptProperties().setProperty(STYLE_KEY + sh.getSheetId(),
+      JSON.stringify({ sig: _styleSig_(sh, cols), rules: sh.getConditionalFormatRules().length, at: Date.now() }));
+  } catch (e) {}
+}
+
+/* The formatting in three parts, so Tidy up's job does them as separate steps (9 Oct 2026) */
+function _restyleMain_() {
   _step_('Formatting the Setup, Labs and Students tabs…');
   _styleSetup_(); _styleLabs_(); _styleStudents_();
-  LABS.forEach(function (l, i) {
-    var sh = _ss_().getSheetByName(l.name);
-    if (!sh) return;
-    _step_('Formatting ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
-    _styleLab_(sh);
-  });
+}
+function _restyleLab_(i) {
+  var l = LABS[i], sh = l ? _ss_().getSheetByName(l.name) : null;
+  if (!sh) return;
+  if (_styleSkip_(sh, LAB_COLS)) return;   /* already formatted as it was (10 Oct 2026) */
+  _step_('Formatting ' + l.name + '  (' + (i + 1) + ' of ' + LABS.length + ')');
+  _styleLab_(sh);
+  _styleNoted_(sh, LAB_COLS);
+}
+function _restyleMore_() {
   /* The tabs added later were never in here, so they never got their date formats, their
      dropdown or their banding: _dress2_ only runs when a tab is FIRST made, and at that moment
      it has no rows to dress. */
@@ -1977,13 +2844,15 @@ function restyleAll_() {
   /* 👩‍🏫 Teachers and 🔗 Teacher links are dressed when they are made (_ensureTeacherTabs_), not here */
   [[T_HOMEWORK, _hwColDefs_(), '#F59E0B']].forEach(function (t) {
     var sh = _ss_().getSheetByName(t[0]);
-    if (!sh || !t[1]) return;
-    _dress2_(sh, t[1], { tab: t[2] });
+    if (!sh || !t[1] || _styleSkip_(sh, t[1])) return;
+    _dress2_(sh, t[1], { tab: t[2] }); _styleNoted_(sh, t[1]);
   });
   var en = _ss_().getSheetByName(T_ENGLISH);
-  if (en) _dress2_(en, ENGLISH_COLS, { tab: EN_TAB, freezeCols: 2 });
+  if (en && !_styleSkip_(en, ENGLISH_COLS)) { _dress2_(en, ENGLISH_COLS, { tab: EN_TAB, freezeCols: 2 }); _styleNoted_(en, ENGLISH_COLS); }
   var wu = _ss_().getSheetByName(T_WRITEUP);
-  if (wu) _dress2_(wu, WRITEUP_COLS, { tab: WU_TAB, freezeCols: 2 });
+  if (wu && !_styleSkip_(wu, WRITEUP_COLS)) { _dress2_(wu, WRITEUP_COLS, { tab: WU_TAB, freezeCols: 2 }); _styleNoted_(wu, WRITEUP_COLS); }
+  var pr = _ss_().getSheetByName(T_PRACT);
+  if (pr && !_styleSkip_(pr, PRACT_COLS)) { _dress2_(pr, PRACT_COLS, { tab: PRACT_TAB, freezeCols: 2 }); _styleNoted_(pr, PRACT_COLS); }
 }
 
 /* ------------------------------------------------------------
@@ -2164,6 +3033,9 @@ function _styleSetup_() {
   var url = '';
   try { url = String(sh.getRange(URL_ROW, 2).getValue() || '').trim(); } catch (e) {}
   if (!/^https?:/i.test(url)) url = PropertiesService.getScriptProperties().getProperty('WEB_APP_URL') || '';
+  /* 9 Oct 2026: an address typed in the cell is kept before the tab is cleared, so a stop between the clear and the
+     rewrite cannot lose it (everything else on this tab is written by the script) */
+  else { try { if (PropertiesService.getScriptProperties().getProperty('WEB_APP_URL') !== url) PropertiesService.getScriptProperties().setProperty('WEB_APP_URL', url); } catch (e) {} }
   if (!url) url = '(paste your /exec URL here, so you can find it again)';
   sh.clear();
   sh.getBandings().forEach(function (b) { b.remove(); });
@@ -2242,15 +3114,31 @@ function onButtonTicked(e) {
 
   try {
     var did = '';
+    /* 10 Oct 2026: a person who may not run these was given "✅ Tidied up. undefined" (setup() refused in silence) */
+    if (!_isAdminCaller_()) { _btnSays_(row, '❌  Only the owner of this spreadsheet, or a teacher on its 👩‍🏫 Teachers list, can use this button (' + _hhmm_(new Date()) + ').'); return; }
     _PROGRESS_ROW = row;
-    if (row === BTN_ROW.refresh) { refreshDashboard(); did = 'Progress refreshed'; }
-    else if (row === BTN_ROW.restyle) { did = 'Tidied up. ' + setup(); }
+    if (row === BTN_ROW.refresh) {
+      var busyR = _jeOneGoBegin_('refresh', '📊 Refresh everyone\'s progress');   /* 10 Oct 2026: one heavy job at a time */
+      if (busyR) { _PROGRESS_ROW = null; _btnSays_(row, '⚠️  Not refreshed at ' + _hhmm_(new Date()) + ': ' + busyR); return; }
+      try { refreshDashboard(); } finally { _jeOneGoEnd_('refresh'); }
+      did = 'Progress refreshed';
+    }
+    else if (row === BTN_ROW.restyle) {
+      _TIDY_PARTLY_ = false;
+      _TIDY_WINDOW_ = _labsJobWindow_('tidy');   /* 10 Oct 2026: where it reports while Google runs its later parts in the background */
+      var tidied = setup();
+      did = 'Tidied up';
+      /* 9 Oct 2026: a Tidy up that carries on by itself (or one already running) has written its own line; the job
+         writes the last one when it ends */
+      if (_TIDY_CONTINUES_) { _PROGRESS_ROW = null; return; }
+    }
     else { _btnSays_(row, ''); return; }
     _PROGRESS_ROW = null;
     var secs = Math.round((new Date() - started) / 1000);
     /* the Students tab not restyled (its guard) is a warning: amber, the time first, then what to do (Tidy up's own text
        already carries the note; Refresh's gets it here) */
-    _btnSays_(row, (_STUDENTS_NOT_STYLED_ ? '⚠️  ' : '✅  ') + did + ' at ' + _hhmm_(new Date()) + ' (took ' + secs + 's)' +
+    _btnSays_(row, (_STUDENTS_NOT_STYLED_ || (row === BTN_ROW.restyle && _TIDY_PARTLY_) ? '⚠️  ' : '✅  ') + did + ' at ' + _hhmm_(new Date()) + ' (took ' + secs + 's)' +
+                   (row === BTN_ROW.restyle && tidied ? '. ' + tidied : '') +
                    (_STUDENTS_NOT_STYLED_ && row === BTN_ROW.refresh ? '. ' + _STUDENTS_NOT_STYLED_ : ''));
   } catch (err) {
     _PROGRESS_ROW = null;
@@ -2273,7 +3161,7 @@ function _step_(msg) {
   /* A toast shows wherever this was started from. _PROGRESS_ROW is only set when a button on the
      Setup tab was ticked, so running Tidy up from the MENU used to report nothing whatsoever until
      the alert at the very end. */
-  try { _ss_().toast(msg, 'Working…', -1); } catch (e) {}
+  if (!_TIDY_WINDOW_ && !_PROGRESS_JOB) { try { _ss_().toast(msg, 'Working…', -1); } catch (e) {} }   /* a window shows it */
   if (_PROGRESS_ROW) {
     try { _btnSays_(_PROGRESS_ROW, '\u23F3  ' + msg); SpreadsheetApp.flush(); } catch (e) {}
   }
@@ -2377,8 +3265,9 @@ function _styleStudents_() {
     }
   }
 
+  if (_styleSkip_(sh, cols)) return;   /* already formatted as it was (10 Oct 2026): Tidy up formatted this tab twice a run */
   var rows = _dress2_(sh, cols, { freezeCols: 2, tab:'#14572B' });
-  if (!rows) return;
+  if (!rows) { _styleNoted_(sh, cols); return; }
 
   var first = 3, L = LABS.length;
   var rules = [
@@ -2396,11 +3285,20 @@ function _styleStudents_() {
       .setBackground('#F2F2EF').setRanges([sh.getRange(2, first + i, rows, 1)]).build());
   });
   sh.setConditionalFormatRules(rules);
+  _styleNoted_(sh, cols);
 }
 
 /* The dashboard: every student, every lab, best score so far. Read straight out of each lab's tab, which
    holds one row per student — so a name is matched by email, not by how it was typed — and written as
    values rather than formulas, so a lab nobody has used simply leaves its column empty. */
+/* 📊 Refresh everyone's progress from the menu: one heavy job at a time (10 Oct 2026). Tidy up's own "everyone's progress"
+   part calls refreshDashboard itself, so the guard is here and on the button, never inside it. */
+function refreshDashboardMENU_() {
+  if (!_isAdminCaller_()) return;
+  var busy = _jeOneGoBegin_('refresh', '📊 Refresh everyone\'s progress');
+  if (busy) { try { SpreadsheetApp.getUi().alert('📊 Refresh everyone\'s progress', busy, SpreadsheetApp.getUi().ButtonSet.OK); } catch (e) {} return; }
+  try { refreshDashboard(); } finally { _jeOneGoEnd_('refresh'); }
+}
 function refreshDashboard() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
   var sh = _sheet_(T_STUDENTS);
@@ -2554,8 +3452,10 @@ function _labsRows_(sh) {
   var width = out[0].length;
   if (sh.getMaxColumns() < width) sh.insertColumnsAfter(sh.getMaxColumns(), width - sh.getMaxColumns());
   _room_(sh, out.length);
-  if (lastR > 0 && lastC > 0) sh.getRange(1, 1, lastR, lastC).clearContent();
+  /* 9 Oct 2026: written over, then what is left beyond it cleared — never cleared first, so a stop between the two
+     calls cannot leave the tab blank (the teacher's own cells were held only in this call) */
   sh.getRange(1, 1, out.length, width).setValues(out);
+  if (lastC > width) sh.getRange(1, width + 1, Math.min(lastR, out.length), lastC - width).clearContent();
   if (lastR > out.length) sh.deleteRows(out.length + 1, lastR - out.length);
   return said.length ? 'Labs tab: ' + said.join('; ') + '.' : '';
 }
@@ -2778,23 +3678,31 @@ function _repairStudentSheet_() {
 /* The same on every lab tab: a student's row is found by the address in it, so a stray space
    there loses their marks just as surely. */
 function _repairLabEmails_() {
-  var fixed = 0, tabs = 0;
+  var fixed = 0, tabs = 0, busyTabs = [];
   LABS.forEach(function (l) {
     var sh = _ss_().getSheetByName(l.name);
     if (!sh || sh.getLastRow() < 2) return;
-    var rows = sh.getLastRow() - 1;
-    var v = sh.getRange(2, LAB_EMAIL, rows, 1).getValues(), out = [], n = 0;
-    for (var i = 0; i < v.length; i++) {
-      var was = String(v[i][0] === null || v[i][0] === undefined ? '' : v[i][0]);
-      var now = _cleanEmail_(was);
-      if (now && now.indexOf('@') > 0 && now !== was) { out.push([now]); n++; }
-      else out.push([was]);
-    }
-    if (n) { sh.getRange(2, LAB_EMAIL, rows, 1).setValues(out); fixed += n; tabs++; }
+    /* 9 Oct 2026: read and written under the script lock, so a row deleted or added meanwhile cannot shift what is
+       written back (a busy lock: this tab is passed over, and the next Tidy up cleans it) */
+    var lock = LockService.getScriptLock();
+    try { lock.waitLock(5000); } catch (e) { busyTabs.push(l.name); return; }
+    try {
+      if (sh.getLastRow() < 2) return;
+      var rows = sh.getLastRow() - 1;
+      var v = sh.getRange(2, LAB_EMAIL, rows, 1).getValues(), out = [], n = 0;
+      for (var i = 0; i < v.length; i++) {
+        var was = String(v[i][0] === null || v[i][0] === undefined ? '' : v[i][0]);
+        var now = _cleanEmail_(was);
+        if (now && now.indexOf('@') > 0 && now !== was) { out.push([now]); n++; }
+        else out.push([was]);
+      }
+      if (n) { sh.getRange(2, LAB_EMAIL, rows, 1).setValues(out); fixed += n; tabs++; }
+    } finally { lock.releaseLock(); }
   });
-  if (!fixed) return [];
+  var said = busyTabs.length ? ['The addresses on ' + busyTabs.join(', ') + ' were not checked this time (pupils were saving); the next Tidy up checks them.'] : [];
+  if (!fixed) return said;
   return [fixed + ' address' + (fixed === 1 ? '' : 'es') + ' on ' + tabs + ' lab tab' +
-          (tabs === 1 ? '' : 's') + ' had spaces or hidden characters around them. Cleaned.'];
+          (tabs === 1 ? '' : 's') + ' had spaces or hidden characters around them. Cleaned.'].concat(said);
 }
 
 /* The labs in the order this sheet already lists them, then any it has not seen. */
@@ -2922,8 +3830,8 @@ function _studentTrailColumns_(sh) {
 function _orderTabs_() {
   var ss = _ss_();
   /* the tabs a teacher actually opens sit at the front; the twenty lab tabs are data behind them */
-  /* Bio English and the Write-Up Lab sit with the people, after Students and before the homework, not among the labs */
-  var want = [T_SETUP, T_LABS, T_STUDENTS, T_ENGLISH, T_WRITEUP, T_HOMEWORK, T_TEACHERS, T_LINKS]
+  /* Bio English, the Write-Up Lab and 🔬 Practicals sit with the people, after Students and before the homework, not among the labs */
+  var want = [T_SETUP, T_LABS, T_STUDENTS, T_ENGLISH, T_WRITEUP, T_PRACT, T_HOMEWORK, T_TEACHERS, T_LINKS]
              .concat(LABS.map(function (l) { return l.name; }))
              .concat([T_REJECTED]);
   var looking = null;
@@ -2999,8 +3907,28 @@ function _labRows_(sh, from, n) {
 }
 
 /* Give every student on the roster a row here, and leave the ones already present alone.
-   Safe to run as often as you like — it is keyed on the school email. */
-function _seedLab_(lab, notes) {
+   Safe to run as often as you like — it is keyed on the school email.
+   9 Oct 2026: under the script lock, the lock a pupil's save takes, with every read made inside it. Before, the rows of
+   pupils who left were deleted with no lock, one call a row (minutes for a year group), so a save that had found its row
+   could then write it one row too high — over the pupil below. Now the empty rows go as runs of neighbours, bottom up,
+   a call a run. A busy lock (pupils saving for 20 s) throws BUILD_BUSY: Tidy up's job does this lab again later. */
+/* 10 Oct 2026 (Daniel: "they must finish"): the empty rows of pupils who left go in short batches (SEED_BATCH_MS), the
+   lock given back between two batches (pupils' saves wait only a few seconds), and a job's step stops at st.deadline
+   with 'more' — the next run goes on with the rows still left. Before, a lab with many scattered leavers was one long
+   stretch under the lock, and a run Google stopped began it again from the start. */
+var SEED_BATCH_MS = 4 * 1000, _SEED_GONE_ = {};   /* 10 Oct 2026: 4 s (8 s held the lock as long as a pupil's save waits for it) */
+function _seedLab_(lab, notes, st) {
+  for (;;) {
+    var lock = LockService.getScriptLock();
+    try { lock.waitLock(20000); } catch (e) { throw new Error(BUILD_BUSY); }
+    var r;
+    try { r = _seedLabLocked_(lab, notes, st); }
+    finally { lock.releaseLock(); }
+    if (r !== 'again') return r;
+    if (st && st.deadline && Date.now() > st.deadline) return 'more';
+  }
+}
+function _seedLabLocked_(lab, notes, st) {
   var sh = _labSheet_(lab);
   var roster = _sheet_(T_STUDENTS);
   if (roster.getLastRow() < 2) return sh;
@@ -3023,16 +3951,30 @@ function _seedLab_(lab, notes) {
   });
   if (sh.getLastRow() > 1) {
     var all = sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues();
-    var gone = 0, held = [];
+    var gone = 0, held = [], runEnd = -1;              /* runEnd: the lowest row of a run of rows to delete, waiting */
+    var b0 = Date.now(), cut = false;
+    var flush = function (k) { if (runEnd >= 0) { sh.deleteRows(k + 3, runEnd - k); runEnd = -1; if (Date.now() - b0 > SEED_BATCH_MS) cut = true; } };
     for (var k = all.length - 1; k >= 0; k--) {          /* bottom up, so a delete cannot shift the rest */
+      if (cut) break;                                    /* this batch is long enough: the lock goes back, the rest next */
       var em = _cleanEmail_(all[k][LAB_EMAIL - 1]);
-      if (!em || onRoster[em]) continue;
-      var saved = String(all[k][2]).trim() !== '' || Number(all[k][9]) > 0;
-      if (saved) { held.push(String(all[k][0] || em)); continue; }
-      sh.deleteRows(k + 2, 1);
-      gone++;
-      delete have[em];
+      var del = false;
+      if (em && !onRoster[em]) {
+        var saved = String(all[k][2]).trim() !== '' || Number(all[k][9]) > 0;
+        if (saved) held.push(String(all[k][0] || em));
+        else { del = true; gone++; delete have[em]; }
+      }
+      if (del) { if (runEnd < 0) runEnd = k; }
+      else flush(k);
     }
+    if (!cut) flush(-1);
+    var seedKey = 'seedGone' + lab.id;
+    if (cut) {                                           /* counted for the note at the end of this lab */
+      if (st) st[seedKey] = (st[seedKey] || 0) + gone;
+      else _SEED_GONE_[lab.id] = (_SEED_GONE_[lab.id] || 0) + gone;
+      return 'again';
+    }
+    gone += (st ? (st[seedKey] || 0) : (_SEED_GONE_[lab.id] || 0));
+    if (st) delete st[seedKey]; else delete _SEED_GONE_[lab.id];
     if (notes && gone) {
       notes.push(gone + ' row' + (gone === 1 ? '' : 's') + ' removed from ' + lab.name +
                  ' for people no longer on the Students tab.');
@@ -4135,7 +5077,11 @@ function _isTeacher_(email) {
    actions — so nothing here can be reached from the public web app. Mirrors the reflection
    system's own guard: in a bound menu/dialog the effective user is the owner; a call with no
    identity can only be the bound spreadsheet itself (the web app has no UI). */
+/* 10 Oct 2026: true only inside a job's own trigger (continueTidyUp_, continueBatchImport_ — private, so no page can call
+   them): a part such as 📊 everyone's progress must not be turned away there when Google gives the trigger no user */
+var _LABS_JOB_TRUSTED_ = false;
 function _isAdminCaller_() {
+  if (_LABS_JOB_TRUSTED_) return true;
   var act = '';
   try { act = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
   if (act && (act === _owner_() || _isTeacher_(act))) return true;
@@ -4360,12 +5306,22 @@ function _readLinkRow_(r, kHead, rowNum, dHead, urls) {
      scanning the row for an https cell the way the address above is: on a tab still six columns
      wide the only other address in the row IS the spreadsheet, and a scan would hand it back as
      a dashboard, giving every card two buttons that go to the same place. */
-  var dash = '';
+  var dash = '', form = '';
   var dRaw = String(((dHead != null && dHead >= 0) ? urls[dHead] : (k === 4 ? urls[6] : '')) || '').trim();
   if (/^https:\/\/[^\s"'<>]+$/i.test(dRaw) && dRaw !== url) dash = dRaw;
+  /* Form, Dashboard and Spreadsheet (11 Oct 2026). Daniel: "The dashboard, that link actually takes you to the form …
+     you should have form, dashboard, and spreadsheet." The reflection and the Test System both serve the students'
+     form at their web app's /exec address and the teacher dashboard at that address + ?page=dashboard. A Dashboard cell
+     holding the bare /exec address (typed by hand) opened the students' form: it is read as the form now, and the
+     dashboard is that address + ?page=dashboard. A dashboard address gives its form by dropping ?page=dashboard (for a
+     Test System with a separate dashboard web app, that one's form, which a teacher can open; the students' link is in
+     Classroom). Anything that is not an Apps Script web app stays as it is, with no form. */
+  var app = dash.match(/^(https:\/\/script\.google\.com\/(?:a\/macros\/[^\/?#\s]+|macros)\/s\/[A-Za-z0-9_-]+\/exec)(?:\?([^#\s]*))?$/);
+  if (app && !app[2]) { form = app[1]; dash = app[1] + '?page=dashboard'; }
+  else if (app && /(^|&)page=dashboard(&|$)/.test(app[2])) form = app[1];
 
   return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
-           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash };
+           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash, form: form };
 }
 
 /* The links tab has had three shapes: the old four columns (Section · Name · Link · Note), then six
@@ -4897,7 +5853,7 @@ function _teacherPageGroups_(now) {
   raw.forEach(function (l) {
     var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
     var co = _cohortLabel_(l.grad, now);
-    var entry = { name: l.name, url: l.url, dash: l.dash, type: l.type, assessment: l.assessment,
+    var entry = { name: l.name, url: l.url, dash: l.dash, form: l.form, type: l.type, assessment: l.assessment,
                   detail: (l.assessment && l.assessment !== l.name ? l.assessment : '') + (l.note ? (l.assessment && l.assessment !== l.name ? ' · ' : '') + l.note : '') };
     if (isRecord) { records.push(entry); return; }
     if (!co) { loose.push(entry); return; }
@@ -5761,6 +6717,15 @@ function homeworkCreate(d) {
     } catch (e) { job.inCourse = null; }
   });
 
+  /* The same press heard twice (the audit, 10 Oct 2026). When the page did not hear back (Classroom can take longer than
+     Google lets the page wait) it said "Could not set it", and a second press set the homework and posted it in Classroom
+     again. The page sends one request id per homework; a call with an id already used gets the first call's homework back,
+     and nothing is set or posted twice. Looked up again under the lock, where the first call notes it. */
+  var req = String(d.req || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), reqKey = req ? 'hwreq:' + who + ':' + req : '', dup = null;
+  var seenReq = function () { if (!reqKey) return null; try { var o = JSON.parse(CacheService.getScriptCache().get(reqKey) || 'null'); return o && o.made && o.made.length ? o : null; } catch (e) { return null; } };
+  var againSaid = function (o) { return { ok:true, again:true, made: o.made, group: o.group || '', posted: [], later: [], notPosted: [], topic: '', topics: [], topicMissed: [], remind: 'off', remindWhy: '', data:_homeworkData_(undefined, who) }; };
+  dup = seenReq();
+  if (dup) return againSaid(dup);
   var made = [];
   var lock = null;
   /* bail rather than carry on unlocked: catching the timeout and continuing would leave two
@@ -5768,6 +6733,8 @@ function homeworkCreate(d) {
   try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
   catch (e) { return { ok:false, why:'Somebody else is setting homework just now — try again in a moment.' }; }
   try {
+    dup = seenReq();
+    if (dup) return againSaid(dup);
     var sh = _ensureHomeworkTab_();
     _hwWiden_(sh);                                            /* a tab from before the reminder columns */
     var taken = {}; _homeworkRows_().forEach(function (r) { taken[r.id] = 1; });
@@ -5785,6 +6752,7 @@ function homeworkCreate(d) {
       made.push(id);
       _dressRows_(sh, _hwColDefs_(), sh.getLastRow(), 1);   /* so a row set between tidy-ups still reads properly */
     }
+    if (reqKey) { try { CacheService.getScriptCache().put(reqKey, JSON.stringify({ made: made, group: group }), 1800); } catch (eC) {} }
   } catch (err) {
     return { ok:false, why:'Could not save it: ' + err };
   } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
@@ -6228,6 +7196,7 @@ function uiData(which, arg) {
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
     if (which === 'writeup')   return { ok:true, data:_writeupProgressData_() };   /* the Write-Up view (8 Oct 2026): read only */
     if (which === 'habits')    return { ok:true, data:_habitsData_() };      /* ⏱️ Homework habits (1 Oct 2026): read only */
+    if (which === 'practicals') return { ok:true, data:_practicalsData_() };  /* 🔬 Practicals (11 Oct 2026, §practicals): read only */
   } catch (err) { return { ok:false, why:String(err) }; }
   return { ok:false, why:'Unknown view.' };
 }
@@ -7537,6 +8506,8 @@ var HW_QUIET_FROM = 22, HW_QUIET_TO = 7;         /* no reminder from 22:00 until
 var HW_QUIET_GAP_MS = 30 * 60 * 1000;            /* a reminder moved to 07:00 goes only if the due time is further away than this */
 var HW_ANNOUNCE_SCOPE = 'https://www.googleapis.com/auth/classroom.announcements';
 var HW_SENDING = 'sending…';                     /* the claim written just before the post, so two runs never post one reminder twice */
+var HW_REMIND_BY_MS = 4 * 60 * 1000;             /* 9 Oct 2026: no reminder begun after this from the run's start; the next run (15 minutes on) posts the rest */
+var HW_SENDING_STALE_MS = 10 * 60 * 1000;        /* a claim older than this was left by a run Google stopped: Classroom is asked (_hwRemindSettle_) */
 var HW_NO_PERMISSION = 'Google has not been allowed to post Classroom announcements for this script yet (🩺 Check the set-up says what to do)';
 var HW_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 var HW_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -7664,10 +8635,21 @@ function _hwRemindMark_(id, k, now, said, fresh) {
    reminder is due are the roster, the station list and the lab tabs read, once for all of them. Returns how many
    announcements it posted. */
 function _hwRemindRun_(now) {
+  var t0 = Date.now();                                         /* 9 Oct 2026: Google stops a run after 6 minutes */
   var sh = _ss_().getSheetByName(T_HOMEWORK);
   if (!sh || sh.getLastRow() < 2) return 0;                    /* nothing set (and the tab is never made here) */
-  var jobs = [];
-  _homeworkRows_().forEach(function (hw) {
+  var jobs = [], rows = _homeworkRows_();
+  /* a "sending…" left by a run Google stopped between the claim and the result: settled first (it may be due again) */
+  var settled = 0;
+  rows.forEach(function (hw) {
+    if (!hw.course) return;
+    for (var k = 1; k <= 2; k++) {
+      var r = hw.rem[k - 1], at = _hwMs_(r.at);
+      if (r.said === HW_SENDING && at && now - at > HW_SENDING_STALE_MS && _hwRemindSettle_(hw, k)) settled++;
+    }
+  });
+  if (settled) rows = _homeworkRows_();
+  rows.forEach(function (hw) {
     if (!hw.remindOn || !hw.course || !hw.courseWork) return;  /* switched off, or never posted in Classroom */
     var d = _hwRemindDue_(hw, now);
     if (d) jobs.push({ hw: hw, k: d.k, skip: d.skip });
@@ -7700,7 +8682,9 @@ function _hwRemindRun_(now) {
       }
       return;
     }
+    if (Date.now() - t0 > HW_REMIND_BY_MS) return;                             /* the next run posts it (it is still due then) */
     if (!_hwRemindMark_(j.hw.id, j.k, now, HW_SENDING, true)) return;         /* another run has it: never twice */
+    _hwClaimKeep_(j.hw.id, j.k, { t: j.hw.title, h: _hwIdsHash_(who.ids), n: who.ids.length, at: now });   /* what this post will be, for _hwRemindSettle_ */
     var said;
     try {
       Classroom.Courses.Announcements.create(_hwRemindBody_(j.hw, who.ids, man), j.hw.course);
@@ -7709,15 +8693,104 @@ function _hwRemindRun_(now) {
       said = 'not sent: ' + _hwWhyNot_(e);
       try { Logger.log('Homework reminder ' + j.k + ' for ' + j.hw.id + ' ' + said); } catch (e2) {}
     }
-    _hwRemindMark_(j.hw.id, j.k, now, said, false);
+    if (_hwRemindMark_(j.hw.id, j.k, now, said, false)) _hwClaimDrop_(j.hw.id, j.k);
   });
   return posted;
+}
+/* 9 Oct 2026 (Daniel's rule for long runs: nothing left half done): reminder k of `hw` still reads "sending…" from a
+   claim more than 10 minutes old — a run Google stopped between the claim and the result. Classroom is asked: the
+   announcement is there (made after the claim, its words this homework's) → the row says it went, to how many pupils; it
+   is not there → the claim is taken back, so the reminder goes in this run or the next while it is still due; Classroom
+   cannot be asked → it is left as it is (the list says "⚠ not sure it was sent"). Never two posts: a claim is changed
+   only if it still holds the same claim. true when the row was changed. */
+function _hwRemindSettle_(hw, k) {
+  /* matched by the claim's own fingerprint, kept just before the post (the title as posted, and its pupils' ids): the
+     title as it is NOW (the teacher may have corrected it) or another homework of the same title would mislead (the
+     audit of 9 Oct: a second post, or a reminder marked sent that never went); a claim with none is left as it is */
+  var at = _hwMs_(hw.rem[k - 1].at), fp = _hwClaimGet_(hw.id, k), found = null;
+  if (!fp || Math.abs((fp.at || 0) - at) > 1000 || !fp.t) return false;   /* 10 Oct 2026: as _hwRemindFix_ (Sheets keeps a time to the second) */
+  var head = 'Reminder: your homework "' + fp.t + '"';
+  try {
+    _needClassroom_();
+    var page = Classroom.Courses.Announcements.list(hw.course, { pageSize: 50, orderBy: 'updateTime desc' }) || {};
+    (page.announcements || []).some(function (a) {
+      var made = Date.parse(a.creationTime || a.updateTime || '') || 0;
+      var ids = (a.individualStudentsOptions && a.individualStudentsOptions.studentIds) || [];
+      if (made && made >= at - 60 * 1000 && String(a.text || '').indexOf(head) === 0 && _hwIdsHash_(ids) === fp.h) { found = a; return true; }
+      return false;
+    });
+  } catch (e) { return false; }
+  var done = _hwRemindFix_(hw.id, k, at, found ? String(fp.n || 1) : null);
+  if (done) _hwClaimDrop_(hw.id, k);
+  return done;
+}
+/* The claim's fingerprint (a Script Property for the minutes a post takes): { t, h, n, at }. */
+function _hwClaimKey_(id, k) { return 'HW_CLAIM_' + String(id).replace(/[^\w-]/g, '') + '_' + k; }
+function _hwClaimKeep_(id, k, fp) { try { PropertiesService.getScriptProperties().setProperty(_hwClaimKey_(id, k), JSON.stringify(fp)); } catch (e) {} }
+function _hwClaimGet_(id, k) { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(_hwClaimKey_(id, k)) || 'null'); } catch (e) { return null; } }
+function _hwClaimDrop_(id, k) { try { PropertiesService.getScriptProperties().deleteProperty(_hwClaimKey_(id, k)); } catch (e) {} }
+/* A short mark of a set of Classroom ids, whatever their order. */
+function _hwIdsHash_(ids) {
+  var t = (ids || []).map(String).sort().join(','), h = 5381;
+  for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36) + '.' + (ids || []).length;
+}
+/* Under the script lock: if reminder k of homework `id` still holds the claim made at claimAt, write `said` beside it
+   (the time kept), or with said null take the claim back (both cells emptied). */
+function _hwRemindFix_(id, k, claimAt, said) {
+  var lock = null;
+  try { lock = LockService.getScriptLock(); lock.waitLock(10000); } catch (e) { return false; }
+  try {
+    var sh = _ss_().getSheetByName(T_HOMEWORK);
+    if (!sh || sh.getLastRow() < 2) return false;
+    var hc = _hwHeadCols_(sh), row = 0, v = sh.getRange(2, hc.ID, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < v.length; i++) { if (String(v[i][0] || '').trim() === id) { row = i + 2; break; } }
+    if (!row) return false;
+    var atCol = hc['Reminder ' + k], toCol = hc['Reminder ' + k + ' students'];
+    var nowAt = _hwMs_(sh.getRange(row, atCol).getValue()), nowSaid = String(sh.getRange(row, toCol).getValue() || '').trim();
+    if (nowSaid !== HW_SENDING || Math.abs(nowAt - claimAt) > 1000) return false;   /* changed meanwhile: left alone */
+    if (said === null) { sh.getRange(row, atCol).setValue(''); sh.getRange(row, toCol).setValue(''); }
+    else sh.getRange(row, toCol).setValue(said);
+    return true;
+  } catch (e) {
+    return false;
+  } finally { try { lock.releaseLock(); } catch (e) {} }
 }
 /* The trigger, every 15 minutes (_hwReminderTrigger_ makes it). It stays callable, as a trigger must: it takes NOTHING
    from its caller (a trigger's event, or anything a page sends, is ignored), posts only the reminders due at this
    moment, each once, to the students who have not finished, and hands back how many it posted. */
 function sendHomeworkReminders() {
-  return _hwRemindRun_(Date.now());
+  var now = Date.now(), n = _hwRemindRun_(now);
+  _hwReminderIdleOff_(now);
+  return n;
+}
+/* 10 Oct 2026 (Daniel: "if it's checking something related to homework, then it makes sense"): the 15-minute check removes
+   itself when no reminder is still to come (it ran 96 times a day, all from the account's daily trigger time). Set homework
+   with reminders, the 🔔 switch and 🩺 start it again. Decided under the script lock, where those write their rows before
+   they start it, so a homework set at that moment never loses its check. */
+function _hwReminderIdleOff_(now) {
+  var lock = null;
+  try { lock = LockService.getScriptLock(); lock.waitLock(5000); } catch (e) { return false; }   /* busy: kept, asked again next time */
+  try {
+    if (_hwRemindLeft_(now)) return false;
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() === 'sendHomeworkReminders') { try { ScriptApp.deleteTrigger(t); } catch (e) {} }
+    });
+    return true;
+  } catch (e) { return false; }
+  finally { try { lock.releaseLock(); } catch (e) {} }
+}
+/* A reminder is still to come: homework posted in Classroom with reminders on, not yet due, with a reminder not yet sent
+   or passed over (or one being sent just now). */
+function _hwRemindLeft_(now) {
+  var sh = _ss_().getSheetByName(T_HOMEWORK);
+  if (!sh || sh.getLastRow() < 2) return false;
+  return _homeworkRows_().some(function (hw) {
+    if (!hw.remindOn || !hw.course || !hw.courseWork) return false;
+    if (hw.rem.some(function (r) { return r.said === HW_SENDING; })) return true;
+    if (!(_hwMs_(hw.due) > now)) return false;
+    return [1, 2].some(function (k) { return !_hwMs_(hw.rem[k - 1].at); });
+  });
 }
 /* The 15-minute check, made once: when homework with reminders is set or switched on, and by 🩺 when some homework wants
    it. One is kept and any extra is removed, so calling this again never makes two. true when it runs. */
@@ -8221,5 +9294,303 @@ function _habitsData_(now) {
       HW_FLAG_RFT + '% or more right first time, by a pupil whose teacher-marked tests average under ' + HW_FLAG_BASE + '% (with no ' +
       'marked test: the median right first time of their earlier homework). A reason to talk with them, never proof of anything.',
     homework: hwOut, pupils: pupils
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   §practicals — IB PRACTICALS: HOW EACH PUPIL IS DOING, QUESTION BY QUESTION (11 Oct 2026)
+
+   Daniel: "a live board for IB practicals … I want to do more of these interactive lessons where they practise … at the
+   end, if I haven't been able to pay attention to one of the students, at least I see overall how they've been doing …
+   how many times they press, the different options, when they get the right answer the first time, what are the
+   questions that they are struggling with". Not homework and not a mark: what a pupil did in the lesson.
+
+   An IB practical page on nlcsbiology.com runs labs-shared/practical/lesson.js. Every Check, every choice and every
+   ↺ Start again is kept per question, in rounds (round 1 is their first go; Start again opens the next), with the
+   number of checks, how the round went (f right at the first check, 1 right after more checks, t tried and not right
+   yet, d a written answer done) and the wrong answers given. The page sends it as the labs do (lesson.save: a minute
+   after the last change, at once when it is left, and at sign-in; memory labs-save-on-their-own), and only for pupils
+   on the Students tab: anyone else leaves no trace. lesson.mine gives a pupil their own record back on another computer.
+
+   One row per pupil per practical in 🔬 Practicals. Records are MERGED, never replaced: within a round the most checks,
+   the better result and every wrong answer; rounds by their number. The teacher page's 🔬 Practicals view
+   (uiData('practicals') → _practicalsData_) draws a square per question, coloured by the pupil's first round, and the
+   questions the class finds hardest with the wrong answers given; its ● Live switch reads again every 30 s while on.
+   Each practical publishes data/questions.json (its questions' ids, parts and titles): read here only to name and
+   group them, cached on the site's version.txt. The register of practicals is labs-shared/practicals.json:
+   PRACTICALS must hold the same ids (tools/status.mjs checks).
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+var T_PRACT   = '🔬 Practicals';
+var PRACT_TAB = '#0E7490';
+var PRACTICALS = [
+  { id:'rocky-shore-fieldwork-pract', title:'Rocky shore fieldwork', url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract' }
+];
+var PRACT_COLS = [
+  { h:'Name', w:200, note:'From the Students tab. A student appears here the first time a practical page saves their work.' },
+  { h:'Class', w:80, align:'center', note:'From the Students tab, as it was at their last save.' },
+  { h:'Practical', w:190, note:'The IB practical this row is for: one row per student per practical.' },
+  { h:'Questions tried', w:130, align:'center', fmt:'0', group:true, note:'Questions they have checked at least once, in any round. Quadrats and other data entries are not counted here: the teacher page shows them.' },
+  { h:'Right first time', w:130, align:'center', fmt:'0', group:true, note:'Of those, the questions right at the first check of their first round.' },
+  { h:'Checks', w:90, align:'center', fmt:'0', group:true, note:'Every press of Check and every choice made, in every round. ↺ Start again keeps them.' },
+  { h:'Struggled with', w:380, note:'Up to three questions they found hardest: not right at the first check of their first round, most checks first.' },
+  { h:'Last saved', w:132, fmt:'dd MMM, HH:mm', note:'When the practical page last saved their work.' },
+  { h:'Saves', w:70, align:'center', fmt:'0', note:'How many saves have arrived from the page.' },
+  { h:'School email', w:230, hide:true, note:'What ties this row to the student. Do not edit.' },
+  { h:'Practical id', w:200, hide:true, note:'The practical page this row belongs to. Do not edit.' },
+  { h:'Record', w:200, hide:true,
+    note:'Every question they have checked, round by round: checks, how the round went and the wrong answers they gave. Written by the page; the teacher page reads it. Do not edit.' }
+];
+var PR_LAST = 8, PR_SAVES = 9, PR_EMAIL = 10, PR_ID = 11, PR_REC = 12;
+var PR_QID = /^[a-z0-9][a-z0-9-]{0,47}$/;
+var PR_ROUNDS = 6;            /* rounds kept per question: the first and the newest five; older ones only add their checks */
+var PR_WRONG = 6;             /* wrong answers kept per round, the most given first */
+
+function _practicalById_(id) {
+  for (var i = 0; i < PRACTICALS.length; i++) if (PRACTICALS[i].id === id) return PRACTICALS[i];
+  return null;
+}
+function _practicalsSheet_() {
+  var ss = _ss_(), sh = ss.getSheetByName(T_PRACT);
+  if (!sh) {
+    sh = ss.insertSheet(T_PRACT);
+    sh.getRange(1, 1, 1, PRACT_COLS.length).setValues([PRACT_COLS.map(function (c) { return c.h; })]);
+    _dress2_(sh, PRACT_COLS, { tab: PRACT_TAB, freezeCols: 2 });
+  }
+  return _colsReady_(sh, PRACT_COLS, PR_REC, 'PRCOLS');
+}
+
+/* A practical's own list of questions (public, nothing personal): { v, parts:[{n,title}], questions:[{id, part, title,
+   kind, group?, gaps?, opts?}] }. Cached on the site's publish stamp, as the Write-Up Lab's parts are. */
+function _practicalManifest_(p) {
+  var base = String(p.url).replace(/\/+$/, ''), cache = null, tag = 'PR_' + p.id.replace(/[^a-z0-9]/g, '').slice(0, 40);
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  var stamp = cache ? (cache.get(tag + '_STAMP') || '') : '';
+  if (!stamp) {
+    try {
+      var vr = UrlFetchApp.fetch(base + '/version.txt', { muteHttpExceptions:true, followRedirects:true });
+      if (vr.getResponseCode() === 200) stamp = String(vr.getContentText()).trim().slice(0, 20);
+    } catch (e) {}
+    if (cache && stamp) { try { cache.put(tag + '_STAMP', stamp, 600); } catch (e) {} }
+  }
+  var KEY = tag + '_Q_' + (stamp || 'none');
+  if (cache) { var hit = cache.get(KEY); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(base + '/data/questions.json', { muteHttpExceptions:true, followRedirects:true });
+    if (res.getResponseCode() !== 200) return null;
+    txt = res.getContentText();
+  } catch (e) { return null; }
+  var m = null; try { m = JSON.parse(txt); } catch (e) { return null; }
+  if (!m || !m.questions || !m.questions.length) return null;
+  if (cache && txt.length < 95000) { try { cache.put(KEY, txt, 21600); } catch (e) {} }
+  return m;
+}
+
+/* ── one question's record: { r: [ { n, c, s, w, a, z, e? } … ], f, mc } ─────────────────────────────────────────────
+   n the round (1 = their first go), c its checks, s how it went (f · 1 · t · d, or '' with nothing checked), w the wrong
+   answers given { answer: times }, a and z its first and last moments (seconds), e the round was closed by Start again.
+   f and mc: the last round folded away (rounds older than the newest five, round 1 apart) and the checks they held. */
+var PR_RANK = { '': 0, t: 1, '1': 2, f: 3, d: 3 };
+function _prRound_(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return null;
+  var n = Math.floor(Number(x.n) || 0);
+  if (n < 1 || n > 9999) return null;
+  var s = String(x.s == null ? '' : x.s); if (!/^[ft1d]$/.test(s)) s = '';
+  var w = {};
+  if (x.w && typeof x.w === 'object' && !Array.isArray(x.w)) {
+    Object.keys(x.w).slice(0, 40).forEach(function (k) {
+      var kk = String(k).replace(/[\u0000-\u001f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 48);
+      if (!kk) return;
+      w[kk] = Math.max(w[kk] || 0, Math.max(1, Math.min(999, Math.floor(Number(x.w[k]) || 1))));
+    });
+  }
+  var r = { n: n, c: Math.max(0, Math.min(9999, Math.floor(Number(x.c) || 0))), s: s, w: _prTopWrong_(w),
+            a: Math.max(0, Math.floor(Number(x.a) || 0)), z: Math.max(0, Math.floor(Number(x.z) || 0)) };
+  if (x.e) r.e = 1;
+  return r;
+}
+function _prTopWrong_(w) {
+  var keys = Object.keys(w).sort(function (a, b) { return w[b] - w[a] || (a < b ? -1 : 1); }).slice(0, PR_WRONG), out = {};
+  keys.forEach(function (k) { out[k] = w[k]; });
+  return out;
+}
+function _prQ_(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x) || !Array.isArray(x.r)) return null;
+  var by = {};
+  x.r.slice(0, 40).forEach(function (y) { var r = _prRound_(y); if (r) by[r.n] = by[r.n] ? _prMergeRound_(by[r.n], r) : r; });
+  var q = { r: _prSorted_(by), f: Math.max(0, Math.min(9999, Math.floor(Number(x.f) || 0))),
+            mc: Math.max(0, Math.min(99999, Math.floor(Number(x.mc) || 0))) };
+  q.r = q.r.filter(function (r) { return r.n === 1 || r.n > q.f; });
+  return q.r.length ? _prFold_(q) : null;
+}
+function _prSorted_(by) { return Object.keys(by).map(Number).sort(function (a, b) { return a - b; }).map(function (n) { return by[n]; }); }
+function _prMergeRound_(a, b) {
+  var w = {}, k;
+  for (k in a.w) w[k] = a.w[k];
+  for (k in b.w) w[k] = Math.max(w[k] || 0, b.w[k]);
+  var r = { n: a.n, c: Math.max(a.c, b.c), s: PR_RANK[b.s] > PR_RANK[a.s] ? b.s : a.s, w: _prTopWrong_(w),
+            a: a.a && b.a ? Math.min(a.a, b.a) : (a.a || b.a), z: Math.max(a.z, b.z) };
+  if (a.e || b.e) r.e = 1;
+  return r;
+}
+/* Rounds past the newest five (round 1 always stays) are folded away: f is the last round folded, mc their checks. */
+function _prFold_(q) {
+  var first = q.r.length && q.r[0].n === 1 ? 1 : 0, keep = PR_ROUNDS - first;
+  while (q.r.length - first > keep) { var gone = q.r.splice(first, 1)[0]; q.f = Math.max(q.f, gone.n); q.mc += gone.c; }
+  return q;
+}
+/* Two copies of one question's record: every round by its number, the better of each, nothing ever goes down. A round
+   one copy has folded away stays folded (its checks are in mc). */
+function _prMergeQ_(a, b) {
+  if (!a) return b; if (!b) return a;
+  var by = {};
+  a.r.concat(b.r).forEach(function (r) { by[r.n] = by[r.n] ? _prMergeRound_(by[r.n], r) : r; });
+  var q = { r: _prSorted_(by), f: Math.max(a.f, b.f), mc: Math.max(a.mc, b.mc) };
+  q.r = q.r.filter(function (r) { return r.n === 1 || r.n > q.f; });
+  return _prFold_(q);
+}
+/* A record from a page or from the sheet: { <question id>: question record }, cleaned. */
+function _prParse_(v) {
+  var o = v;
+  if (typeof v === 'string' || v == null) { try { o = JSON.parse(String(v || '') || '{}'); } catch (e) { o = null; } }
+  var out = {};
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  Object.keys(o).slice(0, 400).forEach(function (k) { if (!PR_QID.test(k)) return; var q = _prQ_(o[k]); if (q) out[k] = q; });
+  return out;
+}
+/* What goes in the Record cell. A cell holds 50,000 characters: when a record grows near that, the wrong answers of
+   the oldest rounds go first, then those of round 1 (the counts and results always stay). */
+function _prText_(rec) {
+  var txt = JSON.stringify(rec);
+  if (txt.length <= 45000) return txt;
+  Object.keys(rec).forEach(function (k) { rec[k].r.forEach(function (r, i) { if (i < rec[k].r.length - 1) r.w = {}; }); });
+  txt = JSON.stringify(rec);
+  if (txt.length <= 45000) return txt;
+  Object.keys(rec).forEach(function (k) { rec[k].r.forEach(function (r) { r.w = {}; }); });
+  return JSON.stringify(rec);
+}
+/* The columns a teacher reads, worked out from the record (quadrats and other data entries, `group` in the practical's
+   list, are left out of the counts: the teacher page shows them as a group). */
+function _prSummary_(rec, man) {
+  var meta = {};
+  if (man && man.questions) man.questions.forEach(function (q) { if (q && q.id) meta[q.id] = q; });
+  var tried = 0, first = 0, checks = 0, hard = [];
+  Object.keys(rec).forEach(function (id) {
+    var q = rec[id], c = q.mc || 0, any = false;
+    q.r.forEach(function (r) { c += r.c; if (r.c > 0 || r.s) any = true; });
+    checks += c;
+    if (!any || (meta[id] && meta[id].group)) return;
+    tried++;
+    var r1 = q.r[0] && q.r[0].n === 1 ? q.r[0] : null;
+    if (r1 && r1.s === 'f') first++;
+    else if (r1 && r1.s !== 'd' && r1.c > 0) hard.push([id, c]);
+  });
+  hard.sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : 1); });
+  return { tried: tried, first: first, checks: checks,
+           hard: hard.slice(0, 3).map(function (h) { return ((meta[h[0]] && meta[h[0]].title) || h[0]) + ' (' + h[1] + ' check' + (h[1] === 1 ? '' : 's') + ')'; }).join('; ') };
+}
+function _prRowFor_(sh, email, p, student) {
+  var last = sh.getLastRow();
+  if (last > 1) {
+    var col = sh.getRange(2, PR_EMAIL, last - 1, 2).getValues();
+    for (var i = 0; i < col.length; i++) if (_cleanEmail_(col[i][0]) === email && String(col[i][1]) === p.id) return i + 2;
+  }
+  var row = new Array(PRACT_COLS.length).fill('');
+  row[0] = student.name; row[1] = student.cls; row[2] = p.title; row[PR_EMAIL - 1] = email; row[PR_ID - 1] = p.id; row[PR_REC - 1] = '{}';
+  _room_(sh, last + 1);
+  sh.getRange(last + 1, 1, 1, PRACT_COLS.length).setValues([row]);
+  return last + 1;
+}
+
+/* lesson.save — { token | pass, id: <practical>, q: { <question id>: record } }. */
+function _lessonSave_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var p = _practicalById_(String(d.id || ''));
+  if (!p) return _json_({ ok:false, why:'unknown practical' });
+  var who = _whoSaving_(d);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var student = _studentOf_(who.email), readAt = Date.now();
+  /* the rule every save follows: somebody not on the roster leaves no trace here at all */
+  if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
+  if (d.q && typeof d.q === 'object' && Object.keys(d.q).length > 400) return _json_({ ok:false, why:'too much at once' });
+  var inc = _prParse_(d.q), man = null;
+  try { man = _practicalManifest_(p); } catch (eM) { man = null; }
+  if (man) {                                          /* a question the practical does not have is not kept */
+    var known = {}; man.questions.forEach(function (q) { if (q && q.id) known[q.id] = 1; });
+    Object.keys(inc).forEach(function (id) { if (!known[id]) delete inc[id]; });
+  }
+  var ids = Object.keys(inc);
+  if (!ids.length) return _json_({ ok:true, saved:0 });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
+  try {
+    student = _freshStudent_(who.email, student, readAt);   /* a Move or Left done while this save waited for the lock */
+    var sh = _practicalsSheet_(), r = _prRowFor_(sh, who.email, p, student);
+    var row = sh.getRange(r, 1, 1, PRACT_COLS.length).getValues()[0];
+    var kept = _prParse_(row[PR_REC - 1]);
+    ids.forEach(function (id) { kept[id] = _prMergeQ_(kept[id] || null, inc[id]); });
+    var txt = _prText_(kept), sum = _prSummary_(kept, man);
+    sh.getRange(r, 1, 1, PRACT_COLS.length).setValues([[
+      student.name, student.cls, p.title, sum.tried, sum.first, sum.checks, _plain_(sum.hard),
+      new Date(), (Number(row[PR_SAVES - 1]) || 0) + 1, who.email, p.id, txt
+    ]]);
+    _dressRows_(sh, PRACT_COLS, r, 1);                 /* so a row written between tidy-ups still reads properly */
+    SpreadsheetApp.flush();
+    return _json_({ ok:true, saved: ids.length });
+  } finally { lock.releaseLock(); }
+}
+
+/* lesson.mine — their own record of one practical back (another computer, a cleared browser), and, for a teacher,
+   the way to the board. Read only. */
+function _lessonMine_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var p = _practicalById_(String(d.id || ''));
+  if (!p) return _json_({ ok:false, why:'unknown practical' });
+  var who = _whoSaving_(d);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var out = { ok:true, name: who.name || '', onList:false, cls:'', q:{} };
+  /* the way to the teacher page only for Google's own sign-in, never for a pass */
+  if (!who.viaPass && _isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _practicalsTeacherUrl_(); }
+  var student = _studentOf_(who.email);
+  if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
+  out.onList = true; out.cls = student.cls;
+  var sh = _ss_().getSheetByName(T_PRACT);
+  if (sh && sh.getLastRow() >= 2) {
+    var n = sh.getLastRow() - 1, v = sh.getRange(2, PR_EMAIL, n, PR_REC - PR_EMAIL + 1).getValues();
+    for (var i = 0; i < n; i++) {
+      if (_cleanEmail_(v[i][0]) === who.email && String(v[i][1]) === p.id) { out.q = _prParse_(v[i][PR_REC - PR_EMAIL]); break; }
+    }
+  }
+  return _json_(out);
+}
+function _practicalsTeacherUrl_() {
+  var u = _teacherPageUrl_();
+  return u ? String(u).replace(/[?#].*$/, '') + '?page=practicals' : '';
+}
+
+/* The teacher page's 🔬 Practicals view: every practical with its question list, the roster (not the pupils who have
+   left), and every pupil's record. Read only. */
+function _practicalsData_(now) {
+  var dir = _studentDirectory_(now), rec = {};
+  var sh = _ss_().getSheetByName(T_PRACT);
+  if (sh && sh.getLastRow() >= 2) {
+    var n = sh.getLastRow() - 1, v = sh.getRange(2, 1, n, Math.min(PR_REC, sh.getMaxColumns())).getValues();
+    for (var i = 0; i < n; i++) {
+      var em = _cleanEmail_(v[i][PR_EMAIL - 1]), id = String(v[i][PR_ID - 1] || '');
+      if (!em || !_practicalById_(id)) continue;
+      (rec[id] = rec[id] || {})[em] = { at: v[i][PR_LAST - 1] ? new Date(v[i][PR_LAST - 1]).toISOString() : null,
+                                        saves: Number(v[i][PR_SAVES - 1]) || 0, q: _prParse_(v[i][PR_REC - 1]) };
+    }
+  }
+  return {
+    generatedAt: new Date().toISOString(),
+    practicals: PRACTICALS.map(function (p) {
+      var m = null; try { m = _practicalManifest_(p); } catch (e) { m = null; }
+      return { id: p.id, title: p.title, url: p.url, ok: !!m, parts: m && m.parts ? m.parts : [], groups: m && m.groups ? m.groups : [],
+               questions: m ? m.questions.filter(function (q) { return q && q.id && PR_QID.test(q.id); }) : [] };
+    }),
+    students: dir.students.filter(function (s) { return !_isLeftClass_(s.cls); })
+                .map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
+    classes: dir.classes, rec: rec
   };
 }
