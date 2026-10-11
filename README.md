@@ -312,14 +312,17 @@ wrong workbook in.
 ## 👩‍🏫 Teacher mode, and the teacher page
 
 <details>
-<summary><b>A page only your Biology teachers can open: spreadsheets, lab progress, Bio English, Write-Up, students, homework and homework habits</b></summary>
+<summary><b>A page only your Biology teachers can open: spreadsheets, lab progress, Bio English, Write-Up, IB practicals, students, homework and homework habits</b></summary>
 
 <br>
 
 Signed in on the hub as a teacher, the corner card gains a **Teacher | Test** switch.
 **Test** shows you the hub exactly as a student sees it, from your own TEST reflections.
 **Teacher** replaces the student's door with **Assessment system**, which opens the teacher page.
-It has seven tabs:
+It has eight tabs. All eight are read at the same time as the page opens, and each is kept on your computer (for a week,
+under your own address), so the next time the page opens at once and every tab is ready: it says how old what you see is
+("read 2 h ago · updating") and draws the new figures over it when they come. If you have started typing or clicking in
+the tab, **Show the newer copy** waits beside **Refresh** instead.
 
 | Tab | What it shows |
 |---|---|
@@ -327,8 +330,9 @@ It has seven tabs:
 | **Lab progress** | how each class is doing in the labs: every student against every lab, who needs a look, and the stations a class finds hardest. Click a student, then open a station: each question is a small square, coloured by their first try (right first time, right after more checks, tried and not right yet, not tried), with the question's words. *Where they get stuck* opens to the questions the class most often did not get right at the first check. A pupil who started a station again gets one row of squares per round, each with how many times they pressed Check, and the *Practised again* tile counts who did; practising again is never flagged as stuck |
 | **Bio English** | how far each student has got with the Bio English Lab sets of their year |
 | **Write-Up** | how far each student has got with the parts of a lab report in the Write-Up Lab: the share of each part finished (red-pen mistakes found and questions answered), grouped by the stages of a report |
+| **🔬 Practicals** | how each student is doing in an IB practical page (the rocky shore fieldwork first), question by question: one square per question, coloured by their first round (right at the first check, right after more checks, tried and not right yet), the number of checks, the wrong answers they typed or chose, and **Where they get stuck** for the class. Press **● Live** during a lesson and it reads again every 30 seconds (for two hours at most). Students appear once they sign in on the practical page; it is not homework and not a mark. Kept in the **🔬 Practicals** tab |
 | **Students** | find any pupil and open their own reflection tracker, the same page they see; move a pupil to another class; give a pupil the **Accommodation** (after a second, different wrong try their pages explain what they got wrong, where an explanation is written: the labs' multiple-choice questions, most Bio English cards, the Write-Up tests; Bio English also offers keyword meanings in Korean; nobody else sees either) |
-| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one), post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. To change a due date, open the homework in the list and press *Change the due date*: its Google Classroom assignment gets the new date too. Homework past its due date moves to an *Archive* under the list: *Hide* tidies one away there and keeps it everywhere else; *Remove* deletes it, from ⏱️ Homework habits and every pupil's record too, so use it only for homework set by mistake. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
+| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one) — the whole class, or *Some pupils* of it, which you tick (each class row has its own choice; some pupils get a homework of their own: in Google Classroom an assignment posted to them alone, with its own due date, reminders, *Change the due date* and *Remove*) — post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. To change a due date, open the homework in the list and press *Change the due date*: its Google Classroom assignment gets the new date too. Homework past its due date moves to an *Archive* under the list: *Hide* tidies one away there and keeps it everywhere else; *Remove* deletes it, from ⏱️ Homework habits and every pupil's record too, so use it only for homework set by mistake. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
 | **⏱️ Homework habits** | when each pupil finishes each homework, against the time it was set and its due time: *done before it was set*, *early* (by half the time), *in good time* (by 85%), *last minute*, *late*, *not done* or *still open*; ⏰ when they finished after a reminder had gone to them; their checks and right first time; and the time *from their first try to their finish* (between two saves: never time spent working). Each pupil gets a habit line from their last six homework (*Usually early*, *Usually in good time*, *Usually the last minute*, *Often late or not done*, *Only after a reminder*, *Getting better*, *Getting worse* or *Mixed*), and a neutral *Worth a look* when a homework is finished very fast and almost all right first time by a pupil whose results are usually low (teacher-marked tests under 50%): a reason to talk with them, never proof of anything. Pick a class; click a name for that pupil's timeline. The times are kept, per station, from the first save after the script is pasted |
 
 If you also run the analysis website (its own script in the Student Progress Tracker), the teachers on its 👥 list see
@@ -477,7 +481,7 @@ stays in the browser and is sent the moment the student signs in.
 | **🎓 Import students from Classroom…** | the main one. Adds new students one class at a time, then builds and formats everything |
 | **🩺 Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up — and each optional part: the record card, the teacher page, homework, the morning email, the homework reminders and the Classroom permission they need |
 | **📊 Refresh everyone's progress** | re-reads the lab tabs into the dashboard |
-| **🎨 Tidy up** | rebuild anything missing, write the **Labs** tab afresh from the script's list of labs, and re-apply the formatting |
+| **🎨 Tidy up** | rebuild anything missing, write the **Labs** tab afresh from the script's list of labs, and re-apply the formatting. A long one pauses before Google's 6-minute limit and carries on by itself; a window — "⚠️ Do not close this window until it says Finished" — shows how far it is, when the next part should begin (an estimate: Google can start it a few minutes late), and at the end how it went, with ⏹ Stop in it; the line beside its button keeps the same words. A tab already formatted as it was is left as it is (every tab is formatted in full at least once a week) |
 | **🔗 Add or remove links on the teacher page…** | the spreadsheets the teacher page lists — see *Teacher mode* above |
 | **🔎 Find new reflection and test spreadsheets** | adds to the teacher page every reflection or test spreadsheet that has labelled itself in Drive and is not listed yet |
 | **👥 Teacher page: teachers and addresses…** | the page's addresses (the page, the tracker, the hub), and who may open it |
@@ -487,6 +491,12 @@ stays in the browser and is sent the moment the student signs in.
 
 *Refresh everyone's progress* and *Tidy up* also sit as tick-box buttons on the **Setup** tab.
 The import opens a window, which a spreadsheet button is not allowed to do.
+
+**One heavy job at a time.** Tidy up, an import and *Refresh everyone's progress* do not start while another of them is
+going: the message says which one, who started it, when and how far it is. A job that keeps failing stops itself for the
+day (its line and 🩺 say so, and the spreadsheet's owner gets one email), so it cannot use up the account's daily
+allowance of run time, which all its scripts share. 🩺 also says how full the script's own small store is (500 KB); from
+80 % the owner gets one email a day, and from 95 % Tidy up and the import do not start.
 
 </details>
 
@@ -541,7 +551,7 @@ the other three goes into an HTML file with the same name.
 |---|---|
 | **[`apps-script/Code.gs`](apps-script/Code.gs)** | the whole script: receiving each student's work, the roster, the tabs, Classroom import, and giving a student their own scores back |
 | **[`apps-script/ClassroomImport.html`](apps-script/ClassroomImport.html)** | HTML file `ClassroomImport`: the little window that imports your classes |
-| **[`apps-script/Teacher.html`](apps-script/Teacher.html)** | HTML file `Teacher`: the teacher page — Spreadsheets, Lab progress, Bio English, Write-Up, Students, Set homework and ⏱️ Homework habits |
+| **[`apps-script/Teacher.html`](apps-script/Teacher.html)** | HTML file `Teacher`: the teacher page — Spreadsheets, Lab progress, Bio English, Write-Up, 🔬 Practicals, Students, Set homework and ⏱️ Homework habits |
 | **[`apps-script/TeacherPage.html`](apps-script/TeacherPage.html)** | HTML file `TeacherPage`: the window behind **🔗 Add or remove links on the teacher page** and **👥 Teacher page: teachers and addresses** |
 
 ---

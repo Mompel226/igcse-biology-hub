@@ -69,6 +69,8 @@ body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-eve
 .top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ink) 92%,transparent);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .age{font:500 11px/1 var(--mono);color:var(--mute);letter-spacing:.04em;white-space:nowrap}
+/* Refresh keeps the view on the screen, dimmed, until the new copy is drawn over it (10 Oct 2026: never a blank "Loading") */
+#view.stale{opacity:.55;transition:opacity .2s}
 .top__in{max-width:1120px;margin:0 auto;padding:10px clamp(16px,4vw,32px) 12px;display:flex;flex-direction:column;gap:10px}
 /* Two rows (Daniel, 1 Oct 2026, with ⏱️ Homework habits and 📊 Analysis the one row had grown to three ragged ones): who is
    signed in, the age and Refresh at the top beside the eyebrow; the tabs below, with 📊 Analysis ↗ at the far right. */
@@ -398,7 +400,15 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .cards--wide .card{flex-wrap:wrap}
 .cards--wide .card__m{min-width:9em}
 .cards--wide .card__a{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;row-gap:6px}
+/* Spreadsheets, the same rule (11 Oct 2026): Form, Dashboard and Spreadsheet take a row of their own on a phone */
+#slist .card{flex-wrap:wrap}
+#slist .card__m{min-width:9em}
+#slist .card__a{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;row-gap:6px}
 .hsort{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
+/* Set homework, each class row: Whole class or Some pupils (10 Oct 2026); as tall as the boxes beside it */
+.hwho{display:flex;gap:6px;flex-wrap:wrap}.hwho .chip{padding:15px 13px}
+.rpup{flex:1 1 100%;min-width:0}.rpup__h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.rpup__n{font:600 9.5px/1.3 var(--mono);letter-spacing:.11em;text-transform:uppercase;color:var(--accent)}
 .hsort__k{font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
 .hwgrp{margin:22px 0 0}.hwlist>.hwgrp:first-child{margin-top:8px}
 /* the Archive of Set homework (7 Oct 2026): homework past its due date, folded; its dates calm, since all of them have passed */
@@ -489,6 +499,28 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .meta{display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px 14px;margin-left:auto}
 @media (max-width:700px){.meta{display:contents}.who{margin-left:0}.bars{width:100%}.size__h{margin-left:0;text-align:left}.hw__h{flex-wrap:wrap}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* 🔬 Practicals (11 Oct 2026): one square per question, the labs' colours (.sq); a group of data entries (quadrats) as one
+   cell; the ● Live switch */
+.hm thead th.pq{width:40px;min-width:40px;padding:7px 2px;font:600 10px/1.15 var(--mono);color:var(--dim);cursor:help;white-space:nowrap}
+.hm thead th.pq .lt{display:block;font:500 8.5px/1.2 var(--mono);color:var(--mute);margin-top:2px;text-transform:uppercase}
+.hm thead th.pq.pfirst{border-left:1px solid var(--line2)}
+.hm td.pc{border-bottom:1px solid var(--line);padding:5px 3px}
+.hm td.cell.prwhen{white-space:nowrap;font:500 11px/1.2 var(--mono);color:var(--dim);padding:5px 8px}.hm td.pc.pfirst{border-left:1px solid var(--line2)}
+.hm td.pc .sq{display:block;margin:0 auto;cursor:help}
+.sq.d{background:var(--track2);color:var(--chalk)}
+.pgrp{display:block;margin:0 auto;min-width:36px;height:21px;border-radius:5px;border:1px solid transparent;font:600 9.5px/19px var(--mono);text-align:center;cursor:help}
+.pgrp.none{color:var(--mute);border:1px dashed var(--line2)}
+.livebtn{font:600 12px/1 var(--sans);padding:9px 13px;border-radius:9px;border:1px solid var(--line2);background:var(--card);color:var(--dim);cursor:pointer}
+.livebtn.on{border-color:var(--good);color:var(--good-ink);background:var(--good-bg)}
+.livebtn.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px;vertical-align:0;animation:prpulse 1.6s ease-in-out infinite}
+@keyframes prpulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.livebtn.on::before{animation:none}}
+.prsum{margin:12px 2px 10px;font-size:13px;color:var(--dim);line-height:1.5}.prsum b{color:var(--chalk)}
+.prq{display:grid;grid-template-columns:24px minmax(0,1fr);gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--line);align-items:start}
+.prq:last-child{border-bottom:0}
+.prq__t{font-size:12.5px;color:var(--chalk);font-weight:600;line-height:1.35}.prq__t span{color:var(--mute);font-weight:500}
+.prq__w{font-size:12px;color:var(--dim);line-height:1.45;margin-top:2px}
+.prpart{margin:14px 0 2px;font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
 </style>
 </head>
 <body>
@@ -501,6 +533,7 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
     <div class="meta">
     <span class="who" id="who"></span>
     <span class="age" id="age" aria-live="polite"></span>
+    <button class="rf" id="nw" type="button" hidden data-tip="A newer copy of this view came while you were working in it. Press to show it.">Show the newer copy</button>
     <button class="rf" id="rf" data-tip="Read the sheet again">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1.6 5"/><path d="M20 4v6h-6"/></svg>Refresh</button>
     <button class="rf thm" id="thm" type="button">Bright</button>
@@ -577,57 +610,104 @@ var BOOT = __BOOT__;
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
       note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
-  var ORDER = ['teachers','progress','english','writeup','students','homework','habits'];
-  var cache = {}, stamp = {}, cur = null, inflight = {}, prefetched = false;
-  /* Cookies would be the wrong tool — they cap at about 4KB and the Lab-progress payload is
-     hundreds. sessionStorage holds megabytes, is per-tab, and dies with the window, which is
-     exactly the life a teacher's working session should have. Ten minutes, then it re-reads. */
-  var KEEP_MS = 10*60*1000;
+  VIEWS.practicals = { label:'🔬 Practicals', accent:'#22D3EE', accentL:'#0E7490', h1:'IB <em>practicals</em>',
+      lede:'How each student is doing in an IB practical, question by question: right first time, how many checks, and the wrong answers they gave.',
+      note:'A square is the student’s first round of a question; the number in it is every check it took, in every round. A dot means a later round (after ↺ Start again) got it right. A student appears once they have signed in on the practical page, which saves a minute after their last answer. ● Live reads the sheet again every 30 seconds while this view is open, for two hours at most.' };
+  var ORDER = ['teachers','progress','english','writeup','practicals','students','homework','habits'];
+  /* cache: each view's newest copy. fresh: read from the sheet (or written) since this page opened. drawn: the copy on the
+     screen now. touched: the teacher has clicked or typed in the view since it was drawn. newer: a newer copy waits for
+     the teacher's "Show the newer copy". ver: bumped by every write, so a read that left before it cannot undo it. */
+  var cache = {}, stamp = {}, cur = null, inflight = {}, fresh = {}, failed = {}, ver = {}, newer = {}, scrollAt = {},
+      drawn = null, touched = false, forced = null;
+  /* Every view is kept ON THIS COMPUTER (localStorage), under the teacher's own address, for up to a week (Daniel,
+     10 Oct 2026: "load all of them at the same time, store them in local storage, so that when you navigate between tabs
+     they are all loaded"). Opening the page draws the kept copy at once with its age ("read 2 h ago · updating"), and
+     every view is read again in the background, all at the same time; the view on the screen is drawn over with the new
+     copy when it comes, unless the teacher has started working in it. Until 10 Oct the copies lived in sessionStorage for
+     ten minutes, so every new window began with nothing. Cookies would be the wrong tool: about 4 KB, sent with every
+     request. No address (a page from before): this window's sessionStorage only. */
+  var KEEP_MS = 7*24*3600*1000, PFX = 'teach2.', OLD_MS = 10*60*1000;
+  function kept(){ try { return BOOT.email ? window.localStorage : window.sessionStorage; } catch(e){ return null; } }
+  function keyOf(tab){ return PFX + String(BOOT.email||'') + '.' + tab; }
   function ssGet(tab){
-    try { var raw=sessionStorage.getItem('teach.'+tab); if(!raw) return null;
+    try { var st=kept(); if(!st) return null; var raw=st.getItem(keyOf(tab)); if(!raw) return null;
       var o=JSON.parse(raw);
-      if(!o||!o.at||(Date.now()-o.at)>KEEP_MS) return null;
+      if(!o||!o.at||(Date.now()-o.at)>KEEP_MS){ st.removeItem(keyOf(tab)); return null; }
       stamp[tab]=o.at;                         /* age is the SHEET read, not this page load */
       return o.r; } catch(e){ return null; }
   }
   function ssPut(tab,r){ stamp[tab]=Date.now();
+    var st=kept(); if(!st) return;
     var body = JSON.stringify({at:stamp[tab], r:r});
-    try { sessionStorage.setItem('teach.'+tab, body); return; } catch(e){}
-    /* Out of room. Lab progress is both the biggest payload and the one worth keeping, so give it
-       the space rather than let the largest view be the one that never caches: drop the others and
-       try once more. Still no? Memory only — the page works, it just re-reads after a reload. */
-    try { ORDER.forEach(function(k){ if (k!==tab) sessionStorage.removeItem('teach.'+k); });
-      sessionStorage.setItem('teach.'+tab, body); } catch(e2){}
+    try { st.setItem(keyOf(tab), body); return; } catch(e){}
+    /* Out of room. Lab progress is both the biggest payload and the one worth keeping, so give it the space: drop every
+       other kept view on this computer and try once more. Still no? Memory only: the page works, it reads again next time. */
+    try { dropKept(function(k){ return k!==keyOf(tab); }); st.setItem(keyOf(tab), body); } catch(e2){}
   }
-  function ssDel(tab){ try { sessionStorage.removeItem('teach.'+tab); } catch(e){} }
+  function ssDel(tab){ try { var st=kept(); if(st) st.removeItem(keyOf(tab)); } catch(e){} }
+  function dropKept(which){
+    try { var st=kept(), ks=[]; if(!st) return;
+      for (var i=0;i<st.length;i++){ var k=st.key(i); if (k && k.indexOf(PFX)===0 && which(k)) ks.push(k); }
+      ks.forEach(function(k){ st.removeItem(k); }); } catch(e){}
+  }
+  /* At opening: copies older than a week go, another teacher's too (they are never read here). The copies of the
+     sessionStorage days go with this window anyway. */
+  (function(){ var mine = PFX + String(BOOT.email||'') + '.', now = Date.now();
+    dropKept(function(k){ if (k.indexOf(mine)===0) return false;
+      try { var o=JSON.parse(kept().getItem(k)); return !o || !o.at || now-o.at > KEEP_MS; } catch(e){ return true; } });
+    try { ORDER.forEach(function(k){ window.sessionStorage.removeItem('teach.'+k); }); } catch(e){} })();
 
   /* One request per view at a time, however many things ask for it. A second asker just waits for
      the first answer instead of starting another read of the whole spreadsheet. */
   function fetchTab(tab, cb){
     if (inflight[tab]) { inflight[tab].push(cb); return; }
     inflight[tab] = [cb];
+    var v0 = ver[tab]||0;
+    showAge();
     google.script.run
       .withSuccessHandler(function(r){
         var cbs=inflight[tab]; delete inflight[tab];
-        if (r && r.ok) { cache[tab]=r; ssPut(tab,r); }
-        cbs.forEach(function(f){ f(r); }); })
+        if (r && r.ok && (ver[tab]||0)===v0) { cache[tab]=r; ssPut(tab,r); fresh[tab]=true; failed[tab]=false; }
+        else if (r && r.ok) r = cache[tab];    /* a write answered while this read was in the air: its copy is the newer one */
+        else failed[tab]=true;
+        cbs.forEach(function(f){ f(r); });
+        landed(tab); })
       .withFailureHandler(function(e){
-        var cbs=inflight[tab]; delete inflight[tab];
-        cbs.forEach(function(f){ f({ ok:false, why:'Could not reach the spreadsheet: '+((e&&e.message)||e) }); }); })
+        var cbs=inflight[tab]; delete inflight[tab]; failed[tab]=true;
+        cbs.forEach(function(f){ f({ ok:false, why:'Could not reach the spreadsheet: '+((e&&e.message)||e) }); });
+        landed(tab); })
       .uiData(tab);
   }
-  /* Once the first view is up, quietly read the others while the teacher is still looking at this one —
-     all at the same time (2 Oct 2026, Daniel: the teacher page is slow to open). One after another, the last
-     view was ready only after every wait added up, most of a minute; together, after the slowest one. Every
-     later tab click is then instant rather than another wait. */
+  /* Every view this page has not read yet is asked for, all at the same time, as soon as the page opens (2 Oct 2026:
+     at the same time rather than one after another; 10 Oct 2026: at once, not after the first view is drawn, and the
+     views kept on this computer are read again too). A kept copy goes into memory first, so a click on its tab draws it
+     at once while the new one is on its way. A view whose read failed is asked again only when its tab is opened. */
   function prefetch(){
-    if (prefetched) return; prefetched = true;
     ORDER.forEach(function(k){
-      if (k===cur || cache[k]) return;
-      var saved = ssGet(k);                    /* a reload still has it — don't re-read the sheet */
-      if (saved) { cache[k] = saved; return; }
+      if (fresh[k] || inflight[k] || failed[k]) return;
+      if (!cache[k]) { var saved = ssGet(k); if (saved) cache[k] = saved; }
       fetchTab(k, function(){});
     });
+  }
+  /* A view's new copy has come. The view on the screen is drawn over with it (where the teacher was on the page kept),
+     unless they have clicked or typed in it since it was drawn: then "Show the newer copy" waits for them, so a form
+     half filled in or a pupil's card just opened never changes under their hand. After Refresh it is drawn anyway. */
+  function landed(tab){
+    if (tab === cur) {
+      if (cache[tab] && drawn !== cache[tab]) {
+        if (!drawn || !touched || forced === tab) redraw(); else newer[tab] = true;
+      }
+      if (forced === tab) { forced = null; $('view').classList.remove('stale'); }
+    }
+    showAge();
+  }
+  function redraw(){ var y = window.pageYOffset || 0; draw(); window.scrollTo(0, y); }
+  /* A write answered with the view's new copy (Set homework, Move…): the view draws it itself; the shell keeps it. */
+  function putView(tab, r){
+    ver[tab] = (ver[tab]||0) + 1;
+    cache[tab] = r; ssPut(tab, r); fresh[tab] = true; failed[tab] = false; newer[tab] = false;
+    if (tab === cur) drawn = r;
+    showAge();
   }
 
   /* Every tab is always here. A tab that quietly vanishes when a setting is missing leaves the
@@ -662,8 +742,10 @@ var BOOT = __BOOT__;
     return m < 1 ? 'just now' : m === 1 ? '1 min ago' : m + ' min ago';
   }
   function showAge(){
-    var t = stamp[cur];
-    $('age').textContent = t ? 'read ' + ago(Date.now() - t) : '';
+    var t = stamp[cur], s = t ? 'read ' + ago(Date.now() - t) : '';
+    if (s && !fresh[cur]) s += inflight[cur] ? ' · updating' : failed[cur] ? ' · could not update' : '';
+    $('age').textContent = s;
+    var nb = $('nw'); if (nb) nb.hidden = !newer[cur];
   }
   /* The view's accent, in this version's value (dark: VIEWS.accent; bright: VIEWS.accentL, darker so its words read on white). */
   function light(){ return document.documentElement.getAttribute('data-theme')==='light'; }
@@ -692,22 +774,32 @@ var BOOT = __BOOT__;
     showAge();
   }
   function go(tab, force){
-    cur = tab; chrome();                       /* highlight at once, whatever the data is doing */
-    if (force) { delete cache[tab]; ssDel(tab); }
-    else {
-      if (cache[tab]) return draw();
-      var saved = ssGet(tab);
-      if (saved) { cache[tab] = saved; draw(); prefetch(); return; }
+    var moved = cur !== tab;
+    if (moved) {                               /* each view comes back where the teacher left it on the page */
+      if (cur) scrollAt[cur] = window.pageYOffset || 0;
+      drawn = null; forced = null; $('view').classList.remove('stale');
     }
-    $('view').innerHTML = '<div class="load">Loading</div>';
-    fetchTab(tab, function(r){
-      if (cur !== tab) return;                 /* they moved on while this was in the air */
-      if (r && r.ok) { draw(); showAge(); prefetch(); }
-      else $('view').innerHTML = '<div class="err">'+esc((r&&r.why)||'Could not read that just now.')+'</div>';
+    cur = tab; chrome();                       /* highlight at once, whatever the data is doing */
+    if (force) { fresh[tab] = false; failed[tab] = false; }
+    if (!cache[tab]) { var saved = ssGet(tab); if (saved) cache[tab] = saved; }
+    if (cache[tab]) { if (!drawn) { draw(); if (moved) window.scrollTo(0, scrollAt[tab]||0); } }
+    else $('view').innerHTML = '<div class="load">Loading</div>';
+    if (!fresh[tab]) fetchTab(tab, function(r){
+      if (cur !== tab || drawn) return;        /* they moved on, or a copy is on the screen (landed() draws over it) */
+      if (!(r && r.ok)) $('view').innerHTML = '<div class="err">'+esc((r&&r.why)||'Could not read that just now.')+'</div>';
     });
+    showAge();
+    prefetch();
   }
   function draw(){
     var r = cache[cur];
+    drawn = r; touched = false; newer[cur] = false;
+    var nb = $('nw'); if (nb) nb.hidden = true;
+    /* a copy kept from before a paste may have an older shape: if it cannot be drawn, wait for the new one instead */
+    try { paintView(r); }
+    catch(e){ if (fresh[cur]) throw e; drawn = null; $('view').innerHTML = '<div class="load">Loading</div>'; }
+  }
+  function paintView(r){
     if (cur==='teachers') return vSpreadsheets(r.data);
     if (cur==='progress') return window.vProgress(r.data);
     if (cur==='students') return vStudents(r.data, r.trackerBase);
@@ -715,6 +807,7 @@ var BOOT = __BOOT__;
     if (cur==='english') return window.vEnglish(r.data);
     if (cur==='writeup') return window.vWriteup(r.data);
     if (cur==='habits') return window.vHabits(r.data);
+    if (cur==='practicals') return window.vPracticals(r.data);
   }
 
   /* ─────────── Spreadsheets ─────────── */
@@ -727,11 +820,12 @@ var BOOT = __BOOT__;
     return '<div class="card" data-s="'+esc(s)+'" data-type="'+esc(kind)+'" style="--tc:var(--accent)">'+
       '<div class="card__m"><a class="card__n" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+esc(l.name)+'</a>'+
       (l.detail?'<div class="card__d">'+esc(l.detail)+'</div>':'')+'</div>'+
-      '<div class="card__a"><button class="act" data-copy="'+esc(l.url)+'">Copy</button>'+
-      /* A row that names a live teacher dashboard offers both ways in, and the spreadsheet button
-         then says which one it is — "Open" beside "Dashboard" would leave you guessing. The two
-         are told apart by fill, not colour: the card pins --tc to the generic accent, so a second
-         accent-coloured pill would look identical to the first. */
+      '<div class="card__a">'+
+      /* A row that names a live teacher dashboard offers Form, Dashboard and Spreadsheet (11 Oct 2026, Daniel: "you
+         should have form, dashboard, and spreadsheet"; no Copy: "what are you copying?"), and the spreadsheet button then
+         says which one it is — "Open" beside "Dashboard" would leave you guessing. Form and Dashboard are outlined, the
+         spreadsheet filled: the card pins --tc to the generic accent, so colour alone would not tell them apart. */
+      (l.form?'<a class="dash" href="'+esc(l.form)+'" target="_blank" rel="noopener noreferrer">Form</a>':'')+
       (l.dash?'<a class="dash" href="'+esc(l.dash)+'" target="_blank" rel="noopener noreferrer">Dashboard</a>':'')+
       '<a class="open" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+(l.dash?'Spreadsheet':'Open')+'</a></div></div>';
   }
@@ -865,9 +959,9 @@ var BOOT = __BOOT__;
         b.disabled=true; b.textContent='Saving…';
         google.script.run.withSuccessHandler(function(r){
             if(r&&r.ok&&r.data){ dir=r.data; STUD=dir.students||[]; stState.msg={ text:r.note, bad:false };
-              cache.students={ ok:true, data:dir, trackerBase:base }; ssPut('students', cache.students);
+              putView('students', { ok:true, data:dir, trackerBase:base });
               vStudents(dir, base); }
-            else if(r&&r.ok){ stState.msg={ text:r.note, bad:false }; delete cache.students; ssDel('students'); paint(); }   /* written, but the list could not be read again: its kept copy is out of date */
+            else if(r&&r.ok){ stState.msg={ text:r.note, bad:false }; delete cache.students; ssDel('students'); fresh.students=false; paint(); }   /* written, but the list could not be read again: its kept copy is out of date */
             else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
           .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
           .studentAccommodation({ email:e, on:on }); }); });
@@ -877,10 +971,10 @@ var BOOT = __BOOT__;
         b.disabled=true; b.textContent='Moving…';
         google.script.run.withSuccessHandler(function(r){
             if(r&&r.ok){ dir=r.data; STUD=dir.students||[]; stState.move=''; stState.msg={ text:r.note, bad:false };
-              cache.students={ ok:true, data:dir, trackerBase:base }; ssPut('students', cache.students);
-              /* every other view shows the pupil's class: read them again rather than show the old one */
-              ORDER.forEach(function(k){ if(k!=='students'){ delete cache[k]; ssDel(k); } });
-              vStudents(dir, base); }
+              putView('students', { ok:true, data:dir, trackerBase:base });
+              /* every other view shows the pupil's class: read them again now rather than show the old one */
+              ORDER.forEach(function(k){ if(k!=='students'){ delete cache[k]; ssDel(k); fresh[k]=false; failed[k]=false; } });
+              vStudents(dir, base); prefetch(); }
             else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
           .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
           .studentMove(to==='__left'?{ email:e, left:true }:{ email:e, cls:to }); }); });
@@ -964,18 +1058,39 @@ var BOOT = __BOOT__;
   /* ─────────── boot ─────────── */
   $('rf').addEventListener('click', function(){
     var b=$('rf'); b.classList.add('spin'); setTimeout(function(){ b.classList.remove('spin'); },700);
-    /* re-read THIS view now, then the others in the background (go() runs prefetch again, and it finds
-       nothing kept) — after a refresh the teacher expects fresh numbers everywhere, not just where they
-       happen to stand */
-    ORDER.forEach(function(k){ if (k!==cur) { delete cache[k]; ssDel(k); } });
-    prefetched = false;
+    /* read EVERY view again, all at once — after a refresh the teacher expects fresh numbers everywhere, not just where
+       they happen to stand. The view on the screen stays there, dimmed, until its new copy is drawn over it; the others
+       say "updating" until theirs come. */
+    ORDER.forEach(function(k){ fresh[k]=false; failed[k]=false; });
+    if (drawn) { forced = cur; $('view').classList.add('stale'); }
     go(cur, true);
+  });
+  $('nw').addEventListener('click', function(){ redraw(); showAge(); });
+  /* "touched": a click or a key in the view since it was drawn. Only then does a newer copy wait for the button. */
+  ['pointerdown','keydown','input','change'].forEach(function(ev){ $('view').addEventListener(ev, function(){ touched = true; }, true); });
+  /* Back to this page after ten minutes or more elsewhere: every view older than that is read again, once, in the
+     background (never on a timer: a page left open must not keep calling the server). */
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) return;
+    var now = Date.now(), any = false;
+    ORDER.forEach(function(k){ if (fresh[k] && stamp[k] && now - stamp[k] > OLD_MS) { fresh[k] = false; any = true; } });
+    if (any) { prefetch(); showAge(); }
   });
   window.__view = { esc:esc, r0:r0, r1:r1, pc:pc, heat:heat, short:short, openDraw:openDraw, $:$,
     cmpClass:cmpClass,
     /* a view that writes must replace what the shell has cached, or leaving the tab and coming
        back shows the state from BEFORE the write — homework just set looks like it never saved */
-    put:function(tab, r){ cache[tab] = r; ssPut(tab, r); showAge(); } };
+    put:putView,
+    /* ● Live (🔬 Practicals, 11 Oct 2026): read the view again and draw it over, keeping its choices. Never while a
+       read is out, and never under the teacher's hand: not while they are typing or choosing in the view. */
+    reread:function(tab){
+      if (cur!==tab || inflight[tab]) return;
+      var a=document.activeElement;
+      if (a && $('view').contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return;
+      fresh[tab]=false; failed[tab]=false; if (drawn) forced=tab;
+      fetchTab(tab, function(){});
+    },
+    cur:function(){ return cur; } };
   buildTabs();
   /* ---- tooltips -------------------------------------------------------------------------
      One bubble, one delegated listener, whatever the view redraws. 120ms is long enough not to
@@ -1058,7 +1173,7 @@ var BOOT = __BOOT__;
   (function(){ var b=$('backHub'), h=String(BOOT.hub||''), w=$('eyeHub');
     if (b && /^https:\/\/[^\s"'<>]+$/.test(h)) { b.setAttribute('href', h.replace(/\/+$/, '') + '/'); b.hidden=false; if (w) w.hidden=true; } })();
   setInterval(showAge, 30000);               /* the label must age by itself, or it lies */
-  /* Start once BOTH scripts have run. A view kept in this tab's sessionStorage is drawn at once, and Lab progress, Bio
+  /* Start once BOTH scripts have run. A view kept on this computer is drawn at once, and Lab progress, Bio
      English, Set homework and ⏱️ Homework habits are defined by the second script: started here, a reload within ten minutes of a read threw
      and left those views on "Loading" (found 1 Oct 2026). */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ go(BOOT.tab || 'teachers'); });
@@ -1664,7 +1779,8 @@ var BOOT = __BOOT__;
 
   /* ─────────────────────── Set homework ─────────────────────── */
   /* `later` (2 Oct 2026): the homework is set for a later date; each class row then has its own start date and time */
-  var hState = { title:'', rows:[{cls:'',due:'',time:''}], whole:true, pick:{}, picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
+  /* each class row (10 Oct 2026): `some` (Some pupils, not the whole class) and `pick` (the ticked pupils of its class) */
+  var hState = { title:'', rows:[newRow()], picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
                  post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'',
                  editDue:null, dueDraft:null, cardMsg:null, outPick:{},   /* 6 Oct 2026: Change the due date (the card open for it, what is typed), a card's answer, the ticks of its pupils outside it */
                  arch:false, hidOpen:false, archMsg:null };   /* 7 Oct 2026: the Archive (homework past its due date) open, its hidden homework shown, its answer */
@@ -1687,6 +1803,7 @@ var BOOT = __BOOT__;
     askPast: 'Remove deletes it, and it cannot be undone: it leaves ⏱️ Homework habits and every student’s record. '+
              'Use it only for homework set by mistake. To keep its record, press “Keep it”, then “Hide”.'
   };
+  function newRow(){ return {cls:'',due:'',time:'',topic:'',some:false,pick:{}}; }
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   var WUID = 'write-up-lab';      /* and the Write-Up Lab (3 Oct 2026): its parts are the stations */
   window.vHomework = function(D){
@@ -1763,12 +1880,38 @@ var BOOT = __BOOT__;
         (other?'<span class="size__k">+ '+other+' ticked in another year</span>':'')+'</div>'+
         '<div class="labs">'+blocks+'</div></div>';
     }
-    function oneClass(){ return hState.rows.length===1?hState.rows[0].cls:''; }
-    function classPupils(){ var c=oneClass(); return c?STUD.filter(function(s){return s.cls===c;}):[]; }
-    function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due;}); }
+    /* Who (Daniel, 10 Oct 2026: "There is no option for me to choose individual students… a separate Google Classroom
+       assignment only for those students… update due date or remove… applied to that homework"). Each class row is the
+       whole class or some of its pupils. A row of some pupils is set as homework of its own: its own Google Classroom
+       assignment, posted to those pupils alone, with its own due date, reminders, Change the due date, Hide and Remove.
+       (Until then only ONE class row could be narrowed to pupils, by unticking "Everyone in …", and it was not seen.) */
+    function rowPupils(r){ return r.cls?STUD.filter(function(s){return s.cls===r.cls;}):[]; }
+    function rowPicked(r){ var on={}; rowPupils(r).forEach(function(s){ on[s.email]=1; });
+      return Object.keys(r.pick||{}).filter(function(e){ return on[e]; }); }
+    function rowCount(r){ return r.some?rowPicked(r).length:rowPupils(r).length; }
+    function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due&&(!r.some||rowPicked(r).length);}); }
+    function setWords(){
+      var rs=hState.rows, bits=rs.map(function(r){ var n=rowPicked(r).length;
+        return r.some?(n+' pupil'+(n===1?'':'s')+(r.cls?' in '+r.cls:'')):(r.cls||'a class'); });
+      if(rs.length===1) return rs[0].some&&rs[0].cls?'Set for '+bits[0]:'Set homework';
+      if(rs.length>3) return 'Set for '+rs.length+' classes';
+      return 'Set for '+bits.slice(0,-1).join(', ')+' and '+bits[bits.length-1]; }
+    function hintText(){
+      var p=picked(), nC=hState.rows.filter(function(r){return r.cls;}).length, nP=0;
+      hState.rows.forEach(function(r){ nP+=rowCount(r); });
+      return p.questions?('About '+Math.max(5,r0(p.questions*0.8))+' minutes of practice'+
+        (nP?' for '+nP+' student'+(nP===1?'':'s')+(nC>1?' in '+nC+' classes':''):(nC>1?' for '+nC+' classes':''))+'. Short, focused tasks beat long ones.')
+        :(EN?'Open a lab or a Bio English topic and tick what you have taught.':'Open a lab and tick the stations you have taught.'); }
+    function rowBoxes(i){ return Array.prototype.filter.call(document.querySelectorAll('[data-rpup]'), function(c){ return c.getAttribute('data-rpup').indexOf(i+'|')===0; }); }
+    /* a tick changes the count, the button and the hint in place: no redraw, so the list keeps its scroll */
+    function sayPicks(i){
+      var r=hState.rows[i]; if(!r) return;
+      var c=$('hpc'+i); if(c) c.textContent=rowPicked(r).length+' of '+rowPupils(r).length+' ticked';
+      var g=$('hset'); if(g){ g.disabled=!(picked().any&&ready()); g.textContent=setWords(); }
+      var h=$('hhint'); if(h) h.textContent=hintText(); }
     /* The Classroom topic: one of the course's own, or a new name (it is made in the course when the homework is posted).
        The course's topics are asked for only when the box is used, once for each set of classes. */
-    function topicKey(){ return hState.rows.map(function(r){ return r.cls; }).filter(Boolean).join(',')+(oneClass()&&!hState.whole?'|'+Object.keys(hState.pick).sort().join(','):''); }
+    function topicKey(){ return hState.rows.map(function(r){ return r.cls; }).filter(Boolean).join(','); }
     /* Since 2 Oct 2026 the answer is kept as { loaded, all, by }: `all` for the one box of a single class, `by[CLASS]`
        for each class's own box when several classes are set (Daniel: "what happens if different classes have different
        section names?" — one name for all made a new topic of that name in every class that did not have it). */
@@ -1796,7 +1939,6 @@ var BOOT = __BOOT__;
       var many=hState.rows.length>1;
       hState.topics[key]={loaded:false,all:[],by:{}}; hState.topicMsg='Looking for the course’s topics…';
       var m=$('htopicmsg'); if(m) m.textContent=hState.topicMsg;
-      var ind=oneClass()&&!hState.whole, emails=ind?Object.keys(hState.pick):[];
       google.script.run
         .withSuccessHandler(function(r){
           if(r&&r.ok){ var by={}; (r.byClass||[]).forEach(function(c){ if(c&&c.cls&&c.known) by[String(c.cls).toUpperCase()]=c.topics||[]; });
@@ -1807,7 +1949,7 @@ var BOOT = __BOOT__;
           var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
         .withFailureHandler(function(){ delete hState.topics[key]; hState.topicMsg='The Classroom topics could not be read. You can still type one: if it cannot be used, the homework is posted without it.';
           var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
-        .homeworkTopics({ classes:hState.rows.map(function(r){ return ind?{cls:'',emails:emails}:{cls:r.cls,emails:[]}; }) });
+        .homeworkTopics({ classes:hState.rows.map(function(r){ return {cls:r.cls,emails:[]}; }) });
     }
     /* The lists and notes of the topic boxes on the page, filled in place (no redraw: the box being typed in keeps its
        cursor). One class: the one box's list. Several: each class's own list, and its "new here" note. */
@@ -1839,6 +1981,10 @@ var BOOT = __BOOT__;
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
           '<div class="fld" style="flex:0 0 180px"><label for="hc'+i+'">Class</label>'+
             '<select id="hc'+i+'" data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
+          '<div class="fld" style="flex:0 0 auto"><label id="hwl'+i+'">Who</label><div class="hwho" role="group" aria-labelledby="hwl'+i+'">'+
+            [['all','Whole class'],['some','Some pupils']].map(function(o){ var on=(o[0]==='some')===!!r.some;
+              return '<button type="button" class="chip'+(on?' on':'')+'" data-who="'+i+'|'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+
+            '</div></div>'+
           /* set for a later date (Daniel, 2 Oct 2026): when this class gets it; empty = now; no time = 08:00 */
           (hState.later?'<div class="fld" style="flex:0 0 180px"><label for="hs'+i+'">Starts</label>'+
             '<input id="hs'+i+'" type="date" data-start="'+i+'" value="'+esc(r.start||'')+'"></div>'+
@@ -1859,13 +2005,21 @@ var BOOT = __BOOT__;
           /* Daniel, 2 Oct 2026: with no time "it's not clear what time is set". Said in the row, until a time is typed. */
           '<div class="tmsg" id="hth'+i+'" style="flex:1 1 100%"'+(r.time?' hidden':'')+'>No time typed: due at 23:59, the end of that day.</div>'+
           (tpc?'<div class="tmsg" id="htn'+i+'" style="flex:1 1 100%"'+(note?'':' hidden')+'>'+esc(note)+'</div>':'')+
+          (r.some?pupBox(r,i):'')+
           '</div>'; }).join('');
-      var pupils=classPupils();
-      var pbox = (oneClass()&&pupils.length)
-        ? '<label class="ck" style="margin:2px 0 8px"><input type="checkbox" id="whole"'+(hState.whole?' checked':'')+'><span>Everyone in '+esc(oneClass())+'</span></label>'+
-          (hState.whole?'':'<div class="pups">'+pupils.map(function(x){
-            return '<label class="pup"><input type="checkbox" data-pup="'+esc(x.email)+'"'+(hState.pick[x.email]?' checked':'')+'><span>'+esc(x.name||x.email)+'</span></label>'; }).join('')+'</div>')
-        : '';
+      /* Some pupils: the pupils of the row's class, to tick. What they get is said where they are ticked. */
+      function pupBox(r,i){
+        var ps=rowPupils(r), n=rowPicked(r).length;
+        if(!r.cls) return '<div class="rpup tmsg">Choose the class first: then tick the pupils it is for.</div>';
+        if(!ps.length) return '<div class="rpup tmsg">Nobody in '+esc(r.cls)+' is on the Students tab.</div>';
+        return '<div class="rpup"><div class="rpup__h"><span class="rpup__n" id="hpc'+i+'">'+n+' of '+ps.length+' ticked</span>'+
+            '<button type="button" class="act" data-rall="'+i+'">Tick all</button><button type="button" class="act" data-rnone="'+i+'">None</button></div>'+
+          '<div class="pups">'+ps.map(function(x){
+            return '<label class="pup"><input type="checkbox" data-rpup="'+i+'|'+esc(x.email)+'"'+(r.pick[x.email]?' checked':'')+'><span>'+esc(x.name||x.email)+'</span></label>'; }).join('')+'</div>'+
+          '<div class="tmsg" style="margin-top:6px">Only the pupils ticked get it. It is a homework of its own: '+
+            (hState.post&&D.classroomOk?'in Google Classroom, an assignment of its own, posted to them alone. ':'')+
+            'Its due date, its reminders, Change the due date and Remove are for them only.</div></div>';
+      }
       var labs=LABS.map(function(l){ var mine=hState.picked[l.id]||{}, n=0,q=0;
         (l.stations||[]).forEach(function(x){ if(mine[x.id]){n++;q+=x.questions;} });
         var all=n&&n===(l.stations||[]).length, op=!!hState.open[l.id];
@@ -1877,11 +2031,7 @@ var BOOT = __BOOT__;
           (op?'<div class="stn">'+(l.stations||[]).map(function(x){ var on=!!mine[x.id];
             return '<label class="st'+(on?' on':'')+'"><input type="checkbox" data-pick="'+esc(l.id)+'|'+esc(x.id)+'"'+(on?' checked':'')+'>'+
               '<span>'+esc(x.name)+'</span><span class="st__q">'+x.questions+'</span></label>'; }).join('')+'</div>':'')+'</div>'; }).join('');
-      var p=picked(), nC=hState.rows.filter(function(r){return r.cls;}).length;
-      var nP=oneClass()?(hState.whole?pupils.length:Object.keys(hState.pick).length):0;
-      var hint=p.questions?('About '+Math.max(5,r0(p.questions*0.8))+' minutes of practice'+
-        (nP?' for '+nP+' student'+(nP===1?'':'s'):(nC>1?' for '+nC+' classes':''))+'. Short, focused tasks beat long ones.')
-        :(EN?'Open a lab or a Bio English topic and tick what you have taught.':'Open a lab and tick the stations you have taught.');
+      var p=picked(), hint=hintText();
       var builder = !LABS.length && !EN && !WU
         ? '<div class="empty">No labs are ready to set yet.</div>'
         : '<div class="bar2" style="display:block"><div class="fld" style="margin-bottom:12px"><label for="ht">Title</label>'+
@@ -1896,12 +2046,11 @@ var BOOT = __BOOT__;
             ?'Until its start, pupils see nothing: Google Classroom holds the post, and the labs do not show the homework. The reminders count from the start. A class with no start date gets it at once.'
             :'Not ticked: pupils get it at once, when you press Set homework.')+'</div>'+
           (tpc?'<div class="tmsg" id="htopicmsg" style="margin-top:6px">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_ONE?hState.topicMsg:TOPIC_MANY)+'</div>':'')+
-          pbox+
           '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+wuBlock()+
           '<div class="size"><span class="size__n">'+p.stations+'</span><span class="size__k">lab station'+(p.stations===1?'':'s')+'</span>'+
           (EN?'<span class="size__n">'+p.sets+'</span><span class="size__k">English set'+(p.sets===1?'':'s')+'</span>':'')+
           (WU?'<span class="size__n">'+p.parts+'</span><span class="size__k">Write-Up part'+(p.parts===1?'':'s')+'</span>':'')+
-          '<span class="size__n">'+p.questions+'</span><span class="size__k">questions</span><span class="size__h">'+esc(hint)+'</span></div>'+
+          '<span class="size__n">'+p.questions+'</span><span class="size__k">questions</span><span class="size__h" id="hhint">'+esc(hint)+'</span></div>'+
           '<label class="ck" style="margin-top:14px"><input type="checkbox" id="hpost"'+(hState.post&&D.classroomOk?' checked':'')+(D.classroomOk?'':' disabled')+'>'+
           '<span>Post it in Google Classroom too'+(D.classroomOk?'':' — Google Classroom is not switched on in the script')+'</span></label>'+
           (hState.post&&D.classroomOk?'<label class="ck" style="margin-top:10px;display:flex"><input type="checkbox" id="hremind"'+(hState.remind?' checked':'')+'>'+
@@ -1909,7 +2058,13 @@ var BOOT = __BOOT__;
             '<div class="tmsg" style="margin:3px 0 0 22px">Only they see them, in Google Classroom: when 70% and 85% of the time to the due time has passed. None between 22:00 and 07:00.</div>':'')+
           (hState.post&&D.classroomOk&&!many?topicBox():'')+
           '<div style="margin-top:14px"><button class="go" id="hset"'+(p.any&&ready()?'':' disabled')+'>'+
-          (hState.rows.length>1?'Set for '+hState.rows.length+' classes':'Set homework')+'</button></div><div class="msg" id="hmsg"></div></div>';
+          esc(setWords())+'</button></div><div class="msg" id="hmsg"></div></div>';
+      /* homework for some pupils (no class of its own): "3 chosen pupils in 11C", from the pupils it is for */
+      function some(h){ return !(h.targets&&h.targets.cls); }
+      function whoOf(h){ if(!some(h)||!h.pupils||!h.pupils.length) return h.who;
+        var cl={}; h.pupils.forEach(function(x){ if(x.cls) cl[x.cls]=1; });
+        var ks=Object.keys(cl).sort(cmpClass), n=h.pupils.length;
+        return n+' chosen pupil'+(n===1?'':'s')+(ks.length?' in '+ks.join(', '):''); }
       function card(h){
         var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id], rm=h.remind||null;
         var hid=!!(h.overdue&&h.hidden);    /* hidden from the list (7 Oct 2026); a hidden row due again later is listed as ever */
@@ -1918,7 +2073,7 @@ var BOOT = __BOOT__;
         var churn=(h.gone?'<span class="churn">'+h.gone+' left</span>':'')+
           (h.dueBad?'<span class="churn">the due date cannot be read</span>':'');
         return '<div class="hw"><div class="hw__h" role="button" tabindex="0" aria-expanded="'+(op?'true':'false')+'" data-hw="'+esc(h.id)+'">'+
-          '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(h.who)+' · '+esc(h.what)+
+          '<div class="hw__m"><div class="hw__t">'+esc(h.title)+'</div><div class="hw__s">'+esc(whoOf(h))+' · '+esc(h.what)+
           (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div>'+
           (h.waiting?'<div class="hw__r">🗓 Starts '+esc(h.startText)+': pupils do not see it yet</div>':'')+
           (rm&&rm.says?'<div class="hw__r'+(rm.bad?' bad':'')+'">🔔 '+esc(rm.says)+'</div>':'')+'</div>'+
@@ -1931,6 +2086,8 @@ var BOOT = __BOOT__;
               '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
               '<div><span class="st-pill '+esc(x.state)+'">'+(x.state==='none'?'not started':x.state)+'</span></div></div>'; }).join('')
             ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
+            (some(h)?'<div class="hwrem">👤 Set for these pupils only'+(h.inClassroom?': in Google Classroom it is an assignment of its own, posted to them alone':'')+
+              '. Change the due date, Hide and Remove act on this homework only.</div>':'')+
             (h.outside&&h.outside.length?outsideBox(h):'')+
             (h.dueBad?'<div class="gone">The Due cell for this homework in the 📚 Homework tab is not a date, so it has no due date: it is never shown as overdue, and no summary is emailed. Type the date into that cell, then press Refresh.</div>':'')+
             (h.missing&&h.missing.length?'<div class="gone">Not scored: '+esc(h.missing.join(', '))+' — that part is no longer in the lab, so it is left out rather than counted as nothing done.</div>':'')+
@@ -2039,11 +2196,26 @@ var BOOT = __BOOT__;
     function wireH(){
       var ht=$('ht'); if(ht) ht.addEventListener('input', function(){ hState.title=ht.value; });
       document.querySelectorAll('[data-cls]').forEach(function(sel){ sel.addEventListener('change', function(){
-        hState.rows[+sel.getAttribute('data-cls')].cls=sel.value;
-        if(hState.rows.length===1){hState.whole=true;hState.pick={};} paint(); }); });
+        var r=hState.rows[+sel.getAttribute('data-cls')]; r.cls=sel.value; r.pick={}; paint(); }); });
       document.querySelectorAll('[data-due]').forEach(function(i){ i.addEventListener('input', function(){
         hState.rows[+i.getAttribute('data-due')].due=i.value;
-        var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
+        var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()); }); });
+      /* Who: Whole class or Some pupils; the ticks are kept while the class stays the same */
+      document.querySelectorAll('[data-who]').forEach(function(b){ b.addEventListener('click', function(){
+        var q=b.getAttribute('data-who').split('|'), r=hState.rows[+q[0]]; if(!r) return;
+        r.some=q[1]==='some'; paint();
+        if(r.some){ var f=rowBoxes(+q[0])[0]; if(f) f.focus(); } }); });
+      document.querySelectorAll('[data-rpup]').forEach(function(b){ b.addEventListener('change', function(){
+        var q=b.getAttribute('data-rpup'), k=q.indexOf('|'), i=+q.slice(0,k), e=q.slice(k+1), r=hState.rows[i]; if(!r) return;
+        if(b.checked) r.pick[e]=1; else delete r.pick[e];
+        sayPicks(i); }); });
+      /* Tick all / None: the boxes are ticked in place, and the count and the button say it */
+      var tickRow=function(i, all){ var r=hState.rows[i]; if(!r) return;
+        r.pick={}; if(all) rowPupils(r).forEach(function(x){ r.pick[x.email]=1; });
+        rowBoxes(i).forEach(function(c){ c.checked=all; });
+        sayPicks(i); };
+      document.querySelectorAll('[data-rall]').forEach(function(b){ b.addEventListener('click', function(){ tickRow(+b.getAttribute('data-rall'), true); }); });
+      document.querySelectorAll('[data-rnone]').forEach(function(b){ b.addEventListener('click', function(){ tickRow(+b.getAttribute('data-rnone'), false); }); });
       document.querySelectorAll('[data-time]').forEach(function(i){ i.addEventListener('input', function(){
         var k=+i.getAttribute('data-time'); hState.rows[k].time=i.value;
         var th=$('hth'+k); if(th) th.hidden=!!i.value; }); });
@@ -2068,13 +2240,9 @@ var BOOT = __BOOT__;
         tp.addEventListener('focus', loadTopics); }
       var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){
         if(hState.rows.length===1) hState.rows[0].topic=hState.topic||'';   /* the one box's topic goes with its class */
-        hState.rows.push({cls:'',due:'',time:'',topic:''}); hState.whole=true; hState.pick={}; hState.topicMsg=''; paint(); });
+        hState.rows.push(newRow()); hState.topicMsg=''; paint(); });
       document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1);
         if(hState.rows.length===1){ hState.topic=hState.rows[0].topic||''; hState.topicMsg=''; } paint(); }); });
-      var w=$('whole'); if(w) w.addEventListener('change', function(){ hState.whole=w.checked; paint(); });
-      document.querySelectorAll('[data-pup]').forEach(function(b){ b.addEventListener('change', function(){
-        if(b.checked) hState.pick[b.getAttribute('data-pup')]=1; else delete hState.pick[b.getAttribute('data-pup')];
-        var g=$('hset'); if(g) g.disabled=!(picked().any&&ready()&&(hState.whole||Object.keys(hState.pick).length)); }); });
       document.querySelectorAll('.lab__h[data-lab]').forEach(function(h){ h.addEventListener('click', function(ev){
         if(ev.target.closest('[data-all]')) return;
         var id=h.getAttribute('data-lab'); hState.open[id]=!hState.open[id]; paint(); }); });
@@ -2095,10 +2263,17 @@ var BOOT = __BOOT__;
         Object.keys(hState.picked[ENID]||{}).forEach(function(id){ var x=ENS[id]; if(!x) return;
           hState.open['en:'+(x.unit||'how')]=true;
           if(x.unit&&EN) (EN.years||[]).forEach(function(y){ if((y.units||[]).indexOf(x.unit)>=0) hState.enYr=String(y.y); }); });
-        var was=(h.targets&&h.targets.cls)||'';
+        var was=(h.targets&&h.targets.cls)||'', em=(h.targets&&h.targets.emails)||[], row=newRow();
         /* only carry the class over if it still exists, or the box shows "Choose a class…" while
            the state still holds the old one and Set would write homework nobody is in */
-        hState.title=h.title; hState.rows=[{cls:(classNames().indexOf(was)>=0?was:''),due:'',time:''}]; hState.whole=true; hState.pick={};
+        row.cls=classNames().indexOf(was)>=0?was:'';
+        var rows=[row];
+        /* set for some pupils: one row per class they are in now, Some pupils, the same pupils ticked */
+        if(!was&&em.length){ var by={}, at={}; STUD.forEach(function(x){ at[x.email]=x.cls; });
+          em.forEach(function(e){ var c=at[e]; if(c) (by[c]=by[c]||[]).push(e); });
+          var cs=Object.keys(by).sort(cmpClass);
+          if(cs.length) rows=cs.map(function(c){ var r=newRow(); r.cls=c; r.some=true; by[c].forEach(function(e){ r.pick[e]=1; }); return r; }); }
+        hState.title=h.title; hState.rows=rows;
         paint(); var t=$('ht'); if(t){ t.focus(); t.scrollIntoView({behavior:'smooth',block:'center'}); } }); });
       document.querySelectorAll('[data-ask]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         hState.confirmDel=b.getAttribute('data-ask'); paint(); }); });
@@ -2216,16 +2391,24 @@ var BOOT = __BOOT__;
       if (hState.busy) return;
       var p=picked();
       if(!p.any) return say('Tick at least one lab station or English set.', true);
-      if(!ready()) return say('Every class needs a date.', true);
+      if(!hState.rows.every(function(r){ return r.cls&&r.due; })) return say('Every class needs a date.', true);
       if(!hState.title.trim()) return say('Give it a title.', true);
-      var ind = oneClass() && !hState.whole, emails = ind?Object.keys(hState.pick):[];
-      if (ind && !emails.length) return say('Tick the students it is for, or choose everyone.', true);
+      var none=hState.rows.filter(function(r){ return r.some&&!rowPicked(r).length; })[0];
+      if (none) return say((none.cls?none.cls+': tick':'Tick')+' the pupils it is for, or choose Whole class.', true);
+      /* one request id per homework (the audit, 10 Oct 2026): pressed again after the page did not hear back, the server sees
+         the same id and gives back the homework it set, rather than setting and posting it twice. A changed form is a new one. */
+      var hwReqSig=JSON.stringify([hState.title, p.tasks, hState.rows, hState.post, hState.remind, hState.topic, hState.later]);
+      if(!hState.req||hState.reqSig!==hwReqSig){ hState.req='r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); hState.reqSig=hwReqSig; }
       hState.busy=true; say('Setting…');
       google.script.run
         .withSuccessHandler(function(r){ hState.busy=false;
-          if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
+          if(r&&r.ok){ hState.req=''; hState.reqSig='';
+            if(r.again){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn(); V.put('homework', {ok:true, data:D});
+              hState.title=''; hState.picked={}; hState.rows=[newRow()]; hState.topic=''; hState.topicMsg=''; hState.later=false;
+              paint(); return say('It was set already: the first press worked, but the page did not hear back. Nothing was set twice; it is in the list below.'); }
+            D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
-            hState.title=''; hState.picked={}; hState.pick={}; hState.whole=true; hState.rows=[{cls:'',due:'',time:''}]; hState.topic=''; hState.topicMsg=''; hState.later=false;
+            hState.title=''; hState.picked={}; hState.rows=[newRow()]; hState.topic=''; hState.topicMsg=''; hState.later=false;
             var m=r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.';
             (r.later||[]).forEach(function(x){ m+=' '+x.who+' gets it on '+x.when+(x.classroom?' (Google Classroom posts it then)':'')+'.'; });
             var tps=r.topics||[], newIn=tps.filter(function(t){ return t.made; }).map(function(t){ return t.cls; }).filter(Boolean);
@@ -2238,14 +2421,15 @@ var BOOT = __BOOT__;
             if(r.remindWhy) m+=' '+r.remindWhy;
             paint(); say(m, !!((r.notPosted&&r.notPosted.length)||(r.topicMissed&&r.topicMissed.length)||r.remindWhy)); }
           else say((r&&r.why)||'Could not set it.', true); })
-        .withFailureHandler(function(){ hState.busy=false; say('Could not set it.', true); })
-        .homeworkCreate({ title:hState.title.trim(), tasks:p.tasks, post:!!(hState.post&&D.classroomOk),
+        .withFailureHandler(function(){ hState.busy=false; say('The page did not hear back from the spreadsheet. It may have been set: press Set again — it will not be set twice.', true); })
+        .homeworkCreate({ req:hState.req, title:hState.title.trim(), tasks:p.tasks, post:!!(hState.post&&D.classroomOk),
           remind:!!(hState.post&&D.classroomOk&&hState.remind),
           topic:(hState.post&&D.classroomOk&&hState.rows.length===1)?String(hState.topic||'').trim():'',
           /* the plain date, and the time when one was typed: the server reads both in the school's zone (no time = the end of that day).
              Several classes posted in Classroom: each brings its own topic ('' = none). */
           classes:hState.rows.map(function(r){
-            var o=ind?{cls:'',due:r.due,time:r.time||'',emails:emails}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]};
+            /* Some pupils: no class, only them (the labs script then posts it in Classroom to them alone) */
+            var o=r.some?{cls:'',due:r.due,time:r.time||'',emails:rowPicked(r)}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]};
             if(hState.rows.length>1&&hState.post&&D.classroomOk) o.topic=String(r.topic||'').trim();
             if(hState.later&&(r.start||r.startTime)){ o.start=r.start||''; o.startTime=r.startTime||''; }   /* set for a later date */
             return o; }) });
@@ -2366,6 +2550,217 @@ var BOOT = __BOOT__;
               '<span class="dchip"><b>'+c[4]+'</b>/'+c[5]+' right first time</span></div>'+
             fl.map(function(f){ return '<div class="hbflagw">⚑ Worth a look: '+esc(f.says)+'</div>'; }).join('')+'</div>'; }).join('');
       V.openDraw(p.name||'(no name)', esc(p.cls||'—')+(hb?' · '+esc(hb.say):''), body);
+    }
+    paint();
+  };
+  /* ─────────────────────── 🔬 Practicals (11 Oct 2026) ───────────────────────
+     Daniel: "a live board … at the end, if I haven't been able to pay attention to one of the students, at least I see
+     overall how they've been doing … how many times they press, the different options, when they get the right answer
+     the first time, what are the questions that they are struggling with". One row per student of the class, one square
+     per question, coloured by their FIRST round (the labs' squares: f green, right after more checks amber, tried and not
+     right red); a group of data entries (the quadrats) as one cell, right first time out of tried. "Where they get stuck"
+     ranks the questions by the students not right at the first check, with the wrong answers they gave most. */
+  var prState = { id:null, cls:null, part:'all', q:'', sort:'name', live:false, liveFrom:0 }, prTimer = null, prLive = null;
+  var PR_EVERY = 30000, PR_LIVE_MAX = 2*3600*1000;
+  /* ● Live: a timer only while it is on (the page never calls the server on a timer otherwise), off by itself after two
+     hours; it reads only while this view is the one open and the window is in front */
+  function prLiveSet(on){
+    prState.live = !!on; prState.liveFrom = Date.now();
+    clearInterval(prLive); prLive = null;
+    if (on) prLive = setInterval(function(){
+      if (Date.now() - prState.liveFrom > PR_LIVE_MAX) return prLiveSet(false);
+      if (!document.hidden && V.cur && V.cur()==='practicals' && V.reread) V.reread('practicals');
+    }, PR_EVERY);
+    var b = document.getElementById('prlive');
+    if (b) { b.classList.toggle('on', prState.live); b.setAttribute('aria-pressed', prState.live?'true':'false'); b.textContent = prState.live ? 'Live' : '○ Live'; }
+  }
+  function prOwn(o, k){ return !!o && Object.prototype.hasOwnProperty.call(o, k); }
+  /* one question's record, read for the board: the first round's result, every check, and every wrong answer */
+  function prRead(x){
+    if (!x || !x.r || !x.r.length) return null;
+    var r1 = x.r[0].n===1 ? x.r[0] : null, checks = x.mc||0, wrong = {}, laterRight = false;
+    x.r.forEach(function(r){
+      checks += r.c||0;
+      if (r!==r1 && (r.s==='f' || r.s==='1')) laterRight = true;
+      for (var k in (r.w||{})) if (prOwn(r.w,k)) wrong[k] = (wrong[k]||0) + r.w[k];
+    });
+    var s = r1 ? r1.s : '';
+    return { s:s, checks:checks, rounds:x.r[x.r.length-1].n, later: laterRight && s!=='f' && s!=='1' && s!=='d', wrong:wrong,
+             tried: x.r.some(function(r){ return (r.c||0)>0 || r.s; }) };
+  }
+  var PR_SAY = { f:'right at the first check', '1':'right after more checks', t:'tried, not right yet', d:'answer written', '':'not checked in round 1' };
+  function prSq(s){ return s==='f' ? 'f' : s==='1' ? 'm' : s==='t' ? 't' : s==='d' ? 'd' : 'z'; }
+  /* a wrong answer in words: an option's own words, a gap's number and what it wanted, or what was typed */
+  function prWrongSay(q, key){
+    var m;
+    if (q && q.kind==='mcq' && (m=/^o(\d+)$/.exec(key))) { var o=(q.opts||[])[+m[1]]; return o!=null ? '“'+o+'”' : 'option '+(+m[1]+1); }
+    if (q && (m=/^(\d+)=([\s\S]*)$/.exec(key))) { var g=(q.gaps||[])[+m[1]-1]; return (q.kind==='gaps' ? 'gap '+m[1]+(g!=null?' ('+g+')':'') : (g!=null?g:'')) + ': “'+m[2]+'”'; }
+    return '“'+key+'”';
+  }
+  function prWrongList(q, wrong, max){
+    var ks = Object.keys(wrong).sort(function(a,b){ return wrong[b]-wrong[a]; });
+    if (!ks.length) return '';
+    return ks.slice(0, max||4).map(function(k){ return prWrongSay(q,k)+(wrong[k]>1?' ×'+wrong[k]:''); }).join(' · ') + (ks.length>(max||4)?' · …':'');
+  }
+  function prAgo(iso){
+    if (!iso) return '';
+    var m = Math.round((Date.now() - new Date(iso).getTime())/60000);
+    return m < 1 ? 'just now' : m < 60 ? m+' min ago' : m < 1440 ? Math.round(m/60)+' h ago' : Math.round(m/1440)+' d ago';
+  }
+  window.vPracticals = function(D){
+    var PR = D.practicals||[], STUD = D.students||[], REC = D.rec||{};
+    if (!PR.length) return $('view').innerHTML = '<div class="empty">No IB practicals are listed in the script yet.</div>';
+    if (!prState.id || !PR.some(function(p){ return p.id===prState.id; })) {
+      /* the practical with the most recent save first */
+      var best = PR[0].id, bestAt = '';
+      PR.forEach(function(p){ var r=REC[p.id]||{}; Object.keys(r).forEach(function(e){ if ((r[e].at||'') > bestAt) { bestAt=r[e].at; best=p.id; } }); });
+      prState.id = best;
+    }
+    var P = PR.filter(function(p){ return p.id===prState.id; })[0], R = REC[P.id]||{};
+    var QS = (P.questions||[]), byId = {};
+    QS.forEach(function(q){ byId[q.id]=q; });
+    var cset = {}, recIn = {};
+    STUD.forEach(function(s){ if (s.cls) { cset[s.cls]=1; if (prOwn(R, s.email)) recIn[s.cls]=(recIn[s.cls]||0)+1; } });
+    var classes = Object.keys(cset).sort(cmpClass);
+    if (prState.cls===null || (prState.cls!=='all' && classes.indexOf(prState.cls)<0)) {
+      /* the class with the most students in this practical, else every class */
+      var top = Object.keys(recIn).sort(function(a,b){ return recIn[b]-recIn[a] || cmpClass(a,b); })[0];
+      prState.cls = top || 'all';
+    }
+    /* the board's columns: each question in order, a group of data entries (quadrats) once, where its first item is */
+    var cols = [], seenG = {};
+    QS.forEach(function(q){
+      if (q.group) { if (seenG[q.group]) return; seenG[q.group]=1;
+        var gi = (P.groups||[]).filter(function(g){ return g.id===q.group; })[0];
+        cols.push({ group:q.group, part:q.part, short:(gi&&gi.short)||'data', title:(gi&&gi.title)||q.group,
+                    items: QS.filter(function(x){ return x.group===q.group; }).map(function(x){ return x.id; }) }); }
+      else cols.push({ q:q, part:q.part, short:q.short||q.id, title:q.title||q.id });
+    });
+    var parts = []; cols.forEach(function(c){ if (parts.indexOf(c.part)<0) parts.push(c.part); });
+    if (prState.part!=='all' && parts.indexOf(+prState.part)<0) prState.part='all';
+    var partName = {}; (P.parts||[]).forEach(function(x){ partName[x.n]=x.title; });
+    $('view').innerHTML =
+      '<div class="bar2">'+
+        (PR.length>1 ? '<div class="fld"><label for="prp">Practical</label><select id="prp">'+PR.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===prState.id?' selected':'')+'>'+esc(p.title)+'</option>'; }).join('')+'</select></div>' : '')+
+        '<div class="fld"><label for="prc">Class</label><select id="prc"><option value="all">All classes</option>'+
+          classes.map(function(c){ return '<option value="'+esc(c)+'"'+(c===prState.cls?' selected':'')+'>'+esc(c)+(recIn[c]?' ('+recIn[c]+')':'')+'</option>'; }).join('')+'</select></div>'+
+        '<div class="fld"><label for="prt">Part</label><select id="prt"><option value="all">Every part</option>'+
+          parts.map(function(n){ return '<option value="'+n+'"'+(String(n)===String(prState.part)?' selected':'')+'>'+esc('Part '+n+(partName[n]?' · '+partName[n]:''))+'</option>'; }).join('')+'</select></div>'+
+        '<div class="fld"><label for="prs">Order</label><select id="prs"><option value="name"'+(prState.sort==='name'?' selected':'')+'>By name</option>'+
+          '<option value="help"'+(prState.sort==='help'?' selected':'')+'>Most help needed first</option></select></div>'+
+        '<div class="fld fld--grow"><label for="prf">Find a student</label><input id="prf" type="search" placeholder="name" value="'+esc(prState.q)+'"></div>'+
+        '<div class="fld"><label>&nbsp;</label><button type="button" id="prlive" class="livebtn'+(prState.live?' on':'')+'" aria-pressed="'+(prState.live?'true':'false')+'" data-tip="Read the sheet again every 30 seconds while this view is open, for two hours at most. Students’ pages save a minute after their last answer.">'+(prState.live?'Live':'○ Live')+'</button></div>'+
+      '</div>'+
+      (P.ok ? '' : '<div class="warn">The list of this practical’s questions could not be read from its page just now, so questions show by their codes. Try Refresh in a minute.</div>')+
+      '<div id="prsum" class="prsum"></div><div id="prlist"></div><div id="prstuck"></div>';
+    if ($('prp')) $('prp').addEventListener('change', function(){ prState.id=this.value; prState.cls=null; prState.part='all'; window.vPracticals(D); });
+    $('prc').addEventListener('change', function(){ prState.cls=this.value; paint(); });
+    $('prt').addEventListener('change', function(){ prState.part=this.value; paint(); });
+    $('prs').addEventListener('change', function(){ prState.sort=this.value; paint(); });
+    $('prf').addEventListener('input', function(){ prState.q=this.value; clearTimeout(prTimer); prTimer=setTimeout(paint,150); });
+    $('prlive').addEventListener('click', function(){
+      prLiveSet(!prState.live);
+      if (prState.live && V.reread) V.reread('practicals');
+    });
+    function cellOf(c, rec){
+      if (c.group) {
+        var tried=0, good=0;
+        c.items.forEach(function(id){ var x=prRead(rec&&rec.q?rec.q[id]:null); if (x && x.tried) { tried++; if (x.s==='f') good++; } });
+        if (!tried) return { html:'<span class="pgrp none" data-tip="'+esc(c.title+': none yet')+'">·</span>', tried:0, good:0 };
+        var hh = heat(100*good/tried);
+        return { html:'<span class="pgrp" style="background:'+hh.bg+';border-color:'+hh.bd+';color:'+hh.fg+'" data-tip="'+
+                 esc(c.title+': '+tried+' done, '+good+' right at the first check')+'">'+good+'/'+tried+'</span>', tried:tried, good:good };
+      }
+      var x = prRead(rec&&rec.q?rec.q[c.q.id]:null);
+      if (!x || !x.tried) return { html:'<span class="sq z" data-tip="'+esc(c.title+': not tried')+'"></span>', x:null };
+      var tip = c.title+' · round 1: '+(PR_SAY[x.s]||PR_SAY[''])+' · '+x.checks+' check'+(x.checks===1?'':'s')+(x.rounds>1?' in '+x.rounds+' rounds':'')+
+                (x.later?' · right in a later round':'');
+      var w = prWrongList(c.q, x.wrong, 4); if (w) tip += ' · wrong: '+w;
+      return { html:'<span class="sq '+prSq(x.s)+(x.later?' later':'')+'" data-tip="'+esc(tip)+'">'+(x.s==='d'?'✎':(x.checks>1?x.checks:''))+'</span>', x:x };
+    }
+    function paint(){
+      var q = prState.q.trim().toLowerCase();
+      var vcols = cols.filter(function(c){ return prState.part==='all' || String(c.part)===String(prState.part); });
+      var list = STUD.filter(function(s){ return (prState.cls==='all' || s.cls===prState.cls) && (!q || (s.name||'').toLowerCase().indexOf(q)>=0); });
+      /* the summary and the stuck list count the students in view */
+      var rows = list.map(function(s){
+        var rec = R[s.email]||null, tried=0, first=0, checks=0, cells=[];
+        vcols.forEach(function(c){ var o=cellOf(c, rec); cells.push(o);
+          if (o.x) { if (o.x.s!=='d') { tried++; if (o.x.s==='f') first++; } checks += o.x.checks; } });
+        return { s:s, rec:rec, cells:cells, tried:tried, first:first, checks:checks, share: tried ? first/tried : -1 };
+      });
+      if (prState.sort==='help') rows.sort(function(a,b){
+        if (!a.rec !== !b.rec) return a.rec ? -1 : 1;                 /* students with nothing saved go last */
+        return a.share-b.share || b.checks-a.checks || String(a.s.name).localeCompare(String(b.s.name)); });
+      var started = rows.filter(function(r){ return r.rec; }), allT=0, allF=0;
+      started.forEach(function(r){ allT+=r.tried; allF+=r.first; });
+      $('prsum').innerHTML = !list.length ? '' :
+        '<b>'+started.length+' of '+list.length+'</b> student'+(list.length===1?' has':'s have')+' saved work in '+esc(P.title)+
+        (allT ? ' · <b>'+r0(100*allF/allT)+'%</b> of the questions they tried were right at the first check' : '')+'.';
+      if (!list.length) { $('prlist').innerHTML='<div class="empty">Nobody matches.</div>'; $('prstuck').innerHTML=''; return; }
+      if (!vcols.length) { $('prlist').innerHTML='<div class="empty">No questions in this part.</div>'; $('prstuck').innerHTML=''; return; }
+      var lastPart = null;
+      var head = '<tr><th class="cnr">Student</th>'+
+        '<th class="en sum" data-tip="Questions tried in the parts shown (quadrats apart)">Tried</th>'+
+        '<th class="en sum" data-tip="Of the questions tried, the share right at the first check of round 1">Right 1st</th>'+
+        '<th class="en sum" data-tip="Every check and every choice, in every round, in the parts shown">Checks</th>'+
+        '<th class="en" data-tip="When their page last saved">Saved</th>'+
+        vcols.map(function(c){ var f = c.part!==lastPart; lastPart=c.part;
+          return '<th class="pq'+(f?' pfirst':'')+'" data-tip="'+esc('Part '+c.part+' · '+c.title)+'">'+esc(c.short)+'<span class="lt">'+(f?'P'+c.part:'&nbsp;')+'</span></th>'; }).join('')+'</tr>';
+      var body = rows.map(function(r, i){
+        var lp = null;
+        return '<tr><td class="name"><div class="nm"><a href="#" class="prwho" data-i="'+i+'">'+esc(r.s.name||r.s.email)+'</a></div><div class="cl">'+esc(r.s.cls||'')+'</div></td>'+
+          '<td class="cell">'+(r.rec?r.tried:'·')+'</td><td class="cell">'+(r.tried?r0(100*r.share)+'%':'·')+'</td><td class="cell">'+(r.rec?r.checks:'·')+'</td>'+
+          '<td class="cell prwhen">'+(r.rec?esc(prAgo(r.rec.at)):'<span data-tip="Nothing saved yet: not signed in on the practical page, or not started">·</span>')+'</td>'+
+          r.cells.map(function(o, j){ var f = vcols[j].part!==lp; lp=vcols[j].part; return '<td class="pc'+(f?' pfirst':'')+'">'+o.html+'</td>'; }).join('')+'</tr>';
+      }).join('');
+      $('prlist').innerHTML = '<div class="hmcard"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
+        '<div class="sqkey"><span><i style="background:var(--good)"></i>right at the first check</span><span><i style="background:var(--warn)"></i>right after more checks</span>'+
+        '<span><i style="background:var(--bad)"></i>tried, not right yet</span><span>number = checks</span><span>● = right in a later round</span><span>✎ = written answer</span></div></div>';
+      document.querySelectorAll('#prlist .prwho').forEach(function(a){ a.addEventListener('click', function(e){ e.preventDefault(); card(rows[+a.getAttribute('data-i')]); }); });
+      stuck(rows, vcols);
+    }
+    /* the questions the students in view most often did not get right at the first check, with their commonest wrong answers */
+    function stuck(rows, vcols){
+      var out = [];
+      vcols.forEach(function(c, j){
+        if (c.group) return;
+        var n=0, notFirst=0, f=0, m=0, t=0, checks=0, wrong={};
+        rows.forEach(function(r){ var x=r.cells[j].x; if (!x || x.s==='d') return; n++; checks+=x.checks;
+          if (x.s==='f') f++; else { notFirst++; if (x.s==='1') m++; else t++; }
+          for (var k in x.wrong) if (prOwn(x.wrong,k)) wrong[k]=(wrong[k]||0)+x.wrong[k]; });
+        if (notFirst) out.push({ c:c, n:n, notFirst:notFirst, f:f, m:m, t:t, checks:checks, wrong:wrong });
+      });
+      out.sort(function(a,b){ return b.notFirst-a.notFirst || b.checks/b.n-a.checks/a.n; });
+      if (!out.length) { $('prstuck').innerHTML=''; return; }
+      $('prstuck').innerHTML = '<details class="hq" open><summary>Where they get stuck <span class="sec__n">'+Math.min(out.length,8)+'</span></summary><div class="hq__b">'+
+        out.slice(0,8).map(function(o){
+          var w = prWrongList(o.c.q, o.wrong, 4);
+          return '<div class="hqrow"><div class="hqrow__n">'+esc(o.c.title)+' <span>· part '+esc(o.c.part)+'</span></div>'+
+            '<div><div class="hqbar"><i style="width:'+(100*o.f/o.n)+'%;background:var(--good)"></i><i style="width:'+(100*o.m/o.n)+'%;background:var(--warn)"></i><i style="width:'+(100*o.t/o.n)+'%;background:var(--bad)"></i></div>'+
+            '<div class="hqrow__c">'+o.notFirst+' of '+o.n+' not right first time · '+(Math.round(10*o.checks/o.n)/10)+' checks each</div></div>'+
+            (w?'<div class="hqrow__w">Wrong answers given: '+esc(w)+'</div>':'')+'</div>';
+        }).join('')+'</div></details>';
+    }
+    /* one student: every question they tried, part by part, with its rounds, checks and wrong answers */
+    function card(r){
+      var html = '', lastPart = null, any = false;
+      cols.forEach(function(c){
+        var o = cellOf(c, r.rec);
+        if (c.group) { if (!o.tried) return; }
+        else if (!o.x) return;
+        any = true;
+        if (c.part!==lastPart) { lastPart=c.part; html += '<div class="prpart">Part '+esc(c.part)+(partName[c.part]?' · '+esc(partName[c.part]):'')+'</div>'; }
+        var say;
+        if (c.group) say = o.tried+' done, '+o.good+' right at the first check';
+        else {
+          var x=o.x; say = (PR_SAY[x.s]||PR_SAY[''])+' · '+x.checks+' check'+(x.checks===1?'':'s')+(x.rounds>1?' in '+x.rounds+' rounds':'')+(x.later?' · right in a later round':'');
+          var w = prWrongList(c.q, x.wrong, 8); if (w) say += '<div class="prq__w">Wrong answers: '+esc(w)+'</div>';
+        }
+        html += '<div class="prq">'+o.html+'<div><div class="prq__t">'+esc(c.title)+'</div><div class="prq__w">'+(c.group?esc(say):say)+'</div></div></div>';
+      });
+      V.openDraw(r.s.name||r.s.email, esc((r.s.cls||'')+' · '+P.title+(r.rec&&r.rec.at?' · saved '+prAgo(r.rec.at):'')),
+                 any ? html : '<div class="empty">Nothing saved yet for this practical.</div>');
     }
     paint();
   };

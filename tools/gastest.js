@@ -189,6 +189,20 @@ class Sheet {
 }
 for (const m of ['setColumnWidth','setRowHeight','setFrozenRows','setFrozenColumns','setHiddenGridlines','activate','setTabColor'])
   Sheet.prototype[m] = function () { return this; };
+/* 10 Oct 2026 (Tidy up leaves a tab already formatted): what its quick look reads back, as Google keeps it — the sheet's id,
+   its frozen rows, its colour rules, the heading colours — and a banding removed really goes (it piled up here) */
+Sheet._seq = 0;
+Sheet.prototype.getSheetId = function () { if (!this._sid) this._sid = ++Sheet._seq; return this._sid; };
+Sheet.prototype.setFrozenRows = function (n) { this._frozenR = n; return this; };
+Sheet.prototype.getFrozenRows = function () { return this._frozenR || 0; };
+Sheet.prototype.getConditionalFormatRules = function () { return (this._rules || []).slice(); };
+Sheet.prototype.getBandings = function () { return this._bandings.map((b) => ({ remove: () => { const i = this._bandings.indexOf(b); if (i >= 0) this._bandings.splice(i, 1); } })); };
+Range.prototype.setBackground = function (c) { const bg = this.sheet._bg || (this.sheet._bg = new Map());
+  for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) bg.set(this.sheet.key(this.r + i, this.c + j), String(c || '')); return this; };
+Range.prototype.setBackgrounds = function (g) { const bg = this.sheet._bg || (this.sheet._bg = new Map());
+  g.forEach((row, i) => row.forEach((c, j) => bg.set(this.sheet.key(this.r + i, this.c + j), String(c || '')))); return this; };
+Range.prototype.getBackgrounds = function () { const bg = this.sheet._bg || new Map(), out = [];
+  for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(bg.get(this.sheet.key(this.r + i, this.c + j)) || '#ffffff'); out.push(row); } return out; };
 
 class SS {
   constructor() { this.sheets = []; }
@@ -233,7 +247,8 @@ const cacheStore = new Map();
 const cacheWrites = [];                    /* every put, in order — the dialog's whole view */
 global.CacheService = { getScriptCache: () => ({
   put: (k, v) => { if (!/^ID_/.test(k)) { cacheStore.set(k, v); cacheWrites.push([k, v]); } },
-  get: (k) => (/^ID_/.test(k) ? null : (cacheStore.get(k) || null))
+  get: (k) => (/^ID_/.test(k) ? null : (cacheStore.get(k) || null)),
+  remove: (k) => { cacheStore.delete(k); }   /* as the real cache (10 Oct 2026: the job engine's one-go mark) */
 }) };
 global.ContentService = { createTextOutput: t => ({ setMimeType: () => t }), MimeType: { TEXT: 1, JSON: 2, JAVASCRIPT: 3 } };
 global.HtmlService = { createHtmlOutputFromFile: (name) => ({
@@ -273,6 +288,8 @@ global.MANIFEST_JSON = '';
    token check, so they cannot disturb a test that counts those calls. */
 global.ENGLISH_JSON = '';
 global.WRITEUP_JSON = '';
+/* an IB practical's public question list (11 Oct 2026, §practicals), the same way */
+global.PRACT_JSON = '';
 global.UrlFetchApp = { fetch: (url) => {
   if (MANIFEST_JSON && /stations\.json$/.test(String(url || ''))) {
     return { getResponseCode: () => 200, getContentText: () => MANIFEST_JSON };
@@ -286,6 +303,11 @@ global.UrlFetchApp = { fetch: (url) => {
   if (/\/write-up-lab\//.test(String(url || ''))) {
     return WRITEUP_JSON && /parts\.json$/.test(String(url))
       ? { getResponseCode: () => 200, getContentText: () => WRITEUP_JSON }
+      : { getResponseCode: () => 404, getContentText: () => '' };
+  }
+  if (/\/rocky-shore-fieldwork-pract\//.test(String(url || ''))) {
+    return PRACT_JSON && /questions\.json$/.test(String(url))
+      ? { getResponseCode: () => 200, getContentText: () => PRACT_JSON }
       : { getResponseCode: () => 404, getContentText: () => '' };
   }
   return _tokenFetch(); } };
@@ -331,9 +353,20 @@ global.__CALLS = 0;                 /* every crossing of the Sheets service boun
 global.OWNER = 'teacher@x.kr';
 global.VISITOR = '';
 global.Session = { getEffectiveUser: () => ({ getEmail: () => OWNER }), getActiveUser: () => ({ getEmail: () => VISITOR }) };
-global.HtmlService.createHtmlOutput = (h) => { const o = { html: h, setTitle: () => o, addMetaTag: () => o }; return o; };
+global.HtmlService.createHtmlOutput = (h) => { const o = { html: h, setTitle: () => o, addMetaTag: () => o, setWidth: () => o, setHeight: () => o }; return o; };
 
 eval(fs.readFileSync(process.argv[2] || 'apps-script/Code.gs', 'utf8'));
+/* The tests' own helpers: they lived in Code.gs, where nothing else used them (moved here 10 Oct 2026, late evening). */
+function _mergeSnap_(oldSnap, newSnap) { return _snapMerge_(oldSnap, '', '', newSnap, '', '').here; }   /* the one-record days: this go, merged */
+function _rMergeCells_(a, b) {                                                                          /* two cells as one, floors and all */
+  const P = _rParse_(a), Q = _rParse_(b);
+  P.resets = Math.max(P.resets, Q.resets);
+  Q.order.forEach((key) => {
+    if (P.by[key]) _rMergeV_(P.by[key], Q.by[key]);
+    else if (P.order.length < 120) { P.by[key] = _rCap_(Q.by[key]); P.order.push(key); }
+  });
+  return _rJoin_(P);
+}
 
 function run(label, fn) {
   try { fn(); console.log('  ok   ' + label); return true; }
@@ -460,24 +493,33 @@ ok &= run('a view already read is never read again — memory, then sessionStora
   stray.forEach(v => { if (!/ssPut\(/.test(h.slice(h.indexOf('cache[' + v + '] = r'), h.indexOf('cache[' + v + '] = r') + 120)))
     throw new Error('a payload is cached in memory but never persisted'); });
 });
-ok &= run('the other views are read at the same time once the first is drawn, not one after another (2 Oct 2026)', () => {
-  /* Daniel: the teacher page is slow to open. prefetch() read the other five views one at a time, so the last was
-     ready only after every wait added up (Homework habits last, most of a minute). Run prefetch() itself with a
-     server that never answers: every view still missing must be asked for at once, and none twice. */
+ok &= run('every view is read at the same time as the page opens, the ones kept on the computer too, none twice (2 and 10 Oct 2026)', () => {
+  /* Daniel, 2 Oct: the teacher page is slow to open — prefetch() read the other views one at a time. Daniel, 10 Oct: "you
+     load every tab individually … load all of them at the same time, store them in local storage" — the others were asked
+     for only once the first had come, and a view kept from before was never read again. Run prefetch() itself with a
+     server that never answers: every view not read since the page opened must be asked for at once (a kept copy put in
+     memory first, so its tab draws at once), none twice; a view whose read failed waits for its tab to be opened. */
   const vm = require('vm');
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
   const a = h.indexOf('function prefetch()'), b = h.indexOf('\n  }\n', a) + 4;
   if (a < 0 || b < a) throw new Error('prefetch() has moved — this test can no longer see it');
   const asked = [];
-  const w = { ORDER: ['teachers', 'progress', 'english', 'students', 'homework', 'habits'], cur: 'teachers',
-              cache: { teachers: { ok: true }, english: { ok: true } }, prefetched: false,
-              ssGet: k => (k === 'students' ? { ok: true, from: 'session' } : null),
-              fetchTab: (k, cb) => { asked.push(k); } };
+  const w = { ORDER: ['teachers', 'progress', 'english', 'writeup', 'students', 'homework', 'habits'], cur: 'homework',
+              cache: { homework: { ok: true } }, fresh: { teachers: true }, inflight: { homework: [] }, failed: { writeup: true },
+              ssGet: k => (k === 'students' ? { ok: true, from: 'kept' } : null),
+              fetchTab: (k, cb) => { asked.push(k); w.inflight[k] = [cb]; } };
   vm.createContext(w);
   vm.runInContext(h.slice(a, b) + '\nprefetch(); prefetch();', w);
-  if (asked.join() !== 'progress,homework,habits')
-    throw new Error('asked before any answer came: ' + (asked.join() || 'nothing') + ' (want progress, homework and habits together)');
-  if (!w.cache.students || w.cache.students.from !== 'session') throw new Error('a view kept in sessionStorage was not taken from it');
+  if (asked.join() !== 'progress,english,students,habits')
+    throw new Error('asked: ' + (asked.join() || 'nothing') + ' (want progress, english, students and habits, together and once)');
+  if (!w.cache.students || w.cache.students.from !== 'kept') throw new Error('a view kept on the computer was not put in memory while it is read again');
+  /* and the page starts it: go() asks for its own view first, then every other one, without waiting for an answer */
+  const go = h.slice(h.indexOf('function go(tab, force)'), h.indexOf('function draw('));
+  if (go.indexOf('fetchTab(') < 0 || go.indexOf('prefetch();') < go.indexOf('fetchTab(')) throw new Error('go() does not ask for its own view, then all the others');
+  if (/fetchTab\(tab, function\(r\)\{[^}]*prefetch\(\)/.test(go)) throw new Error('the other views still wait for the first one to come');
+  /* kept on the computer, under the teacher's address, for a week: never a copy that another teacher could be shown */
+  if (!/BOOT\.email \? window\.localStorage/.test(h) || !/PFX \+ String\(BOOT\.email\|\|''\) \+ '\.' \+ tab/.test(h)) throw new Error('the views are not kept in localStorage under the teacher\'s address');
+  if (!/KEEP_MS = 7\*24\*3600\*1000/.test(h)) throw new Error('a kept copy has no week-long limit');
 });
 ok &= run('help text never waits on the browser\u2019s own tooltip', () => {
   const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
@@ -623,6 +665,8 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
     'installDailySummary',                                                   /* gated: _isAdminCaller_ */
     'sendDueSummaries',      /* a trigger must be callable: it only ever emails the teacher who set each
                                 overdue homework, once, and hands back a count */
+    'getLabsJobWindow',      /* 10 Oct 2026: what 🎨 Tidy up's window asks (teachers only: _isAdminCaller_) */
+    'stopLabsJob',           /* 10 Oct 2026: ⏹ Stop in that window and in the import's (teachers only: _isAdminCaller_) */
     'sendHomeworkReminders'  /* a trigger must be callable (1 Oct 2026): it takes nothing from its caller, posts only the
                                 reminders due at that moment, each once, to the pupils who have not finished, and hands
                                 back a count */
@@ -637,7 +681,7 @@ ok &= run('nothing reachable by google.script.run may read or write pupil data',
   }
   /* and the ones that must stay callable really do check the caller */
   ['getBatchImportData', 'executeBatchImportAll', 'getBatchImportProgress', 'getNotThisYear', 'markPupilsLeft',
-   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'studentAccommodation', 'uiData', 'installDailySummary', 'homeworkHide'].forEach(n => {
+   'homeworkCreate', 'homeworkDelete', 'homeworkTopics', 'homeworkRemind', 'homeworkChangeDue', 'homeworkAddPupils', 'studentMove', 'studentAccommodation', 'uiData', 'installDailySummary', 'homeworkHide', 'getLabsJobWindow', 'stopLabsJob'].forEach(n => {
     const body = SRC.slice(SRC.indexOf('function ' + n + '('));
     if (!/_isAdminCaller_\(\)|_hwCaller_\(\)/.test(body.slice(0, 400))) {
       throw new Error(n + ' is callable but does not check the caller');
@@ -651,8 +695,9 @@ ok &= run('the reminders add two public names, both on the list: the 🔔 switch
     if (!(global.ALLOWED_NAMES || []).includes(n)) throw new Error(n + ' is not on the ALLOWED list');
   });
   if (!/_hwCaller_\(\)/.test(SRC.slice(SRC.indexOf('function homeworkRemind(')).slice(0, 400))) throw new Error('homeworkRemind does not check the caller first');
-  if (!/^function sendHomeworkReminders\(\)\s*\{\s*return _hwRemindRun_\(Date\.now\(\)\);\s*\}/m.test(SRC))
-    throw new Error('the trigger takes something from its caller (it must be: function sendHomeworkReminders() { return _hwRemindRun_(Date.now()); })');
+  /* 10 Oct 2026: it also removes itself when no reminder is left (_hwReminderIdleOff_, decided from the Homework tab alone) */
+  if (!/^function sendHomeworkReminders\(\)\s*\{\s*var now = Date\.now\(\), n = _hwRemindRun_\(now\);\s*_hwReminderIdleOff_\(now\);\s*return n;\s*\}/m.test(SRC))
+    throw new Error('the trigger takes something from its caller (it must be: function sendHomeworkReminders() { var now = Date.now(), n = _hwRemindRun_(now); _hwReminderIdleOff_(now); return n; })');
 });
 
 console.log('— with an empty spreadsheet —');
@@ -1166,11 +1211,17 @@ ok &= run('Tidy up does NOT get slower as the roster grows', () => {
   /* It used to ask the sheet for one row and write one row PER PUPIL PER LAB, so a real school
      roster turned Tidy up into minutes. The cost must now depend on the number of LABS, not the
      number of pupils — this fails loudly if a per-pupil sheet call ever creeps back in. */
-  __CALLS = 0; setup(); const small = __CALLS;
+  /* like with like: every tab formatted in full both times (10 Oct 2026: a tab already formatted is now left alone) */
+  const fullStyle = () => Array.from(props.keys()).forEach(k => { if (/^TIDY_STYLED_/.test(k)) props.delete(k); });
+  __CALLS = 0; fullStyle(); setup(); const small = __CALLS;
   const extra = [];
   for (let i = 0; i < 60; i++) extra.push({ name: 'Extra ' + i, email: 'extra' + i + '@x.kr', userId: 'x' + i });
   _upsertStudents_(extra, '9Z', 'Y9 Biology', 'cZ');
-  __CALLS = 0; setup(); const big = __CALLS;
+  __CALLS = 0; fullStyle(); setup(); const big = __CALLS;
+  /* and with nothing changed since, the next Tidy up leaves every formatted tab as it is (Daniel, 10 Oct 2026: "why is it
+     reformatting it?") */
+  __CALLS = 0; setup(); const same = __CALLS;
+  if (same > big * 0.5) throw new Error('a Tidy up with nothing changed made ' + same + ' sheet calls; a full one makes ' + big);
   /* 60 more pupils across 20 labs would have been ~2,400 extra calls the old way */
   if (big - small > 150) {
     throw new Error('Tidy up grew by ' + (big - small) + ' sheet calls for 60 more pupils (' +
@@ -1605,10 +1656,17 @@ console.log('— importing several classes: a job that carries on by itself —'
         out = executeBatchImportAll([{ courseId: 'cS1', classCode: '7S' }, { courseId: 'cS2', classCode: '7S' }, { courseId: 'cS3', classCode: '7T' }], 'jobS');
         const mid = said('jobS').pop();
         if (out.filter(r => r.status === 'success').length !== 2 || out[2].status !== 'pending') throw new Error('the first piece did not stop after two classes: ' + JSON.stringify(out).slice(0, 200));
-        if (!mid || mid.done || !mid.continuing || !/carries on by itself/.test(mid.phase)) throw new Error('the window was not told it carries on by itself: ' + JSON.stringify(mid).slice(0, 200));
+        if (!mid || mid.done || !mid.continuing || !/^Paused, to stay inside Google’s time limit\. It restarts by itself at about \d\d:\d\d\. This is an estimate: Google can take a few minutes longer\.$/.test(mid.phase)) throw new Error('the window was not told it restarts by itself, and when: ' + JSON.stringify(mid).slice(0, 200));
+        const asked = getBatchImportProgress('jobS');   /* 10 Oct 2026, late evening: on time, its words; once late, Google is starting it */
+        if (!asked || !/^Paused, to stay inside/.test(asked.phase)) throw new Error('asked on time: ' + JSON.stringify(asked && asked.phase));
+        clock += 3 * 60 * 1000;
+        const late = getBatchImportProgress('jobS');
+        if (!late || !/^Google is starting the next part\. It is a little later than the estimate \(\d\d:\d\d\)\. This is normal: please wait\.$/.test(late.phase)) throw new Error('asked late: ' + JSON.stringify(late && late.phase));
+        clock -= 3 * 60 * 1000;
         const job = JSON.parse(props.get(IMPORT_JOB_KEY) || 'null');
         if (!job || job.i !== 2 || job.phase !== 'classes') throw new Error('where the job is was not saved: ' + JSON.stringify(job));
-        if (ours().length !== 1 || ours()[0].after !== 60 * 1000) throw new Error('not ONE trigger a minute later: ' + JSON.stringify(ours().map(t => t.after)));
+        /* 10 Oct 2026, the job engine: the next run a minute out AND a safety run 8 minutes out */
+        if (JSON.stringify(ours().map(t => t.after).sort((p, q) => p - q)) !== '[60000,480000]') throw new Error('not the next run a minute later and the safety run: ' + JSON.stringify(ours().map(t => t.after)));
         clock += 60 * 1000;
         continueBatchImport_();
       } finally { global.Classroom = undefined; Date.now = realNow; }
@@ -1617,6 +1675,35 @@ console.log('— importing several classes: a job that carries on by itself —'
       if (!stuRow('slow8@x.kr') || stuRow('slow8@x.kr')[1] !== '7T') throw new Error('the last class is not in');
       if (!rowOf('Digestion', 'slow8@x.kr')) throw new Error('the formatting did not run at the end');
       if (props.get(IMPORT_JOB_KEY) || ours().length) throw new Error('the job or its trigger was left behind');
+    });
+
+    ok &= run('an import whose building and formatting runs out of time carries it on in the next piece, a part at a time, and ends built (9 Oct 2026: it was one go, given up after two stops)', () => {
+      let clock = realNow.call(Date);
+      Date.now = () => clock;
+      courses.cB1 = people('Build', 2);
+      cacheWrites.length = 0;
+      global.Classroom = classroom();
+      const keepBS = _buildStep_;
+      _buildStep_ = function (k, n, st2) { clock += 50 * 1000; return keepBS(k, n, st2); };   /* each part "takes" 50 s */
+      try {
+        executeBatchImportAll([{ courseId: 'cB1', classCode: '7S' }], 'jobB1');
+        const job = JSON.parse(props.get(IMPORT_JOB_KEY) || 'null');
+        if (!job || job.phase !== 'finish' || !job.build || !(job.build.i > 0)) throw new Error('the building did not stop part way with its place saved: ' + JSON.stringify(job && job.build));
+        const mid = said('jobB1').pop();
+        if (!mid || mid.done || !mid.continuing) throw new Error('the window was not told it carries on: ' + JSON.stringify(mid).slice(0, 200));
+        let n = 0;
+        while (props.get(IMPORT_JOB_KEY) && n++ < 20) { clock += 60 * 1000; continueBatchImport_(); }
+        const end = said('jobB1').pop();
+        if (!end || !end.done || !end.built || end.formatStopped) throw new Error('it did not end built: ' + JSON.stringify(end).slice(0, 240));
+        if (!rowOf('Digestion', String(courses.cB1[1].profile.emailAddress).toLowerCase())) throw new Error('the new pupils have no lab rows');
+        if (props.get(IMPORT_JOB_KEY) || ours().length) throw new Error('the job or its trigger was left behind');
+      } finally {
+        _buildStep_ = keepBS; global.Classroom = undefined; Date.now = realNow;
+        _clearImportJob_(); _jeTriggersClear_('imp');
+        /* the two pupils leave the Students tab again: the tests after this take the first class of the roster */
+        const ec2 = col('School email'), sh2 = STU();
+        for (let r = sh2.getLastRow(); r >= 2; r--) if (/^build\d+@x\.kr$/.test(String(sh2.getRange(r, ec2).getValue()))) sh2.deleteRows(r, 1);
+      }
     });
 
     ok &= run('Google will not set the trigger that carries it on: the window is told at once, with the class not done, and no job is left waiting', () => {
@@ -1670,7 +1757,7 @@ console.log('— importing several classes: a job that carries on by itself —'
         _saveImportJob_({ id: 'jobRun', sels: [{ courseId: 'cX', classCode: '7X' }], i: 0, phase: 'classes', tickAt: Date.now() - 11 * 60 * 1000, finishTries: 0 });
         const r2 = executeBatchImportAll([{ courseId: 'cB2', classCode: '7B' }], 'jobOther');
         if (!r2[0] || r2[0].status !== 'success') throw new Error('a dead job still blocked the import: ' + JSON.stringify(r2));
-      } finally { global.Classroom = undefined; _clearImportJob_(); _deleteImportTriggers_(); }
+      } finally { global.Classroom = undefined; _clearImportJob_(); _jeTriggersClear_('imp'); }
     });
 
     ok &= run('a pupil Classroom gives no address for is not added, and is named', () => {
@@ -1702,14 +1789,14 @@ console.log('— importing several classes: a job that carries on by itself —'
       const end = said('jobRefused').pop();
       if (!end || !end.done || !end.stopped || !/Another import is still running/.test(end.phase || '')) throw new Error(JSON.stringify(end));
     });
-    ok &= run('audit: a class Google stopped twice is passed over in words, and the next class is imported (it was tried every 8 minutes for ever)', () => {
+    ok &= run('audit: a class Google stopped ' + BUILD_MAX_TRIES + ' times is passed over in words, and the next class is imported (it was tried every 8 minutes for ever; 10 Oct 2026: begun again until then)', () => {
       courses.cK1 = people('Busy', 1); courses.cK2 = people('Twice', 2).map((p, k) => ({ userId: 'k' + k, profile: { name: { fullName: 'Twice ' + (20 + k) }, emailAddress: 'twice' + (20 + k) + '@x.kr' } }));
       _saveImportJob_({ id: 'jobK', sels: [{ courseId: 'cK1', classCode: '7K' }, { courseId: 'cK2', classCode: '7K' }], i: 0, phase: 'classes',
-                        tickAt: Date.now() - 9 * 60 * 1000, finishTries: 0, tries: { 0: 2 } });
+                        tickAt: Date.now() - 9 * 60 * 1000, finishTries: 0, tries: { 0: BUILD_MAX_TRIES } });
       cacheWrites.length = 0; global.Classroom = classroom();
       try { continueBatchImport_(); } finally { global.Classroom = undefined; }
       const end = said('jobK').pop();
-      if (!end || !end.done || end.results[0].status !== 'error' || !/stopped this class twice/.test(end.results[0].error || '') || end.results[1].status !== 'success')
+      if (!end || !end.done || end.results[0].status !== 'error' || !new RegExp('stopped this class ' + BUILD_MAX_TRIES + ' times').test(end.results[0].error || '') || end.results[1].status !== 'success')
         throw new Error(JSON.stringify(end).slice(0, 300));
       if (props.get(IMPORT_JOB_KEY)) throw new Error('the job stayed');
     });
@@ -1764,9 +1851,9 @@ console.log('— importing several classes: a job that carries on by itself —'
       const keepNew = ScriptApp.newTrigger;
       ScriptApp.newTrigger = (fn) => { if (fn === 'continueBatchImport_') throw new Error('too many triggers'); return keepNew(fn); };
       let made;
-      try { made = _scheduleImport_(60000); } finally { ScriptApp.newTrigger = keepNew; }
+      try { made = _jeHandOn_('imp', 60000); } finally { ScriptApp.newTrigger = keepNew; }
       const left = ours().map(t => (t.getUniqueId ? t.getUniqueId() : '?'));
-      _deleteImportTriggers_();
+      _jeTriggersClear_('imp');
       if (made !== false || left.join() !== 'OLD') throw new Error('made ' + made + ', left ' + JSON.stringify(left));
     });
     ok &= run('audit: a class code over 16 characters is refused in words, never cut (two such codes merged in silence)', () => {
@@ -1786,7 +1873,7 @@ console.log('— importing several classes: a job that carries on by itself —'
   } finally {
     Date.now = realNow;
     global.Classroom = undefined;
-    try { _clearImportJob_(); _deleteImportTriggers_(); } catch (e) {}
+    try { _clearImportJob_(); _jeTriggersClear_('imp'); } catch (e) {}
     tidyUp();
     setup();
   }
@@ -2295,6 +2382,30 @@ ok &= run('the page organises: records pinned, YOUNGEST cohort first, types in o
   const c2028 = g.cohorts.filter(c => c.grad === 2028)[0];
   if (c2028.yearGroup !== 'Y10') throw new Error('cohort year group wrong: ' + c2028.yearGroup);
   if (c2028.types.map(t => t.type).join(',') !== 'Reflection,Test,Survey') throw new Error('types not in reading order: ' + c2028.types.map(t => t.type));
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+});
+ok &= run('Form, Dashboard and Spreadsheet: a bare web-app address in Dashboard is the form, never the dashboard (11 Oct 2026)', () => {
+  /* Daniel: "The dashboard, that link actually takes you to the form … you should have form, dashboard, and spreadsheet." */
+  const E = 'https://script.google.com/a/macros/x.kr/s/AKfycbREFLECTION000000000000/exec', SS = 'https://docs.google.com/spreadsheets/d/AAAAAAAAAAAAAAAAAAAAAAAA/edit';
+  const row = (d) => _readLinkRow_(['Reflection', 'Topic 7 reflection', '2028', 'T7', SS, '', d], 4, 2, 6);
+  let r = row(E);
+  if (r.dash !== E + '?page=dashboard' || r.form !== E) throw new Error('a bare /exec in Dashboard: ' + JSON.stringify([r.dash, r.form]));
+  r = row(E + '?page=dashboard');
+  if (r.dash !== E + '?page=dashboard' || r.form !== E) throw new Error('a dashboard address gives its form: ' + JSON.stringify([r.dash, r.form]));
+  r = row('https://script.google.com/macros/s/AKfycbTESTdash000000000000000/exec?page=review');
+  if (r.form !== '' || !/page=review$/.test(r.dash)) throw new Error('another page is left as it is, with no form: ' + JSON.stringify([r.dash, r.form]));
+  r = row('https://example.org/dash');
+  if (r.form !== '' || r.dash !== 'https://example.org/dash') throw new Error('not a web app: left as it is, no form: ' + JSON.stringify([r.dash, r.form]));
+  r = row('');
+  if (r.form !== '' || r.dash !== '') throw new Error('no dashboard: no form either');
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  teacherPanelData();
+  teacherAddLink({ type: 'Reflection', assessment: 'Topic 7 reflection', grad: '2028', url: SS, dash: E });
+  const g = _teacherPageGroups_(new Date(2026, 8, 15));
+  const l = g.cohorts[0].types[0].links[0];
+  if (l.form !== E || l.dash !== E + '?page=dashboard') throw new Error('the page is not given the form and the dashboard: ' + JSON.stringify(l));
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
@@ -3137,6 +3248,64 @@ ok &= run('homework is posted to Classroom: one post per class, to that class’
     homeworkDelete(r2.made[0]);
   } finally { global.Classroom = undefined; }
 });
+ok &= run('Set homework pressed again after the page did not hear back: the same request id gives back the homework already set — one row, one Classroom post (the audit, 10 Oct 2026)', () => {
+  const POSTS = [];
+  global.Classroom = { Courses: { CourseWork: { create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; } } } };
+  const before = _homeworkRows_().length;
+  try {
+    const ask = { req:'rtest12345', title:'Heard twice', post:true, classes:[{ cls: enA.cls, due:'2027-02-03' }], tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] };
+    const r1 = homeworkCreate(ask), r2 = homeworkCreate(JSON.parse(JSON.stringify(ask)));
+    if (!r1.ok || !r2.ok) throw new Error(JSON.stringify([r1.why, r2.why]));
+    if (_homeworkRows_().length !== before + 1) throw new Error('rows: ' + (_homeworkRows_().length - before));
+    if (POSTS.length !== 1) throw new Error('posts: ' + POSTS.length);
+    if (!r2.again || JSON.stringify(r2.made) !== JSON.stringify(r1.made)) throw new Error('second answer: ' + JSON.stringify([r2.again, r2.made, r1.made]));
+    const r3 = homeworkCreate(Object.assign({}, ask, { req:'rtest67890' }));   /* a new press: a new homework */
+    if (!r3.ok || _homeworkRows_().length !== before + 2 || POSTS.length !== 2) throw new Error('a new id did not set a new one');
+    homeworkDelete(r1.made[0]); homeworkDelete(r3.made[0]);
+  } finally { global.Classroom = undefined; }
+});
+ok &= run('Some pupils in two classes (Daniel, 10 Oct 2026): a homework per class, each posted in Classroom to its pupils alone in their own course; its due date and Remove are its own', () => {
+  const POSTS = [], PATCH = [];
+  global.Classroom = { Courses: { CourseWork: {
+    create: (body, courseId) => { POSTS.push({ body, courseId }); return { id: 'cw' + POSTS.length }; },
+    patch: (body, courseId, cwId, opt) => { PATCH.push({ body, courseId, cwId, mask: opt && opt.updateMask }); return {}; } } } };
+  try {
+    const ids = _classroomIds_(), dir = _studentDirectory_().students.filter(p => ids[p.email] && ids[p.email].courseId && ids[p.email].userId);
+    const a = dir[0], b = dir.filter(p => p.cls !== a.cls && ids[p.email].courseId !== ids[a.email].courseId)[0];
+    if (!a || !b) throw new Error('the test roster has no two pupils in two classes with their own courses');
+    const a2 = dir.filter(p => p.cls === a.cls && p.email !== a.email)[0];
+    const pickA = a2 ? [a.email, a2.email] : [a.email];
+    const r = homeworkCreate({ title:'Catch-up', post:true, tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }],
+      classes:[{ cls:'', due:'2027-02-05', emails: pickA }, { cls:'', due:'2027-02-06', emails:[b.email] }] });
+    if (!r.ok || r.made.length !== 2) throw new Error('not two homework: ' + JSON.stringify(r).slice(0, 200));
+    try {
+      if (POSTS.length !== 2) throw new Error(POSTS.length + ' posts');
+      const [pa, pb] = POSTS;
+      if (pa.courseId !== ids[a.email].courseId || pb.courseId !== ids[b.email].courseId) throw new Error('posted in the wrong course: ' + JSON.stringify([pa.courseId, pb.courseId]));
+      [[pa, pickA], [pb, [b.email]]].forEach(([p, who]) => {
+        if (p.body.assigneeMode !== 'INDIVIDUAL_STUDENTS' || p.body.individualStudentsOptions.studentIds.length !== who.length)
+          throw new Error('not posted to its pupils alone: ' + JSON.stringify(p.body.individualStudentsOptions || p.body.assigneeMode));
+      });
+      if (pa.body.dueDate.day !== 5 || pb.body.dueDate.day !== 6) throw new Error('the due dates were mixed up');
+      const rows = _homeworkRows_().filter(h => r.made.indexOf(h.id) >= 0);
+      const ra = rows.filter(h => h.id === r.made[0])[0], rb = rows.filter(h => h.id === r.made[1])[0];
+      if (JSON.stringify(ra.setFor.slice().sort()) !== JSON.stringify(pickA.slice().sort()) || JSON.stringify(rb.setFor) !== JSON.stringify([b.email]))
+        throw new Error('set for the wrong pupils: ' + JSON.stringify([ra.setFor, rb.setFor]));
+      if (ra.courseWork !== 'cw1' || rb.courseWork !== 'cw2') throw new Error('Classroom ids not written back to each row');
+      /* the page is told who each is for (the list says "2 chosen pupils in …" from them) */
+      const listed = _homeworkData_(undefined, OWNER).homework.filter(h => h.id === r.made[0])[0];
+      if (!listed || listed.targets.cls || listed.pupils.length !== pickA.length || listed.pupils.some(x => x.cls !== a.cls)) throw new Error('the page is not told its pupils: ' + JSON.stringify(listed && listed.pupils));
+      /* a new due date for one: only its own Classroom assignment */
+      const ch = homeworkChangeDue({ id: r.made[0], due: '2027-02-09', time: '' });
+      if (!ch.ok || PATCH.length !== 1 || PATCH[0].cwId !== 'cw1' || PATCH[0].courseId !== ids[a.email].courseId || PATCH[0].body.dueDate.day !== 9)
+        throw new Error('the due date did not go to its own assignment alone: ' + JSON.stringify([ch.ok, ch.why, PATCH]));
+      if (_hwMs_(_homeworkRows_().filter(h => h.id === r.made[1])[0].due) !== _hwMs_(rb.due)) throw new Error('the other homework\'s due date moved too');
+      /* Remove one: the other stays */
+      if (!homeworkDelete(r.made[0]).ok) throw new Error('could not remove the first');
+      if (!_homeworkRows_().some(h => h.id === r.made[1])) throw new Error('removing one removed the other');
+    } finally { r.made.forEach(id => homeworkDelete(id)); }
+  } finally { global.Classroom = undefined; }
+});
 ok &= run('with Classroom off, the homework is still set and it says why it was not posted', () => {
   const r = homeworkCreate({ title:'Not posted', post:true, classes:[{ cls: enA.cls, due:'2027-02-03' }],
     tasks:[{ labId:'bio-english-lab', stationIds:['t3.kw.meanings'] }] });
@@ -3675,7 +3844,7 @@ ok &= run('the teacher page has a Write-Up view: served by ?page=writeup, drawn 
   const page = doGet({ parameter:{ page:'writeup' } }).html;
   if (!/"tab":"writeup"/.test(page)) throw new Error('?page=writeup did not open on the Write-Up view');
   const t = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-  ["'writeup','students'", 'window.vWriteup = function', "if (cur==='writeup') return window.vWriteup(r.data);"].forEach(x => { if (t.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
+  ["'writeup','practicals','students'", 'window.vWriteup = function', "if (cur==='writeup') return window.vWriteup(r.data);"].forEach(x => { if (t.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
   if (!/\?page=writeup$/.test(_writeupTeacherUrl_() || '?page=writeup')) throw new Error('the Write-Up site still sends teachers elsewhere: ' + _writeupTeacherUrl_());
 });
 
@@ -4116,6 +4285,104 @@ console.log('— reminders to the pupils who have not finished —');
       if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error('to ' + got + ', want Classroom’s own ' + want);
     } finally { global.Classroom = undefined; homeworkDelete(id); }
   });
+  /* 9 Oct 2026 (Daniel's rule for long runs): a "sending…" claim left by a run Google stopped is settled from Classroom;
+     a burst of reminders slower than Google allows stops before 4 minutes and the next run posts the rest */
+  /* a claim as a run leaves it: the cells, and (fp) the fingerprint kept just before the post — the title posted, its ids */
+  const claim = (id, k, atMs, fp) => { const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh), row = rowOf(id).row;
+    sh.getRange(row, hc['Reminder ' + k]).setValue(new Date(atMs)); sh.getRange(row, hc['Reminder ' + k + ' students']).setValue(HW_SENDING);
+    if (fp) _hwClaimKeep_(id, k, { t: fp.t, h: _hwIdsHash_(fp.ids), n: fp.ids.length, at: atMs }); };
+  const ann = (title, ms, ids) => ({ text: 'Reminder: your homework "' + title + '" is due on …', creationTime: new Date(ms).toISOString(), individualStudentsOptions: { studentIds: ids } });
+  const withList = (list, fn) => { global.Classroom = fakeClassroom(); global.Classroom.Courses.Announcements.list = list; try { return fn(); } finally { global.Classroom = undefined; } };
+  ok &= run('a reminder left "sending…" by a run Google stopped, and the post IS in Classroom: the row says it went, to how many; nothing is posted again', () => {
+    const s = KST(2027, 4, 5, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Stopped after the post', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      claim(id, 1, t1 + 60e3, { t: 'Stopped after the post', ids: ['a', 'b', 'c'] });
+      const posted = { announcements: [ann('Stopped after the post', t1 + 70e3, ['c', 'a', 'b'])] };
+      const n = withList(() => posted, () => _hwRemindRun_(t1 + 25 * 60e3));
+      const row = rowOf(id);
+      if (n !== 0 || RA.length !== 0) throw new Error('posted again: ' + RA.length);
+      if (row.rem[0].said !== '3' || _hwMs_(row.rem[0].at) !== t1 + 60e3) throw new Error('the row reads ' + JSON.stringify(row.rem[0]));
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('…and the post is NOT in Classroom: the claim is taken back and the reminder goes, once', () => {
+    const s = KST(2027, 4, 12, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Stopped before the post', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      claim(id, 1, t1 + 60e3, { t: 'Stopped before the post', ids: ['a', 'b'] });
+      const other = { announcements: [ann('Something else', t1 + 70e3, ['a', 'b']), ann('Stopped before the post', t1 - 3600e3, ['a', 'b'])] };
+      const n = withList(() => other, () => _hwRemindRun_(t1 + 25 * 60e3));
+      const row = rowOf(id);
+      if (n !== 1 || RA.length !== 1 || !/^\d+$/.test(row.rem[0].said)) throw new Error('posted ' + RA.length + '; the row reads ' + JSON.stringify(row.rem[0]));
+      if (withList(() => other, () => _hwRemindRun_(t1 + 40 * 60e3)) !== 0 || RA.length !== 1) throw new Error('posted twice');
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('…a claim only 5 minutes old is left alone, and so is one Classroom cannot be asked about ("⚠ not sure it was sent")', () => {
+    const s = KST(2027, 4, 19, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Young claim', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      claim(id, 1, t1 + 60e3, { t: 'Young claim', ids: ['a'] });
+      let asked = 0;
+      withList(() => { asked++; return { announcements: [] }; }, () => _hwRemindRun_(t1 + 6 * 60e3));
+      if (asked || RA.length || rowOf(id).rem[0].said !== HW_SENDING) throw new Error('a young claim was touched: asked ' + asked + ', ' + JSON.stringify(rowOf(id).rem[0]));
+      withList(() => { throw new Error('Classroom is down'); }, () => _hwRemindRun_(t1 + 30 * 60e3));
+      if (RA.length || rowOf(id).rem[0].said !== HW_SENDING) throw new Error('changed with Classroom down: ' + JSON.stringify(rowOf(id).rem[0]));
+      const says = _hwRemindSays_(rowOf(id), t1 + 30 * 60e3).says;   /* the list's words at that moment (the test's clock) */
+      if (!/not sure it was sent/.test(says)) throw new Error('the list says ' + says);
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('…the title corrected in the tab after the post: the post is still found by the title it was POSTED with, and not posted again (the audit of 9 Oct)', () => {
+    const s = KST(2027, 5, 3, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('Enzymes homwork', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      claim(id, 1, t1 + 60e3, { t: 'Enzymes homwork', ids: ['a', 'b', 'c', 'd'] });
+      const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh); sh.getRange(rowOf(id).row, hc.Title).setValue('Enzymes homework');
+      const n = withList(() => ({ announcements: [ann('Enzymes homwork', t1 + 70e3, ['d', 'c', 'b', 'a'])] }), () => _hwRemindRun_(t1 + 25 * 60e3));
+      if (n !== 0 || RA.length !== 0 || rowOf(id).rem[0].said !== '4') throw new Error('posted ' + RA.length + '; the row reads ' + JSON.stringify(rowOf(id).rem[0]));
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('…two homework with one title in one course: the other one\'s post is not taken for this one — this one is posted, to its own pupils (the audit of 9 Oct)', () => {
+    const s = KST(2027, 5, 10, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const ra = setHw('Same title', s, d), rb = setHw('Same title', s, d), a = ra.made[0], b = rb.made[0]; RA.length = 0;
+    try {
+      claim(a, 1, t1 + 60e3, { t: 'Same title', ids: ['x1', 'x2', 'x3', 'x4', 'x5'] }); claim(b, 1, t1 + 60e3, { t: 'Same title', ids: ['y1', 'y2'] });
+      const sh = ss.getSheetByName(T_HOMEWORK), hc = _hwHeadCols_(sh); sh.getRange(rowOf(a).row, hc['Reminder 1 students']).setValue('5'); _hwClaimDrop_(a, 1);   /* A went and was written */
+      withList(() => ({ announcements: [ann('Same title', t1 + 70e3, ['x1', 'x2', 'x3', 'x4', 'x5'])] }), () => _hwRemindRun_(t1 + 25 * 60e3));
+      if (RA.length !== 1 || rowOf(b).rem[0].said === '5' || !/^\d+$/.test(rowOf(b).rem[0].said)) throw new Error('posted ' + RA.length + '; B reads ' + JSON.stringify(rowOf(b).rem[0]));
+    } finally { homeworkDelete(a); homeworkDelete(b); }
+  });
+  ok &= run('…a claim with no fingerprint (made by an older copy of the script) is left as it is, never guessed at', () => {
+    const s = KST(2027, 5, 17, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const r = setHw('No fingerprint', s, d), id = r.made[0]; RA.length = 0;
+    try {
+      claim(id, 1, t1 + 60e3);
+      withList(() => ({ announcements: [] }), () => _hwRemindRun_(t1 + 25 * 60e3));
+      if (RA.length || rowOf(id).rem[0].said !== HW_SENDING) throw new Error('guessed: ' + JSON.stringify(rowOf(id).rem[0]));
+    } finally { homeworkDelete(id); }
+  });
+  ok &= run('a burst of reminders slower than Google allows (each post 70 s): none begun after 4 minutes; the next run, 15 minutes on, posts the rest; each once', () => {
+    const s = KST(2027, 4, 26, 15, 0), d = s + W, t1 = s + Math.round(0.7 * W);
+    notDone();
+    const made = []; RA.length = 0;
+    const realNow = Date.now; let fake = realNow();
+    try {
+      for (let i = 0; i < 5; i++) made.push(setHw('Burst ' + i, s, d).made[0]);
+      Date.now = () => fake;
+      global.Classroom = fakeClassroom();
+      const create = global.Classroom.Courses.Announcements.create;
+      global.Classroom.Courses.Announcements.create = (b, c) => { fake += 70e3; return create(b, c); };
+      const n1 = _hwRemindRun_(t1 + 60e3);
+      const n2 = _hwRemindRun_(t1 + 16 * 60e3);
+      if (n1 !== 4 || n2 !== 1 || RA.length !== 5) throw new Error('first run ' + n1 + ', second ' + n2 + ', posts ' + RA.length);
+      if (made.some(id => !/^\d+$/.test(rowOf(id).rem[0].said))) throw new Error('rows: ' + made.map(id => rowOf(id).rem[0].said).join(', '));
+    } finally { Date.now = realNow; global.Classroom = undefined; made.forEach(id => homeworkDelete(id)); }
+  });
   ok &= run('importing again repairs a rounded Classroom id, and keeps ids as text', () => {
     const sh = ss.getSheetByName(T_STUDENTS), ec = _emailCol_(sh), uc = _headerCol_(sh, 'Classroom user id', ec + 3);
     const p = mates[0], row = sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues().findIndex(x => String(x[0]).toLowerCase() === p.email) + 2;
@@ -4474,6 +4741,18 @@ console.log('— reminders to the pupils who have not finished —');
       if (mine().length !== 1 || !/✅  homework reminders: checked every 15 minutes \(started just now\)/.test(again)) throw new Error('🩺 did not start it again: ' + mine().length);
       if (TRIGGERS.filter(t => t.getHandlerFunction() === 'sendDueSummaries').length !== daily) throw new Error('the morning email changed');
     } finally { made.forEach(x => homeworkDelete(x.made[0])); mine().forEach(t => ScriptApp.deleteTrigger(t)); }
+  });
+  ok &= run('the 15-minute check removes itself when no reminder is left to send, and starts again with the next homework that has reminders (10 Oct 2026: it ran 96 times a day for nothing)', () => {
+    const mine = () => TRIGGERS.filter(t => t.getHandlerFunction() === 'sendHomeworkReminders');
+    const s = KST(2027, 5, 10, 15, 0), made = [];
+    try {
+      made.push(setHw('Idle check', s, s + W));
+      if (mine().length !== 1) throw new Error('no check after Set: ' + mine().length);
+      if (_hwReminderIdleOff_(s + 60e3) || mine().length !== 1) throw new Error('removed while a reminder was still to come');
+      if (!_hwReminderIdleOff_(9e15) || mine().length) throw new Error('kept with nothing left to send: ' + mine().length);   /* every homework long past due */
+      made.push(setHw('Idle check 2', s, s + W));
+      if (mine().length !== 1) throw new Error('not started again by the next homework with reminders: ' + mine().length);
+    } finally { made.forEach(r => { try { homeworkDelete(r.made[0]); } catch (e) {} }); }
   });
   ok &= run('the list sorts by due date or by class, remembered in this browser; the 🔔 line and switch; the form asks about reminders, ticked by default', () => {
     const now = Date.now(), iso = days => new Date(now + days * 864e5).toISOString();
@@ -4922,7 +5201,8 @@ console.log('— ⏱️ homework habits —');
       const hn = (h.match(/habits:\{[\s\S]*?note:'([^']*)'/) || ['', ''])[1];
       if (!/^Hover over or tap a mark/.test(hn) || !/never proof of anything/.test(hn) || !/not time spent working/.test(hn)) throw new Error('the habits note lost what only it can say: ' + hn.slice(0, 120));
       const notes = (h.match(/\n      note:'[^']*'/g) || []);
-      if (notes.length !== 7) throw new Error('not seven notes (one per view; Write-Up since 8 Oct 2026): ' + notes.length);
+      if (notes.length !== 8) throw new Error('not eight notes (one per view; Write-Up since 8 Oct 2026, 🔬 Practicals since 11 Oct 2026): ' + notes.length);
+      if (!/VIEWS\.practicals = \{[\s\S]*?\n      note:'A square is the student/.test(h)) throw new Error('the 🔬 Practicals view has no note');
       const lame = notes.filter(n => /Nothing here changes a mark|Start here: pick a class|stays hidden from pupils until its start|Completion is worked out|never a zero|because you are their teacher/.test(n));
       if (lame.length) throw new Error('a note says the obvious again: ' + lame[0].slice(0, 120));
       if (!/Reminders \(🔔\) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00\.' \},/.test(h)) throw new Error('the homework note is not the reminders rule alone');
@@ -5025,7 +5305,7 @@ console.log('— ⏱️ homework habits —');
       /* found 1 Oct 2026 (late night) in headless Chrome: with six tabs, at 1280 px Refresh wrapped ALONE to the left of a second
          row; grouped, the three wrap as one, on the right; below 700 px the group dissolves (display:contents) */
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-      if (!/<div class="meta">\s*<span class="who" id="who"><\/span>\s*<span class="age" id="age"[^>]*><\/span>\s*<button class="rf" id="rf"[\s\S]*?Refresh<\/button>\s*<button class="rf thm" id="thm" type="button">[^<]*<\/button>\s*<\/div>/.test(h))
+      if (!/<div class="meta">\s*<span class="who" id="who"><\/span>\s*<span class="age" id="age"[^>]*><\/span>\s*(<button class="rf" id="nw"[^>]*>[^<]*<\/button>\s*)?<button class="rf" id="rf"[\s\S]*?Refresh<\/button>\s*<button class="rf thm" id="thm" type="button">[^<]*<\/button>\s*<\/div>/.test(h))
         throw new Error('who, age, Refresh and ☀/☾ are not one group');
       const css = h.slice(h.indexOf('<style>'), h.indexOf('</style>'));
       const meta = (css.match(/\n\.meta\{([^}]*)\}/) || ['', ''])[1];
@@ -6138,6 +6418,814 @@ console.log('— each question as a square on the teacher page (Daniel, 6 Oct 20
     UrlFetchApp.fetch = keepFetch; HUB_URL = keepHub; VISITOR = keepVisitor; SCHOOL_DOMAIN = keepDomain; setMan(keepMan);
     Object.keys(keepRows).forEach(email => dig.getRange(rowAt(email), 1, 1, LAB_COLS.length).setValues([keepRows[email]]));
   }
+}
+
+console.log('— 🎨 Tidy up carries on by itself (Daniel, 8–9 Oct 2026) —');
+{
+  /* Daniel: a long job must never stop half-way; it carries on by itself. Tidy up's work is a list of short steps run as
+     a job (TIDY_JOB, continueTidyUp_); the rows of pupils who left go as runs, under the lock pupils' saves take. */
+  const realNowT = Date.now, keepToast = ss.toast, toasts = [];
+  ss.toast = (m, t) => { toasts.push({ m: String(m), t: String(t || '') }); };
+  const tidyTr = () => TRIGGERS.filter(t => t.getHandlerFunction() === 'continueTidyUp_');
+  const lab0 = LABS[0], tab0 = () => ss.getSheetByName(lab0.name);
+  const tidyJob = () => JSON.parse(props.get('TIDY_JOB') || 'null');
+  try {
+    setup();   /* settled first */
+
+    ok &= run('the rows of pupils who left go as runs of neighbours (one call a run), under the lock pupils’ saves take; a row with work stays and is named; every other row is untouched', () => {
+      const sh = tab0();
+      const mk = (k, work) => { const r = new Array(LAB_COLS.length).fill(''); r[0] = 'Tidy Left ' + k; r[1] = '9Z'; r[LAB_EMAIL - 1] = 'tidyleft' + k + '@x.kr'; if (work) { r[2] = 5; r[9] = 1; } return r; };
+      const add = [mk(0), mk(1), mk(2), mk(3, true), mk(4), mk(5), mk(6)];
+      const before = sh.getRange(2, 1, sh.getLastRow() - 1, LAB_COLS.length).getValues().map(r => JSON.stringify(r));
+      const at = sh.getLastRow() + 1;
+      _room_(sh, at + add.length - 1);
+      sh.getRange(at, 1, add.length, LAB_COLS.length).setValues(add);
+      let held = false, heldAtEach = true;
+      const dels = [];
+      const keepLock = LockService.getScriptLock;
+      LockService.getScriptLock = () => ({ waitLock: () => { held = true; return true; }, releaseLock: () => { held = false; } });
+      const realDel = sh.deleteRows;
+      sh.deleteRows = function (a, n) { dels.push([a, n]); if (!held) heldAtEach = false; return realDel.call(this, a, n); };
+      const notes = [];
+      try { _seedLab_(lab0, notes); } finally { LockService.getScriptLock = keepLock; delete sh.deleteRows; }
+      if (dels.length !== 2 || dels.some(d => d[1] !== 3)) throw new Error('not two runs of three rows: ' + JSON.stringify(dels));
+      if (!heldAtEach) throw new Error('a row was deleted without the lock pupils’ saves take');
+      if (held) throw new Error('the lock was not given back');
+      if (!rowOf(lab0.name, 'tidyleft3@x.kr')) throw new Error('a row with work was deleted');
+      if ([0, 1, 2, 4, 5, 6].some(k => rowOf(lab0.name, 'tidyleft' + k + '@x.kr'))) throw new Error('an empty row of a pupil who left stayed');
+      if (!notes.some(n => /^6 rows removed from /.test(n)) || !notes.some(n => /Tidy Left 3/.test(n))) throw new Error('the notes: ' + JSON.stringify(notes));
+      const after = sh.getRange(2, 1, before.length, LAB_COLS.length).getValues().map(r => JSON.stringify(r));
+      if (after.join('\n') !== before.join('\n')) throw new Error('a row of a pupil still on the Students tab changed');
+      sh.deleteRows(sh.getLastRow(), 1);   /* the kept row of the pupil who left goes, for the tests after this */
+    });
+
+    ok &= run('pupils saving (a busy lock): that lab’s rows are left for later — nothing deleted, the job not moved on, the try not counted', () => {
+      const keepLock = LockService.getScriptLock;
+      LockService.getScriptLock = () => ({ waitLock: () => { throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock: () => {} });
+      const st = { i: _buildSteps_().indexOf('seed:0'), notes: [], tries: {} }, i0 = st.i;
+      let r;
+      try { r = _buildRun_(st, Date.now(), 4 * 60 * 1000, () => {}); } finally { LockService.getScriptLock = keepLock; }
+      if (r !== false || st.i !== i0 || st.tries['seed:0'] || st.notes.length) throw new Error('busy was not "later": ' + JSON.stringify({ r, st }));
+    });
+
+    ok &= run('Tidy up leaves a tab already formatted as it was: a second Tidy up with nothing changed formats no lab tab; a tab whose banding was removed is formatted again, and only it; after a week every tab is formatted in full (10 Oct 2026, Daniel: "why is it reformatting it?")', () => {
+      const realDress = _dress2_, dressed = [];
+      _dress2_ = function (sh) { dressed.push(sh.getName()); return realDress.apply(this, arguments); };
+      const tidyAll = () => { setup(); let n = 0; while (tidyJob() && n++ < 40) continueTidyUp_(); if (tidyJob()) throw new Error('Tidy up did not end'); };
+      const realNowS = Date.now;
+      try {
+        tidyAll();
+        const labTabs = LABS.map(l => l.name).filter(nm => ss.getSheetByName(nm));
+        if (!labTabs.length) throw new Error('no lab tabs');
+        dressed.length = 0; tidyAll();
+        const again = dressed.filter(nm => labTabs.includes(nm));
+        if (again.length) throw new Error('lab tabs formatted again with nothing changed: ' + again.join(', '));
+        if (dressed.filter(nm => nm === 'Students').length > 1) throw new Error('the Students tab formatted twice: ' + dressed.join(', '));
+        ss.getSheetByName(labTabs[0]).getBandings().forEach(b => b.remove());          /* someone removed its banding */
+        dressed.length = 0; tidyAll();
+        if (dressed.filter(nm => labTabs.includes(nm)).join() !== labTabs[0]) throw new Error('after its banding went: ' + dressed.join(', '));
+        Date.now = () => realNowS.call(Date) + 8 * 86400000;                          /* a week later */
+        dressed.length = 0; tidyAll();
+        const missed = labTabs.filter(nm => !dressed.includes(nm));
+        if (missed.length) throw new Error('not formatted after a week: ' + missed.join(', '));
+      } finally { _dress2_ = realDress; Date.now = realNowS; }
+    });
+
+    ok &= run('🎨 Tidy up opens ONE window: "Do not close this window until it says Finished" in large letters, never "you can close"; while it waits, when it restarts — an estimate — and, once that time has passed, that Google is starting it; its ⏹ Stop ends the job; no pop-up repeats it; a pupil gets nothing (10 Oct 2026, late evening, Daniel)', () => {
+      let clock = realNowT.call(Date); Date.now = () => clock;
+      const keepBS = _buildStep_, keepUi = SpreadsheetApp.getUi, keepVisitor = VISITOR;
+      _buildStep_ = function (k, n, st2) { clock += 30 * 1000; return keepBS(k, n, st2); };   /* each part "takes" 30 s */
+      let shown = null;
+      SpreadsheetApp.getUi = () => Object.assign(keepUi(), { showModelessDialog: (o, title) => { shown = { html: o.html, title }; } });
+      toasts.length = 0;
+      try {
+        tidyUpMENU_();
+        if (!shown || !/Tidy up/.test(shown.title)) throw new Error('no window: ' + JSON.stringify(shown && shown.title));
+        if (!/⚠️ Do not close this window until it says Finished\./.test(shown.html) || /can close this window(?! now)/.test(shown.html)) throw new Error('the window\'s words about closing it');
+        const script = (shown.html.match(/<script>([\s\S]*)<\/script>/) || [])[1] || '';
+        new Function(script);                                                            /* its own code compiles */
+        if (!/getLabsJobWindow/.test(script) || !/stopLabsJob/.test(script)) throw new Error('the window does not ask or stop');
+        if (toasts.length) throw new Error('pop-ups repeated the window: ' + toasts.map(t => t.m).join(' | '));
+        const w = getLabsJobWindow('tidy');
+        if (!w || !w.job || w.head !== '⏸ Paused, to stay inside Google’s time limit.' || !/^It restarts by itself at about \d\d:\d\d\. This is an estimate: Google can take a few minutes longer\.$/.test(w.line) || w.done !== 9 || !(w.total > 9)) throw new Error('while it waits: ' + JSON.stringify(w));
+        clock += 3 * 60 * 1000;                                                            /* Google is late */
+        const late = getLabsJobWindow('tidy');
+        if (late.head !== '⏳ Google is starting the next part.' || !/^It is a little later than the estimate \(\d\d:\d\d\)\. This is normal: please wait\.$/.test(late.line)) throw new Error('once late: ' + JSON.stringify(late));
+        VISITOR = 'pupil@pupils.x.kr';
+        if (getLabsJobWindow('tidy') !== null || stopLabsJob('tidy') !== null || !tidyJob()) throw new Error('a pupil was answered, or stopped it');
+        VISITOR = keepVisitor;
+        const after = stopLabsJob('tidy');
+        if (tidyJob() || tidyTr().length) throw new Error('the job or its trigger is left');
+        if (!after || after.job || after.endHead !== '⏹ Stopped' || !/⏹ Stopped by/.test(after.line)) throw new Error('after Stop: ' + JSON.stringify(after));
+        if (toasts.length) throw new Error('pop-ups repeated the window: ' + toasts.map(t => t.m).join(' | '));
+      } finally { _buildStep_ = keepBS; SpreadsheetApp.getUi = keepUi; VISITOR = keepVisitor; Date.now = realNowT; _TIDY_WINDOW_ = false; }
+    });
+
+    ok &= run('🎨 Tidy up\'s window at a normal end: its last answer carries every part ("N of N"), so its bar ends full (11 Oct 2026: a finished job\'s bar stayed grey in the Test System\'s windows; check_job_bars.mjs covers every window\'s drawing)', () => {
+      let clock = realNowT.call(Date); Date.now = () => clock;
+      try {
+        setup();
+        let n = 0; while (tidyJob() && n++ < 30) { clock += 60 * 1000; continueTidyUp_(); }
+        if (tidyJob()) throw new Error('Tidy up did not finish');
+        const w = getLabsJobWindow('tidy');
+        if (!w || w.job || !/Finished/.test(w.endHead || '') || !(w.total > 0) || w.done !== w.total) throw new Error('its last answer: ' + JSON.stringify(w));
+      } finally { Date.now = realNowT; }
+    });
+
+    ok &= run('pupils saving through seven runs in a row: Tidy up waits for them — counted apart, never "began 6 times in a row without finishing anything" — says it is waiting for pupils’ saves, and finishes (10 Oct 2026: _jeBusyWait_ was never called in the labs)', () => {
+      let clock = realNowT.call(Date); Date.now = () => clock;
+      const keepBS = _buildStep_; let busyRuns = 0, saidWait = '';
+      _buildStep_ = function (k, n, st2) { if (k === 'seed:0' && busyRuns < 7) { busyRuns++; throw new Error(BUILD_BUSY); } return keepBS(k, n, st2); };
+      try {
+        setup();
+        saidWait = String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+        let n = 0; while (tidyJob() && n++ < 20) { clock += 60 * 1000; continueTidyUp_(); }
+        const ln = String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+        if (tidyJob()) throw new Error('it did not end');
+        if (!/^⏳ {2}Tidy up: Waiting for pupils’ saves to finish \(\d+ of \d+ parts done\)\. It restarts by itself at about \d\d:\d\d\. This is an estimate/.test(saidWait)) throw new Error('while pupils saved: ' + saidWait);
+        if (/without finishing anything/.test(ln) || !/^✅/.test(ln)) throw new Error('the end: ' + ln);
+      } finally { _buildStep_ = keepBS; Date.now = realNowT; }
+    });
+
+    ok &= run('the import window says in large letters not to close it until it says Finished (never "you can close this window"), and its ⏹ Stop asks the server (10 Oct 2026, late evening)', () => {
+      const h = fs.readFileSync('apps-script/ClassroomImport.html', 'utf8');
+      if (!/⚠️ Do not close this window until it says Finished\./.test(h) || /You can close this window/.test(h)) throw new Error('the import window\'s words about closing it');
+      if (!/stopLabsJob\('imp'\)/.test(h)) throw new Error('its Stop asks nothing');
+      if (/Stop the job that is running/.test(SRC) || /stopJobMENU_/.test(SRC)) throw new Error('the menu still has a ⏹ Stop');
+    });
+
+ok &= run('Tidy up that cannot finish in one go: no part begun after 4 minutes, its place saved, ONE trigger a minute out, and it says it carries on by itself; the trigger finishes it', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_;
+      _buildStep_ = function (k, n, st2) { clock += 30 * 1000; return keepBS(k, n, st2); };   /* each part "takes" 30 s */
+      toasts.length = 0;
+      try {
+        const said = setup();
+        const job = tidyJob();
+        if (!job || job.i !== 9) throw new Error('not 9 parts begun in 4 minutes (at 0, 30 … 240 s): ' + JSON.stringify(job && job.i));
+        /* 10 Oct 2026, the job engine: the next run a minute out AND a safety run 8 minutes out; the line says when */
+        if (JSON.stringify(tidyTr().map(t => t.after).sort((p, q) => p - q)) !== '[60000,480000]') throw new Error('not the next run a minute out and the safety run: ' + JSON.stringify(tidyTr().map(t => t.after)));
+        if (!/^Paused, to stay inside Google’s time limit \(9 of \d+ parts done\)\. It restarts by itself at about \d\d:\d\d\. This is an estimate: Google can take a few minutes longer\.$/.test(said)) throw new Error('what it said: ' + said);
+        if (!toasts.some(t => /It restarts by itself/.test(t.m))) throw new Error('no toast said so (no window was shown: the pop-up is the only word)');
+        let n = 0;
+        while (tidyJob() && n++ < 20) { clock += 60 * 1000; continueTidyUp_(); }
+        if (tidyJob() || tidyTr().length) throw new Error('the job or its trigger was left behind');
+        if (n < 4) throw new Error('it finished too soon: ' + n);
+        const last = toasts[toasts.length - 1];
+        if (!last || /carries on/.test(last.m) || last.t !== 'Biology Labs') throw new Error('no end words: ' + JSON.stringify(last));
+      } finally { _buildStep_ = keepBS; Date.now = realNowT; }
+      const miss = LABS.filter(l => !rowOf(l.name, String(ss.getSheetByName('Students').getRange(2, _emailCol_(ss.getSheetByName('Students'))).getValue()).toLowerCase()));
+      if (miss.length) throw new Error('a lab tab has no row for the first pupil: ' + miss.map(l => l.name).join(', '));
+    });
+
+    ok &= run('from the Setup tab’s button: its line says it carries on by itself, and when the trigger finishes it, “✅ Tidied up …”', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_;
+      _buildStep_ = function (k, n, st2) { clock += 45 * 1000; return keepBS(k, n, st2); };
+      const box = setupSheet().getRange(BTN_ROW.restyle, 3), line = () => String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+      try {
+        box.setValue(true);
+        onButtonTicked({ range: box });
+        if (!/^⏳ {2}Tidy up: Paused, to stay inside Google’s time limit/.test(line())) throw new Error('the line after the first part: ' + line());
+        let n = 0;
+        while (tidyJob() && n++ < 30) { clock += 60 * 1000; continueTidyUp_(); }
+        if (!/^✅ {2}Tidied up at \d\d:\d\d \(took \d+ min\)\. .+$/.test(line())) throw new Error('the line at the end: ' + line());
+      } finally { _buildStep_ = keepBS; Date.now = realNowT; }
+    });
+
+    ok &= run('Tidy up ends with its words BEFORE its job goes: “✅ Tidied up …” is written, then the job is cleared (the engine audit, 10 Oct 2026: a run Google stopped in between left “Paused … carries on at HH:MM” for good)', () => {
+      const k = _buildSteps_().length - 1;
+      _saveTidyJob_({ id: 'tidy_w', i: k, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now() - 5 * 60000, tickAt: Date.now() });
+      const seq = [], keepB = _btnSays_, keepC = _clearTidyJob_;
+      _btnSays_ = function (r, t) { seq.push('says:' + String(t).slice(0, 14)); return keepB.apply(this, arguments); };
+      _clearTidyJob_ = function () { seq.push('clear'); return keepC.apply(this, arguments); };
+      try { continueTidyUp_(); }
+      finally { _btnSays_ = keepB; _clearTidyJob_ = keepC; _clearTidyJob_(); _jeTriggersClear_('tidy'); }
+      const iS = seq.findIndex(x => /^says:✅/.test(x)), iC = seq.indexOf('clear');
+      if (iS < 0 || iC < 0 || iS > iC) throw new Error('the order: ' + seq.join(' → '));
+    });
+
+    ok &= run('a second press while Tidy up runs says so, and starts nothing', () => {
+      _saveTidyJob_({ id: 'tidy_x', i: 3, notes: [], tries: {}, row: 0, started: Date.now(), tickAt: Date.now() });
+      try {
+        const said = setup();
+        if (!/^Tidy up is already running \(3 of \d+ parts done\)\. Its window shows how far it is\.$/.test(said)) throw new Error('what it said: ' + said);
+        if (tidyJob().id !== 'tidy_x' || tidyJob().i !== 3 || tidyTr().length) throw new Error('it started something');
+      } finally { _clearTidyJob_(); _jeTriggersClear_('tidy'); }
+    });
+
+    ok &= run('a part Google stopped twice (the safety trigger finds it counted twice) is begun again, with the run to itself, and done — never passed over (10 Oct 2026, Daniel: "they must finish"); the line ends ✅', () => {
+      const k = _buildSteps_().indexOf('seed:1');
+      _saveTidyJob_({ id: 'tidy_y', i: k, notes: [], tries: { 'seed:1': 2 }, row: BTN_ROW.restyle, started: Date.now() - 9 * 60000, tickAt: Date.now() - 9 * 60000 });
+      toasts.length = 0;
+      continueTidyUp_();
+      if (tidyJob()) throw new Error('it did not finish');
+      const line = String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+      if (/did not finish|passed over|stopped one part/.test(line) || !/^✅ {2}Tidied up at /.test(line)) throw new Error('the line: ' + line);
+    });
+    ok &= run('…and a part Google stopped ' + BUILD_MAX_TRIES + ' times, each with a whole run: every OTHER part is still done, and the last line names that part (⚠️, never in silence)', () => {
+      const k = _buildSteps_().indexOf('seed:1');
+      _saveTidyJob_({ id: 'tidy_z', i: k, notes: [], tries: { 'seed:1': BUILD_MAX_TRIES }, row: BTN_ROW.restyle, started: Date.now() - 30 * 60000, tickAt: Date.now() - 9 * 60000 });
+      toasts.length = 0;
+      continueTidyUp_();
+      const line = String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+      if (tidyJob() || tidyTr().length) throw new Error('the job or its trigger stayed');
+      if (!/^⚠️ {2}Tidied up at \d\d:\d\d \(took \d+ min\)\. .*Google stopped one part of the work 4 times, each time with a whole run to itself \(the rows of [^)]+\)/.test(line)) throw new Error('the line: ' + line);
+    });
+    ok &= run('a lab with many scattered rows of pupils who left, slow to delete: the deletions go in short batches (the lock given back between them), the part stops at its deadline and the next run goes on — every row removed once, ONE note with the total', () => {
+      const sh = tab0();
+      const mk = (k) => { const r = new Array(LAB_COLS.length).fill(''); r[0] = 'Many Left ' + k; r[1] = '9Z'; r[LAB_EMAIL - 1] = 'manyleft' + k + '@x.kr'; return r; };
+      const stay = (k) => { const r = new Array(LAB_COLS.length).fill(''); r[0] = 'Still Here ' + k; r[1] = '9Z'; r[LAB_EMAIL - 1] = String(ss.getSheetByName('Students').getRange(2 + (k % 3), _emailCol_(ss.getSheetByName('Students'))).getValue()).toLowerCase(); return r; };
+      const at = sh.getLastRow() + 1, add = [];
+      for (let k = 0; k < 24; k++) add.push(mk(k), mk(100 + k), stay(k));   /* runs of two leavers between rows that stay */
+      _room_(sh, at + add.length - 1);
+      sh.getRange(at, 1, add.length, LAB_COLS.length).setValues(add);
+      let clock = realNowT.call(Date), batches = 0, held = false, heldAtEach = true;
+      Date.now = () => clock;
+      const keepLock = LockService.getScriptLock;
+      LockService.getScriptLock = () => ({ waitLock: () => { held = true; batches++; return true; }, releaseLock: () => { held = false; } });
+      const realDel = sh.deleteRows;
+      sh.deleteRows = function (a, n) { clock += 3000; if (!held) heldAtEach = false; return realDel.call(this, a, n); };   /* each run "takes" 3 s */
+      /* the part as a job's step runs it: a deadline a short way off (each run gets 20 s here), run after run until done */
+      const st = { notes: [] };
+      let pieces = 0, r, steps = [];
+      try {
+        do { pieces++; st.deadline = clock + 20 * 1000; r = _seedLab_(lab0, st.notes, st); steps.push(r === 'more' ? 'more' : 'done'); clock += 60000; } while (r === 'more' && pieces < 20);
+      } finally { LockService.getScriptLock = keepLock; delete sh.deleteRows; Date.now = realNowT; }
+      const left = sh.getRange(2, LAB_EMAIL, sh.getLastRow() - 1, 1).getValues().filter(x => /^manyleft/.test(String(x[0]))).length;
+      const note = st.notes.filter(n => /rows? removed from /.test(n));
+      if (left || !heldAtEach || pieces < 3 || batches < pieces + 2 || note.length !== 1 || !/^48 rows removed from /.test(note[0])) throw new Error(JSON.stringify({ left, heldAtEach, batches, pieces, steps, note }));
+      /* and a step that says 'more' moves the job neither on nor counts a try */
+      const keepBS = _buildStep_; _buildStep_ = () => 'more';
+      const st2 = { i: 3, notes: [], tries: {} };
+      try { r = _buildRun_(st2, Date.now(), 4 * 60 * 1000, () => {}); } finally { _buildStep_ = keepBS; }
+      if (r !== false || st2.i !== 3 || st2.tries[_buildSteps_()[3]]) throw new Error('a "more" step moved the job on, or counted a try: ' + JSON.stringify(st2));
+      /* the rows that stay are kept */
+      const names = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+      for (let i = names.length - 1; i >= 0; i--) if (/^Still Here /.test(String(names[i][0]))) sh.deleteRows(i + 2, 1);   /* bottom up */
+    });
+
+    ok &= run('a part is begun only when the run has room for it: parts of 100 s — two in the first run (at 0 and 100 s), never a third at 200 s that Google would stop at 6 minutes', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_;
+      _buildStep_ = function () { clock += 100 * 1000; };
+      try {
+        const st = { i: 0, notes: [], tries: {} };
+        const r = _buildRun_(st, clock, 4 * 60 * 1000, () => {});
+        if (r !== false || st.i !== 2) throw new Error('parts begun: ' + st.i);
+      } finally { _buildStep_ = keepBS; Date.now = realNowT; }
+    });
+    ok &= run('in its own trigger (no user, no UI, as Google may run it) Tidy up is trusted: 📊 everyone\'s progress is not turned away', () => {
+      const keepSess = Session.getActiveUser, keepUi = SpreadsheetApp.getUi, keepRD = refreshDashboard;
+      let allowed = null;
+      refreshDashboard = function () { allowed = _isAdminCaller_(); return keepRD.apply(this, arguments); };
+      Session.getActiveUser = () => ({ getEmail: () => '' });
+      SpreadsheetApp.getUi = () => { throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); };
+      const k = _buildSteps_().indexOf('dashboard');
+      try {
+        _saveTidyJob_({ id: 'tidy_t', i: k, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() });
+        continueTidyUp_();
+      } finally { Session.getActiveUser = keepSess; SpreadsheetApp.getUi = keepUi; refreshDashboard = keepRD; }
+      if (allowed !== true || tidyJob() || _LABS_JOB_TRUSTED_) throw new Error(JSON.stringify({ allowed, job: !!tidyJob(), trusted: _LABS_JOB_TRUSTED_ }));
+    });
+    ok &= run('an error outside the parts in the trigger: the line says so and it tries again a minute later; after three in a row it stops, in words (never left on "Paused")', () => {
+      const keepBR = _buildRun_;
+      _buildRun_ = () => { throw new Error('pretend outage'); };
+      try {
+        _saveTidyJob_({ id: 'tidy_e', i: 2, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() });
+        continueTidyUp_();
+        const l1 = String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+        if (!/something went wrong \(pretend outage\)\. It tries again by itself at about \d\d:\d\d/.test(l1) || !tidyJob() || tidyTr().length !== 2) throw new Error('first: ' + l1);
+        continueTidyUp_(); continueTidyUp_();
+        const l3 = String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+        /* 10 Oct 2026: the job engine counts it (_jeError_), and the end says how far it got */
+        if (!/^❌ {2}Tidy up stopped at \d\d:\d\d \(2 of \d+ parts were done\): Stopped: it went wrong 3 times in a row \(pretend outage\)\. Tick 🎨 Tidy up again/.test(l3) || tidyJob() || tidyTr().length) throw new Error('third: ' + l3);
+      } finally { _buildRun_ = keepBR; }
+    });
+
+    ok &= run('Google refusing the trigger: Tidy up stops part way and says to run it again (no job left waiting)', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_, keepNew = ScriptApp.newTrigger;
+      _buildStep_ = function (k, n, st2) { clock += 60 * 1000; return keepBS(k, n, st2); };
+      ScriptApp.newTrigger = (fn) => { if (fn === 'continueTidyUp_') throw new Error('This script has too many triggers.'); return keepNew(fn); };
+      let said;
+      try { said = setup(); } finally { _buildStep_ = keepBS; Date.now = realNowT; ScriptApp.newTrigger = keepNew; }
+      if (!/Google would not let Tidy up carry on by itself, so it stopped part way\. Tick 🎨 Tidy up again/.test(said)) throw new Error('what it said: ' + said);
+      if (tidyJob() || tidyTr().length) throw new Error('a job or trigger was left');
+    });
+
+    ok &= run('a job keeps its notes small (one Script Property): each note at most 400 characters, all together about 2,000; a part that did not finish is kept, first', () => {
+      const many = Array.from({ length: 40 }, (_, i) => 'Still on Digestion though no longer on the Students tab, because there are marks against them: ' + 'Pupil Name, '.repeat(60) + i);
+      const stop = 'Google stopped one part of the work twice (the rows of Digestion): run 🎨 Tidy up again to finish it.';
+      const out = _capNotes_(many.concat([stop])), total = out.join('').length;
+      if (total > 2600 || out.some(n => n.length > 400) || !/^…and \d+ more notes\.$/.test(out[out.length - 1])) throw new Error('not capped: ' + total + ' ' + out[out.length - 1]);
+      if (out[0] !== stop) throw new Error('the part that did not finish was cut or not first: ' + out[0].slice(0, 80));
+      const again = _capNotes_(out.concat(['one more']));
+      if (!/^…and \d+ more notes\.$/.test(again[again.length - 1]) || again.filter(n => /more notes?\.$/.test(n)).length !== 1) throw new Error('the count of notes left out is not one line: ' + again.slice(-2).join(' | '));
+      if (_capNotes_(['a', 'b']).join('|') !== 'a|b') throw new Error('short notes were changed');
+    });
+
+    ok &= run('the audit of 9 Oct: a Tidy up pressed on the button that Google stops says ❌ on its line (never ✅ over it)', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_, keepNew = ScriptApp.newTrigger;
+      _buildStep_ = function (k, n, st2) { clock += 60 * 1000; return keepBS(k, n, st2); };
+      ScriptApp.newTrigger = (fn) => { if (fn === 'continueTidyUp_') throw new Error('This script has too many triggers.'); return keepNew(fn); };
+      const box = setupSheet().getRange(BTN_ROW.restyle, 3), line = () => String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+      try { box.setValue(true); onButtonTicked({ range: box }); }
+      finally { _buildStep_ = keepBS; Date.now = realNowT; ScriptApp.newTrigger = keepNew; }
+      if (!/^❌ {2}Tidy up stopped at \d\d:\d\d \(\d+ of \d+ parts were done\): Google would not let Tidy up carry on by itself/.test(line())) throw new Error('the line: ' + line());
+      if (tidyJob() || tidyTr().length) throw new Error('a job or trigger was left');
+    });
+
+    ok &= run('…a Tidy up from the MENU that carries on ends with its words on the Setup tab\'s line (it had none anywhere)', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_;
+      _buildStep_ = function (k, n, st2) { clock += 45 * 1000; return keepBS(k, n, st2); };
+      const line = () => String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+      try {
+        setup();
+        if (!tidyJob()) throw new Error('it did not carry on');
+        let n = 0; while (tidyJob() && n++ < 30) { clock += 60 * 1000; continueTidyUp_(); }
+      } finally { _buildStep_ = keepBS; Date.now = realNowT; }
+      if (!/^✅ {2}Tidied up at \d\d:\d\d \(took \d+ min\)\. .+$/.test(line())) throw new Error('the line at the end: ' + line());
+    });
+
+    ok &= run('…a part that throws is named, the line is amber, and an import says "part … did not finish" (formatStopped) and leaves Tidy up owed', () => {
+      const keepBS = _buildStep_;
+      _buildStep_ = function (k, n, st2) { if (k === 'order') throw new Error('pretend failure'); return keepBS(k, n, st2); };
+      const box = setupSheet().getRange(BTN_ROW.restyle, 3), line = () => String(setupSheet().getRange(BTN_ROW.restyle, 4).getValue());
+      let st, said = '';
+      try {
+        box.setValue(true); onButtonTicked({ range: box }); said = line();
+        st = { i: 0, notes: [], tries: {} }; _buildRun_(st, Date.now(), 4 * 60 * 1000, () => {});
+      } finally { _buildStep_ = keepBS; }
+      if (!/^⚠️ {2}Tidied up at \d\d:\d\d \(took \d+s\)\. .*One part of the work did not finish \(the order of the tabs\): pretend failure/.test(said)) throw new Error('the line: ' + said);
+      if (!st.partly || !_tidyPartly_(['nothing here'], st)) throw new Error('the job has no flag for the part that did not finish');
+    });
+
+    ok &= run('…a Tidy up while a Classroom import runs says the import builds every tab itself, and starts nothing', () => {
+      _saveImportJob_({ id: 'jobBusy', sels: [], i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0, tries: {} });
+      try {
+        const said = setup();
+        if (!/a Classroom import is still going\. It builds and formats every tab itself/.test(said) || tidyJob()) throw new Error('what it said: ' + said);
+      } finally { _clearImportJob_(); }
+    });
+
+    ok &= run('…and so does a running job: long notes from every part never make its saved record large (one Script Property holds 9 KB)', () => {
+      let clock = realNowT.call(Date);
+      Date.now = () => clock;
+      const keepBS = _buildStep_;
+      _buildStep_ = function (k, n, st2) { clock += 30 * 1000; n.push('Still on a lab tab though no longer on the Students tab: ' + 'A Pupil Name, '.repeat(200)); return keepBS(k, n, st2); };
+      let biggest = 0;
+      try {
+        setup();
+        biggest = (props.get('TIDY_JOB') || '').length;
+        let n = 0;
+        while (tidyJob() && n++ < 20) { clock += 60 * 1000; continueTidyUp_(); biggest = Math.max(biggest, (props.get('TIDY_JOB') || '').length); }
+      } finally { _buildStep_ = keepBS; Date.now = realNowT; _clearTidyJob_(); _jeTriggersClear_('tidy'); }
+      if (!biggest || biggest > 6000) throw new Error('the saved job grew to ' + biggest + ' characters');
+    });
+
+    ok &= run('the Labs tab is written over, never cleared first (a stop between two calls cannot leave it blank); what it holds is the same', () => {
+      const sh = ss.getSheetByName(T_LABS);
+      const before = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues().map(r => r.join('|')).join('\n');
+      let wrote = false, clearedFirst = false;
+      const keepClear = Range.prototype.clearContent, keepSet = Range.prototype.setValues;
+      Range.prototype.clearContent = function () { if (this.sheet === sh && !wrote) clearedFirst = true; return keepClear.call(this); };
+      Range.prototype.setValues = function (v) { if (this.sheet === sh) wrote = true; return keepSet.call(this, v); };
+      try { _labsRows_(sh); } finally { Range.prototype.clearContent = keepClear; Range.prototype.setValues = keepSet; }
+      if (clearedFirst) throw new Error('the tab was cleared before it was written');
+      const after = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues().map(r => r.join('|')).join('\n');
+      if (after !== before) throw new Error('what the Labs tab holds changed');
+    });
+
+    ok &= run('the Setup tab: an address typed in it is kept (Script Property WEB_APP_URL) before the tab is cleared, and is still in its cell', () => {
+      const keepUrl = props.get('WEB_APP_URL');
+      const typed = 'https://script.google.com/macros/s/TYPEDBYHAND/exec';
+      setupSheet().getRange(URL_ROW, 2).setValue(typed);
+      props.delete('WEB_APP_URL');
+      try {
+        let atClear = null;
+        const realClear = setupSheet().clear;
+        setupSheet().clear = function () { atClear = props.get('WEB_APP_URL'); return realClear.call(this); };
+        try { _styleSetup_(); } finally { delete setupSheet().clear; }
+        if (atClear !== typed) throw new Error('not kept before the clear: ' + atClear);
+        if (String(setupSheet().getRange(URL_ROW, 2).getValue()) !== typed) throw new Error('the cell lost it');
+      } finally { if (keepUrl) props.set('WEB_APP_URL', keepUrl); else props.delete('WEB_APP_URL'); }
+    });
+  } finally { ss.toast = keepToast; Date.now = realNowT; _clearTidyJob_(); _jeTriggersClear_('tidy'); }
+}
+
+console.log('— the job engine: ⏹ Stop, the day’s brake, the storage, one heavy job at a time (Daniel, 10 Oct 2026) —');
+{
+  /* Daniel, 10 Oct 2026: a job that fails the same way every run must never spend the account's daily trigger time; the
+     storage must warn before it is full; two heavy functions must not run at once. Tidy up and the import run on the
+     engine (_jePieceBegin_ … _jeEnd_); 📊 Refresh everyone's progress takes the one-go mark. */
+  const realNowE = Date.now, keepToastE = ss.toast;
+  ss.toast = () => {};
+  const tidyTr = () => TRIGGERS.filter(t => t.getHandlerFunction() === 'continueTidyUp_');
+  const impTr = () => TRIGGERS.filter(t => t.getHandlerFunction() === 'continueBatchImport_');
+  const tidyJob = () => JSON.parse(props.get('TIDY_JOB') || 'null');
+  const line = (row) => String(setupSheet().getRange(row || BTN_ROW.restyle, 4).getValue());
+  const clean = () => {
+    _clearTidyJob_(); _jeTriggersClear_('tidy'); _clearImportJob_(); _jeTriggersClear_('imp');
+    ['JE_tidy', 'JE_imp', 'JE_STOP_tidy', 'JE_STOP_imp'].forEach(k => props.delete(k)); cacheStore.delete(JE_ONEGO_CACHE);
+    Array.from(cacheStore.keys()).forEach(k => { if (/^JE_MAILED_/.test(k)) cacheStore.delete(k); });   /* today's emails: the Tidy up tests above begin many runs in one day */
+  };
+  const withUi = (answer, fn) => {
+    const keepUi = SpreadsheetApp.getUi, said = [];
+    SpreadsheetApp.getUi = () => Object.assign(keepUi(), { ButtonSet: { OK: 1, YES_NO: 2 }, Button: { YES: 'YES', NO: 'NO' },
+      alert: (a, b, c) => { said.push(String(b === undefined ? a : b)); return c === 2 ? answer : 'OK'; } });
+    try { fn(); } finally { SpreadsheetApp.getUi = keepUi; }
+    return said;
+  };
+  const tick = (row) => { const box = setupSheet().getRange(row, 3); box.setValue(true); onButtonTicked({ range: box }); };
+  try {
+    clean();
+
+    ok &= run('⏹ Stop in Tidy up\'s window: a Tidy up waiting for its next run ends at once; its line says who stopped it and how far it got; no job, no trigger', () => {
+      let clock = realNowE.call(Date); Date.now = () => clock;
+      const keepBS = _buildStep_; _buildStep_ = function (k, n, st2) { clock += 30 * 1000; return keepBS(k, n, st2); };
+      try {
+        tick(BTN_ROW.restyle);
+        if (!tidyJob() || tidyTr().length !== 2) throw new Error('it did not carry on with the next run and the safety run: ' + tidyTr().length);
+        const said = stopLabsJob('tidy');
+        if (tidyJob() || tidyTr().length) throw new Error('a job or trigger stayed');
+        if (!/^Tidy up stopped at \d\d:\d\d \(9 of \d+ parts were done\): ⏹ Stopped by teacher@x\.kr at \d\d:\d\d\. What was done is kept\. Tick 🎨 Tidy up again to do the rest\.$/.test(line())) throw new Error('the line: ' + line());
+        if (!said || said.job || said.endHead !== '⏹ Stopped') throw new Error('what the window showed next: ' + JSON.stringify(said));
+        if (props.get('JE_STOP_tidy')) throw new Error('the Stop was left behind');
+      } finally { _buildStep_ = keepBS; Date.now = realNowE; clean(); }
+    });
+
+    ok &= run('⏹ Stop in the window while a part runs: the job ends before the NEXT part, in words; the window says it is stopping', () => {
+      let clock = realNowE.call(Date); Date.now = () => clock;
+      const keepBS = _buildStep_; let parts = 0, asked = null;
+      _buildStep_ = function (k, n, st2) {
+        clock += 30 * 1000; parts++;
+        if (parts === 3) asked = stopLabsJob('tidy');   /* a teacher presses ⏹ Stop in the window while the third part runs */
+        return keepBS(k, n, st2);
+      };
+      try {
+        setup();
+        if (tidyJob() || tidyTr().length) throw new Error('a job or trigger stayed');
+        if (parts !== 3) throw new Error('parts begun after the Stop: ' + parts);
+        if (!/^Tidy up stopped at \d\d:\d\d \(3 of \d+ parts were done\): ⏹ Stopped by/.test(line())) throw new Error('the line: ' + line());
+        if (!asked || !asked.job || !asked.stopping) throw new Error('what the window showed while the part ran: ' + JSON.stringify(asked));
+      } finally { _buildStep_ = keepBS; Date.now = realNowE; clean(); }
+    });
+
+    ok &= run('runs that finish nothing: the 7th run after six that finished no part stops the job in words (it used to begin again every 8 minutes all day); a part finished starts the count again', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_np', i: 2, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      props.set('JE_tidy', JSON.stringify({ id: 'tidy_np', day: _jeToday_(), runs: 6, ms: 0, n: 6 }));
+      try {
+        continueTidyUp_();
+        if (tidyJob() || tidyTr().length) throw new Error('it went on');
+        if (!/Stopped: it began 6 times in a row without finishing anything \(Google stopped each run before it could finish one part\)/.test(line())) throw new Error('the line: ' + line());
+      } finally { clean(); }
+      let clock = realNowE.call(Date); Date.now = () => clock;
+      const keepBS = _buildStep_; let seen = null;
+      _buildStep_ = function (k, n, st2) { clock += 30 * 1000; const r = keepBS(k, n, st2); if (seen === null) seen = 'x'; return r; };
+      try {
+        _saveTidyJob_(_jeStamp_({ id: 'tidy_np2', i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+        props.set('JE_tidy', JSON.stringify({ id: 'tidy_np2', day: _jeToday_(), runs: 5, ms: 0, n: 5 }));
+        continueTidyUp_();
+        const st = JSON.parse(props.get('JE_tidy') || '{}');
+        if (!tidyJob() || st.n !== 0) throw new Error('a part finished did not start the count again: ' + JSON.stringify(st));
+      } finally { _buildStep_ = keepBS; Date.now = realNowE; clean(); }
+    });
+
+    ok &= run('the day’s brake: a job begun more than 150 times today stops itself, says so on its line, and emails the owner ONCE; a press the same day is refused in words; the next day it may start', () => {
+      MAILS.length = 0;
+      const today = _jeToday_();
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_br', i: 1, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      props.set('JE_tidy', JSON.stringify({ id: 'tidy_br', day: today, runs: 150, ms: 0, n: 0 }));
+      try {
+        continueTidyUp_();
+        if (tidyJob() || tidyTr().length) throw new Error('it went on');
+        if (!/⛔ Stopped for today: it had begun 151 times today/.test(line())) throw new Error('the line: ' + line());
+        if (MAILS.length !== 1 || !/⛔ 🎨 Tidy up stopped itself for today/.test(MAILS[0].subj) || MAILS[0].to !== OWNER) throw new Error('the email: ' + JSON.stringify(MAILS));
+        const said = setup();
+        if (!/^Tidy up did not start at \d\d:\d\d: 🎨 Tidy up stopped itself earlier today: ⛔ Stopped for today/.test(said) || tidyJob()) throw new Error('the press the same day: ' + said);
+        if (MAILS.length !== 1) throw new Error('a second email: ' + MAILS.length);
+        let clock = realNowE.call(Date) + 24 * 3600 * 1000; Date.now = () => clock;
+        try {
+          const keepBS = _buildStep_; _buildStep_ = function (k, n, st2) { clock += 30 * 1000; return keepBS(k, n, st2); };
+          let said2 = '';
+          try { said2 = setup(); } finally { _buildStep_ = keepBS; }
+          if (!tidyJob()) throw new Error('the next day it did not start: ' + said2 + ' | ' + line());
+        } finally { Date.now = realNowE; }
+      } finally { clean(); MAILS.length = 0; }
+    });
+
+    ok &= run('the storage: at 96 % Tidy up and the import refuse to start, saying how full it is and what fills it; the owner is emailed once a day; at 85 % they start; 🩺 says it', () => {
+      MAILS.length = 0;
+      const used = () => Array.from(props.entries()).reduce((n, [k, v]) => n + _jeBytes_(k) + _jeBytes_(String(v)), 0);
+      const fill = []; const to = (pct) => { for (let i = 0; used() < pct * 500 * 1024 && i < 120; i++) { const k = 'FILL_' + fill.length; props.set(k, 'x'.repeat(Math.max(1, Math.min(8000, Math.ceil(pct * 500 * 1024 - used()) - k.length)))); fill.push(k); } };
+      try {
+        to(0.96);
+        const said = setup();
+        if (!/did not start at \d\d:\d\d: ⛔ 🎨 Tidy up did not start: The script's storage is 9\d% full \(\d+ KB of 500 KB; most of it: FILL/.test(said) || tidyJob()) throw new Error('Tidy up: ' + said);
+        const keepNC = _needClassroom_; _needClassroom_ = () => {};   /* the window opens only with Classroom on */
+        let r; try { r = executeBatchImportAll([{ courseId: 'cX', classCode: '7X' }], 'jobFull'); } finally { _needClassroom_ = keepNC; }
+        if (!r[0] || r[0].status !== 'busy' || !/storage is 9\d% full/.test(r[0].error || '') || _importJob_()) throw new Error('the import: ' + JSON.stringify(r));
+        setup();
+        if (MAILS.length !== 1 || !/almost full/.test(MAILS[0].subj)) throw new Error('the emails: ' + JSON.stringify(MAILS.map(m => m.subj)));
+        fill.forEach(k => props.delete(k)); fill.length = 0;
+        to(0.85);
+        let checked = '';
+        const keepUi = SpreadsheetApp.getUi;
+        SpreadsheetApp.getUi = () => Object.assign(keepUi(), { alert: (a, b) => { checked = String(b); } });
+        try { checkSetup(); } finally { SpreadsheetApp.getUi = keepUi; }
+        if (!/⚠️ {2}The script's storage is 8\d% full/.test(checked)) throw new Error('🩺 did not say it: ' + checked.slice(-400));
+        let clock = realNowE.call(Date); Date.now = () => clock;
+        const keepBS = _buildStep_; _buildStep_ = function (k, n, st2) { clock += 30 * 1000; return keepBS(k, n, st2); };
+        try { setup(); } finally { _buildStep_ = keepBS; Date.now = realNowE; }
+        if (!tidyJob()) throw new Error('at 85 % Tidy up did not start');
+      } finally { fill.forEach(k => props.delete(k)); clean(); MAILS.length = 0; }
+    });
+
+    ok &= run('one heavy job at a time: while Tidy up runs, 📊 Refresh (button and menu), an import and “in none of the classes” are refused in words naming it; while a refresh runs, Tidy up is refused', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_busy', i: 4, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      try {
+        tick(BTN_ROW.refresh);
+        if (!/^⚠️ {2}Not refreshed at \d\d:\d\d: ⏳ 🎨 Tidy up is still going \(4 of \d+ parts done\), begun at \d\d:\d\d by teacher@x\.kr\./.test(line(BTN_ROW.refresh))) throw new Error('the Refresh button: ' + line(BTN_ROW.refresh));
+        const m = withUi('OK', () => refreshDashboardMENU_());
+        if (!m.some(s => /🎨 Tidy up is still going/.test(s))) throw new Error('the Refresh menu: ' + m.join(' | '));
+        const keepNC = _needClassroom_; _needClassroom_ = () => {};
+        let r; try { r = executeBatchImportAll([{ courseId: 'cX', classCode: '7X' }], 'jobBusyT'); } finally { _needClassroom_ = keepNC; }
+        if (!r[0] || !/🎨 Tidy up is still going/.test(r[0].error || '') || _importJob_()) throw new Error('the import: ' + JSON.stringify(r));
+        const l = markPupilsLeft(['someone@x.kr']);
+        if (l.ok || !/🎨 Tidy up is still going/.test(l.why || '')) throw new Error('in none of the classes: ' + JSON.stringify(l));
+      } finally { clean(); }
+      _jeOneGoBegin_('refresh', '📊 Refresh everyone\'s progress');
+      try {
+        const said = setup();
+        if (!/did not start at \d\d:\d\d: ⏳ 📊 Refresh everyone's progress is still going/.test(said) || tidyJob()) throw new Error('Tidy up during a refresh: ' + said);
+      } finally { _jeOneGoEnd_('refresh'); clean(); }
+      if (_jeOneGoNow_()) throw new Error('the one-go mark stayed');
+    });
+
+    ok &= run('a job begun earlier goes first: an import made while Tidy up runs waits (no class imported, the window says so, the next run and the safety run), never both waiting', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_first', i: 4, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now() - 1000, tickAt: Date.now(), began: Date.now() - 1000 }));
+      _saveImportJob_(_jeStamp_({ id: 'jobLater', sels: [{ courseId: 'cZ', classCode: '7Z' }], i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0, tries: {}, began: Date.now() }));
+      try {
+        cacheWrites.length = 0;
+        const out = _importPiece_(Date.now());
+        const job = _importJob_(), pub = JSON.parse(cacheStore.get('BATCH_IMPORT_jobLater') || 'null');
+        if (!job || job.i !== 0) throw new Error('a class was imported');
+        if (!pub || pub.done || !/^Waiting for 🎨 Tidy up to finish/.test(pub.phase)) throw new Error('the window: ' + JSON.stringify(pub));
+        if (JSON.stringify(impTr().map(t => t.after).sort((p, q) => p - q)) !== '[60000,480000]') throw new Error('triggers: ' + JSON.stringify(impTr().map(t => t.after)));
+        if (_jeEarlier_('tidy', tidyJob())) throw new Error('Tidy up would wait for the later import');
+      } finally { clean(); }
+    });
+
+    ok &= run('a colleague who may not run the buttons is told so on the line (it said “✅ Tidied up. undefined”)', () => {
+      const keepV = VISITOR; VISITOR = 'stranger@x.kr';
+      try {
+        tick(BTN_ROW.restyle);
+        if (!/^❌ {2}Only the owner of this spreadsheet, or a teacher on its 👩‍🏫 Teachers list, can use this button/.test(line()) || /undefined/.test(line()) || tidyJob()) throw new Error('the line: ' + line());
+      } finally { VISITOR = keepV; clean(); }
+    });
+
+    ok &= run('a reminder Google stopped part way is settled although Sheets kept its time to the second (the claim’s time differs by under a second)', () => {
+      const at = Date.UTC(2026, 9, 10, 3, 0, 0), keepGet = _hwClaimGet_, keepFix = _hwRemindFix_, keepNeed = _needClassroom_, keepCls = global.Classroom, keepDrop = _hwClaimDrop_;
+      let fixed = null;
+      _hwClaimGet_ = () => ({ t: 'Cells revision', h: _hwIdsHash_(['s1']), n: 1, at: at + 450 });
+      _hwRemindFix_ = (id, k, claimAt, said) => { fixed = { id, k, claimAt, said }; return true; };
+      _hwClaimDrop_ = () => {};
+      _needClassroom_ = () => {};
+      global.Classroom = { Courses: { Announcements: { list: () => ({ announcements: [{ creationTime: new Date(at + 2000).toISOString(),
+        text: 'Reminder: your homework "Cells revision" is due soon.', individualStudentsOptions: { studentIds: ['s1'] } }] }) } } };
+      try {
+        const done = _hwRemindSettle_({ id: 'h1', course: 'c1', rem: [{ at: new Date(at), said: HW_SENDING }, { at: '', said: '' }] }, 1);
+        if (!done || !fixed || fixed.said !== '1') throw new Error('not settled: ' + JSON.stringify({ done, fixed }));
+      } finally { _hwClaimGet_ = keepGet; _hwRemindFix_ = keepFix; _needClassroom_ = keepNeed; global.Classroom = keepCls; _hwClaimDrop_ = keepDrop; }
+    });
+
+    ok &= run('the rows of pupils who left go in batches of at most 4 seconds (a pupil\'s save waits 8 s for the lock)', () => {
+      if (SEED_BATCH_MS !== 4000) throw new Error('SEED_BATCH_MS is ' + SEED_BATCH_MS);
+    });
+
+    ok &= run('an import tells its window as each piece starts, and one left with no run due says it stopped (the window waited)', () => {
+      const keepRun = _importPieceRun_;
+      _saveImportJob_(_jeStamp_({ id: 'jobPub', sels: [{ courseId: 'cP', classCode: '7P' }], i: 0, phase: 'classes', tickAt: Date.now(), finishTries: 0, tries: {} }));
+      _importPieceRun_ = () => [];
+      try {
+        cacheWrites.length = 0;
+        _importPiece_(Date.now());
+        const w = cacheWrites.filter(x => x[0] === 'BATCH_IMPORT_jobPub').map(x => JSON.parse(x[1]));
+        if (!w.length || w[0].phase !== 'Importing…' || w[0].done) throw new Error('no word at the piece\'s start: ' + JSON.stringify(w));
+      } finally { _importPieceRun_ = keepRun; clean(); }
+      _saveImportJob_({ id: 'jobDead', sels: [{ courseId: 'cD', classCode: '7D' }], i: 0, phase: 'classes', tickAt: Date.now() - 20 * 60000, finishTries: 0, tries: {} });
+      _publish_('jobDead', [{ status: 'pending' }], false, 'Importing…');
+      try {
+        const p = getBatchImportProgress('jobDead');
+        if (!p || !p.done || !p.stopped || !/never came/.test(p.phase)) throw new Error('the window: ' + JSON.stringify(p));
+      } finally { clean(); }
+    });
+
+    ok &= run('a run whose job ended after it loaded it (⏹ Stop at that moment) does nothing: never brought back (the engine check, 10 Oct)', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_now', i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      try {
+        const b = _jePieceBegin_('tidy', { id: 'tidy_loaded_before', began: 1 });
+        if (!b.gone) throw new Error('not gone: ' + JSON.stringify(b));
+        if (JSON.parse(props.get('JE_tidy') || '{}').tok) throw new Error('it took the lease');
+      } finally { clean(); }
+    });
+
+    ok &= run('⏹ Stop pressed while a trigger run waited for the busy lock (pupils saving): the run does nothing — no trigger set, no "waiting" line, the job never brought back (the reflection\'s engine check, 10 Oct 2026, evening)', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_busy', i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      _btnSays_(BTN_ROW.restyle, '⏹ Stopped by you.');
+      const keepLock = LockService.getScriptLock;
+      let first = true;
+      LockService.getScriptLock = () => { const l = keepLock(); return Object.assign({}, l, { waitLock: (ms) => {
+        if (first) { first = false; _clearTidyJob_(); _jeEnd_('tidy'); throw new Error('Lock timeout: another process was holding the lock'); }
+        return l.waitLock(ms); } }); };
+      try {
+        _tidyPiece_(Date.now(), false);
+        if (tidyJob()) throw new Error('the job came back');
+        if (tidyTr().length) throw new Error(tidyTr().length + ' trigger(s) set');
+        if (/waiting/i.test(line())) throw new Error('the line: ' + line());
+      } finally { LockService.getScriptLock = keepLock; clean(); }
+    });
+
+    ok &= run('👥 an import that ended while a run waited is never saved back by it (_importLater_ with the copy it loaded before)', () => {
+      _saveImportJob_(_jeStamp_({ id: 'imp_new', sels: [], i: 0, phase: 'classes', tickAt: Date.now() }));
+      try {
+        _importLater_({ id: 'imp_loaded_before', sels: [], i: 0, phase: 'classes' }, [], '');
+        const j = _importJob_();
+        if (!j || j.id !== 'imp_new') throw new Error('the job now: ' + JSON.stringify(j && j.id));
+        if (impTr().length) throw new Error(impTr().length + ' trigger(s) set');
+      } finally { clean(); }
+    });
+
+    ok &= run('a trigger left by another account while the job\'s own chain is alive runs no piece and removes its own triggers: one chain per job (the reflection\'s engine check, 10 Oct 2026, evening)', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_two', i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      const now = Date.now();
+      props.set('JE_tidy', JSON.stringify({ id: 'tidy_two', owner: 'colleague@x.kr', due: now + 60000, safe: now + 480000, day: _jeToday_() }));
+      ScriptApp.newTrigger('continueTidyUp_').timeBased().after(60000).create();   /* this account's left-over */
+      try {
+        const b = _jePieceBegin_('tidy', tidyJob());
+        if (!b.gone) throw new Error('it went on: ' + JSON.stringify(b));
+        if (JSON.parse(props.get('JE_tidy') || '{}').tok) throw new Error('it took the lease');
+        if (tidyTr().length) throw new Error('its own trigger was kept');
+        if (!tidyJob()) throw new Error('the job went (the colleague\'s chain carries it)');
+      } finally { clean(); }
+    });
+
+    ok &= run('a safety trigger Google refused is not noted: a piece then stopped shows "stopped", never "waiting" with no trigger', () => {
+      let clock = realNowE.call(Date); Date.now = () => clock;
+      const keepNew = ScriptApp.newTrigger;
+      ScriptApp.newTrigger = (fn) => { if (fn === 'continueTidyUp_') throw new Error('This script has too many triggers.'); return keepNew(fn); };
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_safe', i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      try {
+        const b = _jePieceBegin_('tidy', tidyJob());
+        if (!b.tok) throw new Error('no lease: ' + JSON.stringify(b));
+        if (JSON.parse(props.get('JE_tidy') || '{}').safe) throw new Error('the refused safety was noted');
+        clock += 8 * 60 * 1000;   /* Google stopped the piece: no end, no hand-over */
+        const s = _jeStatus_('tidy');
+        if (s.state !== 'stopped') throw new Error('status: ' + JSON.stringify(s));
+      } finally { ScriptApp.newTrigger = keepNew; Date.now = realNowE; delete _JE_TOK_.tidy; clean(); }
+    });
+
+    ok &= run('a job waiting for another says what it waits for (the window and the status), never "Paused, to stay inside Google’s time limit"', () => {
+      _saveTidyJob_(_jeStamp_({ id: 'tidy_w', i: 0, notes: [], tries: {}, row: BTN_ROW.restyle, started: Date.now(), tickAt: Date.now() }));
+      try {
+        _jeBusyCount_('tidy', '🎓 Import students from Classroom');
+        _jeHandOn_('tidy');
+        const s = _jeStatus_('tidy');
+        if (s.state !== 'waiting' || s.waitFor !== '🎓 Import students from Classroom') throw new Error(JSON.stringify(s));
+      } finally { clean(); }
+    });
+  } finally { ss.toast = keepToastE; Date.now = realNowE; clean(); }
+}
+
+/* ── IB practicals (Daniel, 11 Oct 2026: "a live board for IB practicals … how many times they press, the different
+   options, when they get the right answer the first time, what are the questions that they are struggling with") ── */
+console.log('— IB practicals: how each pupil is doing, question by question (Daniel, 11 Oct 2026) —');
+{
+  const PR_ID_T = 'rocky-shore-fieldwork-pract';
+  PRACT_JSON = JSON.stringify({ v:1, parts:[ { n:1, title:'The shore' }, { n:3, title:'Transect' } ], groups:[ { id:'p3-transect', title:'Transect quadrats', short:'T' } ],
+    questions:[ { id:'p1-quiz-1', part:1, title:'Barnacle X and Y', short:'Q1', kind:'mcq', opts:['A','B','C','D'] },
+                { id:'p1-words', part:1, title:'Type the words', short:'W', kind:'gaps', gaps:['sessile','motile'] },
+                { id:'p3-t0', part:3, title:'Quadrat at 0 m', kind:'quad', group:'p3-transect' },
+                { id:'p3-t1', part:3, title:'Quadrat at 1 m', kind:'quad', group:'p3-transect' } ] });
+  const prPost = (body, email) => enPost(Object.assign({ id: PR_ID_T }, body), email);
+  const prRow = (email, id) => { const sh = ss.getSheetByName(T_PRACT); if (!sh || sh.getLastRow() < 2) return null;
+    const v = sh.getRange(2, 1, sh.getLastRow() - 1, PR_REC).getValues();
+    return v.filter(x => String(x[PR_EMAIL - 1]).toLowerCase() === email && String(x[PR_ID - 1]) === (id || PR_ID_T))[0] || null; };
+  const R1 = o => Object.assign({ n:1, c:1, s:'f', w:{}, a:1000, z:1000 }, o);
+
+  ok &= run('IB practicals: a save from somebody not signed in, not on the roster, or for a practical not listed, leaves no trace', () => {
+    const rows = () => { const sh = ss.getSheetByName(T_PRACT); return sh ? sh.getLastRow() : 0; };
+    const before = rows();
+    const junk = JSON.parse(doPost({ postData:{ contents: JSON.stringify({ action:'lesson.save', id:PR_ID_T, token:'junk', q:{ 'p1-quiz-1': { r:[R1()] } } }) } }));
+    if (junk.ok !== false) throw new Error('a junk token was accepted');
+    const s1 = prPost({ action:'lesson.save', q:{ 'p1-quiz-1': { r:[R1()] } } }, 'stranger@elsewhere.com');
+    if (s1.ok !== false || !/class list/.test(s1.why)) throw new Error('a stranger was recorded: ' + JSON.stringify(s1));
+    const u = enPost({ action:'lesson.save', id:'some-other-pract', q:{ 'p1-quiz-1': { r:[R1()] } } }, enA.email);
+    if (u.ok !== false || !/unknown practical/.test(u.why)) throw new Error('an unknown practical was recorded: ' + JSON.stringify(u));
+    if (rows() !== before) throw new Error('a row was written');
+  });
+  ok &= run('IB practicals: a pupil’s saves make ONE row per practical: tried, right first time, checks, struggled with, the record', () => {
+    let r = prPost({ action:'lesson.save', q:{ 'p1-quiz-1': { r:[R1({ c:3, s:'1', w:{ o2:1, o0:1 } })] } } }, enA.email);
+    if (!r.ok || r.saved !== 1) throw new Error(JSON.stringify(r));
+    r = prPost({ action:'lesson.save', q:{ 'p1-words': { r:[R1({ c:1, s:'f' })] }, 'p3-t0': { r:[R1({ c:1, s:'t', w:{ 'Barnacles:40':1 } })] }, 'ghost-q': { r:[R1()] } } }, enA.email);
+    if (!r.ok || r.saved !== 2) throw new Error('the unlisted question was kept, or a listed one lost: ' + JSON.stringify(r));
+    const sh = ss.getSheetByName(T_PRACT);
+    if (!sh) throw new Error('no 🔬 Practicals tab');
+    if (sh.getLastRow() - 1 !== 1) throw new Error((sh.getLastRow() - 1) + ' rows for one pupil');
+    const v = prRow(enA.email);
+    if (v[0] !== enA.name || v[1] !== enA.cls || v[2] !== 'Rocky shore fieldwork') throw new Error('name/class/practical: ' + v.slice(0, 3));
+    if (v[3] !== 2 || v[4] !== 1 || v[5] !== 5) throw new Error('tried ' + v[3] + ', first ' + v[4] + ', checks ' + v[5] + ' — want 2 (quadrats apart), 1, 5');
+    if (v[6] !== 'Barnacle X and Y (3 checks)') throw new Error('Struggled with reads "' + v[6] + '"');
+    if (v[PR_SAVES - 1] !== 2) throw new Error('saves: ' + v[PR_SAVES - 1]);
+    const rec = _prParse_(v[PR_REC - 1]);
+    if (rec['ghost-q'] || !rec['p3-t0'] || rec['p1-quiz-1'].r[0].w.o2 !== 1) throw new Error(JSON.stringify(rec));
+  });
+  ok &= run('IB practicals: two computers — rounds by number, the most checks, the better result, every wrong answer; nothing goes down', () => {
+    prPost({ action:'lesson.save', q:{ 'p1-quiz-1': { r:[R1({ c:2, s:'t', w:{ o1:2 } })] } } }, enB.email);
+    prPost({ action:'lesson.save', q:{ 'p1-quiz-1': { r:[R1({ c:1, s:'t', w:{ o3:1 } }), { n:2, c:1, s:'f', w:{}, a:2000, z:2000 }] } } }, enB.email);
+    prPost({ action:'lesson.save', q:{ 'p1-quiz-1': { r:[R1({ c:4, s:'1', w:{ o1:1 } })] } } }, enB.email);
+    const q = _prParse_(prRow(enB.email)[PR_REC - 1])['p1-quiz-1'];
+    if (q.r.length !== 2 || q.r[0].c !== 4 || q.r[0].s !== '1' || q.r[0].w.o1 !== 2 || q.r[0].w.o3 !== 1 || q.r[1].s !== 'f') throw new Error(JSON.stringify(q));
+    prPost({ action:'lesson.save', q:{ 'p1-quiz-1': { r:[R1({ c:1, s:'t' })] } } }, enB.email);   /* a worse copy cannot lower anything */
+    const q2 = _prParse_(prRow(enB.email)[PR_REC - 1])['p1-quiz-1'];
+    if (q2.r[0].c !== 4 || q2.r[0].s !== '1' || q2.r.length !== 2) throw new Error('it went down: ' + JSON.stringify(q2));
+  });
+  ok &= run('IB practicals: rounds past the newest five fold away, round 1 always stays, and their checks still count', () => {
+    const r = []; for (let n = 1; n <= 9; n++) r.push({ n, c:2, s: n === 9 ? 'f' : 't', w:{}, a:n, z:n });
+    const q = _prQ_({ r });
+    if (q.r.length !== 6 || q.r[0].n !== 1 || q.r[1].n !== 5 || q.f !== 4 || q.mc !== 6) throw new Error(JSON.stringify(q));
+    const m = _prMergeQ_(q, _prQ_({ r: [ { n:3, c:5, s:'t', w:{}, a:3, z:3 }, { n:9, c:2, s:'f', w:{}, a:9, z:9 } ] }));
+    if (m.r.some(x => x.n === 3) || m.f !== 4 || m.r.length !== 6) throw new Error('a folded round came back: ' + JSON.stringify(m));
+    if (_prSummary_({ x: m }, null).checks !== 18) throw new Error('checks: ' + _prSummary_({ x: m }, null).checks);
+  });
+  ok &= run('IB practicals: a record is cleaned — odd ids, odd results, rounds with no number, too many wrong answers', () => {
+    const rec = _prParse_({ 'BAD ID': { r:[R1()] }, ok: { r:[ { n:1, c:'7', s:'x', w:{ '=SUM(A1)':2, a:1, b:1, c:1, d:1, e:1, f:1, g:9 }, a:1, z:2 }, { n:0, c:1 } ] } });
+    if (rec['BAD ID'] || !rec.ok) throw new Error(JSON.stringify(rec));
+    const r = rec.ok.r[0];
+    if (rec.ok.r.length !== 1 || r.c !== 7 || r.s !== '' || Object.keys(r.w).length !== PR_WRONG || r.w.g !== 9 || r.w['=SUM(A1)'] !== 2) throw new Error(JSON.stringify(rec.ok));
+  });
+  ok &= run('IB practicals: lesson.mine gives a pupil their own record back, and nobody else’s; a teacher is told the board', () => {
+    const me = prPost({ action:'lesson.mine' }, enA.email);
+    if (!me.ok || !me.onList || me.cls !== enA.cls || !me.q['p1-quiz-1'] || me.q['p1-quiz-1'].r[0].c !== 3) throw new Error(JSON.stringify(me).slice(0, 300));
+    const stranger = prPost({ action:'lesson.mine' }, 'stranger@elsewhere.com');
+    if (stranger.onList || Object.keys(stranger.q).length) throw new Error('a stranger was told something');
+    if (!prPost({ action:'lesson.mine' }, OWNER).teacher) throw new Error('the owner was not recognised as a teacher');
+  });
+  ok &= run('the teacher page has a 🔬 Practicals view: served by ?page=practicals, drawn by vPracticals, refused to pupils', () => {
+    const keepV = VISITOR;
+    try {
+      VISITOR = 'pupil@pupils.x.kr';
+      if (uiData('practicals').ok !== false) throw new Error('a pupil read the Practicals view');
+      VISITOR = OWNER;
+      const v = uiData('practicals');
+      if (!v.ok) throw new Error(JSON.stringify(v));
+      const p = v.data.practicals.filter(x => x.id === PR_ID_T)[0];
+      if (!p || !p.ok || p.questions.length !== 4 || !v.data.rec[PR_ID_T] || !v.data.rec[PR_ID_T][enA.email]) throw new Error(JSON.stringify(v.data).slice(0, 300));
+      if (!p.groups.length || p.groups[0].title !== 'Transect quadrats') throw new Error('the groups did not reach the view: ' + JSON.stringify(p.groups));
+      if (!v.data.students.length) throw new Error('no roster');
+      const page = doGet({ parameter:{ page:'practicals' } }).html;
+      if (!/"tab":"practicals"/.test(page)) throw new Error('?page=practicals did not open on the Practicals view');
+      const t = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      if (!/VIEWS\.practicals = \{/.test(t) || !/'writeup','practicals','students'/.test(t) || !/cur==='practicals'\) return window\.vPracticals/.test(t) || !/window\.vPracticals = function/.test(t))
+        throw new Error('the view is not wired in Teacher.html');
+    } finally { VISITOR = keepV; }
+  });
+  ok &= run('IB practicals: the page’s copy of the merge rules (labs-shared/practical/lesson.js) gives the same records as the script’s', () => {
+    /* the page folds and merges rounds itself (another computer's record coming back); a difference would make the board
+       and the pupil's page disagree. 300 random pairs of records, both ways round. */
+    const src = fs.readFileSync('../../labs-shared/practical/lesson.js', 'utf8');
+    const box = { window: {}, document: { readyState: 'complete', addEventListener() {}, getElementById() { return null; } },
+                  addEventListener() {}, localStorage: null, setTimeout, clearTimeout, console };
+    box.window = box; box.global = box;
+    require('vm').runInNewContext(src, box);
+    const pageMerge = box.Lesson.mergeQ;
+    let seed = 11; const rnd = n => { seed = (seed * 9301 + 49297) % 233280; return Math.floor(seed / 233280 * n); };
+    const S = ['', 't', '1', 'f', 'd'], W = ['o1', 'o2', '3=less', 'x', 'Barnacles: 40'];
+    const make = () => { const r = []; const k = 1 + rnd(9);
+      for (let n = 1; n <= k; n++) if (n === 1 || rnd(3)) { const w = {}; for (let j = 0; j < rnd(3); j++) w[W[rnd(5)]] = 1 + rnd(3);
+        r.push({ n, c: rnd(6), s: S[rnd(5)], w, a: 1 + rnd(50), z: 50 + rnd(50) }); }
+      return _prQ_({ r }); };
+    for (let i = 0; i < 300; i++) {
+      const a = make(), b = make(); if (!a || !b) continue;
+      const g = JSON.stringify(_prMergeQ_(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b))));
+      const p = JSON.stringify(pageMerge(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b))));
+      if (g !== p) throw new Error('the page and the script merge differently:\n script ' + g + '\n page   ' + p);
+    }
+  });
+  ok &= run('IB practicals: a Move writes the pupil’s new class on their 🔬 Practicals row too', () => {
+    _classEverywhere_({ [enA.email]: 'ZZ9' });
+    if (prRow(enA.email)[1] !== 'ZZ9') throw new Error('the class did not move: ' + prRow(enA.email)[1]);
+    _classEverywhere_({ [enA.email]: enA.cls });
+  });
 }
 
 const st = ss.getSheetByName('Students');
