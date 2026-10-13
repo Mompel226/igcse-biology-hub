@@ -1231,13 +1231,78 @@
       if (dd === 1) return 'tomorrow at ' + hm;
       return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' at ' + hm;
     }
-    /* A teacher in test mode is never left looking at an empty space: while the hub is asked they see
-       that it is being checked (after a quiet spell the script can take several seconds to wake), and
-       if the check fails they are told so. A pupil sees nothing either way — the banner is a shortcut,
-       never the only way in. */
-    function sitSay(text) { sitHide(); if (sitNote) { sitNote.textContent = text; sitNote.hidden = false; } }
-    function sitTesting() { return !!(teacher && mode() === 'test'); }
-    var sitAskedAt = 0;
+    /* ---------- "Checking… · Checked at 09:14" (13 Oct 2026) ----------
+       Daniel: pupils signed in and said "sir, I've signed in, I cannot see anything". The answer takes a few seconds (after
+       a quiet spell the labs script can take several to wake), and until it came the empty space looked like a hub that
+       had done nothing. So whoever the cards are for sees one quiet line under them: "Checking…" while the hub asks; then
+       when it checked, what it found when no card shows, and Check again. A pupil seated for a test with no start time
+       yet is told so, and the page asks again every minute until it starts. When Google's sign-in is too old to ask with
+       (the remembered card, `rest` below) no check can run: the line says so and holds Google's own button, and one press
+       runs the check. A failed check keeps the cards already shown (the test page itself decides whether it is open) and
+       says when they were checked. A teacher sees the line in test mode only, as the cards, with the reasons in the notes
+       above it. */
+    var chkEl  = document.getElementById('sitCheck'),
+        chkSay = document.getElementById('sitCheckSay'),
+        chkBtn = document.getElementById('sitCheckAgain'),
+        chkGsi = document.getElementById('sitCheckGsi');
+    var CHECK_GAP  = 15000,   /* Check again shows no sooner than this after the last check began: a class pressing it
+                                 together must not crowd the labs script, which every lab save shares */
+        WAIT_EVERY = 60000,   /* a test with no start time yet: ask again this often (the labs script keeps one copy of
+                                 a test spreadsheet for a minute, so asking more often would show nothing new) */
+        CHECK_LONG = 30000;   /* no answer after this long: say the check failed, and offer it again */
+    var sitAskedAt = 0, sitAnsweredAt = 0, sitSeq = 0, chkTimer = null, chkWaitTimer = null,
+        chkGsiAsked = false, chkGsiReady = false, chkGsiFailed = false;
+    function hhmm(ms) { return new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+    /* the line: '' hides it; 'checking', 'failed', 'signin' (Google's button) or 'done' with its words */
+    function chkShow(state, say) {
+      if (!chkEl) return;
+      clearTimeout(chkTimer);
+      var isT = !!teacher || !!(sitLast && sitLast.teacher);
+      if (!state || (isT && mode() !== 'test')) { chkEl.hidden = true; chkEl.className = 'sit-check'; return; }
+      var what = 'if you have a test, a reflection or new feedback';
+      chkEl.className = 'sit-check is-' + state;
+      chkSay.textContent = (isT ? 'Test mode \u00b7 ' : '') + (
+        state === 'checking' ? 'Checking ' + what + '\u2026' :
+        state === 'failed'   ? (sitLast ? 'Checked at ' + hhmm(sitAnsweredAt) + '. The hub could not check again.' : 'The hub could not check.') :
+        state === 'signin'   ? 'To check ' + what + ', ' + (chkGsiFailed ? 'sign out, then sign in again.' : 'sign in again.') :
+        say || '');
+      chkGsi.hidden = !(state === 'signin' && chkGsiReady);
+      chkBtn.hidden = true;
+      if (state === 'failed' || state === 'done') {
+        var wait = sitAskedAt + CHECK_GAP - Date.now();
+        if (wait > 0) chkTimer = setTimeout(function () { chkBtn.hidden = false; }, wait); else chkBtn.hidden = false;
+      }
+      chkEl.hidden = false;
+    }
+    /* after an answer: when it came, and what it found when no card shows */
+    function chkAfter() {
+      clearTimeout(chkWaitTimer);
+      if (!acting) { if (!resting) chkShow(''); return; }      /* the remembered card keeps its sign-in line */
+      var j = sitLast;
+      if (!j) return;
+      var isT = !!j.teacher, shown = !sitEl.hidden || (fbkEl && !fbkEl.hidden) || (rflEl && !rflEl.hidden);
+      var say = 'Checked at ' + hhmm(sitAnsweredAt) + '.';
+      if (!isT && j.state === 'waiting') {
+        say += ' Your test' + (j.name ? ' \u201c' + j.name + '\u201d' : '') + ' has not started yet. This page checks again every minute.';
+        chkWaitTimer = setTimeout(function () { if (acting && !document.hidden) sitAsk(acting); }, WAIT_EVERY);
+      } else if (!isT && !shown) say += ' You have no test, reflection or new feedback now.';
+      chkShow('done', say);
+    }
+    /* Google's sign-in is too old to ask with and the card stands from memory: Google's own button, in the line */
+    function chkSignIn() {
+      if (!chkEl) return;
+      chkShow('signin');
+      if (chkGsiAsked) return;
+      chkGsiAsked = true;
+      SI.loaded(function (ok) {
+        chkGsi.hidden = false;                                   /* Google sizes its button in a box it can see */
+        chkGsiReady = !!(ok && SI.button(chkGsi, CID, { type: 'standard', theme: 'filled_black', size: 'medium',
+                                                        text: 'signin_with', shape: 'pill', logo_alignment: 'left',
+                                                        locale: 'en-GB' }));
+        chkGsiFailed = !chkGsiReady;
+        if (!acting && resting) chkSignIn(); else chkGsi.hidden = true;
+      });
+    }
     /* Coming back to this tab after a while (the dashboard or a spreadsheet was open in another)
        asks again, so what changed there shows here without signing out and in. */
     document.addEventListener('visibilitychange', function () {
@@ -1245,26 +1310,35 @@
     });
     function sitAsk(who) {
       if (!sitEl || !URL_ || !who || !who.token) return;
+      var seq = ++sitSeq;
       sitAskedAt = Date.now();
-      if (sitTesting() && sitEl.hidden) sitSay('Test mode \u00b7 Checking your tests\u2026');
-      var failed = function () {
-        if (!acting || acting.email !== who.email) return;
-        sitLast = null;
-        if (sitTesting()) sitSay('Test mode \u00b7 The hub could not check your tests just now \u2014 reload the page to try again.');
-        else sitHide();
+      clearTimeout(chkWaitTimer);
+      chkShow('checking');                    /* the cards already shown stay while it asks: nothing goes blank */
+      var guard = setTimeout(function () {
+        if (seq === sitSeq && acting && acting.email === who.email) chkShow('failed');
+      }, CHECK_LONG);
+      var failed = function (account) {
+        clearTimeout(guard);
+        if (seq !== sitSeq || !acting || acting.email !== who.email) return;
+        if (account) { sitLast = null; sitHide(); chkShow(''); return; }   /* the corner card says which account to use */
+        chkShow('failed');
       };
       fetch(URL_, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action: 'test', token: who.token }) })
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
-          if (!acting || acting.email !== who.email) return;   /* signed out, or somebody else, meanwhile */
-          if (!j || !j.ok) return failed();
-          sitLast = j;
+          /* a newer check, or signed out or somebody else meanwhile */
+          if (seq !== sitSeq || !acting || acting.email !== who.email) return;
+          if (!j || !j.ok) return failed(!!j && (j.why === 'not a school account' || j.why === 'not signed in'));
+          clearTimeout(guard);
+          sitLast = j; sitAnsweredAt = Date.now();
           sitDraw();
         })
-        .catch(failed);
+        .catch(function () { failed(false); });
     }
-    function sitDraw() {
+    if (chkBtn) chkBtn.addEventListener('click', function () { if (acting) sitAsk(acting); });
+    function sitDraw() { sitCards(); chkAfter(); }
+    function sitCards() {
       sitHide();
       fbkDraw(sitLast);
       rflDraw(sitLast);
@@ -1475,6 +1549,7 @@
       var kn = mineRemembered(v);
       if (!drawKnown(v, kn, true)) return false;
       resting = v.email; tools(v);
+      chkSignIn();
       return true;
     }
 
@@ -1486,6 +1561,7 @@
       var page = String(j.teacherPage || '');
       teacher = j.teacher ? { page: /^https:\/\/script\.google\.com\//.test(page) ? page : '' } : null;
       footer(true);
+      if (teacher && mode() === 'teacher') chkShow('');
 
       if (teacher && mode() === 'teacher') {
         remember(who, null);
@@ -1601,7 +1677,7 @@
     /* Somebody is signed in: show them, at once from what is remembered, then ask. */
     function start(v, instant) {
       /* somebody else than who was shown: nothing of theirs may stand while this one is checked */
-      if (!acting || acting.email !== v.email) { teacher = null; last = null; }
+      if (!acting || acting.email !== v.email) { teacher = null; last = null; sitLast = null; sitHide(); }
       acting = v;
       tools(v);
       watchExpiry(v);
@@ -1659,6 +1735,7 @@
     function stopActing() {
       acting = null; last = null;
       sitLast = null; sitHide();
+      ++sitSeq; clearTimeout(chkWaitTimer); chkShow('');
       tools(null);
       clearTimeout(expiryTimer); clearTimeout(outTimer);
     }
