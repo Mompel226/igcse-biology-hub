@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1791708867">
+<link rel="stylesheet" href="css/hub.css?v=1791895838">
 </head>
 <body>
 
@@ -66,6 +66,12 @@
         <a class="sit__go" id="rflGo" hidden>Start your reflection <span aria-hidden="true">&rarr;</span></a>
       </section>
       <p class="sit-note sit-note--rfl" id="rflNote" hidden></p>
+
+      <!-- What the hub found, under the cards, for whoever they are for (Daniel, 13 Oct 2026: pupils signed in, saw
+           nothing while the check still ran, and thought nothing had happened): "Checking…" while it asks; then when
+           it checked, what it found when no card shows, and Check again; or, when Google's sign-in is too old to
+           check with, Google's own button. Filled in by js/hub.js; a teacher sees it only in test mode. -->
+      <div class="sit-check" id="sitCheck" hidden><span class="sit-check__say" id="sitCheckSay" role="status"></span><button type="button" class="sit-check__again" id="sitCheckAgain" hidden>Check again</button><span class="sit-check__gsi" id="sitCheckGsi" hidden></span></div>
     </div>
     <div class="masthead__r">
 
@@ -180,12 +186,12 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client?hl=en-GB" async defer></script>
 
-<script src="js/data/labs.js?v=1791708867"></script>
-<script src="js/data/syllabus-years.js?v=1791708867"></script>
-<script src="js/progress.js?v=1791708867"></script>
-<script src="js/signin.js?v=1791708867"></script>
-<script src="js/shelves.js?v=1791708867"></script>
-<script src="js/local.js?v=1791708867"></script>
-<script src="js/hub.js?v=1791708867"></script>
+<script src="js/data/labs.js?v=1791895838"></script>
+<script src="js/data/syllabus-years.js?v=1791895838"></script>
+<script src="js/progress.js?v=1791895838"></script>
+<script src="js/signin.js?v=1791895838"></script>
+<script src="js/shelves.js?v=1791895838"></script>
+<script src="js/local.js?v=1791895838"></script>
+<script src="js/hub.js?v=1791895838"></script>
 </body>
 </html>
