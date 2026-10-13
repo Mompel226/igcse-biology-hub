@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1791895838">
+<link rel="stylesheet" href="css/hub.css?v=1791905895">
 </head>
 <body>
 
@@ -26,52 +26,6 @@
       <p class="lede">Four doors, one for each part of the subject. Behind each door is a map you can point at;
          behind the map are the labs, where you practise.</p>
       <p class="maker" id="siteMaker">Made by <strong>Dr Daniel Mompel Riera</strong></p>
-
-      <!-- "Sit a test": shown only to someone seated for a test that opens later or is open now —
-           a teacher only in test mode. Filled in by js/hub.js from the labs script, which reads
-           the test system's own schedule. Before it opens there is no link: the way in appears
-           here when it does. -->
-      <section class="sit" id="sit" hidden aria-labelledby="sitName">
-        <div class="sit__pic" id="sitPic" aria-hidden="true"><picture><source type="image/webp" srcset="assets/doors/sit-240.webp 240w, assets/doors/sit-480.webp 480w" sizes="(max-width:560px) 84px, 112px"><img src="assets/doors/sit-480.jpg" srcset="assets/doors/sit-240.jpg 240w, assets/doors/sit-480.jpg 480w" sizes="(max-width:560px) 84px, 112px" alt="" width="480" height="480" loading="lazy" decoding="async" draggable="false"></picture></div>
-        <div class="sit__txt">
-          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="sitEye">Sit a test</span></span>
-          <span class="sit__name" id="sitName"></span>
-          <span class="sit__when" id="sitWhen"></span>
-        </div>
-        <a class="sit__go" id="sitGo" hidden>Sit the test <span aria-hidden="true">&rarr;</span></a>
-      </section>
-      <p class="sit-note" id="sitNote" hidden></p>
-
-      <!-- "New feedback": shown for five days after the teacher releases this person's marked test in the
-           test system — a teacher only in test mode. Filled in by js/hub.js from the same answer as the test
-           banner. The link goes to the test system's own read-only feedback page. -->
-      <section class="sit sit--fb" id="fbk" hidden aria-labelledby="fbkName">
-        <div class="sit__txt">
-          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="fbkEye">New feedback</span></span>
-          <span class="sit__name" id="fbkName"></span>
-          <span class="sit__when" id="fbkWhen"></span>
-        </div>
-        <a class="sit__go" id="fbkGo">See your feedback <span aria-hidden="true">&rarr;</span></a>
-      </section>
-
-      <!-- "Your reflection": a reflection the teacher has switched on for the hub, for someone on its Marks tabs, until
-           they hand in a complete one — Start, Continue, or a reminder to ask the teacher. Filled in by js/hub.js from
-           the same answer as the test banner; a teacher sees it only in test mode. The link opens the reflection form. -->
-      <section class="sit sit--rfl" id="rfl" hidden aria-labelledby="rflName">
-        <div class="sit__txt">
-          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="rflEye">Your reflection</span></span>
-          <span class="sit__name" id="rflName"></span>
-          <span class="sit__when" id="rflWhen"></span>
-        </div>
-        <a class="sit__go" id="rflGo" hidden>Start your reflection <span aria-hidden="true">&rarr;</span></a>
-      </section>
-      <p class="sit-note sit-note--rfl" id="rflNote" hidden></p>
-
-      <!-- What the hub found, under the cards, for whoever they are for (Daniel, 13 Oct 2026: pupils signed in, saw
-           nothing while the check still ran, and thought nothing had happened): "Checking…" while it asks; then when
-           it checked, what it found when no card shows, and Check again; or, when Google's sign-in is too old to
-           check with, Google's own button. Filled in by js/hub.js; a teacher sees it only in test mode. -->
-      <div class="sit-check" id="sitCheck" hidden><span class="sit-check__say" id="sitCheckSay" role="status"></span><button type="button" class="sit-check__again" id="sitCheckAgain" hidden>Check again</button><span class="sit-check__gsi" id="sitCheckGsi" hidden></span></div>
     </div>
     <div class="masthead__r">
 
@@ -135,6 +89,56 @@
         <button type="button" class="ibtg" id="ibToggle" aria-pressed="false">IB extension</button>
       </div>
     </div>
+    <!-- The cards (13 Oct 2026, Daniel: the sign-in corner was "dropping … down instead of keeping it up … as the Biology
+         Hub letters", and two cards should stand "one next to the other … and if there's another one then to the bottom of
+         the first one"): a row of their own under the heading, the width of the masthead, so the corner stays level with
+         the heading; two side by side where two fit. The quiet lines (a teacher's notes, the checking line) run under them. -->
+    <div class="masthead__cards" id="mastCards">
+      <!-- "Sit a test": shown only to someone seated for a test that opens later or is open now —
+           a teacher only in test mode. Filled in by js/hub.js from the labs script, which reads
+           the test system's own schedule. Before it opens there is no link: the way in appears
+           here when it does. -->
+      <section class="sit" id="sit" hidden aria-labelledby="sitName">
+        <div class="sit__pic" id="sitPic" aria-hidden="true"><picture><source type="image/webp" srcset="assets/doors/sit-240.webp 240w, assets/doors/sit-480.webp 480w" sizes="(max-width:560px) 84px, 112px"><img src="assets/doors/sit-480.jpg" srcset="assets/doors/sit-240.jpg 240w, assets/doors/sit-480.jpg 480w" sizes="(max-width:560px) 84px, 112px" alt="" width="480" height="480" loading="lazy" decoding="async" draggable="false"></picture></div>
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="sitEye">Sit a test</span></span>
+          <span class="sit__name" id="sitName"></span>
+          <span class="sit__when" id="sitWhen"></span>
+        </div>
+        <a class="sit__go" id="sitGo" hidden>Sit the test <span aria-hidden="true">&rarr;</span></a>
+      </section>
+      <!-- "New feedback": shown for five days after the teacher releases this person's marked test in the
+           test system — a teacher only in test mode. Filled in by js/hub.js from the same answer as the test
+           banner. The link goes to the test system's own read-only feedback page. -->
+      <section class="sit sit--fb" id="fbk" hidden aria-labelledby="fbkName">
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="fbkEye">New feedback</span></span>
+          <span class="sit__name" id="fbkName"></span>
+          <span class="sit__when" id="fbkWhen"></span>
+        </div>
+        <a class="sit__go" id="fbkGo">See your feedback <span aria-hidden="true">&rarr;</span></a>
+      </section>
+      <!-- "Your reflection": a reflection the teacher has switched on for the hub, for someone on its Marks tabs, until
+           they hand in a complete one — Start, Continue, or a reminder to ask the teacher. Filled in by js/hub.js from
+           the same answer as the test banner; a teacher sees it only in test mode. The link opens the reflection form. -->
+      <section class="sit sit--rfl" id="rfl" hidden aria-labelledby="rflName">
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="rflEye">Your reflection</span></span>
+          <span class="sit__name" id="rflName"></span>
+          <span class="sit__when" id="rflWhen"></span>
+        </div>
+        <a class="sit__go" id="rflGo" hidden>Start your reflection <span aria-hidden="true">&rarr;</span></a>
+      </section>
+
+      <p class="sit-note" id="sitNote" hidden></p>
+      <p class="sit-note sit-note--rfl" id="rflNote" hidden></p>
+
+      <!-- What the hub found, under the cards, for whoever they are for (Daniel, 13 Oct 2026: pupils signed in, saw
+           nothing while the check still ran, and thought nothing had happened): "Checking…" while it asks; then when
+           it checked, what it found when no card shows, and Check again; or, when Google's sign-in is too old to
+           check with, Google's own button. Filled in by js/hub.js; a teacher sees it only in test mode. -->
+      <div class="sit-check" id="sitCheck" hidden><span class="sit-check__say" id="sitCheckSay" role="status"></span><button type="button" class="sit-check__again" id="sitCheckAgain" hidden>Check again</button><span class="sit-check__gsi" id="sitCheckGsi" hidden></span></div>
+    </div>
   </header>
 
   <main class="doors doors--entry" id="entryDoors" hidden aria-label="The front door"></main>
@@ -186,12 +190,12 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client?hl=en-GB" async defer></script>
 
-<script src="js/data/labs.js?v=1791895838"></script>
-<script src="js/data/syllabus-years.js?v=1791895838"></script>
-<script src="js/progress.js?v=1791895838"></script>
-<script src="js/signin.js?v=1791895838"></script>
-<script src="js/shelves.js?v=1791895838"></script>
-<script src="js/local.js?v=1791895838"></script>
-<script src="js/hub.js?v=1791895838"></script>
+<script src="js/data/labs.js?v=1791905895"></script>
+<script src="js/data/syllabus-years.js?v=1791905895"></script>
+<script src="js/progress.js?v=1791905895"></script>
+<script src="js/signin.js?v=1791905895"></script>
+<script src="js/shelves.js?v=1791905895"></script>
+<script src="js/local.js?v=1791905895"></script>
+<script src="js/hub.js?v=1791905895"></script>
 </body>
 </html>
