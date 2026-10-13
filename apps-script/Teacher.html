@@ -824,9 +824,12 @@ var BOOT = __BOOT__;
       /* A row that names a live teacher dashboard offers Form, Dashboard and Spreadsheet (11 Oct 2026, Daniel: "you
          should have form, dashboard, and spreadsheet"; no Copy: "what are you copying?"), and the spreadsheet button then
          says which one it is — "Open" beside "Dashboard" would leave you guessing. Form and Dashboard are outlined, the
-         spreadsheet filled: the card pins --tc to the generic accent, so colour alone would not tell them apart. */
+         spreadsheet filled: the card pins --tc to the generic accent, so colour alone would not tell them apart. A Test
+         System card also offers Marker Review (13 Oct 2026, Daniel: "add a pill for marker review so that it's easy for
+         them to access it from there"), beside its Dashboard. */
       (l.form?'<a class="dash" href="'+esc(l.form)+'" target="_blank" rel="noopener noreferrer">Form</a>':'')+
       (l.dash?'<a class="dash" href="'+esc(l.dash)+'" target="_blank" rel="noopener noreferrer">Dashboard</a>':'')+
+      (l.review?'<a class="dash" href="'+esc(l.review)+'" target="_blank" rel="noopener noreferrer">Marker Review</a>':'')+
       '<a class="open" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+(l.dash?'Spreadsheet':'Open')+'</a></div></div>';
   }
   function vSpreadsheets(g){
