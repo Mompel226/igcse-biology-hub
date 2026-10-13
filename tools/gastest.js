@@ -2409,6 +2409,30 @@ ok &= run('Form, Dashboard and Spreadsheet: a bare web-app address in Dashboard 
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
   VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
 });
+ok &= run('Marker Review on a Test System card: its dashboard\'s web app + ?page=review; never on a reflection (13 Oct 2026)', () => {
+  /* Daniel: "next to any test system … add a pill for marker review so that it's easy for them to access it from there." */
+  const E = 'https://script.google.com/a/macros/x.kr/s/AKfycbTESTSYSTEM00000000000/exec', SS = 'https://docs.google.com/spreadsheets/d/BBBBBBBBBBBBBBBBBBBBBBBB/edit';
+  const row = (type, d) => _readLinkRow_([type, 'Heart rate lab report', '2028', 'T9', SS, '', d], 4, 2, 6);
+  let r = row('Test', E + '?page=dashboard');
+  if (r.review !== E + '?page=review') throw new Error('a Test row with its dashboard: ' + JSON.stringify(r));
+  r = row('Test', E);   /* a bare /exec: the same web app as its Dashboard pill (the Test System's own fallback for one deployment) */
+  if (r.review !== E + '?page=review' || r.dash !== E + '?page=dashboard') throw new Error('a Test row with a bare /exec: ' + JSON.stringify(r));
+  r = row('Reflection', E + '?page=dashboard');
+  if (r.review !== '') throw new Error('a reflection has no Marker Review: ' + JSON.stringify(r));
+  r = row('Test', 'https://example.org/dash');
+  if (r.review !== '') throw new Error('not a web app: no Marker Review: ' + JSON.stringify(r));
+  r = row('Test', '');
+  if (r.review !== '') throw new Error('no dashboard: no Marker Review: ' + JSON.stringify(r));
+  SCHOOL_DOMAIN = 'x.kr'; VISITOR = OWNER;
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  teacherPanelData();
+  teacherAddLink({ type: 'Test', assessment: 'Heart rate lab report', grad: '2028', url: SS, dash: E + '?page=dashboard' });
+  const g = _teacherPageGroups_(new Date(2026, 8, 15));
+  const l = g.cohorts[0].types[0].links[0];
+  if (l.review !== E + '?page=review') throw new Error('the page is not given Marker Review: ' + JSON.stringify(l));
+  [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });
+  VISITOR = ''; SCHOOL_DOMAIN = ''; props.delete('SCHOOL_DOMAIN');
+});
 ok &= run('the 🔗 Teacher links tab says the dashboard: a bare /exec in its Dashboard column is written as that address + ?page=dashboard (11 Oct 2026)', () => {
   /* Daniel, 11 Oct 2026: "when I go to the teacher links the dashboard links are actually not for dashboards" — the page read a
      bare /exec as the form, but the tab kept showing the form's address under "Dashboard" */

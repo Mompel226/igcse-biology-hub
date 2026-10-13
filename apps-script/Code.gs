@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '11 Oct 2026 (late) — the Dashboard column fixed';
+var SCRIPT_EDITION = '13 Oct 2026 — Marker Review on the teacher page';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -5320,9 +5320,16 @@ function _readLinkRow_(r, kHead, rowNum, dHead, urls) {
   var app = dash.match(_EXEC_RE_);
   if (app && !app[2]) { form = app[1]; dash = app[1] + '?page=dashboard'; }
   else if (app && /(^|&)page=dashboard(&|$)/.test(app[2])) form = app[1];
+  /* Marker Review (13 Oct 2026). Daniel: "next to any test system … add a pill for marker review so that it's easy for them
+     to access it from there". The Test System serves Marker Review from the same web app as its dashboard, at that
+     address + ?page=review (as its own 🔗 Links tab gives it: the dashboard's deployment, or the form's when it has only
+     one); the reflection has none. So a Test row whose dashboard is an Apps Script web app gets one, beside its Dashboard
+     and on the same web app (a bare /exec here is read as above; _fixDashCells_ writes it as ?page=dashboard). */
+  var review = '';
+  if (app && /test/i.test(type) && !/reflect/i.test(type) && (!app[2] || /(^|&)page=dashboard(&|$)/.test(app[2]))) review = app[1] + '?page=review';
 
   return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
-           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash, form: form };
+           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash, form: form, review: review };
 }
 
 /* An Apps Script web app's address: [1] the /exec address itself, [2] what follows its "?" (undefined when nothing does). */
@@ -5878,7 +5885,7 @@ function _teacherPageGroups_(now) {
   raw.forEach(function (l) {
     var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
     var co = _cohortLabel_(l.grad, now);
-    var entry = { name: l.name, url: l.url, dash: l.dash, form: l.form, type: l.type, assessment: l.assessment,
+    var entry = { name: l.name, url: l.url, dash: l.dash, form: l.form, review: l.review || '', type: l.type, assessment: l.assessment,
                   detail: (l.assessment && l.assessment !== l.name ? l.assessment : '') + (l.note ? (l.assessment && l.assessment !== l.name ? ' · ' : '') + l.note : '') };
     if (isRecord) { records.push(entry); return; }
     if (!co) { loose.push(entry); return; }
