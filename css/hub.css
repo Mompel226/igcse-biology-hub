@@ -165,6 +165,20 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .maker__me strong{font-weight:500;color:inherit}
 .maker__me::after{content:"\2197";font:500 10px/1 var(--mono);opacity:.75}
 
+/* ============ the cards' row (13 Oct 2026) ============
+   Daniel: the sign-in corner was "dropping … down instead of keeping it up … as the Biology Hub letters" when a card
+   showed (it is centred against the heading, and the cards made the heading's column taller), and "if you have two things,
+   instead of putting them one after the other … one next to the other … and if there's another one then to the bottom of
+   the first one". So the cards are a row of their own, across the whole masthead, under the heading: one column, or two
+   where two fit (each card at least 460 px). A teacher's notes and the checking line run under them, the row's width.
+   An empty row takes no room. */
+.masthead__cards{grid-column:1 / -1;display:grid;grid-template-columns:minmax(0,600px);gap:12px 16px;align-items:start;min-width:0;
+  margin-top:-6px}
+.masthead__cards:not(:has(> :not([hidden]))){display:none}
+.masthead__cards > .sit{margin-top:0;max-width:none}
+.masthead__cards > .sit-note,.masthead__cards > .sit-check{grid-column:1 / -1;margin-top:0}
+@media (min-width:1080px){ .masthead__cards{grid-template-columns:repeat(2,minmax(0,600px))} }
+
 /* ============ "Sit a test" ============
    Under the credit, and only when there is a test for you: one that opens later ("Opens today at
    09:00" — no link yet), or one open now (a link, and a live dot). Amber, because tests are amber
