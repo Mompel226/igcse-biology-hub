@@ -4232,6 +4232,48 @@ ok &= run('progress gives a pupil their own lab homework, each station scored by
     if (!('labs' in me) || typeof me.labs !== 'object') throw new Error('the labs part of the answer changed');
   } finally { [r, old, eng].forEach(x => homeworkDelete(x.made[0])); }
 });
+ok &= run('the homework list says "tried, 0 right" for a pupil with answers checked at a set station but none right, apart from "not started" (14 Oct 2026, Daniel)', () => {
+  /* Daniel, 14 Oct 2026: a pupil "who tried and got everything wrong also shows not started … I need to be able to differentiate
+     this". The state stays the shared rule (the labs' colours and the reminders); `tried` sits beside it */
+  const cls = enA.cls;
+  const r = homeworkCreate({ title:'Tried or not', classes:[{ cls, due: enDay(4) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth', 'stomach'] }] });
+  const late = homeworkCreate({ title:'Tried, due before', classes:[{ cls, due: enDay(-1.5) }], tasks:[{ labId:'digestion-lab', stationIds:['mouth'] }] });
+  if (!r.ok || !late.ok) throw new Error('could not set the test homework');
+  const restoreEn = keepRow(T_ENGLISH, enB.email, EN_TIMES);
+  const stateOf = (id, name) => { const c = uiData('homework').data.homework.filter(h => h.id === id)[0];
+    const p = c && c.pupils.filter(x => x.name === name)[0]; return { card: c, p: p }; };
+  try {
+    hwStations(enA.email, 'mouth 0/8 in 3 · stomach 0/9');           /* three checks at a set station, nothing right */
+    let s = stateOf(r.made[0], enA.name);
+    if (!s.p || s.p.state !== 'tried' || s.p.done !== 0) throw new Error('checked, none right: ' + JSON.stringify(s.p));
+    if (s.card.tally.tried < 1 || s.card.tally.none + s.card.tally.tried + s.card.tally.partly + s.card.tally.done !== s.card.pupils.length)
+      throw new Error('the tally: ' + JSON.stringify(s.card.tally));
+    const t = _hwScoreOne_({ tasks:[{ labId:'digestion-lab', stationIds:['mouth', 'stomach'] }] }, enA.email, _hwLabIndex_(['digestion-lab']), _hwManifest_());
+    if (t.state !== 'none' || t.tried !== true) throw new Error('the shared rule changed: ' + JSON.stringify(t));
+    const own = enPost({ action:'progress' }, enA.email).homework.filter(h => h.id === r.made[0])[0];
+    if (!own || own.state !== 'none') throw new Error('the pupil’s own page changed: ' + JSON.stringify(own));
+    /* the page: the pill and the bar's words */
+    const tp = teacherPage(); tp.win.vHomework(uiData('homework').data); tp.press('data-hw', r.made[0]);
+    if (!/tried, 0 right/.test(tp.html()) || !/tried \(none right yet\)/.test(tp.html())) throw new Error('the page does not say tried');
+    /* the morning email */
+    MAILS.length = 0; sendDueSummaries();
+    const m = MAILS.filter(x => /Tried, due before/.test(x.subj))[0];
+    if (!m || !/Tried, none right yet: [1-9]/.test(m.body) || m.body.indexOf('○ ' + enA.name) < 0) throw new Error('the email: ' + (m ? m.body : 'none'));
+    /* checks at a station that was NOT set: not started */
+    hwStations(enA.email, 'diet 0/9 in 2');
+    if (stateOf(r.made[0], enA.name).p.state !== 'none') throw new Error('checks elsewhere made it tried');
+    /* nothing at all: not started */
+    hwStations(enA.email, '');
+    if (stateOf(r.made[0], enA.name).p.state !== 'none') throw new Error('nothing done is not "not started"');
+    /* one right: part way, whatever was tried */
+    hwStations(enA.email, 'mouth 1/8 in 4');
+    if (stateOf(r.made[0], enA.name).p.state !== 'partly') throw new Error('one right is not part way');
+    /* Bio English: a set tried ("t") with nothing right is tried too */
+    enPost({ action:'english.save', sets:{ 't3.describe.1': { done:0, first:0, total:2, snap:'t0', v:'d1', go:1, snap1:'t0', best:'t0' } } }, enB.email);
+    const en = _hwScoreOne_({ tasks:[{ labId:'bio-english-lab', stationIds:['t3.describe.1'] }] }, enB.email, _hwLabIndex_(['bio-english-lab']), _hwManifest_());
+    if (en.state !== 'none' || en.tried !== true) throw new Error('Bio English tried: ' + JSON.stringify(en));
+  } finally { restoreEn(); hwStations(enA.email, ''); [r, late].forEach(x => homeworkDelete(x.made[0])); }
+});
 ok &= run('progress makes no Homework tab and never fails over homework', () => {
   const t = ss.getSheetByName(T_HOMEWORK), keep = t;
   if (t) ss.deleteSheet(t);

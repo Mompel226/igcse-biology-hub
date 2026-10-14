@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '13 Oct 2026 — Marker Review on the teacher page';
+var SCRIPT_EDITION = '14 Oct 2026 — the homework list says "tried, 0 right"';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -6509,7 +6509,7 @@ function _hwLabIndex_(labIds, need) {
    vanish instead of counting as nothing done. A station the lab no longer has is named, not
    scored — quietly counting it zero would accuse a pupil who did the work. */
 function _hwScoreOne_(hw, email, index, man) {
-  var done = 0, total = 0, missing = [], last = 0;
+  var done = 0, total = 0, missing = [], last = 0, checks = 0;
   hw.tasks.forEach(function (t) {
     var lm = man && man.labs ? man.labs[t.labId] : null;
     var known = {};
@@ -6527,13 +6527,18 @@ function _hwScoreOne_(hw, email, index, man) {
       if (!k) { if (missing.indexOf(sid) < 0) missing.push(sid); return; }
       total += k.questions;
       var got = rec ? rec.byId[sid] : null;
-      if (got) done += Math.min(got.done, k.questions);
+      if (got) { done += Math.min(got.done, k.questions); checks += Number(got.checks) || 0; }
     });
   });
   return {
     done: done, total: total,
     pct: total ? Math.round(1000 * done / total) / 10 : 0,
     state: (total && done >= total) ? 'done' : (done > 0 ? 'partly' : 'none'),
+    /* tried (14 Oct 2026; Daniel, of a pupil shown "not started" who had answered: "a pupil who tried and got everything
+       wrong also shows not started … I need to be able to differentiate this"): answers checked at a set station, none right
+       yet. Beside the state, never in it: the state stays the rule the labs' own colours and the reminders share
+       (labs-shared/engine/homework.test.js lifts this function by name); only the homework list and its email say "tried". */
+    tried: done === 0 && checks > 0,
     missing: missing,
     last: last ? new Date(last).toISOString() : null
   };
@@ -6567,12 +6572,13 @@ function _homeworkData_(now, who) {
   var out = list.map(function (hw) {
     var pupils = pupilsFor[hw.id] || [];
     /* one pass: scoring twice per pupil per assignment was the whole cost of this page */
-    var tally = { done:0, partly:0, none:0 }, miss = {};
+    var tally = { done:0, partly:0, tried:0, none:0 }, miss = {};
     var rows = pupils.map(function (p) {
       var s = _hwScoreOne_(hw, p.email, index, man);
-      tally[s.state]++;
+      var st = (s.state === 'none' && s.tried) ? 'tried' : s.state;   /* the list's own fourth word: tried, none right yet */
+      tally[st]++;
       s.missing.forEach(function (m) { miss[m] = 1; });
-      return { name: p.name, cls: p.cls, done: s.done, total: s.total, pct: s.pct, state: s.state, last: s.last };
+      return { name: p.name, cls: p.cls, done: s.done, total: s.total, pct: s.pct, state: st, last: s.last };
     });
     /* what has changed under this assignment since it was set: who it was set for and is no longer on the Students tab, and
        who is in its class now but not in it (they joined or moved in after it was set, so it never counts against them;
@@ -7851,7 +7857,9 @@ function _englishIndex_(need) {
     var em = _cleanEmail_(v[i][EN_EMAIL - 1]);
     if (!em || (need && !need[em])) continue;
     var kept = _enParse_(v[i][EN_SNAP - 1]), byId = {};
-    Object.keys(kept).forEach(function (sid) { byId[sid] = { done: _enBest_(kept[sid]) }; });   /* best of any version */
+    Object.keys(kept).forEach(function (sid) {   /* best of any version; checks: a question tried ("t"), for "tried" (14 Oct 2026) */
+      byId[sid] = { done: _enBest_(kept[sid]), checks: /t/.test((kept[sid].s || '') + (kept[sid].b || '')) ? 1 : 0 };
+    });
     out[em] = { byId: byId, at: v[i][EN_LAST - 1] ? new Date(v[i][EN_LAST - 1]).getTime() : 0 };
   }
   return out;
@@ -8491,11 +8499,12 @@ function sendDueSummaries() {
     if (!r || !r.overdue || r.status === 'reported' || !r.teacher) return;
     if (r.due && now - new Date(r.due).getTime() > WEEK) return;
     var lines = h.pupils.map(function (p) {
-      return (p.state === 'done' ? '✓ ' : p.state === 'partly' ? '~ ' : '✗ ') +
+      return (p.state === 'done' ? '✓ ' : p.state === 'partly' ? '~ ' : p.state === 'tried' ? '○ ' : '✗ ') +
              (p.name || '') + ' (' + (p.cls || '') + ')   ' + p.done + '/' + p.total;
     });
     var body = h.title + ' — ' + h.who + ', due ' + r.dueText + '\n' + h.what + '\n\n' +
-      'Finished: ' + h.tally.done + '    Part way: ' + h.tally.partly + '    Not started: ' + h.tally.none + '\n\n' +
+      'Finished: ' + h.tally.done + '    Part way: ' + h.tally.partly + '    Tried, none right yet: ' + (h.tally.tried || 0) +
+      '    Not started: ' + h.tally.none + '\n\n' +
       (lines.join('\n') || 'Nobody on the roster matches this any more.') +
       (page ? '\n\nThe teacher page has the detail: ' + page.replace(/\?page=teachers$/, '?page=homework') : '');
     try {

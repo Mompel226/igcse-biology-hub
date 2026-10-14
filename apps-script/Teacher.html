@@ -368,6 +368,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .hw__due.over b{color:var(--bad)}.hw__due.soon b{color:var(--warn)}
 .bars{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--track);width:140px;flex:none}
 .bars i{display:block;height:100%}.bars .d{background:var(--good)}.bars .p{background:var(--warn)}.bars .z{background:var(--track2)}
+.bars .t{background:repeating-linear-gradient(135deg,var(--warn) 0 2px,var(--track2) 2px 5px)}  /* tried, none right yet (14 Oct 2026) */
 .hw__k{font:600 9.5px/1 var(--mono);color:var(--mute);flex:none;width:86px;text-align:right}
 .hw__b{border-top:1px solid var(--line);padding:13px 15px}
 .prow{display:grid;grid-template-columns:1fr auto auto;gap:7px 13px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -378,6 +379,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .st-pill{font:600 9px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--mute)}
 .st-pill.done{color:var(--good-ink);border-color:var(--good-edge);background:var(--good-bg)}
 .st-pill.partly{color:var(--warn-ink);border-color:var(--warn-edge);background:var(--warn-bg)}
+.st-pill.tried{color:var(--warn-ink);border-color:var(--warn-edge);border-style:dashed}
 .acts{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
 .gone{margin-top:9px;font-size:12.5px;color:var(--warn-ink)}
 .churn{font:500 10.5px/1 var(--mono);color:var(--warn);margin-left:8px}
@@ -826,10 +828,11 @@ var BOOT = __BOOT__;
          says which one it is — "Open" beside "Dashboard" would leave you guessing. Form and Dashboard are outlined, the
          spreadsheet filled: the card pins --tc to the generic accent, so colour alone would not tell them apart. A Test
          System card also offers Marker Review (13 Oct 2026, Daniel: "add a pill for marker review so that it's easy for
-         them to access it from there"), beside its Dashboard. */
+         them to access it from there"), FIRST (14 Oct 2026, Daniel: "aligned to the left of form"): the buttons sit at the
+         card's right, so Form, Dashboard and Spreadsheet stay in the same places on every card, Test or reflection. */
+      (l.review?'<a class="dash" href="'+esc(l.review)+'" target="_blank" rel="noopener noreferrer">Marker Review</a>':'')+
       (l.form?'<a class="dash" href="'+esc(l.form)+'" target="_blank" rel="noopener noreferrer">Form</a>':'')+
       (l.dash?'<a class="dash" href="'+esc(l.dash)+'" target="_blank" rel="noopener noreferrer">Dashboard</a>':'')+
-      (l.review?'<a class="dash" href="'+esc(l.review)+'" target="_blank" rel="noopener noreferrer">Marker Review</a>':'')+
       '<a class="open" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+(l.dash?'Spreadsheet':'Open')+'</a></div></div>';
   }
   function vSpreadsheets(g){
@@ -2069,7 +2072,7 @@ var BOOT = __BOOT__;
         var ks=Object.keys(cl).sort(cmpClass), n=h.pupils.length;
         return n+' chosen pupil'+(n===1?'':'s')+(ks.length?' in '+ks.join(', '):''); }
       function card(h){
-        var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, z=h.tally.none, op=!!hState.expand[h.id], rm=h.remind||null;
+        var n=h.pupils.length, d=h.tally.done, pa=h.tally.partly, tr=h.tally.tried||0, z=h.tally.none, op=!!hState.expand[h.id], rm=h.remind||null;
         var hid=!!(h.overdue&&h.hidden);    /* hidden from the list (7 Oct 2026); a hidden row due again later is listed as ever */
         var w=n||1;   /* nobody left is "nobody left", not "0 of 1 done" */
         /* who left the Students tab since it was set; pupils who joined its class are in it (6 Oct 2026), so none "joined since" */
@@ -2080,14 +2083,15 @@ var BOOT = __BOOT__;
           (h.teacher&&h.teacher!==BOOT.email?' · set by '+esc(h.teacher):'')+churn+'</div>'+
           (h.waiting?'<div class="hw__r">🗓 Starts '+esc(h.startText)+': pupils do not see it yet</div>':'')+
           (rm&&rm.says?'<div class="hw__r'+(rm.bad?' bad':'')+'">🔔 '+esc(rm.says)+'</div>':'')+'</div>'+
-          '<div class="bars" data-tip="'+d+' done, '+pa+' part way, '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
-          '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
+          '<div class="bars" data-tip="'+d+' done, '+pa+' part way, '+tr+' tried (none right yet), '+z+' not started"><i class="d" style="width:'+(100*d/w)+'%"></i>'+
+          '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="t" style="width:'+(100*tr/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
           '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
           '<div class="hw__due '+dueCls(h)+'"><b>'+esc(fmtD(h))+'</b>'+(h.dueText&&!/, \d\d:\d\d$/.test(h.dueText)?'due at 23:59':'due')+'</div></div>'+
           (op?'<div class="hw__b">'+(h.pupils.map(function(x){
             return '<div class="prow"><div class="prow__n">'+esc(x.name||'(no name)')+'<span>'+esc(x.cls||'')+'</span></div>'+
-              '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
-              '<div><span class="st-pill '+esc(x.state)+'">'+(x.state==='none'?'not started':x.state)+'</span></div></div>'; }).join('')
+              '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':x.state==='tried'?'var(--warn-ink)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
+              /* tried (14 Oct 2026): answers checked at a set station, none right yet; not started: nothing checked there */
+              '<div><span class="st-pill '+esc(x.state)+'">'+(x.state==='none'?'not started':x.state==='tried'?'tried, 0 right':x.state)+'</span></div></div>'; }).join('')
             ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
             (some(h)?'<div class="hwrem">👤 Set for these pupils only'+(h.inClassroom?': in Google Classroom it is an assignment of its own, posted to them alone':'')+
               '. Change the due date, Hide and Remove act on this homework only.</div>':'')+
