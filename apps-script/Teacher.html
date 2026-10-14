@@ -613,7 +613,7 @@ var BOOT = __BOOT__;
       note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
   VIEWS.practicals = { label:'🔬 Practicals', accent:'#22D3EE', accentL:'#0E7490', h1:'IB <em>practicals</em>',
-      lede:'How each student is doing in an IB practical, question by question: right first time, how many checks, and the wrong answers they gave.',
+      lede:'How each student is doing in a practical (IB or KS3), question by question: right first time, how many checks, and the wrong answers they gave.',
       note:'A square is the student’s first round of a question; the number in it is every check it took, in every round. A dot means a later round (after ↺ Start again) got it right. A student appears once they have signed in on the practical page, which saves a minute after their last answer. ● Live reads the sheet again every 30 seconds while this view is open, for two hours at most.' };
   var ORDER = ['teachers','progress','english','writeup','practicals','students','homework','habits'];
   /* cache: each view's newest copy. fresh: read from the sheet (or written) since this page opened. drawn: the copy on the
@@ -2595,7 +2595,7 @@ var BOOT = __BOOT__;
     return { s:s, checks:checks, rounds:x.r[x.r.length-1].n, later: laterRight && s!=='f' && s!=='1' && s!=='d', wrong:wrong,
              tried: x.r.some(function(r){ return (r.c||0)>0 || r.s; }) };
   }
-  var PR_SAY = { f:'right at the first check', '1':'right after more checks', t:'tried, not right yet', d:'answer written', '':'not checked in round 1' };
+  var PR_SAY = { f:'right at the first check', '1':'right after more checks', t:'tried, not right yet', d:'answer written, or a bench experiment finished', '':'not checked in round 1' };
   function prSq(s){ return s==='f' ? 'f' : s==='1' ? 'm' : s==='t' ? 't' : s==='d' ? 'd' : 'z'; }
   /* a wrong answer in words: an option's own words, a gap's number and what it wanted, or what was typed */
   function prWrongSay(q, key){
@@ -2616,7 +2616,7 @@ var BOOT = __BOOT__;
   }
   window.vPracticals = function(D){
     var PR = D.practicals||[], STUD = D.students||[], REC = D.rec||{};
-    if (!PR.length) return $('view').innerHTML = '<div class="empty">No IB practicals are listed in the script yet.</div>';
+    if (!PR.length) return $('view').innerHTML = '<div class="empty">No practicals are listed in the script yet.</div>';
     if (!prState.id || !PR.some(function(p){ return p.id===prState.id; })) {
       /* the practical with the most recent save first */
       var best = PR[0].id, bestAt = '';

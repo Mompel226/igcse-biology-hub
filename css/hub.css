@@ -305,6 +305,10 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .ibtg:hover,.ibtg:focus-visible{color:#fff;border-color:rgba(150,215,240,.7)}
 .ibtg[aria-pressed="true"]{background:rgba(179,136,255,.18);color:#E7DCFF;border-color:rgba(179,136,255,.6)}
 .ibtg[aria-pressed="true"]::before{background:var(--violet);box-shadow:0 0 10px var(--violet)}
+/* Key Stage 3, just before IB (15 Oct 2026): the same switch in teal */
+.yhead .ks3tg + .ibtg{margin-left:0}
+.ks3tg[aria-pressed="true"]{background:rgba(61,214,192,.16);color:#D4FBF4;border-color:rgba(61,214,192,.6)}
+.ks3tg[aria-pressed="true"]::before{background:#3DD6C0;box-shadow:0 0 10px #3DD6C0}
 
 /* On a laptop the two halves of the revision masthead share one band: the sign-in stands level with the
    top of the heading, and the year block ends level with the credit line (it used to hang above both). */
@@ -598,6 +602,8 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .open__list{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px;margin-top:10px}
 .open__item--ib{display:none}
 body.ib .open__item--ib{display:block}
+.open__item--ks3{display:none}
+body.ks3 .open__item--ks3{display:block}
 .ib-note{display:none;color:var(--violet)}
 body.ib .ib-note{display:inline}
 .open__link{
