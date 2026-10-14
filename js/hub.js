@@ -854,6 +854,8 @@
     var tabs = document.createElement('div'); tabs.className = 'ytabs';
     tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', 'Your year');
     head.appendChild(lbl); head.appendChild(tabs);
+    /* Key Stage 3 first, then IB (15 Oct 2026, Daniel: "key stage three before the IB one") */
+    var ks3Btn = document.getElementById('ks3Toggle'); if (ks3Btn) head.appendChild(ks3Btn);
     var ibBtn = document.getElementById('ibToggle'); if (ibBtn) head.appendChild(ibBtn);
     var pills = document.createElement('div'); pills.className = 'path'; pills.id = 'path';
     pills.setAttribute('aria-label', 'Your topics');
@@ -927,6 +929,22 @@
     setIB(now, true);
     toast(now ? 'IB material shown — the same labs, with the extension revealed.' : 'IB material hidden.');
   });
+  /* Key Stage 3 is a layer too (15 Oct 2026, Daniel: "click on key stage three next to the IB extension, and so I see a
+     button"): Year 7–9 practicals, listed under Open now only while it is on (ks3Only in js/shelves.js). */
+  var KS3KEY = 'biology-hub.ks3';
+  var ks3 = document.getElementById('ks3Toggle');
+  function setKS3(onoff, save) {
+    document.body.classList.toggle('ks3', onoff);
+    if (ks3) ks3.setAttribute('aria-pressed', onoff ? 'true' : 'false');
+    if (save) { try { localStorage.setItem(KS3KEY, onoff ? '1' : '0'); } catch (e) {} }
+  }
+  var savedKS3 = null; try { savedKS3 = localStorage.getItem(KS3KEY); } catch (e) {}
+  setKS3(savedKS3 === '1', false);
+  if (ks3) ks3.addEventListener('click', function () {
+    var now = !document.body.classList.contains('ks3');
+    setKS3(now, true);
+    toast(now ? 'Key Stage 3 shown: its practicals are under Open now.' : 'Key Stage 3 hidden.');
+  });
 
   /* ---------- 5. open now ----------
      A lab's size is added here from the register (js/data/labs.js, copied from labs-shared/labs.json
@@ -946,7 +964,7 @@
     OPEN.forEach(function (o) {
       var size = sizeOf(o);
       var li = document.createElement('li');
-      li.className = 'open__item' + (o.ibOnly ? ' open__item--ib' : '');
+      li.className = 'open__item' + (o.ibOnly ? ' open__item--ib' : '') + (o.ks3Only ? ' open__item--ks3' : '');
       li.innerHTML =
         '<a class="open__link" href="' + o.url + '">' +
           '<span class="kind kind--' + o.kind + '">' + esc(o.kind) + '</span>' +
@@ -963,8 +981,8 @@
       openList.appendChild(li);
     });
     var cnt = document.getElementById('openCount');
-    var nIB = OPEN.filter(function (o) { return o.ibOnly; }).length;
-    if (cnt) cnt.textContent = (OPEN.length - nIB) + ' open' + (nIB ? ' · ' + nIB + ' more with IB' : '');
+    var nIB = OPEN.filter(function (o) { return o.ibOnly; }).length, nKS3 = OPEN.filter(function (o) { return o.ks3Only; }).length;
+    if (cnt) cnt.textContent = (OPEN.length - nIB - nKS3) + ' open' + (nIB ? ' · ' + nIB + ' more with IB' : '') + (nKS3 ? ' · ' + nKS3 + ' with KS3' : '');
   }
 
   /* ---------- progress ----------

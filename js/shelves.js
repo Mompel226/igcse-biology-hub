@@ -36,6 +36,7 @@
      sub      one line under the title. Never write a lab's size here: js/hub.js adds
               "12 stations, 115 questions" from the lab register (js/data/labs.js), found by url
      ib       a note shown in the IB layer · ibOnly  listed only when the IB layer is on
+     ks3Only  listed only when the Key Stage 3 layer is on (15 Oct 2026: Daniel's KS3 practicals, "next to the IB extension")
    credits  where each door's image came from — printed in the colophon
    ============================================================ */
 window.HUB = {
@@ -147,7 +148,10 @@ window.HUB = {
       url:'https://nlcsbiology.com/B11-starch-calibration-curve-pract/', ibOnly:true },
     { title:'Rocky shore fieldwork', kind:'practical', shelf:'life-on-earth',
       sub:'IB B4.1.4, C4.1.15 · transects and quadrats on a virtual shore, chi-squared and correlation',
-      url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract/', ibOnly:true }
+      url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract/', ibOnly:true },
+    { title:'Separating mixtures', kind:'practical', shelf:'foundations',
+      sub:'KS3 Year 7 · filtration, evaporation, distillation, chromatography and more, run on a lab bench',
+      url:'https://nlcsbiology.com/ks3-separating-mixtures-pract/', ks3Only:true }
   ],
 
   credits: [

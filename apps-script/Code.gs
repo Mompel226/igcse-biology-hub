@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '14 Oct 2026, night — the 🔑 menu item is gone';
+var SCRIPT_EDITION = '15 Oct 2026 — 🔬 Practicals: KS3 Separating mixtures';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -9348,12 +9348,15 @@ function _habitsData_(now) {
 var T_PRACT   = '🔬 Practicals';
 var PRACT_TAB = '#0E7490';
 var PRACTICALS = [
-  { id:'rocky-shore-fieldwork-pract', title:'Rocky shore fieldwork', url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract' }
+  { id:'rocky-shore-fieldwork-pract', title:'Rocky shore fieldwork', url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract' },
+  /* 15 Oct 2026: the first KS3 practical (Year 7). Daniel: "for now, I don't want to mix IGCSE and IB": KS3 practicals live here,
+     beside the IB ones, until they get a home of their own. */
+  { id:'ks3-separating-mixtures-pract', title:'Separating mixtures (KS3 Y7)', url:'https://nlcsbiology.com/ks3-separating-mixtures-pract' }
 ];
 var PRACT_COLS = [
   { h:'Name', w:200, note:'From the Students tab. A student appears here the first time a practical page saves their work.' },
   { h:'Class', w:80, align:'center', note:'From the Students tab, as it was at their last save.' },
-  { h:'Practical', w:190, note:'The IB practical this row is for: one row per student per practical.' },
+  { h:'Practical', w:190, note:'The practical (IB or KS3) this row is for: one row per student per practical.' },
   { h:'Questions tried', w:130, align:'center', fmt:'0', group:true, note:'Questions they have checked at least once, in any round. Quadrats and other data entries are not counted here: the teacher page shows them.' },
   { h:'Right first time', w:130, align:'center', fmt:'0', group:true, note:'Of those, the questions right at the first check of their first round.' },
   { h:'Checks', w:90, align:'center', fmt:'0', group:true, note:'Every press of Check and every choice made, in every round. ↺ Start again keeps them.' },
