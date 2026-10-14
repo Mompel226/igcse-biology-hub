@@ -7,6 +7,43 @@
 (function () {
   'use strict';
 
+  /* ── A newer hub reloads itself (14 Oct 2026). Daniel: pupils who were signed in still saw the old page after an
+     update, because a laptop opened from sleep shows the page it already had. This script knows its own stamp (its ?v=,
+     written with version.txt by tools/stamp.mjs); version.txt says the newest. It is asked when the page is shown again
+     (a laptop wakes, the tab comes back, a page restored by Back) and every 10 minutes while the page is on screen; a
+     NEWER stamp reloads the page, which keeps its #section. Never while a box or Google's sign-in has the focus, and once
+     per stamp per 10 minutes, so an old copy still kept by a cache cannot reload the page again and again. A small file
+     from the website itself: nothing goes to the labs script. */
+  (function () {
+    var src = (document.currentScript && document.currentScript.src) || '';
+    var m = /[?&]v=(\d+)/.exec(src);
+    if (!m || !window.fetch) return;
+    var MINE = Number(m[1]), GAP = 60000, EVERY = 600000, KEY = 'biology-hub.reloadedFor', last = 0;
+    function busy() {
+      var a = document.activeElement;
+      return !!(a && (/^(INPUT|TEXTAREA|SELECT|IFRAME)$/.test(a.tagName) || a.isContentEditable));
+    }
+    function ask(now) {
+      if (document.hidden || busy() || (!now && Date.now() - last < GAP)) return;
+      last = Date.now();
+      fetch(new URL('../version.txt?t=' + Date.now(), src).href, { cache: 'no-store' })   /* this script is js/hub.js; version.txt is beside the page */
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (t) {
+          var v = Number(String(t || '').trim());
+          if (!(v > MINE) || document.hidden || busy()) return;
+          var done = null;
+          try { done = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) {}
+          if (done && done.v === v && Date.now() - done.at < EVERY) return;
+          try { sessionStorage.setItem(KEY, JSON.stringify({ v: v, at: Date.now() })); } catch (e) {}
+          location.reload();
+        })
+        .catch(function () {});
+    }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) ask(false); });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) ask(true); });
+    setInterval(function () { ask(false); }, EVERY);
+  })();
+
   /* The shared register, plus whatever the local layer adds. js/local.js is the only
      file that differs between the NLCS edition and the open one; in the open edition it
      is a stub, so everything below simply sees four doors and no school in the name. */

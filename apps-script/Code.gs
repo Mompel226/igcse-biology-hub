@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '14 Oct 2026 — the homework list says "tried, 0 right"';
+var SCRIPT_EDITION = '14 Oct 2026, night — the 🔑 menu item is gone';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -319,8 +319,6 @@ function onOpen() {
     .addItem('👥  Teacher page: teachers and addresses…', 'showTeacherSetup_')
     .addItem('🤝  Let the teachers on the list edit this spreadsheet…', 'shareWithTeachersMENU_')
     .addItem('📬  Email me when homework falls due (every morning)', 'installDailySummary')
-    .addSeparator()
-    .addItem('🔑  Make every pupil sign in again (cancel their saving passes)…', 'newPassSecretMENU_')
     .addToUi();
 }
 
@@ -913,7 +911,9 @@ function _whoIs_(idToken) {
    when it is not. A pass opens ONLY a pupil's own saving and own practice: lab saves, `progress`, `english.save`/`english.mine`
    and `writeup.save`/`writeup.mine` (with no way to the teacher page). Never `record`, `test`, the teacher page, or a new pass:
    a pass cannot make a pass, so a stolen one dies within 30 days. Every use still checks the class list, so a pupil taken off
-   it is refused. 🔑 in the menu deletes the secret: every pass stops at once, and each pupil signs in once more.
+   it is refused. There is no menu item to cancel every pass (removed 14 Oct 2026, Daniel: practice work needs no such
+   lock): a pass ends after 30 days (signing out removes it from that browser only). Deleting PASS_SECRET in Script
+   Properties by hand would still stop every pass at once.
    The pages keep it in labs-shared/signin.js (`biology.pass`); signing out removes it. Proof: gastest "— this script's own
    pass —" and tools/signin-runs-out.mjs. */
 var PASS_DAYS = 30;
@@ -991,24 +991,6 @@ function _ownPass_(d) {
   if (!p) return _json_({ ok: false, why: 'busy — it will try again' });
   return _json_({ ok: true, pass: p.pass, exp: p.exp });
 }
-/* 🔑 Every pupil's pass stops at once (a lost laptop, a pass seen where it should not be): the secret is deleted, and the
-   next pass made has a new one. Each pupil is asked to sign in once more; nothing they did is lost. */
-function newPassSecretMENU_() {
-  var ui = SpreadsheetApp.getUi();
-  var go = ui.alert('🔑 Make every pupil sign in again',
-    'Each pupil’s browser keeps a pass from this script, so their work is still saved after Google’s one-hour sign-in ' +
-    'ends. Cancel every pass if a laptop was lost, or if a pass was seen where it should not be.\n\n' +
-    'Each pupil then sees “sign in again” once, and one press of Google’s button sends their work. Nothing they did is lost.\n\n' +
-    'Cancel every pass now?', ui.ButtonSet.YES_NO);
-  if (go !== ui.Button.YES) return;
-  var lock = LockService.getScriptLock();
-  try { lock.waitLock(8000); }
-  catch (e) { ui.alert('🔑 Busy', 'Pupils’ work is being saved just now. Nothing was cancelled: try again in a minute.', ui.ButtonSet.OK); return; }
-  try { PropertiesService.getScriptProperties().deleteProperty(PASS_SECRET_KEY); }
-  finally { lock.releaseLock(); }
-  ui.alert('🔑 Done', 'Every pass is cancelled. Each pupil signs in once more, the next time a lab asks.', ui.ButtonSet.OK);
-}
-
 /* An address typed or pasted into the Sheet carries what came with it: a trailing space from
    a copy, a non-breaking space from a web page, a zero-width character from a document, or a
    "mailto:" from a pasted link. Every comparison below lowercased but did not trim, so an
