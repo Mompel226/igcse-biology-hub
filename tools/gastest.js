@@ -6101,18 +6101,10 @@ console.log('— this script’s own pass —');
       if (!/^recorded/.test(out) || Number(rowOf('dee@x.kr')[9]) !== deeBefore || Number(rowOf('ana@x.kr')[9]) !== anaBefore + 1)
         throw new Error('a save with Ana’s Google sign-in and Dee’s pass went to the wrong row: ' + out);
     });
-    ok &= run('🔑 in the menu cancels every pass at once (after a question); the next pass made works', () => {
-      const P = passFor('ana@x.kr').pass, said = [];
-      let answer = 'NO';
-      SpreadsheetApp.getUi = () => Object.assign(keepUi(), { ButtonSet: { OK: 1, YES_NO: 2 }, Button: { YES: 'YES', NO: 'NO' },
-        alert: (a, b, c) => { said.push(String(b)); return c === 2 ? answer : 'OK'; } });
-      newPassSecretMENU_();
-      if (!/^recorded/.test(hand({ token: OLD, pass: P, score: 1, total: QN }))) throw new Error('"No" cancelled the passes');
-      answer = 'YES'; newPassSecretMENU_();
-      const out = hand({ token: OLD, pass: P, score: 1, total: QN });
-      if (out !== 'not recorded: not signed in') throw new Error('an old pass after 🔑: ' + out);
-      if (!/^recorded/.test(hand({ token: OLD, pass: passFor('ana@x.kr').pass, score: 1, total: QN }))) throw new Error('a new pass after 🔑 does not save');
-      if (!/sign in again/.test(said.join(' ')) || !/Nothing they did is lost/.test(said.join(' '))) throw new Error('the question does not say what pupils will see: ' + said.join(' | '));
+    ok &= run('no menu item cancels every pass (removed 14 Oct 2026, Daniel); a pass still saves', () => {
+      if (typeof newPassSecretMENU_ !== 'undefined') throw new Error('newPassSecretMENU_ is still in the script');
+      if (/Make every pupil sign in again|newPassSecretMENU_/.test(SRC)) throw new Error('the menu still offers it');
+      if (!/^recorded/.test(hand({ token: OLD, pass: passFor('ana@x.kr').pass, score: 1, total: QN }))) throw new Error('a pass no longer saves');
     });
     ok &= run('a refused save (numbers that do not add up) keeps no sign-in and no pass in the Rejected tab (audit, 6 Oct 2026)', () => {
       const P = passFor('ana@x.kr').pass;
@@ -6121,17 +6113,6 @@ console.log('— this script’s own pass —');
       const rj = ss.getSheetByName('Rejected'), row = rj.getRange(rj.getLastRow(), 1, 1, rj.getLastColumn()).getValues()[0].join(' ');
       if (row.indexOf(P) >= 0 || row.indexOf(OLD) >= 0 || /"(token|pass)"/.test(row)) throw new Error('the Rejected row keeps a credential: ' + row.slice(0, 200));
       if (!/"score":5/.test(row)) throw new Error('the Rejected row lost the body it is there for: ' + row.slice(0, 200));
-    });
-    ok &= run('🔑 while saves hold the lock: nothing is cancelled, and the teacher is told to try again (audit, 6 Oct 2026)', () => {
-      const P = passFor('ana@x.kr').pass, said = [], keepLock = LockService.getScriptLock;
-      SpreadsheetApp.getUi = () => Object.assign(keepUi(), { ButtonSet: { OK: 1, YES_NO: 2 }, Button: { YES: 'YES', NO: 'NO' },
-        alert: (a, b, c) => { said.push(String(a) + ' ' + String(b)); return c === 2 ? 'YES' : 'OK'; } });
-      LockService.getScriptLock = () => ({ waitLock: () => { throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock: () => {} });
-      let threw = '';
-      try { newPassSecretMENU_(); } catch (e) { threw = e.message; } finally { LockService.getScriptLock = keepLock; }
-      if (threw) throw new Error('a raw error reached the teacher: ' + threw);
-      if (!/[Tt]ry again/.test(said.join(' '))) throw new Error('the teacher was not told: ' + said.join(' | '));
-      if (!/^recorded/.test(hand({ token: OLD, pass: P, score: 1, total: QN }))) throw new Error('the passes were cancelled anyway');
     });
     ok &= run('a long or unusual name (Hangul, an emoji, half an emoji) still gets a pass that works (audit, 6 Oct 2026)', () => {
       for (const name of ['김'.repeat(200), 'Ana 😀'.repeat(40), 'Ana ' + String.fromCharCode(0xD83D)]) {
