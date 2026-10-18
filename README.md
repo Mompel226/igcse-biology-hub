@@ -573,6 +573,8 @@ this repository, so you can pull updates without losing your changes.
 
 ## For developers
 
+The `tools/` named here stay on Daniel's computer: they are not in this repository (since 18 Oct 2026). To make this edition yours you edit only `js/local.js`.
+
 Static files. No build step beyond `node tools/stamp.mjs`, which first copies in what the site
 shares with the labs, when it finds `labs-shared/` above this folder (the lab register as
 `js/data/labs.json` and `labs.js`, `js/progress.js`, `js/signin.js`, `js/data/stations.json` and the
