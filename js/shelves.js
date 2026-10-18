@@ -149,6 +149,9 @@ window.HUB = {
     { title:'Rocky shore fieldwork', kind:'practical', shelf:'life-on-earth',
       sub:'IB B4.1.4, C4.1.15 · transects and quadrats on a virtual shore, chi-squared and correlation',
       url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract/', ibOnly:true },
+    { title:'Microscopy skills', kind:'practical', shelf:'foundations',
+      sub:'IB A2.2.2 · calibrate a graticule, measure cells, scale bars and the rules for a drawing',
+      url:'https://nlcsbiology.com/A22-microscopy-skills-pract/', ibOnly:true },
     { title:'Separating mixtures', kind:'practical', shelf:'foundations',
       sub:'KS3 Year 7 · filtration, evaporation, distillation, chromatography and more, run on a lab bench',
       url:'https://nlcsbiology.com/ks3-separating-mixtures-pract/', ks3Only:true }
