@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1792039430">
+<link rel="stylesheet" href="css/hub.css?v=1792291870">
 </head>
 <body>
 
@@ -80,6 +80,8 @@
             <button type="button" data-mode="teacher" aria-pressed="true">Teacher</button>
             <button type="button" data-mode="test" aria-pressed="false">Test</button>
           </div>
+          <!-- A teacher in test mode: their own reflection cards on or off (18 Oct 2026), remembered on this computer -->
+          <button type="button" class="acct__out" id="acctRfl" aria-pressed="true" hidden>Reflection cards: shown</button>
           <button type="button" class="acct__out" id="acctOut">Sign out</button>
         </div>
       </div>
@@ -193,12 +195,12 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client?hl=en-GB" async defer></script>
 
-<script src="js/data/labs.js?v=1792039430"></script>
-<script src="js/data/syllabus-years.js?v=1792039430"></script>
-<script src="js/progress.js?v=1792039430"></script>
-<script src="js/signin.js?v=1792039430"></script>
-<script src="js/shelves.js?v=1792039430"></script>
-<script src="js/local.js?v=1792039430"></script>
-<script src="js/hub.js?v=1792039430"></script>
+<script src="js/data/labs.js?v=1792291870"></script>
+<script src="js/data/syllabus-years.js?v=1792291870"></script>
+<script src="js/progress.js?v=1792291870"></script>
+<script src="js/signin.js?v=1792291870"></script>
+<script src="js/shelves.js?v=1792291870"></script>
+<script src="js/local.js?v=1792291870"></script>
+<script src="js/hub.js?v=1792291870"></script>
 </body>
 </html>

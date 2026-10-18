@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '18 Oct 2026 — feedback card stays while its review is open';
+var SCRIPT_EDITION = '18 Oct 2026 — deleted spreadsheets hidden, rows removed';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -4540,6 +4540,8 @@ function _testSheetIds_(fresh) {
     var id = _sheetIdOf_(l.url);
     if (id && !seen[id]) { seen[id] = 1; ids.push(id); }
   });
+  var dead = _goneFiles_(ids);                                       /* a test in the bin or deleted: no banner, no card */
+  ids = ids.filter(function (id) { return !dead[id]; });
   try { if (cache) cache.put(key, JSON.stringify(ids), 60); } catch (e) {}
   return ids;
 }
@@ -5470,6 +5472,77 @@ function _sheetIdOf_(url) {
   var m = String(url || '').match(/^https:\/\/docs\.google\.com\/(?:a\/[^\/]+\/)?spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/);
   return m ? m[1] : '';
 }
+/* Any Google file's id from its address (a Sheet, a Form, a Doc, a Drive file), or '' (a published form's
+   /forms/d/e/… address is not the file's id, so it gives ''). */
+function _driveIdOf_(url) {
+  var u = String(url || ''), m = u.match(/^https:\/\/(?:docs|drive)\.google\.com\/(?:a\/[^\/]+\/)?(?:spreadsheets|forms|document|presentation|file)\/(?:u\/\d+\/)?d\/(?!e\/)([A-Za-z0-9_-]{20,})/);
+  return m ? m[1] : '';
+}
+
+/* ============================================================
+   A deleted spreadsheet is not shown (18 Oct 2026)
+   ============================================================
+   Daniel: once an assessment's data is in the tracker an old spreadsheet may be deleted, "so that if a spreadsheet has
+   been erased, it can be detected and not shown". _goneFiles_(ids) → { id: 'bin' | 'gone' }: 'bin' = Drive says it is in
+   the bin (a script can still OPEN a file in the bin, so opening it proves nothing); 'gone' = Drive cannot find a file
+   this script could open before (LINKS_SEEN): a file it was never let into (a colleague's, not shared with this account)
+   is never called deleted. No Drive for this script at all: nothing is called gone. Each answer is kept an hour, and one
+   call asks Drive about at most GONE_BUDGET files (the rest wait for the next call, shown meanwhile), so a page of 60 links
+   costs a few calls once an hour. Used by the teacher page's Spreadsheets (_teacherPageGroups_) and the hub's tests
+   (_testSheetIds_: no "Sit a test" banner or feedback card from a test in the bin). The teacher page also REMOVES the row
+   of a spreadsheet deleted for good (_dropGoneLinks_; Daniel chose "removed by themselves"): one in the bin is only
+   hidden, so restoring it brings it back. Only a teacher's page load removes anything, never a pupil's. */
+var LINKS_SEEN = 'LINKS_SEEN_IDS';   /* Script Property: [file id] this script has found in Drive (the newest 180) */
+var GONE_BUDGET = 12;
+function _goneFiles_(ids) {
+  var out = {}, cache = null, hit = {}, uniq = [];
+  (ids || []).forEach(function (id) { if (id && uniq.indexOf(id) < 0) uniq.push(id); });
+  if (!uniq.length) return out;
+  try { cache = CacheService.getScriptCache(); hit = cache.getAll(uniq.map(function (id) { return 'gone1:' + id; })) || {}; } catch (e) {}
+  var seen = null, seenAdd = [], put = {}, asked = 0, noDrive = false;
+  uniq.forEach(function (id) {
+    var h = hit['gone1:' + id];
+    if (h) { if (h === 'bin' || h === 'gone') out[id] = h; return; }
+    if (noDrive || asked >= GONE_BUDGET) return;
+    asked++;
+    var state = 'ok';
+    try { state = DriveApp.getFileById(id).isTrashed() ? 'bin' : 'ok'; }
+    catch (e) {
+      if (/permission to call|Required permissions|not authori[sz]ed/i.test(String((e && e.message) || e))) { noDrive = true; return; }
+      if (!seen) seen = _linksSeen_();
+      state = seen.indexOf(id) >= 0 ? 'gone' : 'unknown';
+    }
+    if (state === 'ok') { if (!seen) seen = _linksSeen_(); if (seen.indexOf(id) < 0) seenAdd.push(id); }
+    put['gone1:' + id] = state;
+    if (state === 'bin' || state === 'gone') out[id] = state;
+  });
+  try { if (cache && Object.keys(put).length) cache.putAll(put, 3600); } catch (e) {}
+  if (seenAdd.length) {
+    try { PropertiesService.getScriptProperties().setProperty(LINKS_SEEN, JSON.stringify(seen.concat(seenAdd).slice(-180))); } catch (e) {}
+  }
+  return out;
+}
+/* The 🔗 Teacher links rows of files deleted for good ('gone' in `dead`): read the tab again inside the lock, so a row
+   that moved since is never the one deleted, and delete from the bottom up. { id: true } for each id whose rows went;
+   {} when the lock is busy (the next load tries again). */
+function _dropGoneLinks_(dead) {
+  var ids = Object.keys(dead || {}).filter(function (id) { return dead[id] === 'gone'; }), out = {};
+  if (!ids.length) return out;
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(5000); } catch (e) { return out; }
+  try {
+    var sh = _ss_().getSheetByName(T_LINKS);
+    if (!sh) return out;
+    _teacherLinksScan_().rows.filter(function (l) { return ids.indexOf(_driveIdOf_(l.url)) >= 0; })
+      .sort(function (a, b) { return b.row - a.row; })
+      .forEach(function (l) { sh.deleteRow(l.row); out[_driveIdOf_(l.url)] = true; Logger.log('🔗 Teacher links: row ' + l.row + ' (' + l.name + ') removed, its spreadsheet deleted'); });
+  } finally { try { lock.releaseLock(); } catch (e) {} }
+  return out;
+}
+function _linksSeen_() {
+  try { var v = JSON.parse(PropertiesService.getScriptProperties().getProperty(LINKS_SEEN) || '[]'); return Array.isArray(v) ? v.map(String) : []; }
+  catch (e) { return []; }
+}
 
 /* ============================================================
    🔎 Find new reflection and test spreadsheets (26 Sep 2026)
@@ -5890,8 +5963,13 @@ function _cohortLabel_(grad, now) {
    end, so nothing is ever lost. */
 function _teacherPageGroups_(now) {
   var scan = _teacherLinksScan_(), raw = scan.rows;
-  var records = [], cohorts = {}, order = [], loose = [];
+  var records = [], cohorts = {}, order = [], loose = [], gone = [];
+  /* a spreadsheet in the bin or deleted is not shown; the page names it, so its row can be removed (18 Oct 2026) */
+  var dead = _goneFiles_(raw.map(function (l) { return _driveIdOf_(l.url); }));
+  var removed = _dropGoneLinks_(dead);                 /* deleted for good: its row goes by itself */
   raw.forEach(function (l) {
+    var did = _driveIdOf_(l.url);
+    if (did && dead[did]) { gone.push({ row: l.row, name: l.name || l.assessment || 'a row', why: dead[did], removed: !!removed[did] }); return; }
     var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
     var co = _cohortLabel_(l.grad, now);
     var entry = { name: l.name, url: l.url, dash: l.dash, form: l.form, review: l.review || '', type: l.type, assessment: l.assessment,
@@ -5910,7 +5988,7 @@ function _teacherPageGroups_(now) {
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
   var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
-  var out = { unreadable: scan.unreadable, typed: scan.typed, chipsOn: scan.chipsOn, chipTrouble: scan.chipTrouble, records: records, cohorts: order.map(function (g) {
+  var out = { unreadable: scan.unreadable, typed: scan.typed, gone: gone, chipsOn: scan.chipsOn, chipTrouble: scan.chipTrouble, records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
     c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });

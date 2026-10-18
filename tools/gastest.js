@@ -248,7 +248,9 @@ const cacheWrites = [];                    /* every put, in order — the dialog
 global.CacheService = { getScriptCache: () => ({
   put: (k, v) => { if (!/^ID_/.test(k)) { cacheStore.set(k, v); cacheWrites.push([k, v]); } },
   get: (k) => (/^ID_/.test(k) ? null : (cacheStore.get(k) || null)),
-  remove: (k) => { cacheStore.delete(k); }   /* as the real cache (10 Oct 2026: the job engine's one-go mark) */
+  remove: (k) => { cacheStore.delete(k); },  /* as the real cache (10 Oct 2026: the job engine's one-go mark) */
+  getAll: (keys) => { const o = {}; keys.forEach(k => { const v = /^ID_/.test(k) ? null : cacheStore.get(k); if (v != null) o[k] = v; }); return o; },
+  putAll: (obj) => { Object.keys(obj).forEach(k => { if (!/^ID_/.test(k)) cacheStore.set(k, String(obj[k])); }); }   /* both as the real cache (18 Oct 2026) */
 }) };
 global.ContentService = { createTextOutput: t => ({ setMimeType: () => t }), MimeType: { TEXT: 1, JSON: 2, JAVASCRIPT: 3 } };
 global.HtmlService = { createHtmlOutputFromFile: (name) => ({
@@ -2723,6 +2725,46 @@ console.log('— 🔎 find new reflection and test spreadsheets —');
     FILES.push(SD5);
     teacherFindSpreadsheets();
     if (rowsFor(SD5.id).length) throw new Error('Find still looked in a folder after ✕');
+  });
+  ok &= run('a spreadsheet in the bin or deleted is not shown on the teacher page and gives no Sit-a-test banner; the page names it; one this script could never open, and every one when Drive is refused, are shown (18 Oct 2026)', () => {
+    /* Daniel, 18 Oct 2026: "if a spreadsheet has been erased, it can be detected and not shown" */
+    VISITOR = OWNER;
+    const forget = () => { for (const k of [...cacheStore.keys()]) if (/^(gone1:|testids1)/.test(k)) cacheStore.delete(k); };
+    const U = id => 'https://docs.google.com/spreadsheets/d/' + id + '/edit';
+    const KEEP = { id: ID('gkeep'), owner: OWNER, folderOwner: OWNER, desc: '' }, BIN = { id: ID('gbin'), owner: OWNER, folderOwner: OWNER, desc: '', trashed: true };
+    const LATE = { id: ID('glate'), owner: OWNER, folderOwner: OWNER, desc: '' }, NEVER = { id: ID('gnever') };
+    FILES.push(KEEP, BIN, LATE); props.delete(LINKS_SEEN); forget();
+    [['Reflection', 'Kept reflection', KEEP], ['Test', 'Binned test', BIN], ['Reflection', 'Deleted later', LATE], ['Reflection', 'A colleague\'s', NEVER]]
+      .forEach(([t, a, o]) => teacherAddLink({ type: t, assessment: a, grad: G, url: U(o.id) }));
+    const shown = g => [].concat(g.records, g.loose, ...g.cohorts.map(c => [].concat(...c.types.map(t => t.links)))).map(l => l.assessment || l.name);
+    /* one load asks Drive about at most GONE_BUDGET files; the next loads ask about the rest (each answer kept an hour) */
+    const ask = () => { const a = []; const real = global.DriveApp.getFileById; global.DriveApp.getFileById = id => { a.push(id); return real(id); };
+      try { return [_teacherPageGroups_(new Date()), a]; } finally { global.DriveApp.getFileById = real; } };
+    const settle = () => { let r; for (let i = 0; i < 10; i++) { r = ask(); if (!r[1].length) break; } return r[0]; };
+    const first = ask();
+    if (first[1].length > GONE_BUDGET) throw new Error('one load asked Drive about ' + first[1].length + ' files (at most ' + GONE_BUDGET + ')');
+    let g = settle(), s = shown(g);
+    if (!s.includes('Kept reflection') || !s.includes('Deleted later') || !s.includes('A colleague\'s')) throw new Error('a spreadsheet that is there was hidden: ' + s.join(', '));
+    if (s.includes('Binned test')) throw new Error('the spreadsheet in the bin is still shown');
+    if (JSON.stringify(g.gone.map(x => [x.name, x.why])) !== JSON.stringify([['Binned test', 'bin']])) throw new Error('the page does not name it: ' + JSON.stringify(g.gone));
+    if (_testSheetIds_(true).includes(BIN.id)) throw new Error('the test in the bin still gives the Sit-a-test banner');
+    if (!_linksSeen_().includes(LATE.id) || _linksSeen_().includes(NEVER.id)) throw new Error('what this script found was not remembered: ' + JSON.stringify(_linksSeen_()));
+    FILES.splice(FILES.indexOf(LATE), 1); forget();                 /* the bin emptied: Drive no longer finds it */
+    const seenGone = []; let r2;
+    for (let i = 0; i < 10; i++) { r2 = ask(); seenGone.push(...r2[0].gone); if (!r2[1].length) break; }
+    g = r2[0]; s = shown(g);
+    if (s.includes('Deleted later')) throw new Error('a deleted spreadsheet is shown');
+    if (!seenGone.some(x => x.name === 'Deleted later' && x.why === 'gone' && x.removed)) throw new Error('the page did not say its row was removed: ' + JSON.stringify(seenGone));
+    if (rowsFor(LATE.id).length) throw new Error('the row of a spreadsheet deleted for good is still in 🔗 Teacher links (Daniel chose: removed by themselves)');
+    if (rowsFor(BIN.id).length !== 1) throw new Error('the row of a spreadsheet in the bin was removed: it must come back if restored');
+    if (!s.includes('A colleague\'s') || !rowsFor(NEVER.id).length) throw new Error('one this script was never let into is hidden or removed as deleted');
+    forget(); DRIVE_DENY = true;
+    try { g = settle(); } finally { DRIVE_DENY = false; }
+    if (g.gone.length || !shown(g).includes('Binned test')) throw new Error('with Drive refused something was hidden: ' + JSON.stringify(g.gone));
+    forget(); settle();
+    const again = ask()[1];
+    if (again.length) throw new Error('an answer kept for the hour was asked again: ' + again.length);
+    FILES.splice(FILES.indexOf(KEEP), 1); FILES.splice(FILES.indexOf(BIN), 1); forget(); props.delete(LINKS_SEEN);
   });
   delete global.DriveApp;
   [T_TEACHERS, T_LINKS].forEach(n => { const t = ss.getSheetByName(n); if (t) ss.deleteSheet(t); });

@@ -887,6 +887,17 @@ var BOOT = __BOOT__;
       ty.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', ')+'. '+
       (ty.length===1?'Its Link does not start with https://. Replace it':'Their Links do not start with https://. Replace each')+
       ' with the spreadsheet’s full address, copied from the browser’s address bar, in the labs spreadsheet’s 🔗 Teacher links tab.</div>';
+    /* A spreadsheet in the bin or deleted is not shown (18 Oct 2026, Daniel: "if a spreadsheet has been erased, it can be
+       detected and not shown"); it is named here, so its row can be removed or the file brought back. */
+    /* Daniel chose: a row whose spreadsheet is deleted for good goes by itself; one in the bin is only hidden. */
+    var gn = (g && g.gone) || [], nm = function(l){ return l.map(function(u){ return '<b>'+esc(u.name)+'</b>'; }).join(', '); };
+    var gBin = gn.filter(function(u){ return u.why==='bin'; }), gDel = gn.filter(function(u){ return u.why!=='bin'; });
+    if (gBin.length) warn += '<div class="warn">'+(gBin.length===1?'1 spreadsheet is':gBin.length+' spreadsheets are')+' in the bin, so not shown: '+nm(gBin)+'. '+
+      (gBin.length===1?'It comes back if you restore it':'They come back if you restore them')+' from the bin in Google Drive. Once the bin is emptied, '+
+      (gBin.length===1?'its row is':'their rows are')+' removed from 🔗 Teacher links by '+(gBin.length===1?'itself':'themselves')+'.</div>';
+    if (gDel.length) warn += '<div class="warn">'+(gDel.length===1?'1 spreadsheet was':gDel.length+' spreadsheets were')+' deleted, so '+
+      (gDel.length===1?'its row':'their rows')+(gDel.every(function(u){ return u.removed; })?' in 🔗 Teacher links '+(gDel.length===1?'was':'were')+' removed: '
+        :' in 🔗 Teacher links '+(gDel.length===1?'is':'are')+' not shown and will be removed at the next look: ')+nm(gDel)+'.</div>';
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
       return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</div>';
     var present={}, body='';

@@ -1175,6 +1175,7 @@
         whoAct  = document.getElementById('acctWhoAct'),
         foot    = document.getElementById('acctFoot'),
         modeEl  = document.getElementById('acctMode'),
+        rflSw   = document.getElementById('acctRfl'),
         outBtn  = document.getElementById('acctOut');
     /* the stylesheet swaps link for identity on the front page — only if this page HAS the door */
     if (mineEl || sysEl) document.body.setAttribute('data-mine-door', '');
@@ -1258,7 +1259,7 @@
     };
     function rflDraw(j) {
       if (!rflEl || !j || !acting) return;
-      if (j.teacher && mode() !== 'test') return;
+      if (j.teacher && (mode() !== 'test' || !rflShown())) return;
       var r = j.reflect, say = r && RFL_SAY[r.state];
       if (!say) {
         if (j.teacher && rflNote && j.reflectWhy && j.reflectWhy.length) {
@@ -1462,6 +1463,14 @@
     function mode() {
       try { return localStorage.getItem(MODE_KEY) === 'test' ? 'test' : 'teacher'; } catch (e) { return 'teacher'; }
     }
+    /* A teacher's own "Your reflection" cards (18 Oct 2026, Daniel): a teacher whose email is on a reflection's
+       "Marks · Test" tab gets its card in test mode, though they "are not gonna do the reflection"; switching the
+       reflection off for the hub would hide it from the pupils too. So a switch beside Sign out, for a teacher in test
+       mode only, remembered on this computer: it changes what this page shows THEM, never what a pupil sees. */
+    var RFL_KEY = 'biology-hub.rflcards';
+    function rflShown() {
+      try { return localStorage.getItem(RFL_KEY) !== 'hide'; } catch (e) { return true; }
+    }
     function footer(on) {
       if (!foot) return;
       foot.hidden = !on;
@@ -1472,7 +1481,17 @@
           b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === m));
         });
       }
+      if (rflSw) {
+        rflSw.hidden = !(on && teacher && mode() === 'test');
+        rflSw.setAttribute('aria-pressed', String(rflShown()));
+        rflSw.textContent = 'Reflection cards: ' + (rflShown() ? 'shown' : 'hidden');
+      }
     }
+    if (rflSw) rflSw.addEventListener('click', function () {
+      try { localStorage.setItem(RFL_KEY, rflShown() ? 'hide' : 'show'); } catch (e) {}
+      footer(true);
+      sitDraw();                  /* the cards again, from the last answer: nothing new to ask */
+    });
     if (modeEl) modeEl.addEventListener('click', function (e) {
       var b = e.target.closest && e.target.closest('button[data-mode]');
       if (!b || b.getAttribute('aria-pressed') === 'true') return;
