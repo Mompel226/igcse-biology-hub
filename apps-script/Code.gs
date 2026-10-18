@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '18 Oct 2026 — deleted sheets hidden; Microscopy practical';
+var SCRIPT_EDITION = '18 Oct 2026 — job messages say tell Daniel';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -1917,7 +1917,7 @@ function checkSetup() {
   var jst = _jeStore_();
   if (jst) {
     lines.push((jst.level === 'ok' ? '✅  ' : jst.level === 'warn' ? '⚠️  ' : '❌  ') + _jeStoreLine_(jst) +
-      (jst.level === 'full' ? ' 🎨 Tidy up and the import will not start until there is room: tell Claude.' : jst.level === 'warn' ? ' At 95 % they will not start: tell Claude.' : ''));
+      (jst.level === 'full' ? ' 🎨 Tidy up and the import will not start until there is room: tell Daniel.' : jst.level === 'warn' ? ' At 95 % they will not start: tell Daniel.' : ''));
     _jeStoreNotify_(jst);
   }
   Object.keys(JE_KINDS).forEach(function (k) {
@@ -2051,7 +2051,7 @@ function _buildRun_(st, t0, budgetMs, save, eng) {
     if (budgetMs && began && (el > budgetMs || el + 1.25 * Math.max(st.slow || 0, BUILD_FIRST_GUESS_MS) > BUILD_HARD_MS)) return false;
     var key = steps[st.i];
     if ((st.tries[key] || 0) >= BUILD_MAX_TRIES) {
-      st.notes.push('Google stopped one part of the work ' + BUILD_MAX_TRIES + ' times, each time with a whole run to itself (' + _buildStepName_(key) + '): tick 🎨 Tidy up again to finish it; if it stops there again, tell Claude.');
+      st.notes.push('Google stopped one part of the work ' + BUILD_MAX_TRIES + ' times, each time with a whole run to itself (' + _buildStepName_(key) + '): tick 🎨 Tidy up again to finish it; if it stops there again, tell Daniel.');
       st.partly = true;
       delete st.tries[key]; st.i++; save(); moved();
       continue;
@@ -2218,7 +2218,7 @@ function _jePieceBegin_(kind, job) {
     if (!stop && (st.n || 0) >= JE_NO_PROGRESS_MAX) {
       stop = '⚠️ Stopped: it began ' + st.n + ' times in a row without finishing anything' +
         (st.err1 ? ' (the error: ' + st.err1 + ')' : ' (Google stopped each run before it could finish one part)') +
-        '. ' + _jePressAgain_(kind) + ' If it stops like this again, tell Claude.';
+        '. ' + _jePressAgain_(kind) + ' If it stops like this again, tell Daniel.';
     }
     if (!stop) {
       st.n = (st.n || 0) + 1;
@@ -2329,7 +2329,7 @@ function _jeError_(kind, e) {
   try { Logger.log('job ' + kind + ': ' + msg + (e && e.stack ? '\n' + e.stack : '')); } catch (eL) {}
   var st = _jeUpdate_(kind, function (s) { s.errs = (s.errs || 0) + 1; if (!s.err1) s.err1 = msg; });
   return st.errs >= JE_ERRORS_MAX
-    ? '⚠️ Stopped: it went wrong ' + st.errs + ' times in a row (' + st.err1 + '). ' + _jePressAgain_(kind) + ' If it stops like this again, tell Claude.'
+    ? '⚠️ Stopped: it went wrong ' + st.errs + ' times in a row (' + st.err1 + '). ' + _jePressAgain_(kind) + ' If it stops like this again, tell Daniel.'
     : '';
 }
 // Work is left: the next run a minute out and the safety run 8 minutes out. False when Google would not set the next
@@ -2369,7 +2369,7 @@ function _jeBrakeWords_(kind, st) {
   return '⛔ Stopped for today: it had begun ' + st.runs + ' times today (' + Math.round((st.ms || 0) / 60000) +
     ' minutes of Google\'s run time), more than this job ever needs, so something keeps going wrong' +
     (st.err1 ? ' (the error: ' + st.err1 + ')' : '') + '. Each run uses the account\'s daily allowance of trigger time, which ' +
-    'every script of the account shares. It can be started again tomorrow; tell Claude what this says.';
+    'every script of the account shares. It can be started again tomorrow; tell Daniel what this says.';
 }
 /* How a job is: { state: 'running' | 'waiting' | 'stopped' | 'none', how, at, by, began }. stopped: no run has come when
    one was due (Google did not start it); the next press begins it again. */
@@ -2455,7 +2455,7 @@ function _jeStoreNotify_(s) {
   if (!s || s.level === 'ok') return;
   _jeMailOnce_('store_' + s.level, (s.level === 'full' ? '⛔ The labs script\'s storage is almost full' : '⚠️ The labs script\'s storage is filling up'),
     _jeStoreLine_(s) + (s.level === 'full' ? ' 🎨 Tidy up and the Classroom import will not start until there is room, and other saves may fail.'
-                                           : ' At 95 % 🎨 Tidy up and the Classroom import will not start.') + ' Tell Claude: it can clear what is no longer needed.');
+                                           : ' At 95 % 🎨 Tidy up and the Classroom import will not start.') + ' Tell Daniel: he can clear what is no longer needed.');
 }
 /* The day's mark is kept in the script cache AND in Document Properties (a store of its own; a full Script store does not
    stop it), so an email goes once a day. */
@@ -2483,7 +2483,7 @@ function _jeCanStart_(kind) {
   if (busy) return { refuse: busy };
   var s = _jeStore_();
   _jeStoreNotify_(s);
-  if (s && s.level === 'full') return { refuse: '⛔ ' + JE_KINDS[kind].title + ' did not start: ' + _jeStoreLine_(s) + ' A job needs room to keep where it is. Tell Claude.' };
+  if (s && s.level === 'full') return { refuse: '⛔ ' + JE_KINDS[kind].title + ' did not start: ' + _jeStoreLine_(s) + ' A job needs room to keep where it is. Tell Daniel.' };
   return { warn: s && s.level === 'warn' ? '⚠️ ' + _jeStoreLine_(s) + ' At 95 % no job will start.' : '' };
 }
 /* ⏹ Stop, for a job's window: 'none' (no job), 'fail' (Google would not keep the Stop), 'ended' (it ended now)
@@ -2646,7 +2646,7 @@ function setup() {
     /* 10 Oct 2026: Google would not keep where it is. It used to do the work in one go, which Google stops at 6 minutes
        part way: now it says so and does nothing */
     _TIDY_CONTINUES_ = true;
-    var full = 'Tidy up did not start at ' + _hhmm_(new Date()) + ': Google would not keep where it is (the script\'s storage is full). ' + _jeStoreLine_(_jeStore_()) + ' Tell Claude.';
+    var full = 'Tidy up did not start at ' + _hhmm_(new Date()) + ': Google would not keep where it is (the script\'s storage is full). ' + _jeStoreLine_(_jeStore_()) + ' Tell Daniel.';
     _tidyToast_(full, 'Biology Labs', 30);
     if (_PROGRESS_ROW) { try { _btnSays_(_PROGRESS_ROW, '❌  ' + full); } catch (e) {} }
     return full;
