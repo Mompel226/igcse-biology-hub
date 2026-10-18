@@ -3896,7 +3896,7 @@ ok &= run('the teacher page has a Write-Up view: served by ?page=writeup, drawn 
   const page = doGet({ parameter:{ page:'writeup' } }).html;
   if (!/"tab":"writeup"/.test(page)) throw new Error('?page=writeup did not open on the Write-Up view');
   const t = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-  ["'writeup','practicals','students'", 'window.vWriteup = function', "if (cur==='writeup') return window.vWriteup(r.data);"].forEach(x => { if (t.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
+  ["'writeup','practicals','homework'", 'window.vWriteup = function', "if (cur==='writeup') return window.vWriteup(r.data);"].forEach(x => { if (t.indexOf(x) < 0) throw new Error('Teacher.html lacks ' + x); });
   if (!/\?page=writeup$/.test(_writeupTeacherUrl_() || '?page=writeup')) throw new Error('the Write-Up site still sends teachers elsewhere: ' + _writeupTeacherUrl_());
 });
 
@@ -5287,10 +5287,10 @@ console.log('— ⏱️ homework habits —');
       p.win.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
       p.drawn = null; p.win.__view.openDraw = (t, m, b) => { p.drawn = { t, m, b }; };
       return p; };
-    ok &= run('habits page: a sixth view of the one page — its tab "⏱️ Homework habits", a note of what the page cannot show, drawn by the second script', () => {
+    ok &= run('habits page: a sixth view of the one page — its tab "Homework habits", a note of what the page cannot show, drawn by the second script', () => {
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
       if (!/var ORDER = \[[^\]]*'habits'\];/.test(h)) throw new Error('no habits tab in ORDER');
-      if (!/habits:\{ label:'⏱️ Homework habits'/.test(h)) throw new Error('the tab is not called ⏱️ Homework habits');
+      if (!/habits:\{ label:'Homework habits'/.test(h)) throw new Error('the tab is not called Homework habits');
       /* Daniel, 2 Oct 2026: a note says what a teacher cannot see or guess; "Start here: pick a class" was obvious and went */
       const hn = (h.match(/habits:\{[\s\S]*?note:'([^']*)'/) || ['', ''])[1];
       if (!/^Hover over or tap a mark/.test(hn) || !/never proof of anything/.test(hn) || !/not time spent working/.test(hn)) throw new Error('the habits note lost what only it can say: ' + hn.slice(0, 120));
@@ -5433,6 +5433,33 @@ console.log('— ⏱️ homework habits —');
       if (!/<button class="rf thm" id="thm" type="button">/.test(h) || !/\$\('thm'\)\.addEventListener\('click'/.test(h)) throw new Error('no ☀/☾ button');
       if (!/localStorage\.setItem\('biology\.theme', t\)/.test(h)) throw new Error('the choice is not kept');
       if ((h.match(/localStorage\.setItem\('biology\./g) || []).length !== 1) throw new Error('the page writes another biology.* key');
+    });
+    ok &= run('Spreadsheets: each card in its kind\'s colour (reflection purple, test amber, the permanent records a blue of their own), and no icon on any tab', () => {
+      /* 18 Oct 2026, Daniel: the hover line and the Form / Dashboard / Spreadsheet buttons "should be the same color as the test
+         word … you immediately differentiate between if it's a test, or if it's a reflection"; the Student Progress Tracker and
+         Student data "a different color … these are permanent"; tab icons on all of them or none (on all, the bar took two rows) */
+      const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
+      const card = (h.match(/function linkCard\(l, ctx, kind\)\{[\s\S]*?return '<div class="card"[^\n]*/) || [''])[0];
+      if (!card || /--tc:var\(--accent\)/.test(card)) throw new Error('linkCard pins every card to the view\'s accent again: ' + card.slice(-120));
+      const want = [['reflection', 'c-refl'], ['test', 'c-test'], ['survey', 'c-survey'], ['records', 'c-perm'], ['other', 'c-other']];
+      const miss = want.filter(([k, t]) => !h.includes('.card[data-type="' + k + '"]{--tc:var(--' + t + ')}'));
+      if (miss.length) throw new Error('no colour rule for the card kind(s) ' + miss.map(m => m[0]).join(', '));
+      const dark = (h.match(/:root,:root\[data-theme="dark"\]\{[\s\S]*?\n\}/) || [''])[0], light = (h.match(/:root\[data-theme="light"\]\{[\s\S]*?\n\}/) || [''])[0];
+      const perm = [dark, light].map(x => (x.match(/--c-perm:(#[0-9A-Fa-f]{6})/) || [])[1]);
+      if (!perm[0] || !perm[1]) throw new Error('--c-perm is not in both versions: ' + perm);
+      const others = [dark, light].map(x => ['c-refl', 'c-test', 'c-survey', 'c-other'].map(t => (x.match(new RegExp('--' + t + ':(#[0-9A-Fa-f]{6})')) || [])[1]));
+      if (others.some((v, i) => v.includes(perm[i]))) throw new Error('the records blue is the same as another kind\'s colour');
+      const labels = [...h.matchAll(/\blabel:'([^']*)'/g)].map(m => m[1]);
+      if (labels.length < 8) throw new Error('fewer than eight tab labels found: ' + labels.length);
+      const icon = labels.filter(l => !/^[A-Za-z]/.test(l));
+      if (icon.length) throw new Error('a tab with an icon (all or none; none since 18 Oct 2026): ' + icon.join(', '));
+      /* the tabs in groups (Daniel, 18 Oct 2026): Spreadsheets; Students "just after spreadsheets"; the progress tabs; the homework
+         pair — each group wraps whole, a line between groups, none on a phone (the phone rule as specific as the one that draws it) */
+      if (!/var ORDER = \['teachers','students','progress','english','writeup','practicals','homework','habits'\];/.test(h)) throw new Error('the tabs are not in their groups\' order');
+      if (!/var TAB_GROUP = \{ students:1, progress:1, homework:1 \};/.test(h)) throw new Error('the groups do not start at Students, Topic labs and Set homework');
+      if (!/'<span class="tgrp">'/.test(h) || !/\.tgrp\+\.tgrp::before\{content:""/.test(h) || !/@media \(max-width:640px\)\{[^}]*\}[^@]*\.tgrp\+\.tgrp::before\{content:none\}/.test(h)) throw new Error('the groups are not drawn as groups (wrapper, line, no line on a phone)');
+      for (const [k, l] of [['progress', 'Topic labs'], ['writeup', 'Report write-up'], ['practicals', 'Practicals']])
+        if (!new RegExp(k + '\\s*[:=]\\s*\\{ label:\'' + l + '\'').test(h)) throw new Error('the ' + k + ' tab is not called ' + l);
     });
     ok &= run('📊 Analysis on the page: opens in the SAME tab (no target of its own; the page\'s base is _top), beside the tab list and never one of its tabs, hidden unless the server gave an address', () => {
       const h = fs.readFileSync('apps-script/Teacher.html', 'utf8');
@@ -6349,12 +6376,12 @@ console.log('— the Archive of Set homework: Hide keeps everything, Remove dele
       if (html.indexOf('data-hw="' + c + '"') >= 0) throw new Error('hidden homework is listed before it is asked for');
       page.press('data-hw', b);
       html = page.html();
-      if (!new RegExp('data-hide="' + b + '"[^>]*data-tip="[^"]*still counts in ⏱️ Homework habits').test(html)) throw new Error('its Hide does not say it still counts in Homework habits');
-      if (!new RegExp('data-ask="' + b + '"[^>]*data-tip="[^"]*leaves ⏱️ Homework habits[^"]*set by mistake[^"]*press “Hide”').test(html)) throw new Error('its Remove does not warn about Homework habits and point to Hide');
+      if (!new RegExp('data-hide="' + b + '"[^>]*data-tip="[^"]*still counts in Homework habits').test(html)) throw new Error('its Hide does not say it still counts in Homework habits');
+      if (!new RegExp('data-ask="' + b + '"[^>]*data-tip="[^"]*leaves Homework habits[^"]*set by mistake[^"]*press “Hide”').test(html)) throw new Error('its Remove does not warn about Homework habits and point to Hide');
       page.press('data-hw', a);
       html = page.html();
       if (new RegExp('data-hide="' + a + '"').test(html)) throw new Error('homework still to come offers Hide');
-      if (!new RegExp('data-ask="' + a + '"[^>]*data-tip="[^"]*leaves ⏱️ Homework habits[^"]*set by mistake[^"]*Change the due date').test(html)) throw new Error('Remove on homework still to come does not warn about Homework habits and point to Change the due date');
+      if (!new RegExp('data-ask="' + a + '"[^>]*data-tip="[^"]*leaves Homework habits[^"]*set by mistake[^"]*Change the due date').test(html)) throw new Error('Remove on homework still to come does not warn about Homework habits and point to Change the due date');
       page.press('data-ask', a);
       html = page.html();
       if (!/Remove deletes it, and it cannot be undone[^<]*Homework habits[^<]*“Change the due date”/.test(html)) throw new Error('waiting for a yes, the card does not say what Remove does');
@@ -7270,7 +7297,7 @@ console.log('— IB practicals: how each pupil is doing, question by question (D
       const page = doGet({ parameter:{ page:'practicals' } }).html;
       if (!/"tab":"practicals"/.test(page)) throw new Error('?page=practicals did not open on the Practicals view');
       const t = fs.readFileSync('apps-script/Teacher.html', 'utf8');
-      if (!/VIEWS\.practicals = \{/.test(t) || !/'writeup','practicals','students'/.test(t) || !/cur==='practicals'\) return window\.vPracticals/.test(t) || !/window\.vPracticals = function/.test(t))
+      if (!/VIEWS\.practicals = \{/.test(t) || !/'writeup','practicals','homework'/.test(t) || !/cur==='practicals'\) return window\.vPracticals/.test(t) || !/window\.vPracticals = function/.test(t))
         throw new Error('the view is not wired in Teacher.html');
     } finally { VISITOR = keepV; }
   });

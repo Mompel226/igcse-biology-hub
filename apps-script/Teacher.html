@@ -36,7 +36,7 @@
   --bad-ink:#F3B4B4;--bad-edge:rgba(239,107,107,.4);--bad-bg:rgba(239,107,107,.08);
   --mag-ink:#F1CFFB;--mag-edge:rgba(232,121,249,.42);--mag-bg:rgba(232,121,249,.1);
   --yg-ink:#BDECFB;--yg-bg:rgba(79,195,247,.13);--yg-edge:rgba(79,195,247,.32);
-  --c-refl:#E879F9;--c-test:#F5A623;--c-survey:#2DD4BF;--c-other:#9AB0BE;
+  --c-refl:#E879F9;--c-test:#F5A623;--c-survey:#2DD4BF;--c-other:#9AB0BE;--c-perm:#7AA2F7;
   --ana-ink:#FFB199;--ana-ink-hi:#FFD2C4;--ana-bg:rgba(255,138,101,.1);--ana-bg-hi:rgba(255,138,101,.2);--ana-edge:rgba(255,138,101,.45);--ana-ring:#FF8A65;
   --glass:rgba(120,200,230,.06);--tint:rgba(120,200,230,.03);--tint2:rgba(150,190,215,.08);--hover:rgba(150,190,215,.06);
   --track:rgba(150,190,215,.12);--track2:rgba(150,190,215,.18);--scrim:rgba(4,10,14,.62);--shadow:rgba(0,0,0,.5);
@@ -55,7 +55,7 @@
   --bad-ink:#991B1B;--bad-edge:rgba(220,38,38,.4);--bad-bg:#FEE2E2;
   --mag-ink:#86198F;--mag-edge:rgba(162,28,175,.4);--mag-bg:#FAE8FF;
   --yg-ink:#075985;--yg-bg:#E0F2FE;--yg-edge:rgba(3,105,161,.35);
-  --c-refl:#A21CAF;--c-test:#B45309;--c-survey:#0F766E;--c-other:#52646F;
+  --c-refl:#A21CAF;--c-test:#B45309;--c-survey:#0F766E;--c-other:#52646F;--c-perm:#1D4ED8;
   --ana-ink:#C2410C;--ana-ink-hi:#9A3412;--ana-bg:#FFF1EB;--ana-bg-hi:#FFE4D6;--ana-edge:rgba(194,65,12,.4);--ana-ring:#C2410C;
   --glass:#FFFFFF;--tint:#FFFFFF;--tint2:rgba(15,30,40,.04);--hover:rgba(15,30,40,.05);
   --track:rgba(15,30,40,.09);--track2:rgba(15,30,40,.14);--scrim:rgba(15,30,40,.35);--shadow:rgba(15,30,40,.18);
@@ -86,10 +86,16 @@ body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-eve
   padding:9px 14px;border-radius:999px;cursor:pointer;transition:color .15s,background .15s;white-space:nowrap}
 .tab:hover{color:var(--chalk)}.tab.on{color:var(--ink);background:var(--chalk)}
 .tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tgrp{display:inline-flex;gap:4px}
+.tgrp+.tgrp{position:relative;margin-left:5px;padding-left:6px}
+.tgrp+.tgrp::before{content:"";position:absolute;left:0;top:50%;width:1px;height:18px;margin-top:-9px;background:var(--line2)}
+.tgrp--row::before{visibility:hidden}
 /* A phone: the bar takes the full width and shares each row out evenly (three tabs, then two, at 375 px). */
 @media (max-width:640px){
   .tabs{display:flex;width:100%}
   .tab{flex:1 1 0;padding:9px 6px}
+  .tgrp{display:contents}
+  .tgrp+.tgrp::before{content:none}   /* as specific as the rule that draws it */
 }
 .who{display:inline-flex;align-items:center;gap:8px;padding:6px 13px 6px 10px;border:1px solid var(--line2);border-radius:999px;
   background:var(--glass);font-size:12.5px;color:var(--dim);margin-left:auto}
@@ -182,7 +188,13 @@ input::placeholder{color:var(--mute)}
 .tb{margin:14px 0 0}
 .tl{display:flex;align-items:center;gap:8px;font:600 10px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tc);margin:0 0 7px}
 .tl .tn{color:var(--mute);font-weight:500}
-.tb--reflection{--tc:var(--c-refl)}.tb--test{--tc:var(--c-test)}.tb--survey{--tc:var(--c-survey)}.tb--other{--tc:var(--c-other)}.tb--records{--tc:var(--c-other)}
+.tb--reflection{--tc:var(--c-refl)}.tb--test{--tc:var(--c-test)}.tb--survey{--tc:var(--c-survey)}.tb--other{--tc:var(--c-other)}.tb--records{--tc:var(--c-perm)}
+/* a Spreadsheets card in its kind's colour, wherever it sits (a cohort's type, Records, No graduation year): the hover line, the
+   name on hover and every button, as the type's word above it (18 Oct 2026, Daniel: "if you see the different colors, you
+   immediately differentiate between if it's a test, or if it's a reflection"). The Student Progress Tracker and Student data
+   (Records) have a blue of their own ("these are permanent"). */
+.card[data-type="reflection"]{--tc:var(--c-refl)}.card[data-type="test"]{--tc:var(--c-test)}.card[data-type="survey"]{--tc:var(--c-survey)}
+.card[data-type="records"]{--tc:var(--c-perm)}.card[data-type="other"]{--tc:var(--c-other)}
 /* tiles */
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin:16px 0 0}
 .tile{position:relative;padding:15px 16px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
@@ -593,8 +605,8 @@ var BOOT = __BOOT__;
     teachers:{ label:'Spreadsheets', accent:'#E879F9', accentL:'#A21CAF', h1:'Assessment <em>system</em>',
       lede:'Every assessment spreadsheet on the page — reflections, tests, surveys and records — grouped by the cohort it belongs to.',
       note:'Each link opens only for the people its spreadsheet is shared with — this page lists them, it does not share them. To change anything: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.' },
-    progress:{ label:'Lab progress', accent:'#4FC3F7', accentL:'#0369A1', h1:'Lab <em>progress</em>',
-      lede:'How each class is getting on — who has done what, and where they are getting stuck.',
+    progress:{ label:'Topic labs', accent:'#4FC3F7', accentL:'#0369A1', h1:'Topic <em>labs</em>',
+      lede:'How each class is getting on in the hub’s topic labs — who has done what, and where they are getting stuck.',
       note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. A lab’s % is their best, in any round: practising a station again (a new round) never lowers anything. Hover over any number for how it is worked out. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
@@ -605,17 +617,29 @@ var BOOT = __BOOT__;
     english:{ label:'Bio English', accent:'#62D38A', accentL:'#15803D', h1:'Bio <em>English</em>',
       lede:'Keywords and answer writing: how far each student has got with the Bio English Lab sets of their year.',
       note:'Each cell is the share of a set answered, not the share right: hover over or tap it for how much was right first time.' },
-    writeup:{ label:'Write-Up', accent:'#FB7185', accentL:'#BE123C', h1:'Write-<em>Up</em>',
+    writeup:{ label:'Report write-up', accent:'#FB7185', accentL:'#BE123C', h1:'Report <em>write-up</em>',
       lede:'Lab reports: how far each student has got with the parts of the Write-Up Lab, red pens and questions together.',
       note:'Each cell is the share of a part finished (red-pen mistakes found and questions answered), as homework counts it. It is their best ever: when a part is rewritten, what they did on the earlier version still counts.' },
-    habits:{ label:'⏱️ Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'⏱️ Homework <em>habits</em>',
+    habits:{ label:'Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'Homework <em>habits</em>',
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
       note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
-  VIEWS.practicals = { label:'🔬 Practicals', accent:'#22D3EE', accentL:'#0E7490', h1:'IB <em>practicals</em>',
-      lede:'How each student is doing in a practical (IB or KS3), question by question: right first time, how many checks, and the wrong answers they gave.',
+  VIEWS.practicals = { label:'Practicals', accent:'#22D3EE', accentL:'#0E7490', h1:'Class <em>practicals</em>',
+      lede:'How each student is doing in a practical you run in class (IB or KS3), question by question: right first time, how many checks, and the wrong answers they gave.',
       note:'A square is the student’s first round of a question; the number in it is every check it took, in every round. A dot means a later round (after ↺ Start again) got it right. A student appears once they have signed in on the practical page, which saves a minute after their last answer. ● Live reads the sheet again every 30 seconds while this view is open, for two hours at most.' };
-  var ORDER = ['teachers','progress','english','writeup','practicals','students','homework','habits'];
+  /* No icon on any tab (18 Oct 2026, Daniel: icons on all of them "so that there is consistency. Otherwise … remove them all"):
+     with one on each of the eight, the bar took two rows on every screen, even 1920 px, and four on a phone; with none it
+     takes one row from 1100 px up and three on a phone. The words that name a tab say it as the tab does.
+     The tabs in groups (18 Oct 2026, Daniel: "right now it's all a little bit … unorganized"): Spreadsheets on its own, then
+     Students ("just after spreadsheets"), then the progress tabs (the hub's topic labs, Bio English, report write-up and the
+     practicals run in class: "Lab progress" became "Topic labs", "Write-Up" "Report write-up" — "it's a bit confusing" — and the
+     practicals keep their tab name, "we can leave them as practicals" (as "Class practicals" the bar wrapped at 1100 px and
+     took a fourth row on a phone; their page says "Class practicals", the labs "that we do in class"), then the two
+     homework tabs. Each group wraps as one piece (.tgrp), so a pair is never split across rows; a thin line parts the
+     groups (TAB_GROUP: the first tab of each), hidden on a group the bar has wrapped to a new row (fitSeps); a phone shares
+     its rows out as before (.tgrp: display:contents) and has no lines. */
+  var ORDER = ['teachers','students','progress','english','writeup','practicals','homework','habits'];
+  var TAB_GROUP = { students:1, progress:1, homework:1 };
   /* cache: each view's newest copy. fresh: read from the sheet (or written) since this page opened. drawn: the copy on the
      screen now. touched: the teacher has clicked or typed in the view since it was drawn. newer: a newer copy waits for
      the teacher's "Show the newer copy". ver: bumped by every write, so a read that left before it cannot undo it. */
@@ -717,9 +741,12 @@ var BOOT = __BOOT__;
      Built once and then only toggled: rewriting the bar on every switch destroyed the very button
      the user had just pressed, so a keyboard user lost their place to <body> each time. */
   function buildTabs(){
-    $('tabs').innerHTML = ORDER.map(function(k){
-      return '<button class="tab" role="tab" id="tab-'+k+'" aria-controls="view" data-tab="'+k+'">'+
-             esc(VIEWS[k].label)+'</button>'; }).join('');
+    $('tabs').innerHTML = '<span class="tgrp">'+ORDER.map(function(k, i){
+      return (i && TAB_GROUP[k] ? '</span><span class="tgrp">' : '')+
+             '<button class="tab" role="tab" id="tab-'+k+'" aria-controls="view" data-tab="'+k+'">'+
+             esc(VIEWS[k].label)+'</button>'; }).join('')+'</span>';
+    fitSeps();
+    window.addEventListener('resize', function(){ requestAnimationFrame(fitSeps); });
     document.querySelectorAll('.tab').forEach(function(b){
       b.addEventListener('click', function(){ go(b.getAttribute('data-tab')); });
       b.addEventListener('keydown', function(e){
@@ -728,6 +755,13 @@ var BOOT = __BOOT__;
         else if (e.key==='Home') j=0; else if (e.key==='End') j=n-1;
         if (j>=0){ e.preventDefault(); var t=document.getElementById('tab-'+ORDER[j]); t.focus(); go(ORDER[j]); }
       });
+    });
+  }
+  /* a group the bar has wrapped to a new row starts that row: no line before it (it keeps its place, so nothing moves) */
+  function fitSeps(){
+    document.querySelectorAll('.tgrp').forEach(function(g){
+      var a = g.previousElementSibling;
+      g.classList.toggle('tgrp--row', !!a && Math.abs(a.offsetTop - g.offsetTop) > 2);
     });
   }
   function markTabs(){
@@ -819,14 +853,14 @@ var BOOT = __BOOT__;
     if(/survey|encuesta|form|quiz|poll/.test(t))return 'survey'; if(/record/.test(t))return 'records'; return 'other'; }
   function linkCard(l, ctx, kind){
     var s=((l.name||'')+' '+(l.detail||'')+' '+(l.type||'')+' '+(l.assessment||'')+' '+(ctx||'')).toLowerCase();
-    return '<div class="card" data-s="'+esc(s)+'" data-type="'+esc(kind)+'" style="--tc:var(--accent)">'+
+    return '<div class="card" data-s="'+esc(s)+'" data-type="'+esc(kind)+'">'+
       '<div class="card__m"><a class="card__n" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+esc(l.name)+'</a>'+
       (l.detail?'<div class="card__d">'+esc(l.detail)+'</div>':'')+'</div>'+
       '<div class="card__a">'+
       /* A row that names a live teacher dashboard offers Form, Dashboard and Spreadsheet (11 Oct 2026, Daniel: "you
          should have form, dashboard, and spreadsheet"; no Copy: "what are you copying?"), and the spreadsheet button then
          says which one it is — "Open" beside "Dashboard" would leave you guessing. Form and Dashboard are outlined, the
-         spreadsheet filled: the card pins --tc to the generic accent, so colour alone would not tell them apart. A Test
+         spreadsheet filled, so the shape tells them apart; the colour is the card's kind (data-type, 18 Oct 2026). A Test
          System card also offers Marker Review (13 Oct 2026, Daniel: "add a pill for marker review so that it's easy for
          them to access it from there"), FIRST (14 Oct 2026, Daniel: "aligned to the left of form"): the buttons sit at the
          card's right, so Form, Dashboard and Spreadsheet stay in the same places on every card, Test or reflection. */
@@ -1796,17 +1830,17 @@ var BOOT = __BOOT__;
      date … you can just change the due date". Remove deletes the row (homeworkDelete); Hide only takes it off this list
      (homeworkHide): it still counts everywhere else. */
   var HW_TIP = {
-    delNow: 'Deletes this homework, and it cannot be undone. Students stop seeing it in the labs, and it leaves ⏱️ Homework habits and every student’s record. '+
+    delNow: 'Deletes this homework, and it cannot be undone. Students stop seeing it in the labs, and it leaves Homework habits and every student’s record. '+
             'Use it only for homework set by mistake. If only the date is wrong, press “Change the due date” instead. '+
             'A post students can already see in Google Classroom stays there: delete it in Classroom too.',
-    delPast: 'Deletes this homework, and it cannot be undone. It leaves ⏱️ Homework habits and every student’s record, as if it had never been set. '+
+    delPast: 'Deletes this homework, and it cannot be undone. It leaves Homework habits and every student’s record, as if it had never been set. '+
              'Use it only for homework set by mistake. To take it off this list and keep its record, press “Hide”. Its post in Google Classroom stays there.',
-    hide: 'Takes it off this list. Nothing is deleted: it still counts in ⏱️ Homework habits and in every student’s record. '+
+    hide: 'Takes it off this list. Nothing is deleted: it still counts in Homework habits and in every student’s record. '+
           'Hidden homework waits at the end of the Archive, where you can show it again.',
-    unhide: 'Lists it in the Archive again. Nothing else changes: hidden or not, it counts in ⏱️ Homework habits.',
-    askNow: 'Remove deletes it, and it cannot be undone: students stop seeing it, and it leaves ⏱️ Homework habits and every student’s record. '+
+    unhide: 'Lists it in the Archive again. Nothing else changes: hidden or not, it counts in Homework habits.',
+    askNow: 'Remove deletes it, and it cannot be undone: students stop seeing it, and it leaves Homework habits and every student’s record. '+
             'Use it only for homework set by mistake. If only the date is wrong, press “Keep it”, then “Change the due date”.',
-    askPast: 'Remove deletes it, and it cannot be undone: it leaves ⏱️ Homework habits and every student’s record. '+
+    askPast: 'Remove deletes it, and it cannot be undone: it leaves Homework habits and every student’s record. '+
              'Use it only for homework set by mistake. To keep its record, press “Keep it”, then “Hide”.'
   };
   function newRow(){ return {cls:'',due:'',time:'',topic:'',some:false,pick:{}}; }
@@ -2176,7 +2210,7 @@ var BOOT = __BOOT__;
         arch='<section class="sec hwarch" id="harch"><div class="sec__h"><span class="sec__t">Archive</span>'+
           '<span class="arch__n">'+past.length+' past '+(past.length===1?'its':'their')+' due date'+(hidden.length?' · '+hidden.length+' hidden':'')+'</span>'+
           '<div class="hsort"><button class="chip'+(ao?' on':'')+'" data-arch="1" aria-expanded="'+(ao?'true':'false')+'" aria-controls="harchb">'+(ao?'Close':'Open')+'</button></div></div>'+
-          '<p class="sec__d">Homework whose due date has passed, the most recent first. All of it still counts in ⏱️ Homework habits and in every student’s record. “Hide” takes one off this list without deleting anything.</p>'+
+          '<p class="sec__d">Homework whose due date has passed, the most recent first. All of it still counts in Homework habits and in every student’s record. “Hide” takes one off this list without deleting anything.</p>'+
           (hState.archMsg?'<div class="msg '+(hState.archMsg.bad?'bad':'ok')+'" role="status">'+esc(hState.archMsg.text)+'</div>':'')+
           '<div id="harchb">'+(ao?'<div class="hwlist">'+(past.length?listOf(past):'<div class="empty">Every homework past its due date is hidden.</div>')+'</div>'+
             (hidden.length?'<div class="archhid"><button class="chip'+(ho?' on':'')+'" data-hidopen="1" aria-expanded="'+(ho?'true':'false')+'">'+
@@ -2368,7 +2402,7 @@ var BOOT = __BOOT__;
       hState.busy=true;
       google.script.run.withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn(); V.put('homework', {ok:true, data:D});
-            hState.archMsg={ text: hide ? '“'+t+'” is hidden. It still counts in ⏱️ Homework habits and in every student’s record. It waits at the end of the Archive, with the hidden homework.'
+            hState.archMsg={ text: hide ? '“'+t+'” is hidden. It still counts in Homework habits and in every student’s record. It waits at the end of the Archive, with the hidden homework.'
                                         : '“'+t+'” is listed in the Archive again.', bad:false }; }
           else hState.archMsg={ text:(r&&r.why)||'That did not work.', bad:true };
           paint(); })
