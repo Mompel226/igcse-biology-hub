@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '18 Oct 2026 — teacher page groups, colours; Circulation 122';
+var SCRIPT_EDITION = '18 Oct 2026 — feedback card stays while its review is open';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -4452,7 +4452,9 @@ var T_HUB_SCHEDULE   = '⏰ Hub schedule';
 var HUB_SCHEDULE_KEY = 'HUB_SCHEDULE_JSON';
 var TEST_SNAP_SECONDS = 60;   /* one read of a test spreadsheet serves every student for this long */
 var FEEDBACK_CARD_DAYS = 5;   /* the "New feedback" card: this many days after a release, then it goes (26 Sep 2026,
-                                 Daniel) — the feedback itself stays reachable from My assessments */
+                                 Daniel) — the feedback itself stays reachable from My assessments. Longer while its
+                                 review homework is open: until the pupil hands the review in or its due day ends
+                                 (18 Oct 2026; _readTestSnapshot_) */
 
 function _ownTest_(d) {
   if (!_clientId_()) return _json_({ ok: false, why: 'sign-in is not set up' });
@@ -4621,7 +4623,13 @@ function _readTestSnapshot_(id) {
     if (rel || lock) live[String(v[0]).toLowerCase() + '|' + String(v[1])] = [rel, lock];
   });
   /* §feedback-release — and released feedback, for ANY test: a marked row with a time in "Feedback Released" */
-  var fb = {}, fbIds = {};
+  var fb = {}, fbIds = {}, older = [];
+  var addFb = function (em, tid, at) {               /* per pupil only the newest and a count: _ownTest_ needs no more,
+                                                         and the cached snapshot must stay under the cache's size limit */
+    var p = fb[em];
+    if (!p) fb[em] = [tid, at, 1];
+    else { p[2]++; if (at > p[1]) { p[0] = tid; p[1] = at; } }
+  };
   _eachRow_(wb.getSheetByName('TestResponses'), ['Email', 'Test ID', 'Status', 'Feedback Released'], function (v) {
     var st = String(v[2]).trim().toLowerCase();
     if (ids[String(v[1])] && /^(submitted|marking|marked|failed)$/.test(st))
@@ -4630,14 +4638,33 @@ function _readTestSnapshot_(id) {
     /* a test since taken off the test system's list cannot be drawn by its feedback page any more: no card for it
        (`names` lists every registered test; an older tab without it hides nothing) */
     if (at && mirror.names && !mirror.names[String(v[1])]) at = 0;
-    if (at && Date.now() - at > FEEDBACK_CARD_DAYS * 864e5) at = 0;   /* only NEW feedback gets the card */
-    if (at) {                                         /* per pupil only the newest and a count: _ownTest_ needs no more,
-                                                         and the cached snapshot must stay under the cache's size limit */
-      var em = String(v[0]).trim().toLowerCase(), p = fb[em];
-      if (!p) fb[em] = [String(v[1]), at, 1];
-      else { p[2]++; if (at > p[1]) { p[0] = String(v[1]); p[1] = at; } }
-    }
+    if (!at) return;
+    var em = String(v[0]).trim().toLowerCase(), tid = String(v[1]);
+    var age = Date.now() - at;
+    if (age <= FEEDBACK_CARD_DAYS * 864e5) addFb(em, tid, at);   /* only NEW feedback gets the card… */
+    else if (age <= 32 * 864e5) older.push([em, tid, at]);       /* …or one whose review may still be open: a review is due at
+                                                                    most 30 days after its release, at the end of that day */
   });
+  /* …or feedback whose review homework is still open (18 Oct 2026, Daniel: pupils given a week to write their HPV review
+     found no card from day 6, "you have no test, reflection or new feedback now"). The Test System's ⏰ Feedback releases
+     tab gives the review's due time (the end of that day) on a released row, and 📝 Student reviews whether the pupil
+     handed it in; both are read by their headings, and only when a release 6 to 32 days old is there to decide. The
+     pupil's FIRST row for a test is theirs, whatever it says, as the Test System's own _readPlan_ reads it. */
+  if (older.length) {
+    var due = {}, handed = {};
+    _eachRow_(wb.getSheetByName('\u23f0 Feedback releases'), ['Email', 'Test ID', 'Review due', 'Status'], function (v) {
+      var k = String(v[0]).trim().toLowerCase() + '|' + String(v[1]);
+      if (k in due) return;
+      due[k] = String(v[3]).trim().toLowerCase() === 'released' ? _releasedAt_(v[2]) : 0;
+    });
+    _eachRow_(wb.getSheetByName('\ud83d\udcdd Student reviews'), ['Email', 'Test ID', 'Status'], function (v) {
+      if (String(v[2]).trim().toLowerCase() === 'submitted') handed[String(v[0]).trim().toLowerCase() + '|' + String(v[1])] = 1;
+    });
+    older.forEach(function (o) {
+      var k = o[0] + '|' + o[1];
+      if (due[k] && Date.now() <= due[k] && !handed[k]) addFb(o[0], o[1], o[2]);
+    });
+  }
   Object.keys(fb).forEach(function (em) { fbIds[fb[em][0]] = 1; });
   var names = {};
   Object.keys(fbIds).forEach(function (tid) {

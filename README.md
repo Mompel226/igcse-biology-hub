@@ -423,7 +423,8 @@ It needs three things:
 Two more cards come in the same answer, so they cost the hub nothing more:
 
 - **New feedback** — for five days after you release a pupil's marked test in the Test System's
-  Marker Review, a card names the test and offers **See your feedback →**, the Test System's own
+  Marker Review (and while their review of it is still to write, until they hand it in or its due day ends), a
+  card names the test and offers **See your feedback →**, the Test System's own
   read-only feedback page. After that the feedback is still on My assessments.
 - **Your reflection** — for a reflection spreadsheet you switch on for the hub (in that
   spreadsheet: 🧰 ToolBox ▸ 👥 Classes & rostering ▸ **📣 Share the form link…** (answer 2, the Biology Hub), which
