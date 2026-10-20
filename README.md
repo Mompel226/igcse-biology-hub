@@ -382,7 +382,7 @@ edit the code for any of this:
    and the card offers it beside the spreadsheet, so reaching the dashboard no longer means opening
    the spreadsheet first and hunting for the link inside. Leave it blank and the card is unchanged.
 3. That is all. Teachers, links and the addresses are read live, so anything you add or change here
-   takes effect at once on the page, and on the hub within a minute — no new version, no redeploy.
+   takes effect at once on the page, and on the hub within about 2 minutes — no new version, no redeploy.
    (A redeploy is only ever needed when the **code** itself changes.)
 
 The first time you run anything after pasting this version, Google asks for one new permission —
@@ -423,7 +423,8 @@ It needs three things:
 Two more cards come in the same answer, so they cost the hub nothing more:
 
 - **New feedback** — for five days after you release a pupil's marked test in the Test System's
-  Marker Review (and while their review of it is still to write, until they hand it in or its due day ends), a
+  Marker Review (and, for a test that asks for a review, until the pupil hands it in, also after its due day; it goes
+  as soon as they hand it in, also within the five days), a
   card names the test and offers **See your feedback →**, the Test System's own
   read-only feedback page. After that the feedback is still on My assessments.
 - **Your reflection** — for a reflection spreadsheet you switch on for the hub (in that
@@ -432,6 +433,18 @@ Two more cards come in the same answer, so they cost the hub nothing more:
   **Start your reflection** or **Continue your reflection**, worked out by the form's own rules — or,
   if they handed in only part of it or ran out of time, a reminder to ask you. It goes once they have
   handed in a complete reflection.
+
+**Quick at sign-in (20 Oct 2026).** One job in this script (a trigger, every minute, made by itself the first time a
+sign-in finds a test or a reflection) reads the test and reflection spreadsheets that changed and keeps what the cards
+need, so a pupil's sign-in opens no spreadsheet, however many tests there are. It works every day from 08:35 to 22:00
+(pupils revise in the evenings and at weekends), and from 07:00 and until 23:00 after a sign-in. A test running now or
+about to start is looked at every minute, other tests every 5 minutes, reflections every 3; ⏰ Start now and ⏹ Close now
+show to the next pupil who opens or refreshes the hub; the opening and closing times are exact; a teacher in test mode
+always sees it now.
+At other times every sign-in reads the spreadsheets itself, as before. 🩺 Check the set-up says when it last ran.
+It uses the account's trigger time (Google allows 6 hours a day on a school account; it stops itself after 90 minutes,
+or 30 on a gmail.com account). To go back to a version of this script from before it, delete its `hubReadyRun_`
+trigger first (Triggers ▸ ⋮ ▸ Delete).
 
 A teacher sees exactly what a student would, in **test mode**, once they are on the test's
 **Marks · Test** tab (the test system's 🧑‍🏫 Set up Teacher Test tab); in teacher mode it stays hidden.

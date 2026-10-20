@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '18 Oct 2026 — job messages say tell Daniel';
+var SCRIPT_EDITION = '20 Oct 2026 — the hub’s cards kept ready: a fast sign-in';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -1912,6 +1912,7 @@ function checkSetup() {
       : '•  whether Google Classroom announcements are allowed (for the reminders) could not be checked here.');
   }
   if (openOk) lines.push(_tzLine_());
+  try { lines.push(_hubReadyLine_()); } catch (e) {}
   /* 10 Oct 2026, the job engine: the script's storage (Google's 500 KB a script), a job that stopped itself for today, and
      a job that stopped part way with no run to carry it on */
   var jst = _jeStore_();
@@ -4237,6 +4238,7 @@ function _ownRecord_(d) {
   var wb;
   try { wb = SpreadsheetApp.openById(_trackerId_()); }
   catch (err) { return _json_({ ok: false, why: 'cannot reach the record' }); }
+  try { _tellTrackerOurSheet_(wb); } catch (eT) {}   /* 19 Oct 2026: My assessments reads the test list from here */
 
   var sheets = wb.getSheets(), name = '', at = 0, latest = '';
   var finished = {}, unfinished = {}, unfinishedNames = [], fromTest = 0, fromCohort = 0;
@@ -4390,6 +4392,73 @@ function _frontDoor_(wb) {
   return { url: url, edition: String(m['Code edition'] || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120), build: Number(m['Build']) || 0 };
 }
 function _frontDoorUrl_(wb) { try { var d = _frontDoor_(wb); return d ? d.url : ''; } catch (e) { return ''; } }
+/* §front-door, the other way (19 Oct 2026, Daniel: "the student data spreadsheet does look inside … the department's shared
+   drive … this should be done automatically") — My assessments shows released test feedback, and its 📝 To do banner, from
+   the test spreadsheets the reflection can find; alone it finds only the ones Daniel OWNS (a Drive search), never the
+   department's shared drive, where the tests live. This script already knows every test spreadsheet, so it writes, into the
+   tab above, rows of its own (from row 12: the reflection writes rows 1–8 and its note on row 10):
+     "Biology Hub's Student data"      its Student data spreadsheet's id (19 Oct 2026; the reflection then reads the
+                                       "Test" rows of its 🔗 Teacher links itself, _teacherLinksTestIds_)
+     "Biology Hub's test spreadsheets" (20 Oct 2026, Daniel: the HPV 📝 To do still missing) its FINISHED list,
+                                       _testSheetIds_: every "Test" row resolved as its own card resolves it — a smart chip
+                                       too (the reflection's reader cannot read chips: Daniel's HPV row is one), a cohort
+                                       still in school, nothing in the bin; ids, separated by commas.
+   The reflection reads both (_hubRowsFromTracker_ in its Code.gs). From _ownRecord_, which has the tracker open: every half
+   hour (ten minutes while no reflection copy has made the tab; this never makes the tab), a write only when a row is
+   missing or differs. */
+var FRONT_DOOR_HUB_ROW = "Biology Hub's Student data";
+var FRONT_DOOR_HUB_TESTS_ROW = "Biology Hub's test spreadsheets";
+function _tellTrackerOurSheet_(wb) {
+  var cache = null;
+  try { cache = CacheService.getScriptCache(); if (cache.get('hubsheet-told')) return false; } catch (e) { return false; }
+  var wrote = false, keep = 1800;
+  try {
+    var sh = wb ? wb.getSheetByName(FRONT_DOOR_TAB) : null, id = '', tests = '', testIds = [];
+    try { id = String(_sheetId_() || ''); } catch (e) {}
+    try { testIds = _testSheetIds_(false) || []; tests = testIds.join(', '); } catch (e) {}
+    if (!sh) keep = 600;
+    else {
+      var put = function (label, val) {   /* this label's row: found by its words in column A, or added after the last row */
+        var n = Math.min(Math.max(sh.getLastRow(), 1), 40), v = sh.getRange(1, 1, n, 2).getValues(), at = -1;
+        for (var i = 0; i < v.length; i++) if (String(v[i][0] || '').trim() === label) { at = i + 1; break; }
+        if (at < 0) { sh.getRange(Math.max(sh.getLastRow() + 1, 12), 1, 1, 2).setValues([[label, val]]); return true; }
+        if (String(v[at - 1][1] || '').trim() !== val) { sh.getRange(at, 2).setValue(val); return true; }
+        return false;
+      };
+      if (/^[A-Za-z0-9_-]{20,}$/.test(id) && put(FRONT_DOOR_HUB_ROW, id)) wrote = true;
+      if (tests) {
+        var changed = put(FRONT_DOOR_HUB_TESTS_ROW, tests);
+        if (changed) wrote = true;
+        if (_namesBeside_(sh, FRONT_DOOR_HUB_TESTS_ROW, testIds, changed)) wrote = true;   // reflection §40.187
+      }
+    }
+  } catch (e) {}
+  try { cache.put('hubsheet-told', '1', keep); } catch (e) {}
+  return wrote;
+}
+/* Reflection §40.187 (20 Oct 2026, Daniel, of the row above: "the test spreadsheets, are they comma separated? I don't know") —
+   column D of that row: the spreadsheets' names, " · " between them, so a person can read it (the tracker's own script writes
+   column C, what each row means). The names are looked up (one Drive look-up per spreadsheet) when the list changed, when
+   D is empty, or when no record says they were made for this very list in the last 6 hours (Script Cache "hubnames-for":
+   a run stopped part way is redone, and a renamed spreadsheet shows its new name within 6 hours). This runs inside a sign-in,
+   so only one run at a time looks them up ("hubnames-busy", 2 minutes): a class signing in together waits for none of it.
+   D is written only when the names differ. Every reader of this tab reads columns A and B only. True when it wrote. */
+function _namesBeside_(sh, label, ids, changed) {
+  var cache = null, key = (ids || []).join(','), made = '';
+  try { cache = CacheService.getScriptCache(); made = cache.get('hubnames-for') || ''; } catch (e) { cache = null; }
+  var n = Math.min(Math.max(sh.getLastRow(), 1), 40), v = sh.getRange(1, 1, n, 4).getValues();
+  for (var i = 0; i < v.length; i++) {
+    if (String(v[i][0] || '').trim() !== label) continue;
+    if (!changed && String(v[i][3] || '').trim() && made === key) return false;
+    try { if (cache) { if (cache.get('hubnames-busy')) return false; cache.put('hubnames-busy', '1', 120); } } catch (e) {}
+    var names = (ids || []).map(function (x) { var nm = ''; try { nm = DriveApp.getFileById(x).getName(); } catch (e) {} return nm || x; }).join(' · ');
+    try { if (cache) cache.put('hubnames-for', key, 21600); } catch (e) {}
+    if (!names || String(v[i][3] || '') === names) return false;
+    sh.getRange(i + 1, 4).setValue(names).setWrap(true);
+    return true;
+  }
+  return false;
+}
 /* For the health line: which code students' My assessments runs, so `node tools/status.mjs` can compare it with
    the reflection code on Daniel's Mac without signing in. Read at most every ten minutes; says nothing when the
    record card is off. */
@@ -4451,10 +4520,12 @@ function _frontDoorHealth_() {
 var T_HUB_SCHEDULE   = '⏰ Hub schedule';
 var HUB_SCHEDULE_KEY = 'HUB_SCHEDULE_JSON';
 var TEST_SNAP_SECONDS = 60;   /* one read of a test spreadsheet serves every student for this long */
+var TEST_SNAP_KEY = 'tsnap5:';   /* + the spreadsheet's id: bump when the snapshot's shape changes (4: fb, names; 5: at, exp) */
 var FEEDBACK_CARD_DAYS = 5;   /* the "New feedback" card: this many days after a release, then it goes (26 Sep 2026,
                                  Daniel) — the feedback itself stays reachable from My assessments. Longer while its
-                                 review homework is open: until the pupil hands the review in or its due day ends
-                                 (18 Oct 2026; _readTestSnapshot_) */
+                                 review is still to write: until the pupil hands it in, also after its due day, and also
+                                 with no due day (19 Oct 2026, Daniel: "as a banner, I want it to be shown forever, as long
+                                 as the students have not submitted"; _readTestSnapshot_) */
 
 function _ownTest_(d) {
   if (!_clientId_()) return _json_({ ok: false, why: 'sign-in is not set up' });
@@ -4477,9 +4548,15 @@ function _ownTest_(d) {
                                  : ', which the hub reads only once the Google Sheets API is switched on in its script (Services \u25b8 + \u25b8 Google Sheets API) \u2014 or use the spreadsheet\u2019s plain address'));
     else why.push('no "Test" row in \ud83d\udd17 Teacher links has a Google Sheet as its Link (for a cohort still in school, or with no year)');
   }
-  var fb = [];
+  var fb = [], pre = null;
+  /* §hub-ready: every test's copy, and the job's marks, in ONE cache call, so a check does not grow slower with every test */
+  try { pre = CacheService.getScriptCache().getAll((teacher ? [] : ids.map(function (id) { return TEST_SNAP_KEY + id; })).concat(HUB_READY_MARKS)) || {}; }
+  catch (e) { pre = null; }
+  var kept = !!(pre && pre[HUB_READY_BEAT]);        /* the job keeps the copies: a pupil's own hand-in is worth a read now */
   ids.forEach(function (id) {
-    var snap = _testSnapshot_(id, teacher);          /* a teacher testing sees it as it is NOW */
+    var key = TEST_SNAP_KEY + id, cached = !teacher && !!pre && pre.hasOwnProperty(key);
+    var snap = _testSnapshot_(id, teacher, cached ? pre[key] : undefined);   /* a teacher testing sees it as it is NOW */
+    if (cached && kept) snap = _hubQuickCheck_(id, snap, email, now);    /* §hub-ready: ⏰ Start now, ⏹ Close now: at once */
     if (!snap || snap.fail) { why.push((snap && snap.fail) || 'a Test spreadsheet could not be read'); return; }
     /* §feedback-release — released feedback needs no seat: last term's test is still theirs */
     var f = snap.fb && snap.fb[email];                /* [newest test id, its time, how many released] */
@@ -4503,8 +4580,10 @@ function _ownTest_(d) {
   }
   /* §hub-card — "Your reflection" (reflection spec §40.80): this person's own card, when a reflection is switched on.
      A teacher testing it is told why none shows, but only once something is switched on. */
+  var reflOn = 0;
   try {
     var rc = _ownReflectCard_(email, teacher, now);
+    reflOn = rc.on;
     if (rc.card) out.reflect = rc.card;
     else if (teacher && rc.on && rc.why.length) out.reflectWhy = rc.why.slice(0, 3);
   } catch (e) {}
@@ -4515,6 +4594,7 @@ function _ownTest_(d) {
        who sat a test there, so they have opened that address already. */
     out.feedback = { name: f0.name, at: f0.at, url: f0.url, more: f0.count - 1 };
   }
+  if (ids.length || reflOn) _hubReadyEnsure_(pre);  /* §hub-ready: the job that keeps these copies ready, made once */
   return _json_(out);
 }
 
@@ -4550,11 +4630,12 @@ function _testSheetIds_(fresh) {
    of a test a whole year group opens the hub within a minute, and this script's executions are a
    shared, limited pool. So a submission or an override reaches the banner within a minute, not at
    once — the test's own page is always exact. null = not a test system (or unreadable). */
-function _testSnapshot_(id, fresh) {
-  var key = 'tsnap4:' + id, cache = null, hit = null;   /* bump when the snapshot's shape changes (4: fb, names) */
+function _testSnapshot_(id, fresh, pre) {
+  var key = TEST_SNAP_KEY + id, cache = null, hit = null;
   /* `fresh`: a teacher checking their own change reads the sheet now — one person, not a class of
-     thirty — and that reading still refreshes the shared copy the students are served */
-  try { cache = CacheService.getScriptCache(); if (!fresh) hit = cache.get(key); } catch (e) {}
+     thirty — and that reading still refreshes the shared copy the students are served.
+     `pre`: the copy as _ownTest_ already fetched it with every other test's in one call (null: none there) */
+  try { cache = CacheService.getScriptCache(); if (!fresh) hit = pre !== undefined ? pre : cache.get(key); } catch (e) {}
   if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} }
   var snap = null;
   try { snap = _readTestSnapshot_(id); } catch (e) { snap = null; }
@@ -4565,7 +4646,7 @@ function _testSnapshot_(id, fresh) {
 }
 
 function _readTestSnapshot_(id) {
-  var wb;
+  var wb, readAt = Date.now();                       /* §hub-ready: the copy's time, for the quick question */
   try { wb = SpreadsheetApp.openById(id); }
   catch (e) { return { fail: 'the hub cannot open one of the Test spreadsheets \u2014 share it with the account this script runs as (Viewer is enough)' }; }
   var title = ''; try { title = String(wb.getName() || ''); } catch (e) {}
@@ -4625,7 +4706,7 @@ function _readTestSnapshot_(id) {
     if (rel || lock) live[String(v[0]).toLowerCase() + '|' + String(v[1])] = [rel, lock];
   });
   /* §feedback-release — and released feedback, for ANY test: a marked row with a time in "Feedback Released" */
-  var fb = {}, fbIds = {}, older = [];
+  var fb = {}, fbIds = {}, rel = [], fbEnd = 0;     /* fbEnd: when the first "New feedback" card in here ends (§hub-ready) */
   var addFb = function (em, tid, at) {               /* per pupil only the newest and a count: _ownTest_ needs no more,
                                                          and the cached snapshot must stay under the cache's size limit */
     var p = fb[em];
@@ -4640,31 +4721,42 @@ function _readTestSnapshot_(id) {
     /* a test since taken off the test system's list cannot be drawn by its feedback page any more: no card for it
        (`names` lists every registered test; an older tab without it hides nothing) */
     if (at && mirror.names && !mirror.names[String(v[1])]) at = 0;
-    if (!at) return;
-    var em = String(v[0]).trim().toLowerCase(), tid = String(v[1]);
-    var age = Date.now() - at;
-    if (age <= FEEDBACK_CARD_DAYS * 864e5) addFb(em, tid, at);   /* only NEW feedback gets the card… */
-    else if (age <= 32 * 864e5) older.push([em, tid, at]);       /* …or one whose review may still be open: a review is due at
-                                                                    most 30 days after its release, at the end of that day */
+    if (at) rel.push([String(v[0]).trim().toLowerCase(), String(v[1]), at]);
   });
-  /* …or feedback whose review homework is still open (18 Oct 2026, Daniel: pupils given a week to write their HPV review
-     found no card from day 6, "you have no test, reflection or new feedback now"). The Test System's ⏰ Feedback releases
-     tab gives the review's due time (the end of that day) on a released row, and 📝 Student reviews whether the pupil
-     handed it in; both are read by their headings, and only when a release 6 to 32 days old is there to decide. The
-     pupil's FIRST row for a test is theirs, whatever it says, as the Test System's own _readPlan_ reads it. */
-  if (older.length) {
-    var due = {}, handed = {};
-    _eachRow_(wb.getSheetByName('\u23f0 Feedback releases'), ['Email', 'Test ID', 'Review due', 'Status'], function (v) {
-      var k = String(v[0]).trim().toLowerCase() + '|' + String(v[1]);
-      if (k in due) return;
-      due[k] = String(v[3]).trim().toLowerCase() === 'released' ? _releasedAt_(v[2]) : 0;
-    });
+  /* Which releases get the card: NEW feedback, for FEEDBACK_CARD_DAYS…
+     …or feedback whose review is still to write (18 Oct 2026, Daniel: pupils given a week to write their HPV review found
+     no card from day 6, "you have no test, reflection or new feedback now"). The Test System's ⏰ Feedback releases tab
+     gives the review's due time (the end of that day) on a released row, and 📝 Student reviews whether the pupil handed
+     it in; both are read by their headings. The pupil's FIRST row for a test in ⏰ Feedback releases is theirs, whatever
+     it says, as the Test System's own _readPlan_ reads it.
+     19 Oct 2026 (Daniel: "as a banner, I want it to be shown forever. As long as the students have not submitted"): the
+     card stays until the review is handed in, also after its due day; and a test that asks for a review (the ⏰ Hub
+     schedule's `reviews`, Test System v4.77) counts too when it was released with no due day (🌐 Release to student, a
+     teacher's own try). A Test System from before v4.77 lists no `reviews`: then only a released row with a due day counts.
+     20 Oct 2026 (Daniel: "I thought the new feedback card would stay there until they submit"): a pupil who has handed in
+     the review of THAT test has no card for it, also within the 5 days; nothing is left to do. 📝 Student reviews is read
+     whenever a release is there, ⏰ Feedback releases only when a release older than the 5 days is there to decide. */
+  var reviewTests = {};
+  (Array.isArray(mirror.reviews) ? mirror.reviews : []).forEach(function (t) { reviewTests[String(t)] = 1; });
+  if (rel.length) {
+    var due = {}, handed = {}, nowMs = Date.now(), NEW_MS = FEEDBACK_CARD_DAYS * 864e5;
+    if (rel.some(function (r) { return nowMs - r[2] > NEW_MS; }))
+      _eachRow_(wb.getSheetByName('\u23f0 Feedback releases'), ['Email', 'Test ID', 'Review due', 'Status'], function (v) {
+        var k = String(v[0]).trim().toLowerCase() + '|' + String(v[1]);
+        if (k in due) return;
+        due[k] = String(v[3]).trim().toLowerCase() === 'released' ? _releasedAt_(v[2]) : 0;
+      });
     _eachRow_(wb.getSheetByName('\ud83d\udcdd Student reviews'), ['Email', 'Test ID', 'Status'], function (v) {
       if (String(v[2]).trim().toLowerCase() === 'submitted') handed[String(v[0]).trim().toLowerCase() + '|' + String(v[1])] = 1;
     });
-    older.forEach(function (o) {
-      var k = o[0] + '|' + o[1];
-      if (due[k] && Date.now() <= due[k] && !handed[k]) addFb(o[0], o[1], o[2]);
+    rel.forEach(function (r) {
+      var k = r[0] + '|' + r[1];
+      if (handed[k]) return;                                     /* its review is in: no card */
+      if (nowMs - r[2] <= NEW_MS) {                              /* NEW feedback… */
+        addFb(r[0], r[1], r[2]);
+        if (!fbEnd || r[2] + NEW_MS < fbEnd) fbEnd = r[2] + NEW_MS;
+      }
+      else if (due[k] || reviewTests[r[1]]) addFb(r[0], r[1], r[2]);   /* …or a review still to write, however old */
     });
   }
   Object.keys(fb).forEach(function (em) { fbIds[fb[em][0]] = 1; });
@@ -4684,7 +4776,7 @@ function _readTestSnapshot_(id) {
   });
   return { title: title, url: url, activeId: String(mirror.activeId || ''), timerMode: String(mirror.timerMode || ''),
            timeLimitMinutes: Number(mirror.timeLimitMinutes) || 90,
-           versions: versions, seats: seats, live: live, done: done, fb: fb, names: names };
+           versions: versions, seats: seats, live: live, done: done, fb: fb, names: names, at: readAt, exp: fbEnd };
 }
 
 /* copies _releasedMs_: only a real date counts, so a note typed into the column shows nobody anything */
@@ -5018,6 +5110,401 @@ function _ownReflectCard_(email, teacher, now) {
   return out;
 }
 /* §hub-card end */
+
+/* ============================================================
+   §hub-ready — the Biology Hub's cards kept ready (20 Oct 2026)
+   ------------------------------------------------------------
+   Daniel (20 Oct 2026): signing in to the Biology Hub ("Checking if you have a test, a reflection or new feedback…")
+   took a very long time, and it must not grow slower with every test. Each check (_ownTest_) read every test spreadsheet
+   and every reflection switched on for the hub, column by column, and each shared copy lasted one minute: a class signing
+   in together read them all again at the same moment, and every new test spreadsheet added its reads to every check.
+   Daniel: "Up to 2 minutes for the Hub cards is fine."
+   So ONE job, hubReadyRun_ (a trigger every minute), does that reading and writes the copies a check already reads —
+   testids1, TEST_SNAP_KEY<id>, and the §hub-card block's rflon1 and rsnap1:<id>, unchanged — to last HUB_READY_KEEP_S. A
+   check then finds them in the script's cache and opens no spreadsheet. A teacher's change reaches the cards within about
+   2 minutes. When it works: every day from 08:35 to 22:00 in the school's time zone (_tz_; Daniel, 20 Oct 2026: pupils
+   revise in the evenings and at weekends, and a first lesson begins at 08:40), and from 07:00 and until 23:00 within an
+   hour of a sign-in check (HUB_READY_WANT); never at night. Outside its hours the first check reads for itself, as before.
+   - What it reads again, the one read longest ago first: a spreadsheet Drive says changed since its last read (10 minutes'
+     margin, as the reflection's §ma-ready: Drive's time can be a little behind a write), one whose copy is missing, one
+     whose "New feedback" card's 5 days end (the snapshot's `exp`), and each one at least every 2 hours — each at its
+     turn (below). A copy is written as soon as it is read, and never over a copy someone wrote meanwhile.
+   - Every good copy that is there is kept HUB_READY_KEEP_S more, whoever wrote it (a teacher's own check writes one for
+     a minute); never a failure ('-', { fail }), never an empty list; after 4 minutes of a run only a copy it read in the
+     last 3 minutes.
+   - A spreadsheet it cannot read: nothing is written and its copy is not kept, so within 5 minutes a check reads it
+     itself and a teacher is told why, as before; the job asks again after HUB_READY_RETRY_MS. A copy too big for the
+     cache (100 KB) is read by each check, as before; the job reads it again every 2 hours, or once a check could
+     write a copy of it. With no permission to ask Drive, it keeps and reads nothing for half an hour at a time (each
+     check reads for itself), then asks again.
+   - It rests (the copies run out within 5 minutes, and every check reads for itself, exactly as before) at night, outside
+     its hours with no check in the last hour, after the day's brake, and while the code saved in the editor is not
+     the version deployed (HUB_READY_ED_PROP: a trigger runs the SAVED code, a check the DEPLOYED version; until ✏️ New
+     version the two differ, and pupils must not be told what undeployed code says).
+   - How often (Daniel, 20 Oct 2026: what a teacher does during a test must show fast — "start now should be seen as fast
+     as possible", extra time "at least within 1 minute"; the rest "3 minutes, there's no problem"): a test that is BUSY
+     — a pupil on its list with no start time yet (waiting for ⏰ Start now), or within an hour before their opening to 3
+     hours after their closing (_hubTestBusy_, from the copy: it needs no read to become busy) — is asked about every
+     minute; any other test every 5 minutes (HUB_READY_QUIET_MS); a reflection every 3 (HUB_READY_REFL_MS); the
+     reflections switched on every run (switched on → within a minute); 🔗 Teacher links' tests every 10 minutes.
+   - The quick question (_hubQuickCheck_): while the job keeps the copies (HUB_READY_BEAT), a pupil whose test, in the copy,
+     has no start time yet, opens within the hour or is open asks Google at their sign-in whether that spreadsheet changed
+     since the copy was read; if it did, it is read there and then, for everyone after them (one such read per spreadsheet
+     per HUB_FRESH_GAP_S). ⏰ Start now and ⏹ Close now show to the next pupil who opens or refreshes the hub.
+   - Opening and closing times are worked out at each check against the clock, as before: exact.
+   - One run at a time (a cache mark set under a moment of the script lock); nothing begun after 4 minutes; never
+     throws (Google e-mails the owner about every failed trigger run); it never writes a spreadsheet.
+   - The day's brake: HUB_READY_DAY_MS of work in one day (HUB_READY_DAY_MS_GMAIL when the script runs as a gmail.com
+     account, whose triggers get 90 minutes a day in all), and it rests until tomorrow (🩺 says so).
+   - _hubReadyEnsure_ (from a check that finds a test or a reflection; a cache flag, 6 hours, claimed before the lock so a
+     class arriving together asks once) makes ONE trigger; the job removes its own trigger after HUB_READY_IDLE_MS of
+     daytime runs with nothing to keep ready (its record is in the script cache, which keeps nothing longer than 6 hours:
+     a night forgets it), and the next check that finds one makes it again.
+   - Going back to a labs script from before this: delete the hubReadyRun_ trigger first (Triggers ▸ ⋮ ▸ Delete), or it
+     fails every minute.
+   IGCSE/AppScript/Test System harness/check_hub_ready.mjs proves it on stand-ins, beside the code from before.
+   ============================================================ */
+var HUB_READY_FN = 'hubReadyRun_';
+var HUB_READY_EVERY_MS = 50 * 1000;          /* the trigger fires every minute: a run at most this soon after the last */
+var HUB_READY_LIST_MS = 10 * 60 * 1000;      /* 🔗 Teacher links' tests: every 10 minutes (the teacher page's own adds show at once) */
+var HUB_READY_REFL_LIST_MS = 50 * 1000;      /* the reflections switched on: every run (switched on → within a minute) */
+var HUB_READY_QUIET_MS = 5 * 60 * 1000;      /* a test that is not busy: asked about every 5 minutes */
+var HUB_READY_REFL_MS = 3 * 60 * 1000;       /* a reflection: every 3 minutes */
+var HUB_READY_SOON_MS = 60 * 60 * 1000;      /* busy from an hour before a pupil's opening… */
+var HUB_READY_AFTER_MS = 3 * 3600 * 1000;    /* …to 3 hours after their closing (extra time, late hand-ins, ⏹ Close now) */
+var HUB_QUICK_MARGIN_MS = 5 * 1000;          /* the quick question: Drive's time this close before the copy's counts as after */
+var HUB_READY_KEEP_S = 300;                  /* its copies last 5 minutes: a few missed runs are covered */
+var HUB_READY_MARGIN_MS = 10 * 60 * 1000;    /* Drive's last change this close before a read: read it again */
+var HUB_READY_AGAIN_MS = 2 * 3600 * 1000;    /* each spreadsheet read again at least this often */
+var HUB_READY_NODRIVE_MS = 110 * 1000;       /* Drive did not say, this once: read again this often */
+var HUB_READY_RETRY_MS = 5 * 60 * 1000;      /* a read that failed: asked again after this */
+var HUB_READY_NODRIVE_REST_MS = 30 * 60 * 1000;   /* no permission to ask Drive: it rests this long, then asks again */
+var HUB_READY_BY_MS = 4 * 60 * 1000;         /* nothing begun after this */
+var HUB_READY_LATE_KEEP_MS = 3 * 60 * 1000;  /* past its 4 minutes, a copy is kept only if read this recently */
+var HUB_READY_DAY_MS = 90 * 60 * 1000;       /* the day's brake: a Workspace account's triggers get 6 hours a day in all */
+var HUB_READY_DAY_MS_GMAIL = 30 * 60 * 1000; /* …a gmail.com account's 90 minutes */
+var HUB_READY_IDLE_MS = 2 * 3600 * 1000;     /* nothing to keep ready for this long (by day): its trigger removed */
+var HUB_READY_ON_FROM = '08:35', HUB_READY_ON_TO = '22:00';   /* at work every day (Daniel, 20 Oct 2026: 08:40 to 22:00, pupils revise
+                                                               in the evenings and at weekends; 08:35 so it is ready for an 08:40 lesson) */
+var HUB_READY_FROM_H = 7, HUB_READY_TO_H = 23;                /* before and after that, from the first sign-in only; never at night */
+var HUB_READY_REC = 'hubready1', HUB_READY_MARK = 'hubready:run', HUB_READY_ENS = 'hubready:ens';
+var HUB_READY_WANT = 'hubready:want', HUB_READY_ED = 'hubready:ed', HUB_READY_BEAT = 'hubready:beat', HUB_READY_WHY = 'hubready:why';
+var HUB_READY_ED_PROP = 'HUB_READY_EDITION';   /* the edition the DEPLOYED code is, written by its checks */
+var HUB_READY_MARKS = [HUB_READY_ENS, HUB_READY_WANT, HUB_READY_ED, HUB_READY_BEAT];   /* a check reads these with the copies */
+var HUB_FRESH_GAP_S = 10;
+
+/* The trigger's run. Never throws: Google e-mails the owner about every trigger run that fails. */
+function hubReadyRun_() {
+  try { _hubReadyRun_(); } catch (e) { try { Logger.log('hubReadyRun_: ' + e); } catch (eL) {} }
+}
+function _hubReadyRun_() {
+  var t0 = Date.now(), cache = null, tok = null, rec = null;
+  try { cache = CacheService.getScriptCache(); } catch (e) { return; }
+  rec = _hubReadyRec_(cache);
+  if (rec.at && t0 - rec.at < HUB_READY_EVERY_MS) return;                /* ran less than a minute ago */
+  var tz = rec.tz || '';
+  if (!tz) { try { tz = _tz_(); } catch (e) { tz = ''; } }
+  var day = _hubReadyDayOf_(t0, tz);
+  if (!day.on) return;                                                   /* 22:00 to 07:00: each check reads for itself */
+  if (rec.day === day.d && rec.braked) return;                           /* the day's brake: until tomorrow */
+  var why = _hubReadyRests_(cache, day);
+  if (why) { try { if (cache.get(HUB_READY_WHY) !== why) cache.put(HUB_READY_WHY, why, 900); } catch (e) {} return; }
+  try {
+    var lk = LockService.getScriptLock();
+    if (lk.tryLock(3000)) {
+      try { if (!cache.get(HUB_READY_MARK)) { tok = String(t0) + Math.random(); cache.put(HUB_READY_MARK, tok, 420); } }
+      finally { lk.releaseLock(); }
+    }
+  } catch (e) { tok = null; }
+  if (!tok) return;                                                      /* another run is going, or the script is busy */
+  rec = _hubReadyRec_(cache);                                            /* as the run before this one left it */
+  if (rec.at && t0 - rec.at < HUB_READY_EVERY_MS) { try { if (cache.get(HUB_READY_MARK) === tok) cache.remove(HUB_READY_MARK); } catch (e) {} return; }
+  if (rec.day !== day.d) { rec.day = day.d; rec.dayMs = 0; rec.runs = 0; rec.braked = ''; }
+  rec.tz = tz;
+  if (!rec.max) rec.max = _hubReadyDayMax_();
+  try { _hubReadyWork_(rec, t0, cache); }
+  catch (e) { rec.err = String((e && e.message) || e).slice(0, 300); try { Logger.log('hubReadyRun_: ' + e); } catch (eL) {} }
+  finally {
+    rec.ms = Date.now() - t0; rec.at = t0; rec.runs = (rec.runs || 0) + 1; rec.dayMs = (rec.dayMs || 0) + rec.ms;
+    if (!rec.braked && rec.dayMs > rec.max)
+      rec.braked = 'it worked more than ' + Math.round(rec.max / 60000) + ' minutes today (' + rec.runs + ' runs)';
+    try { cache.put(HUB_READY_REC, JSON.stringify(rec), 21600); } catch (e) {}
+    try { if (cache.get(HUB_READY_MARK) === tok) cache.remove(HUB_READY_MARK); } catch (e) {}
+    if (rec.n && rec.n.read) { try { Logger.log('hubReadyRun_: ' + rec.n.read + ' of ' + rec.n.sheets + ' spreadsheets read again, ' + rec.ms + ' ms'); } catch (eL) {} }
+  }
+}
+/* its record (script cache, 6 hours: gone after a night, so the morning's first run reads everything, as it must anyway):
+   { at, ms, tz, day, dayMs, runs, braked, max, err, noDrive, ids, refl, listAt, reflAt, empty, n, s: { 't:<id>' | 'r:<id>': note } } */
+function _hubReadyRec_(cache) {
+  var rec = null;
+  try { rec = JSON.parse(cache.get(HUB_READY_REC) || 'null'); } catch (e) { rec = null; }
+  return (rec && typeof rec === 'object') ? rec : { s: {} };
+}
+/* the day in the school's zone; whether the job may work now (07:00 to 23:00) and whether it is always at work now
+   (HUB_READY_ON_FROM to HUB_READY_ON_TO, every day) */
+function _hubReadyDayOf_(ms, tz) {
+  var d = '', hm = '12:00';
+  try { var z = tz || 'Etc/UTC', t = new Date(ms); d = Utilities.formatDate(t, z, 'yyyy-MM-dd'); hm = Utilities.formatDate(t, z, 'HH:mm'); } catch (e) {}
+  var h = Number(hm.slice(0, 2));
+  return { d: d, on: h >= HUB_READY_FROM_H && h < HUB_READY_TO_H, always: hm >= HUB_READY_ON_FROM && hm < HUB_READY_ON_TO };
+}
+/* Why the job rests now, '' when it works: 'quiet' (outside its hours, no sign-in check in the last hour) or 'edition'
+   (the code saved in the editor is not the deployed version). */
+function _hubReadyRests_(cache, day) {
+  if (!day.always) { var w = null; try { w = cache.get(HUB_READY_WANT); } catch (e) {} if (!w) return 'quiet'; }
+  var ed = '';
+  try { ed = String(PropertiesService.getScriptProperties().getProperty(HUB_READY_ED_PROP) || ''); } catch (e) {}
+  return ed && ed !== SCRIPT_EDITION ? 'edition' : '';
+}
+/* the day's brake for the account the script runs as */
+function _hubReadyDayMax_() {
+  var em = '';
+  try { em = String(Session.getEffectiveUser().getEmail() || ''); } catch (e) {}
+  return /@(gmail|googlemail)\.com$/i.test(em) ? HUB_READY_DAY_MS_GMAIL : HUB_READY_DAY_MS;
+}
+
+function _hubReadyWork_(rec, t0, cache) {
+  var now = t0, late = function () { return Date.now() - t0 > HUB_READY_BY_MS; };
+  var n = { sheets: 0, read: 0, big: 0, bad: 0 };
+  rec.err = ''; rec.n = n;
+  if (!rec.s || typeof rec.s !== 'object') rec.s = {};
+  if (rec.noDrive && now - rec.noDrive < HUB_READY_NODRIVE_REST_MS) return;   /* no permission to ask Drive: it rests, and asks again later */
+  /* 1. the lists: the test spreadsheets (🔗 Teacher links) and the reflections switched on (the tracker), read now
+        (each writes its own copy for a minute; kept below). A list that cannot be read keeps the last one. */
+  if (!rec.listAt || now - rec.listAt >= HUB_READY_LIST_MS || !Array.isArray(rec.ids)) {
+    try { rec.tz = _tz_() || rec.tz; } catch (e) {}
+    try { rec.ids = _testSheetIds_(true); } catch (e) { rec.err = 'the test list: ' + String((e && e.message) || e).slice(0, 200); }
+    rec.listAt = now;
+  }
+  if (!rec.reflAt || now - rec.reflAt >= HUB_READY_REFL_LIST_MS || !Array.isArray(rec.refl)) {
+    try { rec.refl = _reflCardList_(true).map(function (r) { return { id: r.id, tz: r.tz }; }); }
+    catch (e) { rec.err = 'the reflection list: ' + String((e && e.message) || e).slice(0, 200); }
+    rec.reflAt = now;
+  }
+  var S = rec.s;
+  var items = (rec.ids || []).map(function (id) { return { k: 't:' + id, id: id, key: TEST_SNAP_KEY + id }; })
+    .concat((rec.refl || []).map(function (r) { return { k: 'r:' + r.id, id: r.id, tz: r.tz, key: 'rsnap1:' + r.id }; }));
+  if (!items.length) {                                                   /* nothing to keep ready */
+    rec.s = {};
+    if (!rec.empty) rec.empty = now;
+    else if (now - rec.empty > HUB_READY_IDLE_MS) { try { _hubReadyTriggers_(false); } catch (e) {} rec.empty = 0; rec.gone = now; }
+    return;
+  }
+  rec.empty = 0;
+  /* 2. each spreadsheet at its turn (a busy test every run, another test every 5 minutes, a reflection every 3), the one
+        read longest ago first (a run that reaches its 4 minutes leaves the freshest for the next): read again when it
+        changed, when its copy is missing, when a feedback card ends, after 2 hours */
+  items.sort(function (a, b) { return ((S[a.k] && S[a.k].r) || 0) - ((S[b.k] && S[b.k].r) || 0); });
+  var have = {};
+  try { have = cache.getAll(items.map(function (x) { return x.key; })) || {}; } catch (e) { have = {}; }
+  var seen = {}, keep = ['testids1', 'rflon1'], stop = false;
+  items.forEach(function (x) {
+    var s = S[x.k] || (S[x.k] = {}), good = _hubGoodCopy_(have[x.key]);
+    seen[x.k] = 1; n.sheets++;
+    if (s.big && good) s.big = 0;                                        /* small again: a check could write its copy */
+    if (stop) return;
+    if (late()) { if (good && !s.f && s.r && now - s.r < HUB_READY_LATE_KEEP_MS) keep.push(x.key); return; }
+    var need = _hubReadyNeeds_(x, s, now, good);
+    if (x.k.charAt(0) === 't' && _hubBusyNow_(s, now)) n.busy = (n.busy || 0) + 1;
+    if (need === 'nodrive') { stop = true; rec.noDrive = now; return; }
+    if (!need) { if (good && !s.f) keep.push(x.key); return; }           /* after a failed read its copy is let run out */
+    var began = Date.now(), snap = null;
+    try { snap = x.k.charAt(0) === 't' ? _readTestSnapshot_(x.id) : _readReflSnapshot_(x.id, x.tz); } catch (e) { snap = null; }
+    if (!snap || snap.fail) { s.f = now; n.bad++; return; }
+    var str = JSON.stringify(snap);
+    s.r = began; s.q = began; s.f = 0; s.t = String(snap.title || '').slice(0, 80); s.e = Number(snap.exp) || 0;   /* a read is its turn */
+    if (x.k.charAt(0) === 't') { var bz = _hubTestBusy_(snap); s.w = bz.w; s.iv = bz.iv; }
+    if (str.length >= 95000) { s.big = 1; n.big++; return; }
+    s.big = 0; n.read++;
+    /* written now, not at the end of the run; and not over a copy a pupil's or a teacher's own check wrote meanwhile */
+    var cur = null;
+    try { cur = cache.get(x.key); } catch (e) {}
+    if (cur === (have.hasOwnProperty(x.key) ? have[x.key] : null)) { try { cache.put(x.key, str, HUB_READY_KEEP_S); } catch (e) {} }
+  });
+  Object.keys(S).forEach(function (k) { if (!seen[k]) delete S[k]; });
+  n.bigs = Object.keys(S).filter(function (k) { return S[k].big; }).map(function (k) { return S[k].t || 'a spreadsheet'; }).slice(0, 3);
+  if (stop) return;                                    /* no permission to ask Drive: nothing kept, every check reads itself */
+  rec.noDrive = 0;
+  /* 3. every good copy there NOW (asked again just before: a copy a pupil's own check wrote a moment ago is the one
+        kept), each for HUB_READY_KEEP_S; and the mark that the job is keeping them */
+  var cur = {};
+  try { cur = cache.getAll(keep.concat([HUB_READY_WHY])) || {}; } catch (e) { cur = {}; }
+  var wrote = {};
+  keep.forEach(function (k) {
+    var v = cur[k];
+    if (k === 'testids1' || k === 'rflon1') { if (typeof v === 'string' && v.charAt(0) === '[' && v !== '[]') wrote[k] = v; }
+    else if (_hubGoodCopy_(v)) wrote[k] = v;
+  });
+  wrote[HUB_READY_BEAT] = String(now);
+  _hubPutAll_(cache, wrote, HUB_READY_KEEP_S);
+  if (cur[HUB_READY_WHY]) { try { cache.remove(HUB_READY_WHY); } catch (e) {} }
+}
+
+/* Read again? `s` is the job's note on one spreadsheet: r = when its last read began, q = when Drive was last asked about
+   it, f = when a read last failed, big = too big to keep, e = when a "New feedback" card in it ends, w / iv = when a test
+   is busy (_hubTestBusy_), t = its name (for 🩺). A missing copy, the 2-hour read and a card's end need no question;
+   otherwise Drive is asked at the item's turn, before the read, so a change during it is read next time. 'nodrive': this
+   script may not ask Drive at all. */
+function _hubReadyNeeds_(x, s, now, good) {
+  if (s.f && now - s.f < HUB_READY_RETRY_MS) return false;
+  if (s.big) return !s.r || now - s.r >= HUB_READY_AGAIN_MS;
+  if (!good || !s.r || now - s.r >= HUB_READY_AGAIN_MS) return true;
+  if (s.e && now >= s.e) return true;
+  var every = x.k.charAt(0) === 'r' ? HUB_READY_REFL_MS : _hubBusyNow_(s, now) ? 0 : HUB_READY_QUIET_MS;
+  if (every && s.q && now - s.q < every - 5000) return false;              /* not its turn yet */
+  s.q = now;
+  var u = 0;
+  try { var d = DriveApp.getFileById(x.id).getLastUpdated(); u = (d && d.getTime) ? d.getTime() : 0; }
+  catch (e) {
+    if (/permission to call|Required permissions|not authori[sz]ed/i.test(String((e && e.message) || e))) return 'nodrive';
+    u = 0;                                                               /* this one file: read it as if it changed, now and then */
+  }
+  if (!u) return now - s.r >= HUB_READY_NODRIVE_MS;
+  return u > s.r - HUB_READY_MARGIN_MS;
+}
+
+/* When a test spreadsheet is busy (asked about every minute), from its copy, by each pupil's own times (_testFor_, which
+   the banner uses): a pupil still to hand in with no start time at all (waiting for ⏰ Start now: w = 1), or the stretch
+   from an hour before their opening to 3 hours after their closing (open-ended with no closing). The stretches are joined;
+   more than 12 become one. */
+function _hubTestBusy_(snap) {
+  var w = 0, iv = [];
+  Object.keys((snap && snap.seats) || {}).forEach(function (em) {
+    var t = _testFor_(snap, em, 0);                                      /* at time 0 only 'done' / 'waiting' / 'upcoming' */
+    if (!t || t.state === 'done') return;
+    if (!t.opensAt) { w = 1; return; }
+    iv.push([t.opensAt - HUB_READY_SOON_MS, t.closesAt ? t.closesAt + HUB_READY_AFTER_MS : 0]);
+  });
+  iv.sort(function (a, b) { return a[0] - b[0]; });
+  var out = [];
+  iv.forEach(function (p) {
+    var last = out[out.length - 1];
+    if (last && (!last[1] || p[0] <= last[1])) { if (last[1] && (!p[1] || p[1] > last[1])) last[1] = p[1]; }
+    else out.push([p[0], p[1]]);
+  });
+  if (out.length > 12) out = [[out[0][0], out.some(function (p) { return !p[1]; }) ? 0 : Math.max.apply(null, out.map(function (p) { return p[1]; }))]];
+  return { w: w, iv: out };
+}
+function _hubBusyNow_(s, now) {
+  if (s.w) return true;
+  return (s.iv || []).some(function (p) { return now >= p[0] && (!p[1] || now <= p[1]); });
+}
+
+/* a copy worth keeping: a snapshot, not '-' (nothing there), not { fail } and not '' (a list cleared on purpose) */
+function _hubGoodCopy_(v) {
+  return typeof v === 'string' && v.length > 2 && v.charAt(0) === '{' && v.indexOf('{"fail"') !== 0;
+}
+function _hubPutAll_(cache, map, secs) {
+  var part = {}, size = 0;
+  var flush = function () {
+    if (!size) return;
+    try { cache.putAll(part, secs); }
+    catch (e) { Object.keys(part).forEach(function (k) { try { cache.put(k, part[k], secs); } catch (e2) {} }); }
+    part = {}; size = 0;
+  };
+  Object.keys(map).forEach(function (k) { if (size && size + map[k].length > 400000) flush(); part[k] = map[k]; size += map[k].length; });
+  flush();
+}
+
+/* §hub-ready — the quick question (Daniel, 20 Oct 2026: "start now should be seen as fast as possible"). A pupil whose test,
+   in the job's copy, has no start time yet, opens within the hour or is open asks Google one question at their sign-in:
+   has this test spreadsheet changed since the copy was read? If it has, it is read now (one such read per spreadsheet per
+   HUB_FRESH_GAP_S, for everyone), and the new copy serves everyone after them: ⏰ Start now, ⏹ Close now, a teacher's
+   change for one pupil and their own hand-in show at once. Only for a copy the job keeps (_ownTest_ asks); a question
+   Drive does not answer, or a read that fails, changes nothing: the copy stands. */
+function _hubQuickCheck_(id, snap, email, now) {
+  if (!snap || snap.fail || !snap.at) return snap;
+  var mine = _testFor_(snap, email, now);
+  if (!mine || !(mine.state === 'open' || mine.state === 'waiting' ||
+                 (mine.state === 'upcoming' && mine.opensAt - now <= HUB_READY_SOON_MS))) return snap;
+  var u = 0;
+  try { var d = DriveApp.getFileById(id).getLastUpdated(); u = (d && d.getTime) ? d.getTime() : 0; } catch (e) { return snap; }
+  if (!(u > snap.at - HUB_QUICK_MARGIN_MS) || !_hubFreshClaim_('t:' + id)) return snap;
+  var again = null;
+  try { again = _readTestSnapshot_(id); } catch (e) { again = null; }
+  if (!again || again.fail) return snap;
+  _hubPutCopy_(TEST_SNAP_KEY + id, again, TEST_SNAP_SECONDS);
+  return again;
+}
+/* one such read per spreadsheet at a time: false when another began in the last HUB_FRESH_GAP_S seconds */
+function _hubFreshClaim_(k) {
+  try {
+    var c = CacheService.getScriptCache(), key = 'hubfresh:' + k;
+    if (c.get(key)) return false;
+    c.put(key, String(Date.now()), HUB_FRESH_GAP_S);
+    return true;
+  } catch (e) { return false; }
+}
+function _hubPutCopy_(key, snap, secs) {
+  try { var s = JSON.stringify(snap); if (s.length < 95000) CacheService.getScriptCache().put(key, s, secs); } catch (e) {}
+}
+
+/* The job's trigger: kept to ONE (`on`; any extra removed, so calling this again never makes two), or removed. */
+function _hubReadyTriggers_(on) {
+  var have = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === HUB_READY_FN; });
+  for (var i = on ? 1 : 0; i < have.length; i++) { try { ScriptApp.deleteTrigger(have[i]); } catch (e) {} }
+  if (on && !have.length) { ScriptApp.newTrigger(HUB_READY_FN).timeBased().everyMinutes(1).create(); return 'made'; }
+  if (!on) { try { CacheService.getScriptCache().remove(HUB_READY_ENS); } catch (e) {} }
+  return have.length ? 'had' : '';
+}
+/* From a check that found a test or a reflection (`pre`: the marks it already fetched with the copies): that a check
+   was here (the job works out of school time only within an hour of one); which edition the DEPLOYED code is; and the
+   trigger made once — a cache flag for 6 hours (half an hour after a refusal), claimed BEFORE the script lock, so a
+   class arriving together asks once and nobody waits on the lock for it. */
+function _hubReadyEnsure_(pre) {
+  var cache = null, now = Date.now();
+  try { cache = CacheService.getScriptCache(); if (!pre) pre = cache.getAll(HUB_READY_MARKS) || {}; } catch (e) { return; }
+  if (!(now - Number(pre[HUB_READY_WANT] || 0) < 10 * 60000)) { try { cache.put(HUB_READY_WANT, String(now), 3600); } catch (e) {} }
+  if (pre[HUB_READY_ED] !== SCRIPT_EDITION) {
+    try { PropertiesService.getScriptProperties().setProperty(HUB_READY_ED_PROP, SCRIPT_EDITION); cache.put(HUB_READY_ED, SCRIPT_EDITION, 21600); } catch (e) {}
+  }
+  if (pre[HUB_READY_ENS]) return;
+  try { cache.put(HUB_READY_ENS, 'asking', 120); } catch (e) { return; }
+  var ok = true, lk = null;
+  try { lk = LockService.getScriptLock(); if (!lk.tryLock(2000)) { try { cache.remove(HUB_READY_ENS); } catch (eR) {} return; } }
+  catch (e) { return; }
+  try { _hubReadyTriggers_(true); }
+  catch (e) { ok = false; try { Logger.log('_hubReadyEnsure_: ' + e); } catch (eL) {} }
+  finally { try { lk.releaseLock(); } catch (eR) {} }
+  try { cache.put(HUB_READY_ENS, '1', ok ? 21600 : 1800); } catch (e) {}
+}
+
+/* 🩺 one line: is the job keeping the hub's cards ready, and when did it last run. Read from its record first: the
+   trigger belongs to the account the web app runs as, and a colleague running 🩺 does not see it. */
+function _hubReadyLine_() {
+  var cache = null, rec = null, why = '', on = false, now = Date.now();
+  try { cache = CacheService.getScriptCache(); rec = JSON.parse(cache.get(HUB_READY_REC) || 'null'); why = String(cache.get(HUB_READY_WHY) || ''); } catch (e) {}
+  try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === HUB_READY_FN; }); } catch (e) {}
+  var tz = (rec && rec.tz) || _tz_(), day = _hubReadyDayOf_(now, tz), what = 'the Biology Hub’s cards (a test, a reflection, new feedback)';
+  var slow = ' Until then each sign-in reads the spreadsheets itself, which is slower.';
+  var hh = function (h) { return ('0' + h).slice(-2) + ':00'; };
+  var hours = ' (every minute, ' + HUB_READY_ON_FROM + ' to ' + HUB_READY_ON_TO + ' every day; from ' + hh(HUB_READY_FROM_H) + ' and until ' + hh(HUB_READY_TO_H) + ' after a sign-in)';
+  var ran = !!(rec && rec.at && now - rec.at <= 10 * 60000);
+  if (rec && rec.braked && rec.day === day.d)
+    return '⛔  keeping ' + what + ' ready stopped itself for today: ' + rec.braked + '.' + slow.replace('Until then', 'Until tomorrow');
+  if (ran && rec.noDrive)
+    return '⚠️  ' + what + ' are not kept ready: this script may not ask Google Drive when a spreadsheet last changed. In the Apps Script editor choose checkSetup, press ▶ Run and Allow.' + slow;
+  if (ran) {
+    var nn = rec.n || {}, at = Utilities.formatDate(new Date(rec.at), tz, 'd MMM, HH:mm');
+    var words = '✅  ' + what + ' are kept ready' + hours + ': last run ' + at + ', ' + (nn.sheets || 0) + ' spreadsheets (' + (nn.busy || 0) +
+                ' tests running now or about to start: every minute; the others every 5 minutes, reflections every 3), ' + (nn.read || 0) + ' read again, ' + (Math.round((rec.ms || 0) / 100) / 10) + ' s. A teacher’s change reaches the cards within about 2 minutes.' +
+                (rec.day === day.d ? ' Today it has worked ' + Math.round((rec.dayMs || 0) / 60000) + ' of its ' + Math.round((rec.max || HUB_READY_DAY_MS) / 60000) +
+                                     ' minutes (Google gives all of this account’s scheduled jobs ' + (rec.max === HUB_READY_DAY_MS_GMAIL ? '90 minutes' : '6 hours') + ' a day).' : '');
+    if (nn.big) words += ' ⚠️ Too big to keep ready, so each sign-in reads it (slower): ' + (nn.bigs || []).join(', ') + '.';
+    if (nn.bad) words += ' ⚠️ ' + nn.bad + ' could not be read just now.';
+    if (rec.err) words += ' ⚠️ ' + rec.err;
+    return words;
+  }
+  if (why === 'edition')
+    return '⚠️  ' + what + ' are not kept ready now: the code saved in the editor is not the version deployed. Deploy ▸ Manage deployments ▸ ✏️ ▸ New version (on both deployments); it starts again within a minute.' + slow.replace('Until then', 'Meanwhile');
+  if (on || why || (rec && rec.at)) {
+    if (!day.on || why === 'quiet' || !day.always)
+      return '✅  ' + what + ' are kept ready' + hours + '. It rests now (' + (day.on ? 'no sign-in in the last hour' : 'at night') + '): the next sign-in reads the spreadsheets itself and starts it again.';
+    return '⚠️  ' + what + ' should be kept ready' + hours + ', but it has not run in the last ' + (rec && rec.at ? Math.round((now - rec.at) / 60000) + ' minutes' : 'hours') +
+           '. Open Triggers (the clock in the left side of the Apps Script editor) and look at hubReadyRun_ for an error.' + slow.replace('Until then', 'Meanwhile');
+  }
+  return '•  ' + what + ' are not kept ready yet: this starts by itself at the first sign-in that finds a test or a reflection (in the account the web app runs as).' + slow;
+}
 
 /* ============================================================
    The teacher page
