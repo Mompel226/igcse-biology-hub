@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1792508808">
+<link rel="stylesheet" href="css/hub.css?v=1792538234">
 </head>
 <body>
 
@@ -134,8 +134,14 @@
         <a class="sit__go" id="rflGo" hidden>Start your reflection <span aria-hidden="true">&rarr;</span></a>
       </section>
 
-      <p class="sit-note" id="sitNote" hidden></p>
-      <p class="sit-note sit-note--rfl" id="rflNote" hidden></p>
+      <!-- A teacher in test mode: why a card does not show, in ONE small box beside the cards (21 Oct 2026, Daniel: the notes
+           made "a very, very thick area at the top with almost nothing on the right"). Shown only while a note is (js/hub.js);
+           pupils never see it. -->
+      <div class="sit-notes" id="sitNotes" hidden>
+        <span class="sit-notes__head">Test mode · only you see this</span>
+        <p class="sit-note" id="sitNote" hidden></p>
+        <p class="sit-note sit-note--rfl" id="rflNote" hidden></p>
+      </div>
 
       <!-- What the hub found, under the cards, for whoever they are for (Daniel, 13 Oct 2026: pupils signed in, saw
            nothing while the check still ran, and thought nothing had happened): "Checking…" while it asks; then when
@@ -195,12 +201,12 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client?hl=en-GB" async defer></script>
 
-<script src="js/data/labs.js?v=1792508808"></script>
-<script src="js/data/syllabus-years.js?v=1792508808"></script>
-<script src="js/progress.js?v=1792508808"></script>
-<script src="js/signin.js?v=1792508808"></script>
-<script src="js/shelves.js?v=1792508808"></script>
-<script src="js/local.js?v=1792508808"></script>
-<script src="js/hub.js?v=1792508808"></script>
+<script src="js/data/labs.js?v=1792538234"></script>
+<script src="js/data/syllabus-years.js?v=1792538234"></script>
+<script src="js/progress.js?v=1792538234"></script>
+<script src="js/signin.js?v=1792538234"></script>
+<script src="js/shelves.js?v=1792538234"></script>
+<script src="js/local.js?v=1792538234"></script>
+<script src="js/hub.js?v=1792538234"></script>
 </body>
 </html>

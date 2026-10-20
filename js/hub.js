@@ -1205,6 +1205,18 @@
         sitWhen = document.getElementById('sitWhen'),
         sitGo   = document.getElementById('sitGo');
     var sitLast = null, sitTimer = null;
+    /* the notes' box (21 Oct 2026) shows while one of its notes does, whoever shows or hides them. Only the NOTES are
+       watched, and the box is changed only when it must: setting it again to the same value is still a change the
+       watcher would see, and it would answer itself for ever (the page froze at the first check). */
+    var sitNotes = document.getElementById('sitNotes');
+    if (sitNotes && window.MutationObserver) {
+      var notesSync = function () {
+        var want = !sitNotes.querySelector('.sit-note:not([hidden])');
+        if (sitNotes.hidden !== want) sitNotes.hidden = want;
+      };
+      var notesObs = new MutationObserver(notesSync);
+      [].forEach.call(sitNotes.querySelectorAll('.sit-note'), function (p) { notesObs.observe(p, { attributes: true, attributeFilter: ['hidden'] }); });
+    }
     function sitHide() {
       clearTimeout(sitTimer);
       if (sitEl) { sitEl.hidden = true; sitEl.classList.remove('is-open'); }
@@ -1263,7 +1275,7 @@
       var r = j.reflect, say = r && RFL_SAY[r.state];
       if (!say) {
         if (j.teacher && rflNote && j.reflectWhy && j.reflectWhy.length) {
-          rflNote.textContent = 'Test mode · No reflection shows here: ' + j.reflectWhy[0] +
+          rflNote.textContent = 'No reflection shows here: ' + j.reflectWhy[0] +
             (j.reflectWhy.length > 1 ? ' · and ' + (j.reflectWhy.length - 1) + ' more' : '') + '.';
           rflNote.hidden = false;
         }
@@ -1422,12 +1434,13 @@
       }
       if (t && sitNote) {
         sitNote.textContent =
-          j.state === 'done'   ? 'Test mode \u00b7 You have handed in ' + (j.name || 'your test') + ', so no test shows here.' :
-          j.state === 'closed' ? 'Test mode \u00b7 ' + (j.name || 'Your test') + ' has closed, so no test shows here.' :
-          j.state === 'waiting' ? 'Test mode \u00b7 ' + (j.name || 'Your test') + ' has no start time yet, so no test shows here. Set one, or press \u23f0 Start now in its dashboard.' :
+          /* the box's heading says "Test mode" (21 Oct 2026), so the notes no longer begin with it */
+          j.state === 'done'   ? 'You have handed in ' + (j.name || 'your test') + ', so no test shows here.' :
+          j.state === 'closed' ? (j.name || 'Your test') + ' has closed, so no test shows here.' :
+          j.state === 'waiting' ? (j.name || 'Your test') + ' has no start time yet, so no test shows here. Set one, or press \u23f0 Start now in its dashboard.' :
           (j.why && j.why.length
-            ? 'Test mode \u00b7 No test shows here: ' + j.why[0] + (j.why.length > 1 ? ' \u00b7 and ' + (j.why.length - 1) + ' more' : '') + '.'
-            : 'Test mode \u00b7 No test shows here. To see one, add yourself to the \u201cMarks \u00b7 Test\u201d tab of a test that opens later or is open now.');
+            ? 'No test shows here: ' + j.why[0] + (j.why.length > 1 ? ' \u00b7 and ' + (j.why.length - 1) + ' more' : '') + '.'
+            : 'No test shows here. To see one, add yourself to the \u201cMarks \u00b7 Test\u201d tab of a test that opens later or is open now.');
         sitNote.hidden = false;
       }
     }

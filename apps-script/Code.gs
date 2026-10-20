@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '20 Oct 2026 — the hub’s cards kept ready: a fast sign-in';
+var SCRIPT_EDITION = '21 Oct 2026 — the set-up check in a clear window';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -1726,81 +1726,86 @@ function _guessClass_(s) {
 /* Tells you, in one box, which parts of the set-up are done, and what each optional part still needs. */
 function checkSetup() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: these are expensive owner-privileged writes */
-  var lines = [], id = '', src = '';
+  var bucket = {}, sec = 'sheet', id = '', src = '';   /* each sentence goes into its part (SETUP_PARTS) */
+  var put = function (t, part) { var k = part || sec; (bucket[k] = bucket[k] || []).push(t); };
   try {
     id = _sheetId_();
     src = (SHEET_ID && SHEET_ID !== 'PASTE_YOUR_SHEET_ID_HERE') ? 'from SHEET_ID at the top of Code.gs'
         : 'worked out from this Sheet and remembered — you do not need to paste it';
-    lines.push('✅  spreadsheet: ' + src);
+    put('✅  spreadsheet: ' + src);
   } catch (e) {
-    lines.push('❌  ' + e.message);
+    put('❌  ' + e.message);
   }
 
   var openOk = false, name = '';
   if (id) {
     try { name = SpreadsheetApp.openById(id).getName(); openOk = true; } catch (e) {}
-    lines.push((openOk ? '✅' : '❌') + '  ' + (openOk ? 'it opens: “' + name + '”' : 'that id will not open'));
+    put((openOk ? '✅' : '❌') + '  ' + (openOk ? 'it opens: “' + name + '”' : 'that id will not open'));
   }
 
+  sec = 'classroom';
   var clsOk = (typeof Classroom !== 'undefined' && Classroom && Classroom.Courses);
-  lines.push((clsOk ? '✅' : '❌') + '  Google Classroom ' + (clsOk ? 'is switched on' :
+  put((clsOk ? '✅' : '❌') + '  Google Classroom ' + (clsOk ? 'is switched on' :
     'is NOT switched on — left sidebar: Services ▸ + ▸ Google Classroom API ▸ Add (identifier "Classroom")'));
   if (clsOk) {
     try { var n = (Classroom.Courses.list({ courseStates: ['ACTIVE'], pageSize: 5 }).courses || []).length;
-          lines.push('✅  it can see your courses (' + n + '+ active)'); }
-    catch (e) { lines.push('❌  Classroom is on but not authorised — Run ▸ setup once and accept. (' + e + ')'); }
+          put('✅  it can see your courses (' + n + '+ active)'); }
+    catch (e) { put('❌  Classroom is on but not authorised — Run ▸ setup once and accept. (' + e + ')'); }
   }
 
   /* The one that decides whether anything is recorded at all, so it says so plainly. */
+  sec = 'signin';
   var cid = _clientId_();
   if (!cid) {
-    lines.push('❌  sign-in is NOT set up — CLIENT_ID at the top of this script is empty and ' +
+    put('❌  sign-in is NOT set up — CLIENT_ID at the top of this script is empty and ' +
                'none has been remembered, so NOTHING is being recorded, however green ' +
                'everything above is. Every save comes back “not recorded: sign-in is not ' +
                'set up”. Type it into the CLIENT_ID line once and run this again; from then ' +
                'on pasting a fresh copy of the script cannot lose it. See “Step 3 · Switch on ' +
                'sign-in” in the hub’s README.');
   } else if (!/\.apps\.googleusercontent\.com$/.test(cid)) {
-    lines.push('❌  CLIENT_ID does not look like a Client ID — it should end ' +
+    put('❌  CLIENT_ID does not look like a Client ID — it should end ' +
                '.apps.googleusercontent.com. This looks like something else was pasted in.');
   } else {
-    lines.push('✅  sign-in is set up (…' + cid.slice(-32) + ')' +
+    put('✅  sign-in is set up (…' + cid.slice(-32) + ')' +
                (CLIENT_ID ? '' : ' — remembered from an earlier paste, the line above is empty'));
-    lines.push('•  the SAME id must also be googleClientId in every lab\'s js/config.js (Bio English Lab\'s too) ' +
+    put('•  the SAME id must also be googleClientId in every lab\'s js/config.js (Bio English Lab\'s too) ' +
                'and in the hub\'s js/local.js, or that page can never record or read anything.');
   }
 
   if (openOk) {
-    lines.push('•  students imported: ' + Math.max(0, _sheet_(T_STUDENTS).getLastRow() - 1));
+    put('•  students imported: ' + Math.max(0, _sheet_(T_STUDENTS).getLastRow() - 1), 'sheet');
     /* built = live: its questions are counted in LABS. Every lab has a tab from the first Tidy up, so counting tabs
        always said 20 of 20 (labs-script-025, 1 Oct 2026). */
     var built = LABS.filter(function (l) { return (l.questions || 0) > 0; }).length;
-    lines.push('•  labs built so far: ' + built + ' of ' + LABS.length +
-               (built < LABS.length ? ' (the others already have a tab and a Students column, empty until the lab is built)' : ''));
+    put('•  labs built so far: ' + built + ' of ' + LABS.length +
+               (built < LABS.length ? ' (the others already have a tab and a Students column, empty until the lab is built)' : ''), 'sheet');
   }
 
   /* The two newer addresses. Both are typed by hand, both are easy to confuse with a spreadsheet
      link, and both fail quietly when wrong — the tab that needs one only says it is missing — so say so here. */
+  sec = 'tracker';
   var rawTracker = String(_keptSetting_(TRACKER_APP_URL, 'TRACKER_APP_URL') || '').trim();
   if (!rawTracker) {
-    lines.push('•  the Students tab cannot open trackers yet: TRACKER_APP_URL is empty. It wants the /exec address of ' +
+    put('•  the Students tab cannot open trackers yet: TRACKER_APP_URL is empty. It wants the /exec address of ' +
                'one of your REFLECTION deployments — not a spreadsheet link.');
   } else if (!_trackerAppUrl_()) {
-    lines.push('❌  TRACKER_APP_URL is not a web-app address, so the Students tab cannot open trackers. ' +
+    put('❌  TRACKER_APP_URL is not a web-app address, so the Students tab cannot open trackers. ' +
                'It must be the reflection system\u2019s /exec address (https://script.google.com/…/exec). ' +
                'What is there now starts "' + rawTracker.slice(0, 44) + '…" — that looks like a ' +
                'spreadsheet, which is TRACKER_ID\u2019s job, not this one.');
   } else {
-    lines.push('✅  the Students tab can open each pupil’s tracker.');
+    put('✅  the Students tab can open each pupil’s tracker.');
   }
+  sec = 'homework';
   var rawHub = String(_keptSetting_(HUB_URL, 'HUB_URL') || '').trim();
   if (!rawHub) {
-    lines.push('•  Set homework cannot list the labs’ stations yet (Bio English sets still work): HUB_URL is empty; it wants your hub\u2019s address, usually a ' +
+    put('•  Set homework cannot list the labs’ stations yet (Bio English sets still work): HUB_URL is empty; it wants your hub\u2019s address, usually a ' +
                'sub-folder such as https://…/biology-hub');
   } else {
     var manOk = false;
     try { manOk = !!_manifest_(); } catch (e) {}
-    lines.push(manOk
+    put(manOk
       ? '✅  Set homework can read the station list from ' + rawHub
       : '❌  the station list could not be read from ' + rawHub + '/js/data/stations.json — open ' +
         'that address in a browser. If it does not load, HUB_URL is wrong (a GitHub Pages project ' +
@@ -1811,9 +1816,10 @@ function checkSetup() {
      filled in, it is worth proving the workbook opens and the cohort tabs are there,
      because the card's own way of failing is a quiet "could not check just now" that says
      nothing about which of the two is wrong. */
+  sec = 'tracker';
   var tid = _trackerId_();
   if (!tid) {
-    lines.push('•  the record card on the hub is off. To switch it on, type TRACKER_ID and ' +
+    put('•  the record card on the hub is off. To switch it on, type TRACKER_ID and ' +
                'SCHOOL_DOMAIN into the two lines near the top of this script (or add them in ' +
                'Project Settings ▸ Script Properties), then run this check again.');
   } else {
@@ -1829,67 +1835,69 @@ function checkSetup() {
       });
     } catch (e) {}
     if (!tOk) {
-      lines.push('❌  the record card is on, but TRACKER_ID will not open. It should be the ' +
+      put('❌  the record card is on, but TRACKER_ID will not open. It should be the ' +
                  'long string from the "Student Progress Tracker" address, between /d/ and ' +
                  '/edit, and this account must be able to open it.');
     } else if (!cohorts.length) {
-      lines.push('❌  “' + tName + '” opens, but it has no "Class of ____" tabs. That is the ' +
+      put('❌  “' + tName + '” opens, but it has no "Class of ____" tabs. That is the ' +
                  'shape of the Student Progress Tracker — so this is almost certainly an ' +
                  'assessment\'s own spreadsheet pasted in by mistake. The card must point at ' +
                  'the tracker: one assessment\'s spreadsheet knows about that test and no ' +
                  'other, and goes stale the day you make the next one.');
     } else {
-      lines.push('✅  the record card can read “' + tName + '” — ' + cohorts.join(', ') +
+      put('✅  the record card can read “' + tName + '” — ' + cohorts.join(', ') +
                  ' (' + tRows + ' finished student-assessment row' + (tRows === 1 ? '' : 's') + ')');
-      lines.push(unfRows < 0
+      put(unfRows < 0
         ? '•  no "Unfinished reflections" tab yet — it appears the first time a student submits a ' +
           'reflection incomplete in a spreadsheet running the updated reflection code.'
         : '•  "Unfinished reflections": ' + unfRows + ' row' + (unfRows === 1 ? '' : 's') +
           ' — counted on the card as unfinished, never as assessments done.');
       var dom = _schoolDomain_();
-      lines.push(dom ? '•  school accounts: any address at ' + dom + ' or under it — staff at …@' + dom +
+      put(dom ? '•  school accounts: any address at ' + dom + ' or under it — staff at …@' + dom +
                        ', pupils at …@<something>.' + dom
                      : '•  SCHOOL_DOMAIN is empty, so somebody signing in with a personal ' +
-                       'account is told "nothing recorded yet" rather than which account to use.');
+                       'account is told "nothing recorded yet" rather than which account to use.', 'signin');
     }
   }
 
   /* The teacher page. Off until it is set up, and then its three parts are checked apart. */
+  sec = 'teachers';
   var tpUrl = _teacherPageUrl_(), tpTab = openOk ? _ss_().getSheetByName(T_LINKS) : null;
   if (!tpUrl && !tpTab && !String(_keptSetting_(TEACHER_PAGE_URL, 'TEACHER_PAGE_URL') || '')) {
-    lines.push('•  the teacher page is off. 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses sets it up.');
+    put('•  the teacher page is off. 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses sets it up.');
   } else {
-    lines.push(tpUrl ? '✅  teacher page address is set'
+    put(tpUrl ? '✅  teacher page address is set'
                      : '❌  TEACHER_PAGE_URL is empty or is not a web-app /exec address — see 👥 Teacher page: teachers and addresses');
-    lines.push('•  teachers who can open it: you (' + (_owner_() || 'the owner') + ')' +
+    put('•  teachers who can open it: you (' + (_owner_() || 'the owner') + ')' +
                (_teacherEmails_().length ? ' and ' + _teacherEmails_().length + ' more' : ' only'));
     /* which of them can also open THIS spreadsheet to edit it (2 Oct 2026): the page needs no such access, the menu does */
     if (openOk && _teacherEmails_().length) {
       try {
         var ta = _teacherAccess_(), tn = ta.can.length + ta.cannot.length;
-        if (ta.known && tn) lines.push(ta.cannot.length
+        if (ta.known && tn) put(ta.cannot.length
           ? '•  ' + ta.can.length + ' of the ' + tn + ' teachers on the list can edit this spreadsheet. 🧪 Biology Labs ▸ 🤝 Let the teachers on the list edit this spreadsheet… gives it to the other ' + ta.cannot.length + '.'
           : '✅  ' + (tn === 1 ? 'the teacher on the list can' : 'all ' + tn + ' teachers on the list can') + ' edit this spreadsheet');
       } catch (e) {}
     }
     var tpLinks = 0;
     try { tpLinks = _teacherLinksRaw_().length; } catch (e) {}
-    lines.push(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Add or remove links on the teacher page makes it');
+    put(tpTab ? '•  links on it: ' + tpLinks : '❌  no “' + T_LINKS + '” tab — 🔗 Add or remove links on the teacher page makes it');
   }
+  sec = 'homework';
   /* Bio English Lab: its set list comes from the public site, so an unreachable site means
      English homework cannot be scored — worth saying, never a fault in the labs. */
   var enMan = null;
   try { enMan = _englishManifest_(); } catch (e) {}
-  lines.push(enMan ? '✅  Bio English Lab: its ' + (enMan.sets || []).length + ' sets can be read'
+  put(enMan ? '✅  Bio English Lab: its ' + (enMan.sets || []).length + ' sets can be read'
                    : '❌  Bio English Lab: ' + ENGLISH_URL + '/data/sets.json could not be read, so English homework cannot be scored just now');
   /* the Write-Up Lab the same way (3 Oct 2026) */
   var wuMan = null;
   try { wuMan = _writeupManifest_(); } catch (e) {}
-  lines.push(wuMan ? '✅  Write-Up Lab: its ' + (wuMan.parts || []).length + ' parts can be read'
+  put(wuMan ? '✅  Write-Up Lab: its ' + (wuMan.parts || []).length + ' parts can be read'
                    : '❌  Write-Up Lab: ' + WRITEUP_URL + '/data/parts.json could not be read, so Write-Up homework cannot be scored just now');
   var dailyOn = false;
   try { dailyOn = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sendDueSummaries'; }); } catch (e) {}
-  lines.push(dailyOn ? '✅  the due-date email goes out every morning'
+  put(dailyOn ? '✅  the due-date email goes out every morning'
                      : '•  the due-date email is off. 📬 in this menu switches it on.');
   /* Homework reminders (1 Oct 2026): the 15-minute check, started here if some homework wants it and it is missing,
      and the Classroom permission the reminders need. Said plainly, because a missing permission fails quietly. */
@@ -1900,36 +1908,134 @@ function checkSetup() {
   } catch (e) {}
   try { remOn = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'sendHomeworkReminders'; }); } catch (e) {}
   if (remWant && !remOn) remOn = remNew = _hwReminderTrigger_();
-  lines.push(remOn ? '✅  homework reminders: checked every 15 minutes' + (remNew ? ' (started just now)' : '')
+  put(remOn ? '✅  homework reminders: checked every 15 minutes' + (remNew ? ' (started just now)' : '')
            : remWant ? '❌  some homework has reminders switched on, but the 15-minute check could not be started. Run this check again; if it says the same, open Triggers (the clock in the left sidebar of the Apps Script editor) and see whether sendHomeworkReminders is there.'
            : '•  homework reminders: none waiting. The 15-minute check starts by itself when homework is posted in Google Classroom with “Remind pupils who have not finished” ticked, and stops when no reminder is left to send.');
   if (clsOk) {
     var annOk = _hwAnnounceAllowed_();
-    lines.push(annOk === true ? '✅  the reminders can be posted: Google Classroom announcements are allowed'
+    put(annOk === true ? '✅  the reminders can be posted: Google Classroom announcements are allowed'
       : annOk === false ? '❌  the reminders CANNOT be posted: Google has not been allowed to post Classroom announcements for this script. ' +
                           'In the Apps Script editor, choose checkSetup in the list at the top and press ▶ Run. On Google’s screen, tick ' +
                           'Select all (or the line about announcements in Google Classroom) and press Allow. Then run this check again: this line turns ✅.'
       : '•  whether Google Classroom announcements are allowed (for the reminders) could not be checked here.');
   }
-  if (openOk) lines.push(_tzLine_());
-  try { lines.push(_hubReadyLine_()); } catch (e) {}
+  if (openOk) put(_tzLine_(), 'sheet');
+  try { put(_hubReadyLine_(), 'hub'); } catch (e) {}
+  sec = 'jobs';
   /* 10 Oct 2026, the job engine: the script's storage (Google's 500 KB a script), a job that stopped itself for today, and
      a job that stopped part way with no run to carry it on */
   var jst = _jeStore_();
   if (jst) {
-    lines.push((jst.level === 'ok' ? '✅  ' : jst.level === 'warn' ? '⚠️  ' : '❌  ') + _jeStoreLine_(jst) +
+    put((jst.level === 'ok' ? '✅  ' : jst.level === 'warn' ? '⚠️  ' : '❌  ') + _jeStoreLine_(jst) +
       (jst.level === 'full' ? ' 🎨 Tidy up and the import will not start until there is room: tell Daniel.' : jst.level === 'warn' ? ' At 95 % they will not start: tell Daniel.' : ''));
     _jeStoreNotify_(jst);
   }
   Object.keys(JE_KINDS).forEach(function (k) {
     var jsk = _jeState_(k), js2 = _jeStatus_(k);
-    if (jsk.day === _jeToday_() && jsk.braked) lines.push('⛔  ' + JE_KINDS[k].title + ' stopped itself for today: ' + jsk.braked);
-    if (js2.state === 'stopped') lines.push('⚠️  ' + JE_KINDS[k].title + ' stopped part way (' + js2.how + '): ' + _jeNeverCame_(js2.at) + '. ' + _jePressAgain_(k));
+    if (jsk.day === _jeToday_() && jsk.braked) put('⛔  ' + JE_KINDS[k].title + ' stopped itself for today: ' + jsk.braked);
+    if (js2.state === 'stopped') put('⚠️  ' + JE_KINDS[k].title + ' stopped part way (' + js2.how + '): ' + _jeNeverCame_(js2.at) + '. ' + _jePressAgain_(k));
   });
-  lines.push('');
-  lines.push('Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy, on each of your deployments.');
+  _setupShow_(bucket);
+}
 
-  SpreadsheetApp.getUi().alert('Biology Labs — set-up', lines.join('\n\n'), SpreadsheetApp.getUi().ButtonSet.OK);
+/* 🩺 The set-up check, shown (21 Oct 2026, Daniel: "it all looks the same and it's very hard to read what is what … so it's
+   easier to understand for the reader and someone that has very little understanding and runs the check"). The same
+   sentences (checkSetup puts each into its part), in a window: at the top whether anything needs doing and where; then each
+   part under its own heading, with a word on what it is for, each sentence with its mark (✓ working, ! worth a look,
+   ✕ needs doing, i a note) and its subject in bold. "Copy the report" copies the same text as plain lines, as the old
+   message box showed it. Where Google gives no window (or refuses this one), that plain text in a message box, as before. */
+var SETUP_PARTS = [
+  ['sheet', 'This spreadsheet', 'Where the pupils’ work from the labs is saved.'],
+  ['signin', 'Signing in', 'Without these, nothing a pupil does in a lab is saved, or read back on another computer.'],
+  ['classroom', 'Google Classroom', 'For importing your classes and posting homework.'],
+  ['homework', 'Homework', 'Setting homework, the due-date e-mail and the reminders to pupils.'],
+  ['tracker', 'Pupils’ trackers and the record card', 'Each pupil’s tracker, and the record card they see on the Biology Hub.'],
+  ['teachers', 'The teacher page', 'The page where you and the other teachers see the pupils’ work.'],
+  ['hub', 'The Biology Hub’s cards', 'The test, reflection and feedback cards pupils see when they sign in to the Biology Hub.'],
+  ['jobs', 'Storage and long jobs', 'The script’s own storage, and the jobs that carry on by themselves.']
+];
+var SETUP_REMEMBER = 'Remember: editing this script changes nothing until Deploy ▸ Manage deployments ▸ pencil ▸ New version ▸ Deploy, on each of your deployments.';
+
+function _setupShow_(bucket) {
+  var ui = SpreadsheetApp.getUi(), plain = _setupPlain_(bucket);
+  try { ui.showModalDialog(HtmlService.createHtmlOutput(_setupHtml_(bucket, plain)).setWidth(780).setHeight(680), 'Biology Labs — set-up check'); }
+  catch (e) { ui.alert('Biology Labs — set-up', plain, ui.ButtonSet.OK); }
+}
+/* the plain text: each part's heading, then its sentences */
+function _setupPlain_(bucket) {
+  var out = [];
+  SETUP_PARTS.forEach(function (p) {
+    var items = bucket[p[0]] || [];
+    if (!items.length) return;
+    out.push('— ' + p[1] + ' —');
+    items.forEach(function (t) { out.push(t); });
+  });
+  out.push(SETUP_REMEMBER);
+  return out.join('\n\n');
+}
+/* a sentence's mark, from the sign it starts with */
+function _setupLevel_(t) {
+  var s = String(t);
+  return /^(❌|⛔)/.test(s) ? 'bad' : /^⚠/.test(s) ? 'warn' : /^✅/.test(s) ? 'ok' : 'note';
+}
+function _setupHtml_(bucket, plain) {
+  var esc = function (x) {
+    return String(x == null ? '' : x).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  };
+  var MARK = { ok: '✓', warn: '!', bad: '✕', note: 'i' };
+  var count = { ok: 0, warn: 0, bad: 0, note: 0 }, look = [], parts = '';
+  SETUP_PARTS.forEach(function (p, i) {
+    var items = bucket[p[0]] || [];
+    if (!items.length) return;
+    var n = { ok: 0, warn: 0, bad: 0, note: 0 }, lis = '';
+    items.forEach(function (t) {
+      var lv = _setupLevel_(t);
+      n[lv]++; count[lv]++;
+      var s = String(t).replace(/^(✅|❌|⛔|⚠️|⚠|•)\s*/, '');
+      s = s.charAt(0).toUpperCase() + s.slice(1);
+      var h = esc(s), m = h.match(/^([^:(—]{2,48}?)(:|\s—)\s/);
+      if (m) h = '<b>' + m[1] + '</b>' + h.slice(m[1].length);
+      h = h.replace(/https:\/\/[^\s<]*[^\s<.,;:)]/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; });
+      lis += '<li class="' + lv + '"><span class="mark ' + lv + '">' + MARK[lv] + '</span><span class="txt">' + h + '</span></li>';
+    });
+    if (n.bad || n.warn) look.push('<a href="#p' + i + '">' + esc(p[1]) + '</a>');
+    var chip = n.bad ? '<span class="chip bad">' + n.bad + (n.bad === 1 ? ' needs' : ' need') + ' doing</span>'
+             : n.warn ? '<span class="chip warn">' + n.warn + ' worth a look</span>'
+             : n.ok ? '<span class="chip ok">working</span>' : '';
+    parts += '<section id="p' + i + '"><h2>' + esc(p[1]) + ' ' + chip + '</h2><p class="what">' + esc(p[2]) + '</p><ul>' + lis + '</ul></section>';
+  });
+  var v = count.bad ? 'bad' : count.warn ? 'warn' : 'ok';
+  var verdict = count.bad ? count.bad + (count.bad === 1 ? ' thing needs' : ' things need') + ' doing'
+              : count.warn ? 'Working, and ' + count.warn + (count.warn === 1 ? ' thing is' : ' things are') + ' worth a look'
+              : 'Everything is working';
+  return '<!doctype html><html><head><meta charset="utf-8"><base target="_top"><style>' +
+    '*{box-sizing:border-box}body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#1f2328;background:#fff}' +
+    '.top{padding:16px 22px 12px;background:#f6f8fa;border-bottom:1px solid #d0d7de}' +
+    '.verdict{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600}.verdict.ok{color:#1a7f37}.verdict.warn{color:#9a6700}.verdict.bad{color:#cf222e}' +
+    '.where{margin:4px 0 0 34px;color:#57606a}.where a{color:#0969da;font-weight:600}' +
+    '.key{margin:10px 0 0 34px;color:#57606a;font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 14px}.key>span{display:inline-flex;align-items:center;gap:6px}' +
+    'main{padding:4px 22px 90px}section{margin-top:18px}h2{font-size:15.5px;margin:0;display:flex;align-items:center;gap:10px}' +
+    '.what{margin:2px 0 8px;color:#57606a;font-size:13px}ul{list-style:none;margin:0;padding:0;border:1px solid #d0d7de;border-radius:8px;overflow:hidden}' +
+    'li{display:flex;gap:12px;padding:9px 14px;border-top:1px solid #eaeef2}li:first-child{border-top:0}li.bad{background:#ffebe9}li.warn{background:#fff8c5}' +
+    '.txt{overflow-wrap:anywhere}.txt a{color:#0969da}' +
+    '.mark{flex:none;width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:12.5px;font-weight:700;margin-top:0}' +
+    '.mark.ok{background:#1a7f37}.mark.warn{background:#bf8700}.mark.bad{background:#cf222e}.mark.note{background:#8c959f;font-style:italic;font-family:Georgia,serif}' +
+    '.chip{font-size:12px;font-weight:600;padding:1px 9px;border-radius:999px}.chip.ok{background:#dafbe1;color:#1a7f37}.chip.warn{background:#fff8c5;color:#7d4e00}.chip.bad{background:#ffebe9;color:#cf222e}' +
+    'footer{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #d0d7de;padding:10px 22px;display:flex;align-items:center;gap:10px}' +
+    '.remember{flex:1;color:#57606a;font-size:12.5px}button{font:inherit;font-weight:600;padding:7px 14px;border-radius:6px;border:1px solid #d0d7de;background:#f6f8fa;color:#1f2328;cursor:pointer}' +
+    'button.go{background:#1f883d;border-color:#1f883d;color:#fff}#said{color:#1a7f37;font-size:12.5px}' +
+    'textarea{width:100%;height:160px;margin-top:14px;font:12px/1.4 ui-monospace,Menlo,monospace}' +
+    '</style></head><body>' +
+    '<div class="top"><div class="verdict ' + v + '"><span class="mark ' + v + '">' + MARK[v] + '</span>' + esc(verdict) + '</div>' +
+    '<div class="where">' + (look.length ? 'Look at: ' + look.join(' · ') : 'Nothing needs doing. The notes (i) say how things are set up.') + '</div>' +
+    '<div class="key"><span><span class="mark ok">✓</span>working</span><span><span class="mark warn">!</span>worth a look</span>' +
+    '<span><span class="mark bad">✕</span>needs doing</span><span><span class="mark note">i</span>a note: nothing to do</span></div></div>' +
+    '<main>' + parts + '<textarea id="plain" readonly hidden>' + esc(plain) + '</textarea></main>' +
+    '<footer><span class="remember">' + esc(SETUP_REMEMBER) + '</span><span id="said"></span>' +
+    '<button onclick="copyPlain()">Copy the report</button><button class="go" onclick="google.script.host.close()">Close</button></footer>' +
+    '<script>function copyPlain(){var t=document.getElementById("plain"),s=document.getElementById("said"),ok=false;t.hidden=false;t.focus();t.select();' +
+    'try{ok=document.execCommand("copy")}catch(e){}s.textContent=ok?"Copied. Paste it wherever you need it.":"Select the text below and copy it (⌘C or Ctrl+C).";' +
+    'if(ok)t.hidden=true;}</script></body></html>';
 }
 /* 🩺 The zone every due time and the reminders' night hours are read in (_tz_: the spreadsheet's own, File ▸ Settings,
    before the script's). 2 Oct 2026: the paste list asked the teacher to look this up by hand, and the script's zone
@@ -5499,7 +5605,9 @@ function _hubReadyLine_() {
     return '⚠️  ' + what + ' are not kept ready now: the code saved in the editor is not the version deployed. Deploy ▸ Manage deployments ▸ ✏️ ▸ New version (on both deployments); it starts again within a minute.' + slow.replace('Until then', 'Meanwhile');
   if (on || why || (rec && rec.at)) {
     if (!day.on || why === 'quiet' || !day.always)
-      return '✅  ' + what + ' are kept ready' + hours + '. It rests now (' + (day.on ? 'no sign-in in the last hour' : 'at night') + '): the next sign-in reads the spreadsheets itself and starts it again.';
+      return '✅  ' + what + ' are kept ready' + hours + '. It rests now (' + (day.on
+        ? 'no sign-in in the last hour): the next sign-in reads the spreadsheets itself and starts it again.'
+        : 'at night): it starts again by itself at ' + HUB_READY_ON_FROM + ', or from ' + hh(HUB_READY_FROM_H) + ' after a sign-in; until then each sign-in reads the spreadsheets itself.');
     return '⚠️  ' + what + ' should be kept ready' + hours + ', but it has not run in the last ' + (rec && rec.at ? Math.round((now - rec.at) / 60000) + ' minutes' : 'hours') +
            '. Open Triggers (the clock in the left side of the Apps Script editor) and look at hubReadyRun_ for an error.' + slow.replace('Until then', 'Meanwhile');
   }
