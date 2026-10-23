@@ -6605,7 +6605,7 @@ function _checkSpreadsheet_(url) {
   var card = _readHubLabel_(f.getDescription());
   if (!card) return { id: id, verdict: 'nolabel', url: 'https://docs.google.com/spreadsheets/d/' + id + '/edit', say: [
     'It has no label yet, so Find cannot recognise it (its Drive description has no “Biology Test System spreadsheet” or “Biology reflection spreadsheet” line).',
-    'A test spreadsheet writes its label when you run 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab in it — with the current Test System code pasted. A reflection spreadsheet writes it when its page or dashboard is opened after its current code is deployed (✏️ New version).',
+    'A test spreadsheet writes its label when you run 🧪 Test System ▸ 🔗 Rebuild Links / readiness tab in it — with the current Test System code pasted. A reflection spreadsheet writes it when its page or dashboard is opened after its current code is deployed (✏️ New version), or when 🧰 ToolBox ▸ ⚙️ Setup & config ▸ 🔗 Rebuild 🔗 Links tab… is run in it.',
     'Or add it now with ➕ Add a link below (its address is filled in for you).'] };
   var o = f.getOwner(), owner = o ? String(o.getEmail() || '').toLowerCase() : '';
   var fo = '', pid = '', pname = '', ps = f.getParents();
@@ -7195,7 +7195,8 @@ function _manifest_() {
 /* Who is asking: the active user, if they are a teacher on the list, else ''. On the school-only deployment
    Google has already proved who they are, and google.script.run calls from the page arrive with the same
    active user. Every read and write the teacher page makes checks this (uiData, homeworkCreate, homeworkDelete,
-   homeworkTopics, homeworkRemind, homeworkChangeDue, homeworkAddPupils, homeworkHide, studentMove, studentAccommodation). */
+   homeworkTopics, homeworkRemind, homeworkChangeDue, homeworkAddPupils, homeworkHide, studentMove, studentAccommodation,
+   studentRelease). */
 function _hwCaller_() {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
@@ -8084,6 +8085,110 @@ function studentAccommodation(d) {
   return { ok:true, note: note + (dir ? '' : ' Press ↻ Refresh, at the top of the page, to see it on the card.'), data:dir, trackerBase:base };
 }
 
+/* §held-results (reflection §40.206, 23 Oct 2026). Daniel: "whatever is there is still put in sync into the tracker, but it's
+   not showing the student website … the teacher has to kind of have a conversation with that student and then click a button
+   … in the NLCS biology … the student's tab". The reflection system's ✅ Sync teacher marks keeps the result of a pupil who
+   did not finish the reflection, or never opened it, in the Student Progress Tracker's "🕓 Held results" tab, and the pupil
+   sees nothing of it. The Students tab lists them ("Waiting for you"); 🔓 Release, after the teacher has talked with the
+   pupil, appends one row to "🔓 Released results" (made on the first release; this script's only write to that tab, and it
+   never writes the held tab), and the pupil's My assessments (the reflection's web app) shows the result at the next load.
+   A held result whose pupil has a finished row of the same paper ("Class of …" or TEST) is not listed: that row is shown. */
+var HELD_TAB = '🕓 Held results', RELEASED_TAB = '🔓 Released results';
+var RELEASED_HEADERS = ['Email', 'AssessmentID', 'StudentName', 'Class', 'ReleasedBy', 'ReleasedAt'];
+var HELD_RECENT_DAYS = 14;
+function _heldKey_(email, aid) { var e = _cleanEmail_(email), a = String(aid == null ? '' : aid).trim(); return e && a ? e + '|' + a : ''; }
+/* { list: [ waiting… ], recent: [ released in the last 14 days… ] }; each { email, name, cls, aid, test, what, since } (+ by, at) */
+function _heldResults_() {
+  var out = { list: [], recent: [] }, id = _trackerId_();
+  if (!id) return out;
+  var wb = SpreadsheetApp.openById(id), held = wb.getSheetByName(HELD_TAB);
+  if (!held || held.getLastRow() < 2) return out;
+  var n = held.getLastRow() - 1, hd = held.getRange(1, 1, 1, held.getLastColumn()).getValues()[0], col = {};
+  ['Email', 'StudentName', 'Class', 'AssessmentID', 'AssessmentName', 'HeldWhat', 'LastUpdated'].forEach(function (h) {
+    var c = hd.indexOf(h); col[h] = c >= 0 ? held.getRange(2, c + 1, n, 1).getValues() : null;   /* the columns it shows only: a row's JSON cells are big */
+  });
+  if (!col.Email || !col.AssessmentID) return out;
+  var rel = {}, rt = wb.getSheetByName(RELEASED_TAB);
+  if (rt && rt.getLastRow() >= 2) {
+    var rv = rt.getRange(1, 1, rt.getLastRow(), rt.getLastColumn()).getValues(), rh = rv[0];
+    var re = rh.indexOf('Email'), ra = rh.indexOf('AssessmentID'), rb = rh.indexOf('ReleasedBy'), ry = rh.indexOf('ReleasedAt');
+    for (var i = 1; i < rv.length; i++) { var k = re >= 0 && ra >= 0 ? _heldKey_(rv[i][re], rv[i][ra]) : ''; if (k) rel[k] = { by: rb >= 0 ? String(rv[i][rb] || '') : '', at: ry >= 0 ? rv[i][ry] : '' }; }
+  }
+  var fin = {};
+  wb.getSheets().forEach(function (sh) {
+    var nm = sh.getName(), last = sh.getLastRow();
+    if ((!/^Class of \d{4}$/.test(nm) && nm !== 'TEST') || last < 2) return;
+    var h2 = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0], e2 = h2.indexOf('Email'), a2 = h2.indexOf('AssessmentID');
+    if (e2 < 0 || a2 < 0) return;
+    var ev = sh.getRange(2, e2 + 1, last - 1, 1).getValues(), av = sh.getRange(2, a2 + 1, last - 1, 1).getValues();
+    for (var j = 0; j < ev.length; j++) { var k2 = _heldKey_(ev[j][0], av[j][0]); if (k2) fin[k2] = true; }
+  });
+  var tz = _tz_(), now = Date.now();
+  var day = function (v) { var t = v instanceof Date ? v.getTime() : Date.parse(String(v || '')); return isFinite(t) && t > 0 ? Utilities.formatDate(new Date(t), tz, 'd MMM') : ''; };
+  var at = function (h, r) { return col[h] ? String(col[h][r][0] == null ? '' : col[h][r][0]).trim() : ''; };
+  for (var r = 0; r < n; r++) {
+    var key = _heldKey_(col.Email[r][0], col.AssessmentID[r][0]);
+    if (!key || fin[key]) continue;
+    var it = { email: _cleanEmail_(col.Email[r][0]), name: at('StudentName', r), cls: at('Class', r), aid: String(col.AssessmentID[r][0]).trim(),
+               test: at('AssessmentName', r) || String(col.AssessmentID[r][0]).trim(), what: at('HeldWhat', r), since: day(at('LastUpdated', r)) };
+    if (!rel[key]) { out.list.push(it); continue; }
+    var t = rel[key].at instanceof Date ? rel[key].at.getTime() : Date.parse(String(rel[key].at || ''));
+    if (isFinite(t) && now - t <= HELD_RECENT_DAYS * 86400000) { it.by = rel[key].by; it.at = day(rel[key].at); it.ms = t; out.recent.push(it); }
+  }
+  out.list.sort(function (a, b) { return String(a.cls).localeCompare(String(b.cls)) || String(a.name).localeCompare(String(b.name)); });
+  out.recent.sort(function (a, b) { return b.ms - a.ms; });
+  out.recent = out.recent.slice(0, 40).map(function (x) { delete x.ms; return x; });
+  return out;
+}
+/* the list for the page, or null when the tracker cannot be read just now (the page then says so, and nothing else breaks) */
+function _heldResultsSafe_() { try { return _heldResults_(); } catch (e) { Logger.log('_heldResults_: ' + e); return null; } }
+/* 🔓 Release: { email, aid } — the teacher has talked with the pupil; their held result shows on My assessments */
+function studentRelease(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var email = _cleanEmail_(d.email), aid = String(d.aid == null ? '' : d.aid).trim().slice(0, 120), key = _heldKey_(email, aid);
+  if (!key) return { ok:false, why:'Which student and which test?' };
+  var id = _trackerId_();
+  if (!id) return { ok:false, why:'The Student Progress Tracker is not set yet (🧪 Biology Labs ▸ settings, TRACKER_ID).' };
+  var lock = null, name = '', test = '', already = false;
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  try {
+    var wb = SpreadsheetApp.openById(id), held = wb.getSheetByName(HELD_TAB), found = -1, hv = null, hd = null;
+    if (held && held.getLastRow() >= 2) {
+      hd = held.getRange(1, 1, 1, held.getLastColumn()).getValues()[0];
+      var e1 = hd.indexOf('Email'), a1 = hd.indexOf('AssessmentID');
+      if (e1 >= 0 && a1 >= 0) {
+        var ev = held.getRange(2, e1 + 1, held.getLastRow() - 1, 1).getValues(), av = held.getRange(2, a1 + 1, held.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < ev.length; i++) if (_heldKey_(ev[i][0], av[i][0]) === key) { found = i + 2; break; }
+      }
+    }
+    if (found < 0) return { ok:false, why:'That result is not held any more. If the student has finished the reflection, they can see it already.' };
+    hv = held.getRange(found, 1, 1, hd.length).getValues()[0];
+    var pick = function (h) { var c = hd.indexOf(h); return c >= 0 ? String(hv[c] == null ? '' : hv[c]).trim() : ''; };
+    name = pick('StudentName'); test = pick('AssessmentName') || aid;
+    var rt = wb.getSheetByName(RELEASED_TAB);
+    if (!rt) {
+      rt = wb.insertSheet(RELEASED_TAB);
+      rt.getRange(1, 1, 1, RELEASED_HEADERS.length).setValues([RELEASED_HEADERS]).setFontWeight('bold');
+      rt.setFrozenRows(1);
+    } else if (rt.getLastRow() >= 2) {
+      var rh = rt.getRange(1, 1, 1, rt.getLastColumn()).getValues()[0], re = rh.indexOf('Email'), ra = rh.indexOf('AssessmentID');
+      if (re >= 0 && ra >= 0) {
+        var rv = rt.getRange(2, 1, rt.getLastRow() - 1, rh.length).getValues();
+        for (var j = 0; j < rv.length; j++) if (_heldKey_(rv[j][re], rv[j][ra]) === key) { already = true; break; }
+      }
+    }
+    if (!already) rt.appendRow([email, aid, name, pick('Class'), who, new Date()]);
+  } catch (e) {
+    Logger.log('studentRelease: ' + e);
+    return { ok:false, why:'Could not release it: the Student Progress Tracker could not be written just now. Try again in a moment.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  return { ok:true, note: (name || 'The student') + (already ? ' could already see ' : ' can now see ') + test + ' on My assessments (they may need to reload the page).',
+           held: _heldResultsSafe_() };
+}
+
 /* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
    👥 list only. The list is kept by the tracker's own script (AppScript Tracker Analysis, _publishViewers_) as
    SPREADSHEET-level developer metadata on the Student Progress Tracker: key ANALYSIS_VIEWERS, visibility DOCUMENT, value
@@ -8143,7 +8248,7 @@ function uiData(which, arg) {
     if (which === 'questions') return { ok:true, data:_labQuestions_(String(arg || '').slice(0, 40)) };   /* one lab's question words (6 Oct 2026) */
     if (which === 'teachers')  return { ok:true, data:_teacherPageGroups_() };
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
-    if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_() };
+    if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_(), held:_heldResultsSafe_() };   /* + results held for a teacher to release (§held-results) */
     if (which === 'homework')  return { ok:true, data:_homeworkData_(undefined, who) };   /* their own homework (the owner: everyone's) */
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
     if (which === 'writeup')   return { ok:true, data:_writeupProgressData_() };   /* the Write-Up view (8 Oct 2026): read only */

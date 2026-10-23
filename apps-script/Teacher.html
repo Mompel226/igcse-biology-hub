@@ -157,6 +157,13 @@ input::placeholder{color:var(--mute)}
 .tmsg{font-size:12px;line-height:1.45;color:var(--dim)}
 /* cards used by Spreadsheets + Students */
 .grp{margin:26px 0 0}
+/* §held-results: results waiting for a teacher to release them, at the top of the Students tab */
+.held{border:1px solid var(--line2);border-radius:12px;padding:12px 14px;margin:0 0 6px}
+.held .coh{margin-bottom:8px}
+.heldc{margin:10px 0 0}.heldc>b{font:700 11px/1.3 var(--mono);letter-spacing:.06em}
+.heldr{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:8px 0;border-top:1px solid var(--line2)}
+.heldr .heldn{font-weight:600;min-width:160px}.heldr .card__d{flex:1 1 220px;margin:0}
+.held details{margin-top:10px}.held summary{cursor:pointer;color:var(--mute);font:500 11px/1.3 var(--mono)}
 .coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line2)}
 .coh__t{font:400 21px/1 var(--serif);color:var(--chalk)}
 .pill--yg{font:600 10px/1 var(--mono);color:var(--yg-ink);background:var(--yg-bg);border:1px solid var(--yg-edge);padding:5px 9px;border-radius:999px}
@@ -838,7 +845,7 @@ var BOOT = __BOOT__;
   function paintView(r){
     if (cur==='teachers') return vSpreadsheets(r.data);
     if (cur==='progress') return window.vProgress(r.data);
-    if (cur==='students') return vStudents(r.data, r.trackerBase);
+    if (cur==='students') { stHeld = r.held === undefined ? stHeld : r.held; return vStudents(r.data, r.trackerBase); }   /* §held-results */
     if (cur==='homework') return window.vHomework(r.data);
     if (cur==='english') return window.vEnglish(r.data);
     if (cur==='writeup') return window.vWriteup(r.data);
@@ -961,6 +968,27 @@ var BOOT = __BOOT__;
 
   /* ─────────── Students ─────────── */
   var stState = { grad:'all', cls:'all', q:'', move:'', msg:null }, stTimer = null;   /* move: the pupil whose Move is open (6 Oct 2026) */
+  /* §held-results (23 Oct 2026, Daniel: "the teacher has to kind of have a conversation with that student and then click a
+     button"): the results ✅ Sync teacher marks holds for pupils who have not finished the reflection, { list, recent }, or
+     null when the tracker could not be read */
+  var stHeld;   /* undefined until the server has answered (a copy kept from before this has none) */
+  function heldBlock(){
+    if (stHeld === undefined) return '';
+    if (stHeld === null) return '<section class="held"><div class="coh"><span class="coh__t">🕓 Waiting for you</span></div><p class="card__d">The Student Progress Tracker could not be read just now, so the results waiting for you are not shown. Press ↻ Refresh in a moment.</p></section>';
+    var L = stHeld.list || [], R = stHeld.recent || [];
+    if (!L.length && !R.length) return '';
+    var byC = {}, h = '<section class="held" id="held"><div class="coh"><span class="coh__t">🕓 Waiting for you</span><span class="n">'+L.length+'</span></div>';
+    L.forEach(function(x){ (byC[x.cls||'—']=byC[x.cls||'—']||[]).push(x); });
+    h += L.length ? '<p class="card__d" style="margin:0">These students have marks from you but have not finished the reflection, so they see nothing of this test yet. '+
+        'Talk with the student first, then press 🔓 Release: their My assessments page shows the result.</p>'+
+      Object.keys(byC).sort(cmpClass).map(function(c){ return '<div class="heldc"><b>'+esc(c)+'</b>'+byC[c].map(function(x){
+        return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+(x.what?' · '+esc(x.what):'')+(x.since?' · held since '+esc(x.since):'')+'</span>'+
+          '<button class="act" data-rel="'+esc(x.email)+'" data-aid="'+esc(x.aid)+'">🔓 Release</button></div>'; }).join('')+'</div>'; }).join('')
+      : '<p class="card__d" style="margin:0">Nothing is waiting for you.</p>';
+    if (R.length) h += '<details><summary>Released in the last 14 days ('+R.length+')</summary>'+R.map(function(x){
+        return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+' · released by '+esc(x.by||'a teacher')+(x.at?' on '+esc(x.at):'')+'</span></div>'; }).join('')+'</details>';
+    return h+'</section>';
+  }
   function vStudents(dir, base){
     var STUD = dir.students||[];
     if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
@@ -1005,12 +1033,22 @@ var BOOT = __BOOT__;
         var e=b.getAttribute('data-mv'); stState.move=stState.move===e?'':e; stState.msg=null; paint();
         var sel=$('mv-to'); if(sel) sel.focus(); }); });
       document.querySelectorAll('[data-mvno]').forEach(function(b){ b.addEventListener('click', function(){ stState.move=''; paint(); }); });
+      /* §held-results: 🔓 Release, after the teacher has talked with the student */
+      document.querySelectorAll('[data-rel]').forEach(function(b){ b.addEventListener('click', function(){
+        var e=b.getAttribute('data-rel'), a=b.getAttribute('data-aid');
+        b.disabled=true; b.textContent='Releasing…';
+        google.script.run.withSuccessHandler(function(r){
+            if(r&&r.ok){ if(r.held!==undefined) stHeld=r.held; stState.msg={ text:r.note, bad:false };
+              putView('students', { ok:true, data:dir, trackerBase:base, held:stHeld }); paint(); }
+            else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
+          .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
+          .studentRelease({ email:e, aid:a }); }); });
       document.querySelectorAll('[data-acc]').forEach(function(b){ b.addEventListener('click', function(){
         var e=b.getAttribute('data-acc'), on=b.getAttribute('aria-pressed')!=='true';
         b.disabled=true; b.textContent='Saving…';
         google.script.run.withSuccessHandler(function(r){
             if(r&&r.ok&&r.data){ dir=r.data; STUD=dir.students||[]; stState.msg={ text:r.note, bad:false };
-              putView('students', { ok:true, data:dir, trackerBase:base });
+              putView('students', { ok:true, data:dir, trackerBase:base, held:stHeld });
               vStudents(dir, base); }
             else if(r&&r.ok){ stState.msg={ text:r.note, bad:false }; delete cache.students; ssDel('students'); fresh.students=false; paint(); }   /* written, but the list could not be read again: its kept copy is out of date */
             else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
@@ -1022,7 +1060,7 @@ var BOOT = __BOOT__;
         b.disabled=true; b.textContent='Moving…';
         google.script.run.withSuccessHandler(function(r){
             if(r&&r.ok){ dir=r.data; STUD=dir.students||[]; stState.move=''; stState.msg={ text:r.note, bad:false };
-              putView('students', { ok:true, data:dir, trackerBase:base });
+              putView('students', { ok:true, data:dir, trackerBase:base, held:stHeld });
               /* every other view shows the pupil's class: read them again now rather than show the old one */
               ORDER.forEach(function(k){ if(k!=='students'){ delete cache[k]; ssDel(k); fresh[k]=false; failed[k]=false; } });
               vStudents(dir, base); prefetch(); }
@@ -1053,6 +1091,7 @@ var BOOT = __BOOT__;
           '<span class="pill--past">left · records kept</span><span class="n">'+gone.length+'</span></div>'+
           '<div class="cards cards--wide">'+gone.map(card).join('')+'</div></section>';
       }
+      body = heldBlock() + body;   /* §held-results: first, above the classes */
       if (stState.msg) body='<div class="msg '+(stState.msg.bad?'bad':'ok')+'" role="status" style="margin:0 0 12px">'+esc(stState.msg.text)+'</div>'+body;
       $('slist2').innerHTML = body;
       wireMove();
