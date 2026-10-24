@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-18T03:03:20.937Z",
+  "generated": "2026-10-24T13:21:03.987Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -10,14 +10,14 @@
           "id": "diet",
           "name": "A balanced diet",
           "questions": 9,
-          "sig": "9:1v3bbhs",
+          "sig": "9:1yw80a7",
           "syl": "7.1.2|7.1.3|7.1.3,7.1.2|7.1.3,7.1.2|7.1.1|7.1.2|7.1.2|AO3.3,AO3.6|7.1.2,AO3.3"
         },
         {
           "id": "overview",
           "name": "The Alimentary Canal",
           "questions": 9,
-          "sig": "9:r0zddp",
+          "sig": "9:83sjeo",
           "syl": "7.2.1|7.2.2|7.2.2|7.4.1,7.4.2|7.3.1,7.4.1|7.2.2,1.1.1|7.4.2|7.5.1,AO3.3|7.2.2"
         },
         {
@@ -38,7 +38,7 @@
           "id": "epiglottis",
           "name": "Epiglottis",
           "questions": 6,
-          "sig": "6:gisykd",
+          "sig": "6:1r5jhd9",
           "syl": "7.2.2,11.1.2|7.2.1,11.1.2||7.2.2,11.1.7,11.1.2|11.1.2,7.2.2|"
         },
         {
