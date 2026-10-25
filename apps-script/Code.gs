@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '25 Oct 2026 — 🔬 Y7 Chemistry; Cells Lab 129 questions';
+var SCRIPT_EDITION = '25 Oct 2026 (night) — Cells Lab 131 questions';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -186,7 +186,7 @@ var HUB_URL           = '';
    The counts are kept in labs-shared/labs.json, written by each lab's own build. */
 var LABS = [
   { id:'classification-lab',  name:'Classification',   topic:'1 · Characteristics and classification', questions:64 },
-  { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:129 },
+  { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:131 },
   { id:'cell-transport-lab',  name:'In and out of cells', topic:'3 · Movement into and out of cells', questions:0 },
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:0 },
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
