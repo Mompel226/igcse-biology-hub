@@ -32,7 +32,7 @@
      label    the tab's words
      steps    the topics, in order: { no, t, shelf } — shelf is the door the topic lights
    open     everything that is live, for students who know where they are going
-     title, kind ("hub" | "lab" | "sim" | "practical"), shelf (the door it lights), url
+     title, kind ("hub" | "lab" | "sim" | "practical" | "revision"), shelf (the door it lights), url
      sub      one line under the title. Never write a lab's size here: js/hub.js adds
               "12 stations, 115 questions" from the lab register (js/data/labs.js), found by url
      ib       a note shown in the IB layer · ibOnly  listed only when the IB layer is on
@@ -143,18 +143,21 @@ window.HUB = {
     { title:'Protein & Enzyme Sim', kind:'sim',       shelf:'foundations',
       sub:'Topics 4 and 5 · build a protein, then watch heat and pH take it apart',
       url:'https://nlcsbiology.com/protein-enzyme-sim/', ib:'also IB B1.2' },
-    { title:'Starch calibration curve', kind:'practical', shelf:'foundations',
-      sub:'IB B1.1 · worksheet, workbook and a guide to R',
-      url:'https://nlcsbiology.com/B11-starch-calibration-curve-pract/', ibOnly:true },
-    { title:'Rocky shore fieldwork', kind:'practical', shelf:'life-on-earth',
-      sub:'IB B4.1.4, C4.1.15 · transects and quadrats on a virtual shore, chi-squared and correlation',
-      url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract/', ibOnly:true },
-    { title:'Microscopy skills', kind:'practical', shelf:'foundations',
-      sub:'IB A2.2.2 · calibrate a graticule, measure cells, scale bars and the rules for a drawing',
+    { title:'IB Biology practical: microscopy skills (A2.2.2)', kind:'practical', shelf:'foundations',
+      sub:'calibrate a graticule, measure cells, scale bars and the rules for a drawing',
       url:'https://nlcsbiology.com/A22-microscopy-skills-pract/', ibOnly:true },
-    { title:'Separating mixtures', kind:'practical', shelf:'foundations',
-      sub:'KS3 Year 7 · filtration, evaporation, distillation, chromatography and more, run on a lab bench',
-      url:'https://nlcsbiology.com/ks3-separating-mixtures-pract/', ks3Only:true }
+    { title:'IB Biology practical: starch calibration curve (B1.1)', kind:'practical', shelf:'foundations',
+      sub:'worksheet, workbook and a guide to R',
+      url:'https://nlcsbiology.com/B11-starch-calibration-curve-pract/', ibOnly:true },
+    { title:'IB Biology practical: rocky shore fieldwork (B4.1)', kind:'practical', shelf:'life-on-earth',
+      sub:'B4.1.4, C4.1.15 · transects and quadrats on a virtual shore, chi-squared and correlation',
+      url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract/', ibOnly:true },
+    { title:'Y7 Chemistry practical: separating mixtures', kind:'practical', shelf:'foundations',
+      sub:'filtration, evaporation, distillation, chromatography and more, run on a lab bench',
+      url:'https://nlcsbiology.com/ks3-separating-mixtures-pract/', ks3Only:true },
+    { title:'Y7 Chemistry revision: states of matter, atoms and mixtures', kind:'revision', shelf:'foundations',
+      sub:'notes, pictures to explore and checks as you go, with Korean and Chinese for every key word',
+      url:'https://nlcsbiology.com/ks3-y7-chemistry-revision/', ks3Only:true }
   ],
 
   credits: [

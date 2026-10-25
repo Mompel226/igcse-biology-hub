@@ -36,11 +36,12 @@ PC, and progress is saved in the student's own browser.
 | **Plants** | 6 · 8 · 14.5 · 16.3 · 18.2 | [Plants Hub](https://nlcsbiology.com/plants-hub/) 🟢 · [Plants Lab](https://nlcsbiology.com/plants-lab/) 🟢 |
 | **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
 
-Also here: the [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/), and an
-[IB B1.1 practical](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) and the
-[IB rocky shore fieldwork](https://nlcsbiology.com/rocky-shore-fieldwork-pract/) behind the
-**IB extension** toggle, and the Year 7 [Separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/)
-practical behind the **Key Stage 3** toggle just before it. The year tabs show which topics each year meets, the year of its IGCSE
+Also here: the [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/). Turn on **Key Stage 3** and a teal
+panel at the foot lists the [Y7 Chemistry practical: separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/)
+and the [Y7 Chemistry revision: states of matter, atoms and mixtures](https://nlcsbiology.com/ks3-y7-chemistry-revision/); turn on
+**IB extension** and a violet one lists the IB practicals: [microscopy skills (A2.2.2)](https://nlcsbiology.com/A22-microscopy-skills-pract/),
+[starch calibration curve (B1.1)](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) and
+[rocky shore fieldwork (B4.1)](https://nlcsbiology.com/rocky-shore-fieldwork-pract/). The IGCSE labs are reached through their shelves. The year tabs show which topics each year meets, the year of its IGCSE
 exams and which syllabus those follow; `…/#y10` opens a year and `…/#plants` a door — both are
 useful links to hand a class.
 

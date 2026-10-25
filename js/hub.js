@@ -927,10 +927,10 @@
   if (ib) ib.addEventListener('click', function () {
     var now = !document.body.classList.contains('ib');
     setIB(now, true);
-    toast(now ? 'IB material shown — the same labs, with the extension revealed.' : 'IB material hidden.');
+    toast(now ? 'IB material shown: the extension in every lab, and the IB practicals at the foot of the page.' : 'IB material hidden.');
   });
   /* Key Stage 3 is a layer too (15 Oct 2026, Daniel: "click on key stage three next to the IB extension, and so I see a
-     button"): Year 7–9 practicals, listed under Open now only while it is on (ks3Only in js/shelves.js). */
+     button"): Year 7–9 pages (ks3Only in js/shelves.js), in their own panel at the foot of the page while it is on. */
   var KS3KEY = 'biology-hub.ks3';
   var ks3 = document.getElementById('ks3Toggle');
   function setKS3(onoff, save) {
@@ -943,10 +943,10 @@
   if (ks3) ks3.addEventListener('click', function () {
     var now = !document.body.classList.contains('ks3');
     setKS3(now, true);
-    toast(now ? 'Key Stage 3 shown: its practicals are under Open now.' : 'Key Stage 3 hidden.');
+    toast(now ? 'Key Stage 3 shown: its pages are at the foot of the page.' : 'Key Stage 3 hidden.');
   });
 
-  /* ---------- 5. open now ----------
+  /* ---------- 5. Key Stage 3 and IB pages ----------
      A lab's size is added here from the register (js/data/labs.js, copied from labs-shared/labs.json
      by tools/stamp.mjs), never written in shelves.js: written there by hand it went stale as the labs
      grew — the Circulation Lab said 97 questions at 115, the Plants Lab 91 at 116. Matched by url, as
@@ -959,12 +959,18 @@
     })[0];
     return l && l.stations && l.questions ? l.stations + ' stations, ' + l.questions + ' questions' : '';
   }
-  var openList = document.getElementById('openList');
-  if (openList) {
-    OPEN.forEach(function (o) {
+  /* Key Stage 3 and IB pages: a panel each at the foot of the page, shown while its toggle is on (Daniel, 25 Oct 2026:
+     "remove the IGCSE ones that are open … only show IB and Key Stage 3 separated in their sections … so it's not
+     overly bloated"). The IGCSE hubs, labs and sims are reached through their shelves; their entries stay in
+     js/shelves.js, because the entry door counts them (fillEntry). */
+  [['KS3', 'ks3Only'], ['IB', 'ibOnly']].forEach(function (lv) {
+    var list = document.getElementById('openList' + lv[0]);
+    if (!list) return;
+    var mine = OPEN.filter(function (o) { return o[lv[1]]; });
+    mine.forEach(function (o) {
       var size = sizeOf(o);
       var li = document.createElement('li');
-      li.className = 'open__item' + (o.ibOnly ? ' open__item--ib' : '') + (o.ks3Only ? ' open__item--ks3' : '');
+      li.className = 'open__item';
       li.innerHTML =
         '<a class="open__link" href="' + o.url + '">' +
           '<span class="kind kind--' + o.kind + '">' + esc(o.kind) + '</span>' +
@@ -978,12 +984,11 @@
       var a = li.firstChild;
       a.addEventListener('pointerenter', function () { stopTour(); on(o.shelf); });
       a.addEventListener('pointerleave', function () { off(o.shelf); restTour(); });
-      openList.appendChild(li);
+      list.appendChild(li);
     });
-    var cnt = document.getElementById('openCount');
-    var nIB = OPEN.filter(function (o) { return o.ibOnly; }).length, nKS3 = OPEN.filter(function (o) { return o.ks3Only; }).length;
-    if (cnt) cnt.textContent = (OPEN.length - nIB - nKS3) + ' open' + (nIB ? ' · ' + nIB + ' more with IB' : '') + (nKS3 ? ' · ' + nKS3 + ' with KS3' : '');
-  }
+    var cnt = document.getElementById('openCount' + lv[0]);
+    if (cnt) cnt.textContent = mine.length + (mine.length === 1 ? ' page' : ' pages');
+  });
 
   /* ---------- progress ----------
      Every app is on one origin, so each lab's own record is readable from here. HOW to read it

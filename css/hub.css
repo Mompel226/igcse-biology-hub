@@ -602,25 +602,41 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .door--light .door__prog span{color:#3B4650}
 .door--light .door__prog .pbar{background:rgba(27,34,38,.18)}
 
-/* ============ open now ============ */
-.open{padding-top:14px}
-.open__list{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px;margin-top:10px}
-.open__item--ib{display:none}
-body.ib .open__item--ib{display:block}
-.open__item--ks3{display:none}
-body.ks3 .open__item--ks3{display:block}
+/* ============ Key Stage 3 and IB pages (25 Oct 2026) ============
+   A panel per layer, in its toggle's colour (.ks3tg teal, .ibtg violet), shown while that toggle is on; with both on,
+   side by side. The IGCSE labs are not listed here: their shelves lead to them. */
+.open{display:none;padding-top:18px;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start}
+body.ks3 .open:not([hidden]),body.ib .open:not([hidden]){display:grid}
+.open__lv{
+  display:none;--lv:#3DD6C0;--lv-bg:rgba(61,214,192,.06);
+  border:1px solid var(--rule);border-top:2px solid var(--lv);border-radius:6px;padding:14px;
+  background:linear-gradient(180deg,var(--lv-bg),rgba(255,255,255,.012) 70%)
+}
+.open__lv--ib{--lv:var(--violet);--lv-bg:rgba(179,136,255,.075)}
+body.ks3 .open__lv--ks3,body.ib .open__lv--ib{display:block}
+.open__h{display:flex;align-items:center;gap:10px;margin:0 2px 12px;font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.2;color:var(--chalk)}
+.open__dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--lv);box-shadow:0 0 10px var(--lv)}
+.open__n{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--chalk-dim)}
+.open__list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.open__lv .kind{min-width:88px;text-align:center}   /* the titles line up */
+@media (max-width:560px){   /* a phone: the badge above the title, so the title has the whole width */
+  .open__lv{padding:12px 10px}
+  .open__lv .open__link{flex-direction:column;align-items:flex-start;gap:6px;position:relative;padding-right:34px}
+  .open__lv .kind{min-width:0}
+  .open__lv .open__go{position:absolute;right:12px;top:50%;margin-top:-.6em}
+}
 .ib-note{display:none;color:var(--violet)}
 body.ib .ib-note{display:inline}
 .open__link{
   display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:5px;height:100%;
-  border:1px solid var(--rule);background:rgba(255,255,255,.03);transition:border-color .2s,background .2s,transform .2s
+  border:1px solid var(--rule);background:rgba(7,15,21,.35);transition:border-color .2s,background .2s,transform .2s
 }
-.open__link:hover,.open__link:focus-visible{border-color:rgba(150,190,215,.45);background:rgba(255,255,255,.06);transform:translateY(-1px)}
+.open__link:hover,.open__link:focus-visible{border-color:var(--lv);background:rgba(255,255,255,.05);transform:translateY(-1px)}
 .kind{
   flex:none;font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
   padding:4px 7px;border-radius:2px;color:#08121A;background:var(--chalk-dim)
 }
-.kind--hub{background:var(--cyan)} .kind--lab{background:var(--amber)} .kind--sim{background:var(--violet)} .kind--practical{background:var(--green)}
+.kind--hub{background:var(--cyan)} .kind--lab{background:var(--amber)} .kind--sim{background:var(--violet)} .kind--practical{background:var(--green)} .kind--revision{background:var(--green)}
 .open__txt{min-width:0;display:flex;flex-direction:column;gap:2px}
 .open__title{font-family:var(--serif);font-size:17px;color:var(--chalk)}
 .open__sub{font-size:12.5px;color:var(--chalk-dim)}
@@ -707,7 +723,6 @@ noscript p{padding:20px}
   .door--wide .door__img,.door--wide.is-on .door__img{object-position:50% 0}
   .door--wide .door__body{right:0;max-width:none}
   .door--wide .door__veil{background:linear-gradient(to top,rgb(var(--ground-rgb)) 0,rgb(var(--ground-rgb)) 40%,rgb(var(--ground-rgb)/0) 62%)}
-  .open__list{grid-template-columns:1fr}
   .cr{white-space:normal}
 }
 @media (prefers-reduced-motion:reduce){
