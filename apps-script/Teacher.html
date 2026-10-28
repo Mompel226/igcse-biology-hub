@@ -63,6 +63,12 @@
 }
 *{box-sizing:border-box}[hidden]{display:none!important}
 html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+/* Two fingers sideways on a Mac (28 Oct 2026, Daniel: scrolling a wide table such as Practicals to the right, "I then suddenly
+   go back … to the BioHub"): a sideways scroll that reaches the end of a table stops there. It never passes on to the page,
+   to Google's frame around it or to the browser, whose two-finger swipe means Back. Up and down scroll as before. Every box
+   that scrolls sideways is in the second list (tools/teacher-fit.mjs fails on one that is not). */
+html,body{overscroll-behavior-x:none}
+.hmwrap,.cmpwrap,.draw__b,.rq,.pups,.hbwrap{overscroll-behavior-x:contain}
 body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-events:none;z-index:0;
   background:radial-gradient(1100px 420px at 82% -40%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 65%);transition:background .3s}
 /* ---- the shell: sticky, so the tabs and "signed in" never move between views ---- */
@@ -436,6 +442,8 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .arch__n{font:600 10px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
 .hwarch .hw__due.over b{color:var(--dim)}
 .archhid{margin-top:16px}.archhid>.hwlist{margin-top:12px}
+/* the Archive's Year and Month (28 Oct 2026) */
+.archwhen{margin:4px 0 14px;align-items:center}.archwhen .fld{flex:0 1 180px}.archwhen .sec__n{align-self:flex-end;padding-bottom:12px}
 /* Bio English */
 .yrs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0 8px}
 .hmcard{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;margin-top:14px}
@@ -464,6 +472,7 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hbn:hover{color:var(--accent)}.hbn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* the habit beside the name, one line per pupil (6 Oct 2026); under it on a phone */
 .hbh{font:500 10.5px/1.3 var(--mono);color:var(--accent);display:inline-block;margin:0 0 0 10px;cursor:help;white-space:nowrap}.hbh.none{color:var(--mute)}
+.hb .cl{font:500 10px/1.2 var(--mono);color:var(--mute);display:inline-block;margin:0 0 0 8px;white-space:nowrap}
 .hb td.cell{border-bottom:1px solid var(--line);padding:6px 4px}
 .hb td.hbfl{border-bottom:1px solid var(--line);padding:6px 8px}
 .hbm{position:relative;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;
@@ -493,7 +502,7 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hbwhy{font-size:12.5px;color:var(--dim);line-height:1.5;margin:0 0 6px}.hbwhy b{color:var(--chalk)}
 .hbwhen{font:500 11px/1.4 var(--mono);color:var(--mute);margin-top:4px}
 .hbflagw{margin-top:9px;padding:9px 11px;border:1px solid var(--mag-edge);border-radius:9px;background:var(--mag-bg);color:var(--mag-ink);font-size:12.5px;line-height:1.45}
-@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal;display:block;margin:2px 0 0}.hm .cl{display:block;margin:1px 0 0}}
+@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal;display:block;margin:2px 0 0}.hm .cl,.hb .cl{display:block;margin:1px 0 0}}
 /* A class's table and its key, together, are at most as tall as the window below the pinned header (6 Oct 2026, Daniel:
    on his screen the table ran past the foot of the window, and its key with it). One scroll of the page shows the whole
    box and its key, however many lines the key takes; the pupils scroll inside the box. While the table is on screen
@@ -629,7 +638,7 @@ var BOOT = __BOOT__;
       note:'Each cell is the share of a part finished (red-pen mistakes found and questions answered), as homework counts it. It is their best ever: when a part is rewritten, what they did on the earlier version still counts.' },
     habits:{ label:'Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'Homework <em>habits</em>',
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
-      note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
+      note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. Choose a name in Student to show that pupil alone, for example to their parents: no other pupil’s name is on the screen. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
   VIEWS.practicals = { label:'Practicals', accent:'#22D3EE', accentL:'#0E7490', h1:'Class <em>practicals</em>',
       lede:'How each student is doing in a practical you run in class (IB or KS3), question by question: right first time, how many checks, and the wrong answers they gave.',
@@ -1873,7 +1882,8 @@ var BOOT = __BOOT__;
   var hState = { title:'', rows:[newRow()], picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
                  post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'',
                  editDue:null, dueDraft:null, cardMsg:null, outPick:{},   /* 6 Oct 2026: Change the due date (the card open for it, what is typed), a card's answer, the ticks of its pupils outside it */
-                 arch:false, hidOpen:false, archMsg:null };   /* 7 Oct 2026: the Archive (homework past its due date) open, its hidden homework shown, its answer */
+                 arch:false, hidOpen:false, archMsg:null,   /* 7 Oct 2026: the Archive (homework past its due date) open, its hidden homework shown, its answer */
+                 archY:'', archM:'' };   /* 28 Oct 2026: the Archive's Year and Month ('' = all) */
   /* Remove and Hide (Daniel, 7 Oct 2026): "remove before the due date and hide after the due date"; "make sure that the hover
      tip explains what removing does and that it's going to affect the homework habits. And that actually hiding is the one
      that should be used and only remove when you have incorrectly set homework"; "if you only made a mistake about the due
@@ -2254,18 +2264,40 @@ var BOOT = __BOOT__;
       if (!L.length) list='<div class="empty">'+(all&&!showAll&&others?'You have set nothing yet. Other teachers have set '+others+': choose “All teachers” to see '+(others===1?'it':'them')+'.':'You have set nothing yet.')+'</div>';
       else if (!live.length) list='<div class="empty">Nothing is waiting for its due date. Homework whose due date has passed is in the Archive below.</div>';
       else list=listOf(live);
+      /* By year and month (28 Oct 2026, Daniel: "a filter for … year and month … for the archived homework, so it's easier
+         for me to look through that list"): by the due date, as the school's zone gives it (dueDay, yyyy-MM-dd); only the
+         years in the Archive, and only the months of the year chosen. The hidden homework is filtered the same way. */
+      var MONTH=['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var YRS=[], MOS=[];
+      past.concat(hidden).forEach(function(h){ var y=String(h.dueDay||'').slice(0,4); if (y && YRS.indexOf(y)<0) YRS.push(y); });
+      YRS.sort().reverse();
+      if (YRS.indexOf(hState.archY)<0) hState.archY='';
+      past.concat(hidden).forEach(function(h){ var d=String(h.dueDay||''), m=d.slice(5,7);
+        if (m && (!hState.archY || d.slice(0,4)===hState.archY) && MOS.indexOf(m)<0) MOS.push(m); });
+      MOS.sort();
+      if (MOS.indexOf(hState.archM)<0) hState.archM='';
+      var when=(hState.archM?MONTH[+hState.archM-1]:'')+(hState.archM&&hState.archY?' ':'')+(hState.archY||'');
+      function inWhen(h){ var d=String(h.dueDay||''); return (!hState.archY || d.slice(0,4)===hState.archY) && (!hState.archM || d.slice(5,7)===hState.archM); }
+      var pastW=past.filter(inWhen), hiddenW=hidden.filter(inWhen);
       var arch='';
       if (past.length||hidden.length) {
         var ao=!!hState.arch, ho=ao&&!!hState.hidOpen;
+        var whenBar = past.length+hidden.length>1 ? '<div class="bar2 archwhen"><div class="fld"><label for="hay">Year</label><select id="hay"><option value="">All years</option>'+
+            YRS.map(function(y){ return '<option value="'+y+'"'+(y===hState.archY?' selected':'')+'>'+y+'</option>'; }).join('')+'</select></div>'+
+          '<div class="fld"><label for="ham">Month</label><select id="ham"><option value="">All months</option>'+
+            MOS.map(function(m){ return '<option value="'+m+'"'+(m===hState.archM?' selected':'')+'>'+MONTH[+m-1]+'</option>'; }).join('')+'</select></div>'+
+          (when?'<span class="sec__n">'+pastW.length+' of '+past.length+' due in '+esc(when)+(hidden.length?' · '+hiddenW.length+' of '+hidden.length+' hidden':'')+'</span>':'')+'</div>' : '';
         arch='<section class="sec hwarch" id="harch"><div class="sec__h"><span class="sec__t">Archive</span>'+
           '<span class="arch__n">'+past.length+' past '+(past.length===1?'its':'their')+' due date'+(hidden.length?' · '+hidden.length+' hidden':'')+'</span>'+
           '<div class="hsort"><button class="chip'+(ao?' on':'')+'" data-arch="1" aria-expanded="'+(ao?'true':'false')+'" aria-controls="harchb">'+(ao?'Close':'Open')+'</button></div></div>'+
-          '<p class="sec__d">Homework whose due date has passed, the most recent first. All of it still counts in Homework habits and in every student’s record. “Hide” takes one off this list without deleting anything.</p>'+
+          '<p class="sec__d">Homework whose due date has passed, the most recent first. All of it still counts in Homework habits and in every student’s record. “Hide” takes one off this list without deleting anything.'+
+            (past.length+hidden.length>1?' Year and Month list only the homework due then.':'')+'</p>'+
           (hState.archMsg?'<div class="msg '+(hState.archMsg.bad?'bad':'ok')+'" role="status">'+esc(hState.archMsg.text)+'</div>':'')+
-          '<div id="harchb">'+(ao?'<div class="hwlist">'+(past.length?listOf(past):'<div class="empty">Every homework past its due date is hidden.</div>')+'</div>'+
-            (hidden.length?'<div class="archhid"><button class="chip'+(ho?' on':'')+'" data-hidopen="1" aria-expanded="'+(ho?'true':'false')+'">'+
-              (ho?'Close the hidden homework':'Show the '+hidden.length+' hidden')+'</button>'+
-              (ho?'<div class="hwlist">'+listOf(hidden)+'</div>':'')+'</div>':''):'')+'</div>'+
+          '<div id="harchb">'+(ao?whenBar+'<div class="hwlist">'+(pastW.length?listOf(pastW):'<div class="empty">'+
+              (!past.length?'Every homework past its due date is hidden.':'No homework in the Archive was due in '+esc(when)+'.')+'</div>')+'</div>'+
+            (hiddenW.length?'<div class="archhid"><button class="chip'+(ho?' on':'')+'" data-hidopen="1" aria-expanded="'+(ho?'true':'false')+'">'+
+              (ho?'Close the hidden homework':'Show the '+hiddenW.length+' hidden')+'</button>'+
+              (ho?'<div class="hwlist">'+listOf(hiddenW)+'</div>':'')+'</div>':''):'')+'</div>'+
           '</section>';
       }
       var sortBar = L.length>1 ? '<div class="hsort" role="group" aria-label="Sort the homework"><span class="hsort__k">Sort by</span>'+
@@ -2437,6 +2469,8 @@ var BOOT = __BOOT__;
       /* the Archive (7 Oct 2026): open and close it, its hidden homework, and Hide / Show it again */
       document.querySelectorAll('[data-arch]').forEach(function(b){ b.addEventListener('click', function(){
         hState.arch=!hState.arch; if(!hState.arch) hState.hidOpen=false; hState.archMsg=null; paint(); }); });
+      var hay=$('hay'); if(hay) hay.addEventListener('change', function(){ hState.archY=hay.value; hState.archMsg=null; paint(); var f=$('hay'); if(f) f.focus(); });
+      var ham=$('ham'); if(ham) ham.addEventListener('change', function(){ hState.archM=ham.value; hState.archMsg=null; paint(); var f=$('ham'); if(f) f.focus(); });
       document.querySelectorAll('[data-hidopen]').forEach(function(b){ b.addEventListener('click', function(){
         hState.hidOpen=!hState.hidOpen; paint(); }); });
       document.querySelectorAll('[data-hide]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
@@ -2533,8 +2567,14 @@ var BOOT = __BOOT__;
      ⏰, habit line and flag, and words every time in the school's zone; this page only draws. Read only. One class at a
      time: pupils down, homework across in date order, one mark per cell (its words on hover or tap); the habit line under
      each name and "worth a look" beside it; a name opens that pupil's timeline. The sort (name or habit) is kept in this
-     browser (localStorage habits.sort). */
-  var hbState = { cls:null, sort:'' };
+     browser (localStorage habits.sort).
+     One student alone (28 Oct 2026, Daniel: "so then I can actually show to the parents how they're doing … without
+     revealing any other students' names"): Class narrows the Student list, "Find a student" narrows it again, and a name
+     chosen in Student leaves only that pupil on the screen: their row, their homework, their name as the heading. "All
+     classes" lists every pupil. Which student is never kept in the browser, so the view never opens on one by itself.
+     Alone, "Worth a look" is not shown at all (Daniel, 28 Oct 2026: "hide the Worth a look column and its flag, so parents
+     never see it"): not its column, its key, the count in the heading, the note under the view or the timeline's flags. */
+  var hbState = { cls:null, sort:'', who:'', q:'' }, hbTimer = null;
   var HB_GLYPH = { before:'', early:'', good:'', last:'', late:'!', none:'×', open:'·', unknown:'?' };
   var HB_KEY = ['before','early','good','last','late','none','open','unknown'];
   window.vHabits = function(D){
@@ -2542,11 +2582,11 @@ var BOOT = __BOOT__;
     if (!hbState.sort){ var s0=''; try { s0=localStorage.getItem('habits.sort')||''; } catch(e){} hbState.sort=(s0==='habit')?'habit':'name'; }
     if (!HW.length) { $('view').innerHTML = '<div class="empty">No homework with a due time yet. Set some on the Set homework tab: this view then shows when each pupil finishes it.</div>'; return; }
     if (!D.recorded) { $('view').innerHTML = '<div class="empty"><b>No times recorded yet.</b><br>Each pupil’s times are kept from their first save after this version of the script was pasted. After a day of homework, a mark appears here for each pupil and each homework.</div>'; return; }
-    PUP.forEach(function(p,i){ p.__i=i; p.__by={}; (p.cells||[]).forEach(function(c){ p.__by[c[0]]=c; }); });
+    PUP.forEach(function(p,i){ p.__i=i; p.__k=String(p.name||'')+'|'+String(p.cls||''); p.__by={}; (p.cells||[]).forEach(function(c){ p.__by[c[0]]=c; }); });
     var CLS = [];
     PUP.forEach(function(p){ var c=p.cls||''; if (CLS.indexOf(c)<0) CLS.push(c); });
     CLS.sort(cmpClass);
-    if (hbState.cls===null || CLS.indexOf(hbState.cls)<0) hbState.cls = CLS[0];
+    if (hbState.cls===null || (hbState.cls!=='all' && CLS.indexOf(hbState.cls)<0)) hbState.cls = CLS[0];
     function cap(s){ s=String(s||''); return s.charAt(0).toUpperCase()+s.slice(1); }
     function word(b){ return W[b]||b; }
     function shortTitle(t){ t=String(t||''); return t.length>22 ? t.slice(0,21)+'…' : t; }
@@ -2569,8 +2609,25 @@ var BOOT = __BOOT__;
       L.push(bits.join(' · '));
       return L.join('\n');
     }
+    function clsName(){ return hbState.cls==='all' ? 'All classes' : (hbState.cls||'No class'); }
+    /* the Student list: the pupils of the class chosen, those "Find a student" matches, by name */
+    function found(){
+      var q=hbState.q.toLowerCase();
+      return PUP.filter(function(p){ return (hbState.cls==='all' || (p.cls||'')===hbState.cls) &&
+          (!q || (String(p.name||'')+' '+String(p.cls||'')).toLowerCase().indexOf(q)>=0); })
+        .sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')) || cmpClass(a.cls||'', b.cls||''); });
+    }
+    function whoOpts(){
+      var F=found();
+      if (hbState.who && !F.some(function(p){ return p.__k===hbState.who; })) hbState.who='';
+      return '<option value="">'+(F.length===1?'The 1 student':'All '+F.length+' students')+(hbState.q?' found':'')+'</option>'+
+        F.map(function(p){ return '<option value="'+esc(p.__k)+'"'+(p.__k===hbState.who?' selected':'')+'>'+
+          esc((p.name||'(no name)')+(hbState.cls==='all'?' · '+(p.cls||'no class'):''))+'</option>'; }).join('');
+    }
     function paint(){
-      var list = PUP.filter(function(p){ return (p.cls||'')===hbState.cls; });
+      var one = hbState.who ? PUP.filter(function(p){ return p.__k===hbState.who; }) : [];
+      var list = one.length ? one : found(), showCls = hbState.cls==='all' && !one.length;
+      if (!list.length) { $('hbbody').innerHTML = '<div class="empty">No student '+(hbState.cls==='all'?'':'in '+esc(clsName())+' ')+'has “'+esc(hbState.q)+'” in their name.</div>'; return; }
       var used = {};
       list.forEach(function(p){ (p.cells||[]).forEach(function(c){ used[c[0]]=1; }); });
       var cols = [];
@@ -2579,48 +2636,58 @@ var BOOT = __BOOT__;
         if (hbState.sort==='habit'){ var oa=a.habit?a.habit.o:9, ob=b.habit?b.habit.o:9; if (oa!==ob) return oa-ob; }
         return String(a.name||'').localeCompare(String(b.name||''));
       });
-      var nFlag = 0;
-      var head = '<tr><th class="cnr">Pupil · habit</th><th class="hbfh" data-tip="'+esc(D.flagWords||'')+'">Worth a look</th>'+
+      var nFlag = 0, alone = one.length>0;
+      var head = '<tr><th class="cnr">Pupil · habit</th>'+(alone?'':'<th class="hbfh" data-tip="'+esc(D.flagWords||'')+'">Worth a look</th>')+
         cols.map(function(i){ var h=HW[i];
           return '<th class="hbcol" data-tip="'+esc(h.title+'\nSet '+h.set+' · due '+h.due+(h.who?'\nFor '+h.who:'')+
             (h.med?'\nMedian from first try to finish: '+h.med:'')+'\nWith times: '+h.withTimes+' pupil'+(h.withTimes===1?'':'s'))+'">'+
             esc(shortTitle(h.title))+'<span class="lt">'+esc(h.day)+'</span></th>'; }).join('')+'</tr>';
       var rows = list.map(function(p){
-        var fl = (p.flags||[]).filter(function(f){ return used[f.h]; }), hb = p.habit;
+        var fl = alone ? [] : (p.flags||[]).filter(function(f){ return used[f.h]; }), hb = p.habit;
         if (fl.length) nFlag++;
         return '<tr><td class="name"><button type="button" class="hbn" data-hbp="'+p.__i+'">'+esc(p.name||'(no name)')+'</button>'+
+          (showCls?'<span class="cl">'+esc(p.cls||'—')+'</span>':'')+
           '<div class="hbh'+(hb?'':' none')+'" data-tip="'+esc(hb?hb.say+' — '+hb.why:'Fewer than 3 homework with times so far.')+'">'+esc(hb?hb.say:'—')+'</div></td>'+
-          '<td class="hbfl">'+(fl.length?'<span class="hbflag" data-tip="'+esc(fl.map(function(f){ return HW[f.h].title+': '+f.says; }).join('\n\n'))+'">⚑ '+fl.length+'</span>'
-                                         :'<span class="hbnone">—</span>')+'</td>'+
+          (alone?'':'<td class="hbfl">'+(fl.length?'<span class="hbflag" data-tip="'+esc(fl.map(function(f){ return HW[f.h].title+': '+f.says; }).join('\n\n'))+'">⚑ '+fl.length+'</span>'
+                                         :'<span class="hbnone">—</span>')+'</td>')+
           cols.map(function(i){ var c=p.__by[i];
             if (!c) return '<td class="cell"><span class="hbm hbm--unset" data-tip="'+esc(HW[i].title+': not set for this pupil.')+'"></span></td>';
             return '<td class="cell">'+mark(c[1], c[2], cellWords(i, c))+'</td>'; }).join('')+'</tr>'; }).join('');
       var key = '<div class="hbkey">'+HB_KEY.map(function(b){
           var more = b==='early' ? ' (by '+B.early+'% of the time)' : b==='good' ? ' (by '+B.good+'%)' : b==='last' ? ' (before the due time)' : '';
           return '<span>'+mark(b, 0, '')+esc(cap(word(b))+more)+'</span>'; }).join('')+
-        '<span>'+mark('good', 1, '')+'finished after a reminder</span><span><span class="hbflag">⚑</span>worth a look</span></div>';
-      $('view').innerHTML =
-        '<div class="bar2"><div class="fld"><label for="hbcls">Class</label><select id="hbcls">'+
-        CLS.map(function(c){ return '<option value="'+esc(c)+'"'+(c===hbState.cls?' selected':'')+'>'+esc(c||'No class')+'</option>'; }).join('')+
-        '</select></div><div class="hsort" role="group" aria-label="Sort the pupils"><span class="hsort__k">Sort by</span>'+
-        [['name','Name'],['habit','Habit']].map(function(o){ var on=hbState.sort===o[0];
-          return '<button class="chip'+(on?' on':'')+'" data-hbsort="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+
-        '</div></div>'+
-        '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(hbState.cls||'No class')+'</span><span class="sec__n">'+
-        list.length+' pupil'+(list.length===1?'':'s')+' · '+cols.length+' homework'+(nFlag?' · '+nFlag+' worth a look':'')+'</span></div>'+
+        '<span>'+mark('good', 1, '')+'finished after a reminder</span>'+(alone?'':'<span><span class="hbflag">⚑</span>worth a look</span>')+'</div>';
+      var nt=document.getElementById('note');   /* the view's note explains "Worth a look": not shown with one pupil */
+      if (nt) nt.hidden = alone || !nt.textContent;
+      $('hbbody').innerHTML =
+        '<section class="sec"><div class="sec__h"><span class="sec__t">'+esc(one.length?(one[0].name||'(no name)'):clsName())+'</span><span class="sec__n">'+
+        (one.length?esc(one[0].cls||'No class'):list.length+' pupil'+(list.length===1?'':'s'))+' · '+cols.length+' homework'+(nFlag?' · '+nFlag+' worth a look':'')+'</span></div>'+
         '<p class="sec__d">Oldest homework on the left. Hover over or tap a mark for when they finished; click a name for their timeline.</p>'+
         '<div class="panel panel--keyed"><div class="hbwrap"><table class="hb"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>'+key+'</div></section>'+
         (D.left?'<p class="sec__d" style="margin-top:12px">'+D.left+' homework left out: '+(D.left===1?'it has':'they have')+' no due time to measure against.</p>':'');
-      wireHb();
+      document.querySelectorAll('[data-hbp]').forEach(function(b){ b.addEventListener('click', function(){ timeline(PUP[+b.getAttribute('data-hbp')]); }); });
     }
-    function wireHb(){
-      var s=$('hbcls');
-      if (s) s.addEventListener('change', function(){ hbState.cls=s.value; paint(); });
+    function frame(){
+      $('view').innerHTML =
+        '<div class="bar2"><div class="fld"><label for="hbcls">Class</label><select id="hbcls"><option value="all"'+(hbState.cls==='all'?' selected':'')+'>All classes</option>'+
+        CLS.map(function(c){ return '<option value="'+esc(c)+'"'+(c===hbState.cls?' selected':'')+'>'+esc(c||'No class')+'</option>'; }).join('')+
+        '</select></div><div class="fld"><label for="hbwho">Student</label><select id="hbwho">'+whoOpts()+'</select></div>'+
+        '<div class="fld fld--grow"><label for="hbq">Find a student</label><input id="hbq" type="search" placeholder="name or class" autocomplete="off" value="'+esc(hbState.q)+'"></div>'+
+        '<div class="hsort" role="group" aria-label="Sort the pupils"><span class="hsort__k">Sort by</span>'+
+        [['name','Name'],['habit','Habit']].map(function(o){ var on=hbState.sort===o[0];
+          return '<button class="chip'+(on?' on':'')+'" data-hbsort="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+
+        '</div></div><div id="hbbody"></div>';
+      var c=$('hbcls'), w=$('hbwho'), q=$('hbq');
+      c.addEventListener('change', function(){ hbState.cls=c.value; hbState.who=''; $('hbwho').innerHTML=whoOpts(); paint(); });
+      w.addEventListener('change', function(){ hbState.who=w.value; paint(); });
+      /* the box is never drawn again while it is typed in (the Student list and the table are), so it keeps the typing */
+      q.addEventListener('input', function(){ hbState.q=q.value.trim(); hbState.who='';
+        clearTimeout(hbTimer); hbTimer=setTimeout(function(){ var l=$('hbwho'); if (!l) return; l.innerHTML=whoOpts(); paint(); },140); });
       document.querySelectorAll('[data-hbsort]').forEach(function(b){ b.addEventListener('click', function(){
         hbState.sort=b.getAttribute('data-hbsort');
         try { localStorage.setItem('habits.sort', hbState.sort); } catch(e){}
-        paint(); }); });
-      document.querySelectorAll('[data-hbp]').forEach(function(b){ b.addEventListener('click', function(){ timeline(PUP[+b.getAttribute('data-hbp')]); }); });
+        frame(); }); });
+      paint();
     }
     /* a pupil's timeline, oldest first: each homework's set and due times, first try, finish, band, ⏰, checks, right first time */
     function timeline(p){
@@ -2629,7 +2696,7 @@ var BOOT = __BOOT__;
       var body = '<div class="dlab"><p class="hbwhy">'+(hb?'<b>'+esc(hb.say)+'</b> — '+esc(hb.why):'No habit line yet: fewer than 3 homework with times.')+'</p>'+
         '<p class="hbwhy">'+(p.base?esc(p.base)+'.':'No teacher-marked test in the Student Progress Tracker yet.')+'</p></div>'+
         (p.cells||[]).map(function(c){
-          var h=HW[c[0]], fl=(p.flags||[]).filter(function(f){ return f.h===c[0]; });
+          var h=HW[c[0]], fl=hbState.who ? [] : (p.flags||[]).filter(function(f){ return f.h===c[0]; });
           return '<div class="dlab"><div class="dlab__h"><span class="dlab__n">'+esc(h.title)+'</span>'+
             '<span class="dlab__p">'+mark(c[1], c[2], '')+' '+esc(cap(word(c[1])))+(c[2]?' · ⏰ after reminder '+c[2]:'')+'</span></div>'+
             '<div class="hbwhen">Set '+esc(h.set)+' · due '+esc(h.due)+'</div>'+
@@ -2642,7 +2709,7 @@ var BOOT = __BOOT__;
             fl.map(function(f){ return '<div class="hbflagw">⚑ Worth a look: '+esc(f.says)+'</div>'; }).join('')+'</div>'; }).join('');
       V.openDraw(p.name||'(no name)', esc(p.cls||'—')+(hb?' · '+esc(hb.say):''), body);
     }
-    paint();
+    frame();
   };
   /* ─────────────────────── 🔬 Practicals (11 Oct 2026) ───────────────────────
      Daniel: "a live board … at the end, if I haven't been able to pay attention to one of the students, at least I see
