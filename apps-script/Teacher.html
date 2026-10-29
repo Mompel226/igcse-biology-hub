@@ -360,6 +360,28 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .cbox.again::before{content:"\21BA";position:absolute;left:4px;bottom:2px;font:600 9px/1 var(--mono);opacity:.85}
 .agw{color:var(--bad);font-weight:600}
 @media (max-width:560px){.hqrow{grid-template-columns:1fr}}
+/* Practicals: "Where they get stuck", one card per question (29 Oct 2026) */
+.prs__lede{margin:8px 0 2px;font-size:12px;line-height:1.45;color:var(--mute)}
+.prs{padding:13px 0;border-bottom:1px solid var(--line)}
+.prs:last-child{border-bottom:0}
+.prs__h{display:flex;align-items:center;flex-wrap:wrap;gap:6px 9px}
+.prs__p{font:600 9.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);border:1px solid var(--line2);border-radius:999px;padding:4px 8px}
+.prs__t{font-size:14px;font-weight:600;color:var(--chalk)}
+.prs__bar{margin:9px 0 7px}
+.prs__c{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;font-size:12.5px;line-height:1.4;color:var(--dim)}
+.prs__c b{color:var(--chalk);font-weight:600}
+.prs__k i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.prs__avg{color:var(--mute)}
+.prs__wh{margin:11px 0 3px;font:600 9.5px/1.3 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.prs__l{display:grid;grid-template-columns:minmax(110px,24%) minmax(0,1fr);gap:2px 14px;padding:5px 0;border-top:1px dashed var(--line);font-size:12.5px;line-height:1.45}
+.prs__wh+.prs__l,.prs__more>summary+.prs__l{border-top:0}
+.prs__l--one{grid-template-columns:minmax(0,1fr)}
+.prs__g{color:var(--mute)}.prs__g b{color:var(--chalk);font-weight:600}
+.prs__as{display:flex;flex-wrap:wrap;gap:3px 16px;color:var(--chalk)}
+.prs__ans{overflow-wrap:anywhere}
+.prs__pn{margin-left:7px;font:500 10.5px/1 var(--mono);color:var(--mute);white-space:nowrap}
+.prs__more>summary{cursor:pointer;margin-top:5px;font-size:12px;font-weight:600;color:var(--accent,var(--cyan))}
+@media (max-width:560px){.prs__l{grid-template-columns:1fr}}
 /* homework */
 .labs{display:grid;gap:8px;margin-top:6px}
 .lab{border:1px solid var(--line);border-radius:11px;background:var(--cardhi);overflow:hidden}
@@ -2878,27 +2900,67 @@ var BOOT = __BOOT__;
       document.querySelectorAll('#prlist .prwho').forEach(function(a){ a.addEventListener('click', function(e){ e.preventDefault(); card(rows[+a.getAttribute('data-i')]); }); });
       stuck(rows, vcols);
     }
-    /* the questions the students in view most often did not get right at the first check, with their commonest wrong answers */
+    /* the questions the students in view most often did not get right at the first check. 29 Oct 2026, Daniel: the list was
+       "a bit not clear and hard to follow": one run-on line of answers, counts in times given, a gap's answers apart and the
+       key far away. Now each question is a card: its part and title; the bar with each colour named, in pupils, beside it;
+       the wrong answers as a list, most pupils first, every wrong answer to one gap on that gap's line; past four lines,
+       "Show N more". A count is pupils (one pupil who typed the same thing in three rounds is one); the times are its tip. */
     function stuck(rows, vcols){
       var out = [];
       vcols.forEach(function(c, j){
         if (c.group) return;
-        var n=0, notFirst=0, f=0, m=0, t=0, checks=0, wrong={};
+        var n=0, notFirst=0, f=0, m=0, t=0, checks=0, times={}, pupils={};
         rows.forEach(function(r){ var x=r.cells[j].x; if (!x || x.s==='d') return; n++; checks+=x.checks;
           if (x.s==='f') f++; else { notFirst++; if (x.s==='1') m++; else t++; }
-          for (var k in x.wrong) if (prOwn(x.wrong,k)) wrong[k]=(wrong[k]||0)+x.wrong[k]; });
-        if (notFirst) out.push({ c:c, n:n, notFirst:notFirst, f:f, m:m, t:t, checks:checks, wrong:wrong });
+          for (var k in x.wrong) if (prOwn(x.wrong,k)) { times[k]=(times[k]||0)+x.wrong[k]; pupils[k]=(pupils[k]||0)+1; } });
+        if (notFirst) out.push({ c:c, n:n, notFirst:notFirst, f:f, m:m, t:t, checks:checks, times:times, pupils:pupils });
       });
       out.sort(function(a,b){ return b.notFirst-a.notFirst || b.checks/b.n-a.checks/a.n; });
       if (!out.length) { $('prstuck').innerHTML=''; return; }
-      $('prstuck').innerHTML = '<details class="hq" open><summary>Where they get stuck <span class="sec__n">'+Math.min(out.length,8)+'</span></summary><div class="hq__b">'+
-        out.slice(0,8).map(function(o){
-          var w = prWrongList(o.c.q, o.wrong, 4);
-          return '<div class="hqrow"><div class="hqrow__n">'+esc(o.c.title)+' <span>· part '+esc(o.c.part)+'</span></div>'+
-            '<div><div class="hqbar"><i style="width:'+(100*o.f/o.n)+'%;background:var(--good)"></i><i style="width:'+(100*o.m/o.n)+'%;background:var(--warn)"></i><i style="width:'+(100*o.t/o.n)+'%;background:var(--bad)"></i></div>'+
-            '<div class="hqrow__c">'+o.notFirst+' of '+o.n+' not right first time · '+(Math.round(10*o.checks/o.n)/10)+' checks each</div></div>'+
-            (w?'<div class="hqrow__w">Wrong answers given: '+esc(w)+'</div>':'')+'</div>';
-        }).join('')+'</div></details>';
+      var shown = out.slice(0,8);
+      $('prstuck').innerHTML = '<details class="hq" open><summary>Where they get stuck <span class="sec__n">'+shown.length+'</span></summary><div class="hq__b">'+
+        '<p class="prs__lede">The questions that most pupils did not get right at their first check, the most first. Each one counts the pupils in view who tried it, in their first round. A gap is named by its number and what goes in it.</p>'+
+        shown.map(prStuckCard).join('')+'</div></details>';
+    }
+    function prPupils(k){ return k+' pupil'+(k===1?'':'s'); }
+    function prStuckCard(o){
+      var pc = function(k){ return (100*k/o.n)+'%'; };
+      var seg = function(k, col, say){ return k ? '<span class="prs__k"><i style="background:var('+col+')"></i><b>'+k+'</b> '+say+'</span>' : ''; };
+      return '<div class="prs"><div class="prs__h"><span class="prs__p">Part '+esc(o.c.part)+'</span><span class="prs__t">'+esc(o.c.title)+'</span></div>'+
+        '<div class="hqbar prs__bar"><i style="width:'+pc(o.f)+';background:var(--good)"></i><i style="width:'+pc(o.m)+';background:var(--warn)"></i><i style="width:'+pc(o.t)+';background:var(--bad)"></i></div>'+
+        '<div class="prs__c"><span><b>'+prPupils(o.n)+'</b> tried it:</span>'+seg(o.f,'--good','right at the first check')+seg(o.m,'--warn','right after more checks')+
+        seg(o.t,'--bad','not right yet')+'<span class="prs__avg">'+(Math.round(10*o.checks/o.n)/10)+' checks each, on average</span></div>'+
+        prStuckWrong(o.c.q, o.pupils, o.times)+'</div>';
+    }
+    /* the wrong answers of one question, as lines: a gap (or a box) with every wrong answer given in it; an option's own
+       words; or what was typed. Most pupils first. */
+    function prStuckWrong(q, pupils, times){
+      var keys = Object.keys(pupils);
+      if (!keys.length) return '';
+      var by = function(a,b){ return pupils[b]-pupils[a] || times[b]-times[a]; };
+      var said = function(k, text){ return '<span class="prs__ans">“'+esc(text)+'”<span class="prs__pn" data-tip="'+esc('given '+times[k]+' time'+(times[k]===1?'':'s')+' in all')+'">'+prPupils(pupils[k])+'</span></span>'; };
+      var lines = [], head;
+      if (keys.some(function(k){ return /^\d+=/.test(k); })) {
+        var gaps = {};
+        keys.forEach(function(k){ var m=/^(\d+)=([\s\S]*)$/.exec(k), g=m ? m[1] : ''; (gaps[g]=gaps[g]||[]).push({ k:k, text: m ? m[2] : k }); });
+        var top = function(g){ return Math.max.apply(null, gaps[g].map(function(a){ return pupils[a.k]; })); };
+        Object.keys(gaps).sort(function(a,b){ return top(b)-top(a) || (+a)-(+b); }).forEach(function(g){
+          var label = g ? (q && q.gaps ? q.gaps[+g-1] : null) : null;
+          var where = g ? (q && q.kind==='gaps' ? 'Gap '+g : (label!=null ? '' : 'Box '+g)) : 'Other';
+          lines.push('<div class="prs__l"><span class="prs__g">'+(where ? '<b>'+esc(where)+'</b>' : '')+(label!=null ? (where?' · ':'')+esc(label) : '')+'</span>'+
+            '<span class="prs__as">'+gaps[g].sort(function(a,b){ return by(a.k,b.k); }).map(function(a){ return said(a.k, a.text); }).join('')+'</span></div>');
+        });
+        head = 'Wrong answers, gap by gap';
+      } else {
+        keys.sort(by).forEach(function(k){
+          var m = q && q.kind==='mcq' ? /^o(\d+)$/.exec(k) : null, text = m ? ((q.opts||[])[+m[1]]!=null ? q.opts[+m[1]] : 'option '+(+m[1]+1)) : k;
+          lines.push('<div class="prs__l prs__l--one"><span class="prs__as">'+said(k, text)+'</span></div>');
+        });
+        head = q && q.kind==='mcq' ? 'Wrong options chosen' : 'Wrong answers typed';
+      }
+      var SHOW = 4;
+      return '<div class="prs__wh">'+head+'</div>'+lines.slice(0, SHOW).join('')+
+        (lines.length > SHOW ? '<details class="prs__more"><summary>Show '+(lines.length-SHOW)+' more</summary>'+lines.slice(SHOW).join('')+'</details>' : '');
     }
     /* one student: every question they tried, part by part, with its rounds, checks and wrong answers */
     function card(r){
