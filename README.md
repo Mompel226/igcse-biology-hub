@@ -18,7 +18,7 @@ by **Dr Daniel Mompel Riera**
 
 </div>
 
-![The Biology Hub: a door for each of the four parts of the subject, and the hubs and labs open now beneath](docs/img/screen.jpg)
+![The Biology Hub: a door for each of the four parts of the subject, with the year tabs and the Key Stage 3 and IB extension switches above them](docs/img/screen.jpg)
 
 ---
 
@@ -36,12 +36,13 @@ PC, and progress is saved in the student's own browser.
 | **Plants** | 6 · 8 · 14.5 · 16.3 · 18.2 | [Plants Hub](https://nlcsbiology.com/plants-hub/) 🟢 · [Plants Lab](https://nlcsbiology.com/plants-lab/) 🟢 |
 | **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
 
-Also here: the [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/). Turn on **Key Stage 3** and a teal
-panel at the foot lists the [Y7 Chemistry practical: separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/)
+The foot of the page lists only Key Stage 3 and IB pages (25 Oct 2026). Turn on **Key Stage 3** and a teal
+panel there lists the [Y7 Chemistry practical: separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/)
 and the [Y7 Chemistry revision: states of matter, atoms and mixtures](https://nlcsbiology.com/ks3-y7-chemistry-revision/); turn on
 **IB extension** and a violet one lists the IB practicals: [microscopy skills (A2.2.2)](https://nlcsbiology.com/A22-microscopy-skills-pract/),
 [starch calibration curve (B1.1)](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) and
-[rocky shore fieldwork (B4.1)](https://nlcsbiology.com/rocky-shore-fieldwork-pract/). The IGCSE labs are reached through their shelves. The year tabs show which topics each year meets, the year of its IGCSE
+[rocky shore fieldwork (B4.1)](https://nlcsbiology.com/rocky-shore-fieldwork-pract/). The IGCSE hubs, labs and the
+Protein & Enzyme Sim are reached through their shelves. The year tabs show which topics each year meets, the year of its IGCSE
 exams and which syllabus those follow; `…/#y10` opens a year and `…/#plants` a door — both are
 useful links to hand a class.
 
@@ -236,9 +237,9 @@ into an empty row.
 
 ### When something is wrong 🩺
 
-Start with **🧪 Biology Labs ▸ Check the set-up**. It says in one box whether the Sheet is
-found, whether Classroom is switched on and authorised, **whether sign-in is set up**, and how
-much is in there.
+Start with **🧪 Biology Labs ▸ 🩺 Check the set-up**. It opens one window, in parts: this spreadsheet,
+**signing in**, Google Classroom, homework, the pupils' trackers and the record card, the teacher page,
+the Biology Hub's cards, and storage and long jobs. Each part says what is done and what it still needs.
 
 | What you see | What it means |
 |---|---|
@@ -251,6 +252,7 @@ much is in there.
 | `access blocked: this app has not completed verification` | step 11 was missed — Audience ▸ **Publish app** |
 | sign-in works, but nothing reaches the Sheet | `CLIENT_ID` is empty, is a different string from `googleClientId`, or the deployment is stale |
 | a lab's tab has no names in it | nobody has been imported yet — step 17 |
+| a link on the teacher page is reported as one it cannot read | the cell holds a smart chip, whose address only the Google Sheets API can read: Services ▸ + ▸ **Google Sheets API** ▸ Add, or paste the address as text |
 | everything is set up, but **no** student appears | you shared my link, or your hub's `js/topics.js` still points at my labs. Your students must open **your** address — `https://YOUR-USERNAME.github.io/digestion-lab/` |
 | a stranger signs in and nothing is recorded | working as intended 🌍 |
 
@@ -321,6 +323,8 @@ wrong workbook in.
 Signed in on the hub as a teacher, the corner card gains a **Teacher | Test** switch.
 **Test** shows you the hub exactly as a student sees it, from your own TEST reflections.
 **Teacher** replaces the student's door with **Assessment system**, which opens the teacher page.
+The door changes as soon as you press the switch: the hub remembers both doors on your computer, so it never waits for
+its check (29 Oct 2026).
 It has eight tabs. All eight are read at the same time as the page opens, and each is kept on your computer (for a week,
 under your own address), so the next time the page opens at once and every tab is ready: it says how old what you see is
 ("read 2 h ago · updating") and draws the new figures over it when they come. If you have started typing or clicking in
@@ -331,18 +335,25 @@ The tabs come in groups, a thin line between them: **Spreadsheets**; **Students*
 
 | Tab | What it shows |
 |---|---|
-| **Spreadsheets** | every spreadsheet you put on it (one in the bin is not shown, and the row of one deleted for good is removed by itself, 18 Oct 2026) — each assessment's, the test copies, the tracker — grouped by **cohort, the year they graduate** (in 2026–27, Y10 is Class of 2028), with the current year group (Y9/Y10/Y11) worked out for you, so it never goes stale. Records are pinned at the top; within a cohort the spreadsheets are grouped by **type** (Reflection · Test · Survey · …, colour-coded). There is a **search box**, **filter chips** by type, an **Only current cohorts** toggle (on by default) that hides cohorts who have left, and a **Copy** button on every card for pasting into Google Classroom or an email. Each card is in its kind's colour, the same as the word above it: reflections purple, tests amber, surveys teal; the Student Progress Tracker and Student data a blue of their own, as they are permanent. |
-| **Students** | find any pupil and open their own reflection tracker, the same page they see; move a pupil to another class; give a pupil the **Accommodation** (after a second, different wrong try their pages explain what they got wrong, where an explanation is written: the labs' multiple-choice questions, most Bio English cards, the Write-Up tests; Bio English also offers keyword meanings in Korean; nobody else sees either) |
+| **Spreadsheets** | every spreadsheet you put on it (one in the bin is not shown, and the row of one deleted for good is removed by itself, 18 Oct 2026) — each assessment's, the test copies, the tracker — grouped by **cohort, the year they graduate** (in 2026–27, Y10 is Class of 2028), with the current year group (Y9/Y10/Y11) worked out for you, so it never goes stale. Records are pinned at the top; within a cohort the spreadsheets are grouped by **type** (Reflection · Test · Survey · …, colour-coded). There is a **search box**, **filter chips** by type, an **Only current cohorts** toggle (on by default) that hides cohorts who have left. A card whose row names a live dashboard offers **Form**, **Dashboard** and **Spreadsheet** (otherwise **Open**), and a Test System card **Marker Review** before them. Each card is in its kind's colour, the same as the word above it: reflections purple, tests amber, surveys teal; the Student Progress Tracker and Student data a blue of their own, as they are permanent. |
+| **Students** | find any pupil and open their own reflection tracker, the same page they see; move a pupil to another class; give a pupil the **Accommodation** (after a second, different wrong try their pages explain what they got wrong, where an explanation is written: the labs' multiple-choice questions, most Bio English cards, the Write-Up tests; Bio English also offers keyword meanings in Korean or Chinese; nobody else sees either). At the top, **🕓 Waiting for you** (23 Oct 2026) lists the pupils who have marks from you but have not finished that test's reflection, so they see nothing of it yet: talk with the pupil, then press **🔓 Release**, and their My assessments shows the result. The releases of the last 14 days are listed under it |
 | **Topic labs** | how each class is doing in the hub's topic labs: every student against every lab, who needs a look, and the stations a class finds hardest. Click a student, then open a station: each question is a small square, coloured by their first try (right first time, right after more checks, tried and not right yet, not tried), with the question's words. *Where they get stuck* opens to the questions the class most often did not get right at the first check. A pupil who started a station again gets one row of squares per round, each with how many times they pressed Check, and the *Practised again* tile counts who did; practising again is never flagged as stuck |
 | **Bio English** | how far each student has got with the Bio English Lab sets of their year |
 | **Report write-up** | how far each student has got with the parts of a lab report in the Write-Up Lab: the share of each part finished (red-pen mistakes found and questions answered), grouped by the stages of a report |
 | **Practicals** | how each student is doing in a practical you run in class, IB or KS3 (the rocky shore fieldwork first), question by question: one square per question, coloured by their first round (right at the first check, right after more checks, tried and not right yet), the number of checks, the wrong answers they typed or chose, and **Where they get stuck** for the class. Press **● Live** during a lesson and it reads again every 30 seconds (for two hours at most). Students appear once they sign in on the practical page; it is not homework and not a mark. Kept in the **🔬 Practicals** tab |
-| **Set homework** | pick lab stations and Bio English sets, set them for a class with a due date (and a time, if you want one) — the whole class, or *Some pupils* of it, which you tick (each class row has its own choice; some pupils get a homework of their own: in Google Classroom an assignment posted to them alone, with its own due date, reminders, *Change the due date* and *Remove*) — post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them, sorted by due date or by class. To change a due date, open the homework in the list and press *Change the due date*: its Google Classroom assignment gets the new date too. Homework past its due date moves to an *Archive* under the list: *Hide* tidies one away there and keeps it everywhere else; *Remove* deletes it, from ⏱️ Homework habits and every pupil's record too, so use it only for homework set by mistake. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
-| **Homework habits** | when each pupil finishes each homework, against the time it was set and its due time: *done before it was set*, *early* (by half the time), *in good time* (by 85%), *last minute*, *late*, *not done* or *still open*; ⏰ when they finished after a reminder had gone to them; their checks and right first time; and the time *from their first try to their finish* (between two saves: never time spent working). Each pupil gets a habit line from their last six homework (*Usually early*, *Usually in good time*, *Usually the last minute*, *Often late or not done*, *Only after a reminder*, *Getting better*, *Getting worse* or *Mixed*), and a neutral *Worth a look* when a homework is finished very fast and almost all right first time by a pupil whose results are usually low (teacher-marked tests under 50%): a reason to talk with them, never proof of anything. Pick a class; click a name for that pupil's timeline. The times are kept, per station, from the first save after the script is pasted |
+| **Set homework** | pick lab stations, Bio English sets and Write-Up Lab parts, set them for a class with a due date (and a time, if you want one) — the whole class, or *Some pupils* of it, which you tick (each class row has its own choice; some pupils get a homework of their own: in Google Classroom an assignment posted to them alone, with its own due date, reminders, *Change the due date* and *Remove*) — post them to Google Classroom if you like — each station named, one link for each lab (it opens the lab at the first homework station), under a Classroom topic you choose or type — and see who has done them (done, part done, tried with none right yet, not started), sorted by due date or by class. To change a due date, open the homework in the list and press *Change the due date*: its Google Classroom assignment gets the new date too. Homework past its due date moves to an *Archive* under the list, which a **Year** and a **Month** narrow (28 Oct 2026): *Hide* tidies one away there and keeps it everywhere else; *Remove* deletes it, from ⏱️ Homework habits and every pupil's record too, so use it only for homework set by mistake. If you tick *Remind pupils who have not finished*, the pupils who have not finished get two reminders in Google Classroom that only they can see, when 70% and 85% of the time to the due time has passed (about 2 days and 1 day before a week's homework; never between 22:00 and 07:00). This needs one more Google permission, for Classroom announcements: after pasting, run `checkSetup` once in the Apps Script editor and allow it. Signed-in students see their homework stations coloured in each lab: red not started, orange part done, green done. The Classroom post carries no marks: those stay in your Sheet |
+| **Homework habits** | when each pupil finishes each homework, against the time it was set and its due time: *done before it was set*, *early* (by half the time), *in good time* (by 85%), *last minute*, *late*, *not done* or *still open*; ⏰ when they finished after a reminder had gone to them; their checks and right first time; and the time *from their first try to their finish* (between two saves: never time spent working). Each pupil gets a habit line from their last six homework (*Usually early*, *Usually in good time*, *Usually the last minute*, *Often late or not done*, *Only after a reminder*, *Getting better*, *Getting worse* or *Mixed*), and a neutral *Worth a look* when a homework is finished very fast and almost all right first time by a pupil whose results are usually low (teacher-marked tests under 50%): a reason to talk with them, never proof of anything. Pick a class; click a name for that pupil's timeline. To show one pupil's habits to their parents, choose them in **Student** (or *Find a student*): only their row, their homework and their name stay on the screen, and *Worth a look* is not shown at all (28 Oct 2026). The times are kept, per station, from the first save after the script is pasted |
+
+A wide table scrolls sideways (two fingers on a Mac) and stops at its end, so the swipe never takes you Back to the hub
+(28 Oct 2026).
 
 If you also run the analysis website (its own script in the Student Progress Tracker), the teachers on its 👥 list see
 **📊 Analysis ↗** at the end of the tab row; it opens the website in a new tab. Nobody else sees it, and the list stays in
 the tracker: the page is told only the website's address.
+
+Signed in with an address at your school's own domain (the `record` block in `js/local.js`), the hub's masthead also
+shows **Apps teachers made**: a page of small tools teachers built for their own classrooms. That page is public; the
+link is hidden from pupils only so they are not offered a seating-plan app.
 
 **Nothing about that page is in this website.** Not its address, not a spreadsheet link, not who
 the teachers are, not a single pupil or mark. It is guarded twice:
@@ -404,7 +415,7 @@ a fallback, but the window is the easy way.)
 <details>
 <summary><b>How a student finds their test, and when it opens</b></summary>
 
-Under the credit on the front page, a signed-in student sees one amber banner while they have a test
+Under the credit on the front page, in a row of its own, a signed-in student sees one amber banner while they have a test
 that **opens later** (*"Opens today at 09:00. The link appears here when it opens."* — no link yet) or
 is **open now** (a live dot and **Sit the test →**). Nobody else sees anything. It opens the test in
 the same tab, on purpose: the test counts every time a student leaves its tab.
@@ -435,6 +446,13 @@ Two more cards come in the same answer, so they cost the hub nothing more:
   if they handed in only part of it or ran out of time, a reminder to ask you. It goes once they have
   handed in a complete reflection.
 
+**What the hub found (13 Oct 2026).** Under the cards, whoever they are for reads *Checking if you have a test, a
+reflection or new feedback…* while the hub asks, then *Checked at 09:14.* and, when no card shows, *You have no test,
+reflection or new feedback now.* A pupil seated for a test with no start time yet reads that the test has not started
+yet, and the page checks again every minute. **Check again** appears 15 seconds after the last check began, so a class
+pressing it together does not crowd the script. A teacher sees this line in test mode only, with their own notes in one
+small box, *Test mode · only you see this*.
+
 **Quick at sign-in (20 Oct 2026).** One job in this script (a trigger, every minute, made by itself the first time a
 sign-in finds a test or a reflection) reads the test and reflection spreadsheets that changed and keeps what the cards
 need, so a pupil's sign-in opens no spreadsheet, however many tests there are. It works every day from 08:35 to 22:00
@@ -443,9 +461,12 @@ about to start is looked at every minute, other tests every 5 minutes, reflectio
 show to the next pupil who opens or refreshes the hub; the opening and closing times are exact; a teacher in test mode
 always sees it now.
 At other times every sign-in reads the spreadsheets itself, as before. 🩺 Check the set-up says when it last ran.
+It sleeps to save that time (21 Oct 2026): at night (23:00 to 07:00), from 22:00 with nobody signing in, and after its
+daily limit, it removes its own every-minute trigger; a second trigger, `hubReadyWake_` (about 08:15), or a sign-in from
+07:00 starts it again. A test running now is read lightly every minute and in full every 3 minutes.
 It uses the account's trigger time (Google allows 6 hours a day on a school account; it stops itself after 90 minutes,
 or 30 on a gmail.com account). To go back to a version of this script from before it, delete its `hubReadyRun_`
-trigger first (Triggers ▸ ⋮ ▸ Delete).
+and `hubReadyWake_` triggers first (Triggers ▸ ⋮ ▸ Delete).
 
 A teacher sees exactly what a student would, in **test mode**, once they are on the test's
 **Marks · Test** tab (the test system's 🧑‍🏫 Set up Teacher Test tab); in teacher mode it stays hidden.
@@ -468,8 +489,10 @@ Never a class's times, anyone else's, or a single question.
 | Tab | What is in it |
 |---|---|
 | 🟢 **Students** | the dashboard — every student, their class, and their best score in **every** lab, red through amber to green; a lab not built yet has a paler heading and an empty grey column; **Accommodation**, after Course id, holds Yes for a pupil who gets help after a second, different wrong try (type Yes, never X, or use the teacher page's Students view; keep the column right after Course id: while any column is out of its place, Tidy up restyles nothing and says which) |
-| 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported. Two hidden columns end it: *Station times* notes when each station was first tried and first finished, for ⏱️ Homework habits; *Rounds*, the last, keeps every round of every station a pupil practised, with the checks at each question and how often they reset the whole lab, for Lab progress |
+| 🟢 **Digestion**, **Circulation**, … | one tab per lab, and each is your class list again: a row per student from the moment they are imported. *Practised again* names the stations a pupil started again (their best and their first round are kept). Four hidden columns end it: *First round* and *Best ever*, every question as it went in their first round and at its best; *Station times*, when each station was first tried and first finished, for ⏱️ Homework habits; and *Rounds*, the last, every round of every station a pupil practised, with the checks at each question and how often they reset the whole lab, for Topic labs |
 | 🟢 **✍️ Bio English** | a row per student, made at their first save in Bio English Lab: keyword and answer-writing questions answered, how many right first time, sets finished; the last column, *Set times* (hidden), notes when each set was first tried and first finished |
+| 🔵 **📝 Write-Up Lab** | a row per student, made at their first save in the Write-Up Lab: parts finished (every red-pen mistake found and every *Test yourself* question answered, which is what homework counts), mistakes found, questions answered and right first time, and each part; the last column, *Part times* (hidden), notes when each part was first tried and first finished |
+| 🔵 **🔬 Practicals** | a row per student per practical (IB or KS3), made at their first save on a practical page: questions tried, right first time, checks, and up to three questions they found hardest; the teacher page's **Practicals** tab reads it |
 | 🟠 **📚 Homework** | a row per class for each piece of homework set from the teacher page — you may change its title, its due date, or its reminders (Remind: on or off) here (a due date changed in this tab does not reach Google Classroom: change it on the teacher page, *Change the due date*, and Classroom follows); the reminder columns say when each reminder went and to how many pupils, never who; the last, Hidden, is when a homework was hidden from the teacher page's Archive (hidden homework still counts everywhere; only a date there hides it) |
 | 🟣 **👩‍🏫 Teachers** | the other teachers who may open the teacher page |
 | 🔵 **🔗 Teacher links** | the spreadsheets the teacher page lists |
@@ -489,7 +512,8 @@ last check, and at once when the lab is finished or the page is left — and eve
 the same row. *Saves* counts them and *Last saved* always moves, but the score is replaced only
 when the new attempt **beat** the old one, and the carried answers only ever grow — a careless
 re-run, or a second device that knows less, cannot wipe out a good result. Work done signed out
-stays in the browser and is sent the moment the student signs in.
+stays in the browser and is sent the moment the student signs in. Bio English Lab, the Write-Up Lab and the practical
+pages save the same way, each into its own tab.
 
 </details>
 
@@ -501,7 +525,7 @@ stays in the browser and is sent the moment the student signs in.
 | 🧪 Biology Labs ▸ | What it does |
 |---|---|
 | **🎓 Import students from Classroom…** | the main one. Adds new students one class at a time, then builds and formats everything |
-| **🩺 Check the set-up** | is the Sheet found, is Classroom on and authorised, is sign-in set up — and each optional part: the record card, the teacher page, homework, the morning email, the homework reminders and the Classroom permission they need |
+| **🩺 Check the set-up** | one window, in parts: this spreadsheet, signing in, Google Classroom, homework (the morning email, the reminders and the Classroom permission they need), the pupils' trackers and the record card, the teacher page, the hub's cards, and storage and long jobs |
 | **📊 Refresh everyone's progress** | re-reads the lab tabs into the dashboard |
 | **🎨 Tidy up** | rebuild anything missing, write the **Labs** tab afresh from the script's list of labs, and re-apply the formatting. A long one pauses before Google's 6-minute limit and carries on by itself; a window — "⚠️ Do not close this window until it says Finished" — shows how far it is, when the next part should begin (an estimate: Google can start it a few minutes late), and at the end how it went, with ⏹ Stop in it; the line beside its button keeps the same words. A tab already formatted as it was is left as it is (every tab is formatted in full at least once a week) |
 | **🔗 Add or remove links on the teacher page…** | the spreadsheets the teacher page lists — see *Teacher mode* above |
@@ -545,10 +569,11 @@ follow a sign-in redirect instead, and the work never arrives.
 
 It does **not** share your spreadsheet. Nobody gets access to the Sheet, to Classroom or to
 your Drive. The URL answers a **GET** that says the endpoint is running (with `?page=…`, the
-teacher page, which opens only for a teacher on your list), and **POSTs** from the labs and Bio
-English Lab: a save, which fills in one row — only for a signed-in account on your Students tab —
+teacher page, which opens only for a teacher on your list), and **POSTs** from the labs, Bio
+English Lab, the Write-Up Lab and the practical pages: a save, which fills in one row — only for a signed-in account on your Students tab —
 and a request for a signed-in student's own scores, record or test times, answered about them and
-nobody else. A stranger with the URL cannot write anything, and cannot read a single mark.
+nobody else; and the script's own 30-day pass, which lets a pupil's saves through after Google's hour and opens nothing
+else. A stranger with the URL cannot write anything, and cannot read a single mark.
 
 A save from one of your own students that does not add up — a score above the total, an
 impossible total — goes to the **Rejected** tab with the reason, never into a lab's tab. And a forged row usually looks forged: 113/113 in 113 checks, 0 right first time,
@@ -561,8 +586,6 @@ stays in their own browser and nothing is posted anywhere.
 
 ---
 
----
-
 ## The four files to paste
 
 They are in this repository — open, select all, copy. `Code.gs` goes into the script's own **Code** file; each of
@@ -570,7 +593,7 @@ the other three goes into an HTML file with the same name.
 
 | File | What it is |
 |---|---|
-| **[`apps-script/Code.gs`](apps-script/Code.gs)** | the whole script: receiving each student's work, the roster, the tabs, Classroom import, and giving a student their own scores back |
+| **[`apps-script/Code.gs`](apps-script/Code.gs)** | the whole script: receiving each student's work, the roster, the tabs, Classroom import, homework, the teacher page's figures, the hub's cards, and giving a student their own scores back |
 | **[`apps-script/ClassroomImport.html`](apps-script/ClassroomImport.html)** | HTML file `ClassroomImport`: the little window that imports your classes |
 | **[`apps-script/Teacher.html`](apps-script/Teacher.html)** | HTML file `Teacher`: the teacher page — Spreadsheets; Students; Topic labs, Bio English, Report write-up, Practicals; Set homework and Homework habits |
 | **[`apps-script/TeacherPage.html`](apps-script/TeacherPage.html)** | HTML file `TeacherPage`: the window behind **🔗 Add or remove links on the teacher page** and **👥 Teacher page: teachers and addresses** |
@@ -593,11 +616,13 @@ Static files. No build step beyond `node tools/stamp.mjs`, which first copies in
 shares with the labs, when it finds `labs-shared/` above this folder (the lab register as
 `js/data/labs.json` and `labs.js`, `js/progress.js`, `js/signin.js`, `js/data/stations.json` and the
 syllabus years), then rewrites
-every `?v=` stamp in `index.html` and `applications.html`, and `version.txt`, from one value —
+every `?v=` stamp in each page at the top of the repository, and `version.txt`, from one value —
 never hand-edit `version.txt`, the stamps are the real cache key.
 
 - **`js/shelves.js`** — the register: doors, year groups, what is open, image credits.
 - **`js/local.js`** — the school layer. Empty here; this is the file you edit.
+- `js/hub.js` — the front door's code, the same in both editions. A page left open (a laptop woken from sleep) asks
+  for `version.txt` when it is shown again and every 10 minutes, and reloads itself when a newer one is out (14 Oct 2026).
 - `js/data/labs.js` — generated from `labs-shared/labs.json`, the single register of labs.
 - `js/progress.js` — the only code that knows how to read a lab's progress record.
 - `apps-script/` — the marks system, above.
