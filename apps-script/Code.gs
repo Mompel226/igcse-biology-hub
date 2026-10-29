@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '28 Oct 2026 — pupil habits, Archive months, no swipe Back';
+var SCRIPT_EDITION = '29 Oct 2026 — the rocky shore practical at its new address';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -10385,7 +10385,8 @@ function _habitsData_(now) {
 var T_PRACT   = '🔬 Practicals';
 var PRACT_TAB = '#0E7490';
 var PRACTICALS = [
-  { id:'rocky-shore-fieldwork-pract', title:'IB Biology practical: rocky shore fieldwork (B4.1)', url:'https://nlcsbiology.com/rocky-shore-fieldwork-pract' },
+  /* 29 Oct 2026: the site took the standard name B41-… (Daniel); its id stays, so every pupil's row and record keeps its place */
+  { id:'rocky-shore-fieldwork-pract', title:'IB Biology practical: rocky shore fieldwork (B4.1)', url:'https://nlcsbiology.com/B41-rocky-shore-fieldwork-pract' },
   /* 18 Oct 2026: 15 minutes of microscopy skills before the A2.2 microscopy assessment */
   { id:'A22-microscopy-skills-pract', title:'IB Biology practical: microscopy skills (A2.2.2)', url:'https://nlcsbiology.com/A22-microscopy-skills-pract' },
   /* 15 Oct 2026: the first KS3 practical (Year 7). Daniel: "for now, I don't want to mix IGCSE and IB": KS3 practicals live here,

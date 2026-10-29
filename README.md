@@ -41,7 +41,7 @@ panel there lists the [Y7 Chemistry practical: separating mixtures](https://nlcs
 and the [Y7 Chemistry revision: states of matter, atoms and mixtures](https://nlcsbiology.com/ks3-y7-chemistry-revision/); turn on
 **IB extension** and a violet one lists the IB practicals: [microscopy skills (A2.2.2)](https://nlcsbiology.com/A22-microscopy-skills-pract/),
 [starch calibration curve (B1.1)](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) and
-[rocky shore fieldwork (B4.1)](https://nlcsbiology.com/rocky-shore-fieldwork-pract/). The IGCSE hubs, labs and the
+[rocky shore fieldwork (B4.1)](https://nlcsbiology.com/B41-rocky-shore-fieldwork-pract/). The IGCSE hubs, labs and the
 Protein & Enzyme Sim are reached through their shelves. The year tabs show which topics each year meets, the year of its IGCSE
 exams and which syllabus those follow; `…/#y10` opens a year and `…/#plants` a door — both are
 useful links to hand a class.
