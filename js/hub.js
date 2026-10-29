@@ -1515,8 +1515,14 @@
       if (!b || b.getAttribute('aria-pressed') === 'true') return;
       try { localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); } catch (e2) {}
       footer(true);
-      if (last && acting) render(last.who, last.j);
-      else if (!acting && resting) { var rw = SI.who(); if (rw && rw.email === resting) rest(rw); }
+      /* the door changes at once: from the last answer, or, before the quiet check has answered and after Google's
+         hour, from what this computer remembers; an answer still on its way draws it again when it comes */
+      if (last && acting) render(last.who, last.j, true);
+      else if (acting) { if (!drawKnown(acting, mineRemembered(acting), true)) nothingKnown(acting); }
+      else if (resting) {
+        var rw = SI.who();
+        if (rw && rw.email === resting && !rest(rw)) { nothingKnown(rw); chkSignIn(); }
+      }
       /* ask again rather than redraw the last answer: a teacher switches mode to SEE the test as it
          is now — after changing a time or a row — not as it was when they signed in */
       if (acting) sitAsk(acting); else sitDraw();
@@ -1544,7 +1550,9 @@
        they are a teacher is remembered too, and the teacher page's address with it (Daniel, 7 Oct 2026: coming back
        from the assessment system, "it does the checking again… can it not save the check-in?"): the door stands at
        once and the check runs quietly behind it. The address opens nothing by itself: the teacher page checks the
-       Google account of whoever opens it. */
+       Google account of whoever opens it. A teacher's memory keeps both sides of the card, the teacher page and test
+       mode's counts, whichever mode the answer came in, so the Teacher | Test switch draws either at once (Daniel,
+       29 Oct 2026: the change "is very slow, can it not be immediate"). */
     var MINE_KEY = 'biology-hub.mine';
     function mineRemembered(who) {
       try {
@@ -1559,6 +1567,7 @@
                                                           assessments: t ? t.assessments : null,
                                                           unfinished: t ? t.unfinished : 0,
                                                           practice: t ? !!t.practice : false,
+                                                          testOnly: t ? !!t.testOnly : false,
                                                           myAssessments: t ? t.url : '',
                                                           at: Date.now() })); } catch (e) {}
     }
@@ -1583,7 +1592,7 @@
       var reflected = n(j.reflected) !== null ? j.reflected : (n(j.count) || 0);
       return { reflected: reflected, assessments: n(j.assessments),
                unfinished: n(j.unfinished) !== null ? j.unfinished : (n(j.incomplete) || 0),
-               practice: !!j.practice, url: newest(j.myAssessments) };
+               practice: !!j.practice, testOnly: !!j.testOnly, url: newest(j.myAssessments) };
     }
     /* anything on My assessments to see: a reflection, finished or not, or practice */
     function worthOpening(t) { return !!(t.reflected || t.unfinished || t.practice); }
@@ -1630,8 +1639,19 @@
       if (!worthOpening(kt)) return false;
       mineSay(kt);
       showPersonal('mine', instant);
-      asLink(goMine(kt), nm, 'My assessments · ' + cardLine(kt), known.teacher ? 'Signed in · test mode' : '');
+      asLink(goMine(kt), nm, (kt.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(kt),
+             known.teacher ? 'Signed in · test mode' : '');
       return true;
+    }
+    /* The switch pressed with nothing remembered to draw for the mode it turned to: what the answer would draw, at
+       once. In test mode that is a teacher with no test reflection. A teacher page with no address kept (remembered
+       before 7 Oct 2026) is asked for again, or, after Google's hour, waits for a sign-in. */
+    function nothingKnown(v) {
+      showPersonal(null);
+      var nm = tidyName(v.name) || (REC.label || 'Your Biology');
+      if (mode() === 'test') asButton(nm, 'Test mode · no test reflections yet', true);
+      else if (acting) ask(v);
+      else asButton(nm, 'Teacher mode · sign in again to open it', false);
     }
     /* Google's hour is up and Google would not renew it without a click: still signed in on this computer (nobody
        signed out), so the card stays as it was last seen, its doors open; the next fresh sign-in, here or in a lab,
@@ -1646,8 +1666,8 @@
     }
 
     /* What the labs script said, drawn. Called again, with the same answer, when a teacher
-       switches between teacher mode and test mode. */
-    function render(who, j) {
+       switches between teacher mode and test mode: then `instant`, so the door simply stands. */
+    function render(who, j, instant) {
       last = { who: who, j: j };
       var lbl = tidyName(j.name) || tidyName(who.name) || (REC.label || 'Your Biology');
       var page = String(j.teacherPage || '');
@@ -1656,13 +1676,13 @@
       if (teacher && mode() === 'teacher') chkShow('');
 
       if (teacher && mode() === 'teacher') {
-        remember(who, null);
+        remember(who, tally(j));                                  /* test mode's side too, for the switch */
         if (!teacher.page) {
           showPersonal(null);
           asButton(lbl, 'Teacher mode · the teacher page is not set up yet', true);
           return;
         }
-        if (sysEl) { sysEl.href = teacher.page; showPersonal('system'); } else showPersonal(null);
+        if (sysEl) { sysEl.href = teacher.page; showPersonal('system', instant); } else showPersonal(null);
         asLink(teacher.page, lbl, 'Assessment system', 'Signed in · teacher mode', true);
         return;
       }
@@ -1675,7 +1695,7 @@
         asButton(lbl, teacher ? 'Test mode · no test reflections yet' : 'Your assessments start at your first reflection', true);
         return;
       }
-      mineOpen(who, t);
+      mineOpen(who, t, instant);
       /* A teacher who has only ever submitted to the TEST class sees "test". */
       asLink(goMine(t), lbl, (j.testOnly ? 'My test assessments' : 'My assessments') + ' · ' + cardLine(t),
              teacher ? 'Signed in · test mode' : '');
