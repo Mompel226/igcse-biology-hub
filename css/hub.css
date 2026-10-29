@@ -118,6 +118,10 @@ body[data-view]:not([data-view="revision"]) .masthead__r{align-self:center}
    the last try did not work. The button's 40px is held open so the masthead does not jump
    when Google's frame arrives. */
 .acct__gsi{display:flex;justify-content:flex-end;min-height:40px}
+/* Google's frame is drawn in the light scheme, and the page in the dark one (html, above): a frame whose scheme differs
+   from its box's is painted on an opaque white ground, so the button stood in a white box (seen 29 Oct 2026). Both boxes
+   that hold Google's button take the frame's own scheme, and the frame shows through again. */
+.acct__gsi,.sit-check__gsi{color-scheme:normal}
 .acct__for{
   font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
   color:var(--chalk-dim);line-height:1.25;text-align:right
