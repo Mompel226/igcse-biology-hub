@@ -4634,8 +4634,9 @@ function _frontDoorHealth_() {
 var T_HUB_SCHEDULE   = '⏰ Hub schedule';
 var HUB_SCHEDULE_KEY = 'HUB_SCHEDULE_JSON';
 var TEST_SNAP_SECONDS = 60;   /* one read of a test spreadsheet serves every student for this long */
-var TEST_SNAP_KEY = 'tsnap5:';   /* + the spreadsheet's id: bump when the snapshot's shape changes (4: fb, names; 5: at, exp; `fba` came
-   30 Oct 2026 with no bump: a copy without it only hides the teacher page's Feedback answers button until it is read again) */
+var TEST_SNAP_KEY = 'tsnap6:';   /* + the spreadsheet's id: bump when the snapshot's shape changes (4: fb, names; 5: at, exp;
+   6: fba, 30 Oct 2026 — first shipped without a bump, and a light read keeps an old copy's fields while the schedule's text
+   is the same, so a copy without `fba` never gained it and the teacher page's Feedback answers button never showed) */
 var FEEDBACK_CARD_DAYS = 5;   /* the "New feedback" card: this many days after a release, then it goes (26 Sep 2026,
                                  Daniel) — the feedback itself stays reachable from My assessments. Longer while its
                                  review is still to write: until the pupil hands it in, also after its due day, and also
