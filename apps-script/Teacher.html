@@ -901,7 +901,10 @@ var BOOT = __BOOT__;
          spreadsheet filled, so the shape tells them apart; the colour is the card's kind (data-type, 18 Oct 2026). A Test
          System card also offers Marker Review (13 Oct 2026, Daniel: "add a pill for marker review so that it's easy for
          them to access it from there"), FIRST (14 Oct 2026, Daniel: "aligned to the left of form"): the buttons sit at the
-         card's right, so Form, Dashboard and Spreadsheet stay in the same places on every card, Test or reflection. */
+         card's right, so Form, Dashboard and Spreadsheet stay in the same places on every card, Test or reflection.
+         Feedback answers (30 Oct 2026, Daniel: "to the left of marker review"): the answers to the feedback questions as
+         charts, on every Test card (the page says so when a test has no questions). */
+      (l.answers?'<a class="dash" href="'+esc(l.answers)+'" target="_blank" rel="noopener noreferrer">Feedback answers</a>':'')+
       (l.review?'<a class="dash" href="'+esc(l.review)+'" target="_blank" rel="noopener noreferrer">Marker Review</a>':'')+
       (l.form?'<a class="dash" href="'+esc(l.form)+'" target="_blank" rel="noopener noreferrer">Form</a>':'')+
       (l.dash?'<a class="dash" href="'+esc(l.dash)+'" target="_blank" rel="noopener noreferrer">Dashboard</a>':'')+

@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '29 Oct 2026 — Practicals: a card per stuck question';
+var SCRIPT_EDITION = '30 Oct 2026 — Teacher page: Feedback answers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -4634,7 +4634,8 @@ function _frontDoorHealth_() {
 var T_HUB_SCHEDULE   = '⏰ Hub schedule';
 var HUB_SCHEDULE_KEY = 'HUB_SCHEDULE_JSON';
 var TEST_SNAP_SECONDS = 60;   /* one read of a test spreadsheet serves every student for this long */
-var TEST_SNAP_KEY = 'tsnap5:';   /* + the spreadsheet's id: bump when the snapshot's shape changes (4: fb, names; 5: at, exp) */
+var TEST_SNAP_KEY = 'tsnap5:';   /* + the spreadsheet's id: bump when the snapshot's shape changes (4: fb, names; 5: at, exp; `fba` came
+   30 Oct 2026 with no bump: a copy without it only hides the teacher page's Feedback answers button until it is read again) */
 var FEEDBACK_CARD_DAYS = 5;   /* the "New feedback" card: this many days after a release, then it goes (26 Sep 2026,
                                  Daniel) — the feedback itself stays reachable from My assessments. Longer while its
                                  review is still to write: until the pupil hands it in, also after its due day, and also
@@ -4874,7 +4875,8 @@ function _readTestSnapshot_(id, open) {
   return { title: title, url: url, activeId: String(mirror.activeId || ''), timerMode: String(mirror.timerMode || ''),
            timeLimitMinutes: Number(mirror.timeLimitMinutes) || 90,
            versions: versions, seats: seats, live: live, done: done, fb: fb, names: names, at: readAt, exp: fbEnd,
-           mh: _hubHash_(raw), wr: readAt };
+           mh: _hubHash_(raw), wr: readAt,
+           fba: mirror.fba === true };   /* Test System v4.152: its feedback questions have answers (the teacher page's button) */
 }
 
 /* The ⏰ Hub schedule's JSON as written (the last row with its key whose text is JSON), or ''. */
@@ -6165,9 +6167,12 @@ function _readLinkRow_(r, kHead, rowNum, dHead, urls) {
      and on the same web app (a bare /exec here is read as above; _fixDashCells_ writes it as ?page=dashboard). */
   var review = '';
   if (app && /test/i.test(type) && !/reflect/i.test(type) && (!app[2] || /(^|&)page=dashboard(&|$)/.test(app[2]))) review = app[1] + '?page=review';
+  /* Feedback answers (30 Oct 2026, Test System v4.152). Daniel: "a link in the teacher page in the hub … to the left of
+     marker review": the answers to the Test System's feedback questions as charts, on the same web app at ?page=answers. */
+  var answers = review ? app[1] + '?page=answers' : '';   /* offered only when that test has answers: _fbaOnly_ */
 
   return { row: rowNum, type: type || 'Other', assessment: assessment, grad: grad,
-           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash, form: form, review: review };
+           name: name || assessment || shown || 'Spreadsheet', url: url, note: note, dash: dash, form: form, review: review, answers: answers };
 }
 
 /* An Apps Script web app's address: [1] the /exec address itself, [2] what follows its "?" (undefined when nothing does). */
@@ -6788,6 +6793,22 @@ function _cohortLabel_(grad, now) {
    graduating first — and within a cohort by Type, so many spreadsheets stay easy to scan. Anything
    with no graduation year that is not a record falls into a plain "No graduation year" group at the
    end, so nothing is ever lost. */
+/* Feedback answers only where there is something to see (30 Oct 2026, Daniel: "only … if MCQ questions are present and
+   have been answered. Otherwise, it makes no sense to add the links to something empty"). The Test System says so in its
+   ⏰ Hub schedule (`fba`, written when a teacher opens the spreadsheet or uses its menus); the copies §hub-ready keeps are
+   read in ONE cache call and no spreadsheet is opened, so the page is no slower. No copy (the job rests at night): no button. */
+function _fbaOnly_(entries) {
+  var want = entries.filter(function (e) { return e.answers; }), ids = {};
+  if (!want.length) return;
+  want.forEach(function (e) { var id = _driveIdOf_(e.url); if (id) ids[TEST_SNAP_KEY + id] = 1; });
+  var got = {};
+  try { got = CacheService.getScriptCache().getAll(Object.keys(ids)) || {}; } catch (e) { got = {}; }
+  want.forEach(function (e) {
+    var snap = null, raw = got[TEST_SNAP_KEY + _driveIdOf_(e.url)];
+    try { snap = raw && raw !== '-' ? JSON.parse(raw) : null; } catch (x) { snap = null; }
+    if (!snap || snap.fba !== true) e.answers = '';
+  });
+}
 function _teacherPageGroups_(now) {
   var scan = _teacherLinksScan_(), raw = scan.rows;
   var records = [], cohorts = {}, order = [], loose = [], gone = [];
@@ -6799,7 +6820,7 @@ function _teacherPageGroups_(now) {
     if (did && dead[did]) { gone.push({ row: l.row, name: l.name || l.assessment || 'a row', why: dead[did], removed: !!removed[did] }); return; }
     var isRecord = /^records?$/i.test(l.type) || (!l.grad && /tracker|student data|record/i.test(l.assessment + ' ' + l.name));
     var co = _cohortLabel_(l.grad, now);
-    var entry = { name: l.name, url: l.url, dash: l.dash, form: l.form, review: l.review || '', type: l.type, assessment: l.assessment,
+    var entry = { name: l.name, url: l.url, dash: l.dash, form: l.form, review: l.review || '', answers: l.answers || '', type: l.type, assessment: l.assessment,
                   detail: (l.assessment && l.assessment !== l.name ? l.assessment : '') + (l.note ? (l.assessment && l.assessment !== l.name ? ' · ' : '') + l.note : '') };
     if (isRecord) { records.push(entry); return; }
     if (!co) { loose.push(entry); return; }
@@ -6811,6 +6832,7 @@ function _teacherPageGroups_(now) {
   /* Y9 first, then Y10, then Y11 — which is the FURTHEST graduation year first, because a younger
      cohort graduates later. Daniel reads his lists bottom-up through the school. */
   order.sort(function (a, b) { return b - a; });
+  _fbaOnly_([].concat(records, loose, [].concat.apply([], order.map(function (g) { return [].concat.apply([], cohorts[g].typeOrder.map(function (t) { return cohorts[g].byType[t]; })); }))));
   /* the cohorts that are in school this year, so a teacher can read off "Y10 is Class of 2028" and,
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
