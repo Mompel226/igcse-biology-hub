@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '30 Oct 2026 — Teacher page: Feedback answers';
+var SCRIPT_EDITION = '3 Nov 2026 — Immunity Lab: 59 questions';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -192,7 +192,7 @@ var LABS = [
   { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
   { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:122 },
-  { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:0 },
+  { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:59 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:0 },
   { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
   { id:'excretion-lab',       name:'Excretion',        topic:'13 · Excretion in humans',           questions:0 },
@@ -8213,7 +8213,7 @@ function studentRelease(d) {
 }
 
 /* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
-   👥 list only. The list is kept by the tracker's own script (AppScript Tracker Analysis, _publishViewers_) as
+   👥 list only. The list is kept by the tracker's own script (AppScript Master Tracker, _publishViewers_) as
    SPREADSHEET-level developer metadata on the Student Progress Tracker: key ANALYSIS_VIEWERS, visibility DOCUMENT, value
    {"v":1,"emails":[…]} (lowercase, cleaned, sorted). This reads it (about a second: the tracker opened, the key found),
    keeps the list in the script cache for five minutes, and gives the page the website's address or '' — never the

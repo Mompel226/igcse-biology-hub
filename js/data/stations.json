@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-25T11:59:21.201Z",
+  "generated": "2026-11-03T04:20:57.914Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -115,14 +115,14 @@
           "id": "alive",
           "name": "Alive?",
           "questions": 9,
-          "sig": "9:h324lt",
+          "sig": "9:j54y6g",
           "syl": "1.1.1|1.1.1|1.1.1|1.1.1|1.1.1,1.2.1|1.1.1|1.1.1,7.2.2|1.1.1|1.1.1"
         },
         {
           "id": "naming",
           "name": "Naming and grouping",
           "questions": 6,
-          "sig": "6:1qc01wf",
+          "sig": "6:eul62",
           "syl": "1.2.2|1.2.3|1.2.1|1.2.3|1.2.3|1.2.3"
         },
         {
@@ -136,7 +136,7 @@
           "id": "keys",
           "name": "Keys",
           "questions": 6,
-          "sig": "6:ajwt2o",
+          "sig": "6:1pflbmj",
           "syl": "1.2.4|1.2.4|1.2.4|1.2.4|1.2.4|1.2.4"
         },
         {
@@ -365,6 +365,62 @@
         }
       ]
     },
+    "immunity-lab": {
+      "name": "Immunity Lab",
+      "tab": "Immunity",
+      "questions": 59,
+      "stations": [
+        {
+          "id": "spread",
+          "name": "Pathogens and how they spread",
+          "questions": 9,
+          "sig": "9:1ysod3v",
+          "syl": "10.1.1|10.1.1|10.1.2|10.1.2|10.1.1,10.1.2|10.1.3|10.1.3|10.1.3|10.1.3"
+        },
+        {
+          "id": "defences",
+          "name": "The body’s defences",
+          "questions": 8,
+          "sig": "8:l4op04",
+          "syl": "10.1.4|10.1.4|10.1.4|10.1.4|10.1.4|10.1.4|10.1.4,9.4.6|10.1.4,11.1.11"
+        },
+        {
+          "id": "control",
+          "name": "Controlling the spread of disease",
+          "questions": 8,
+          "sig": "8:1dir32c",
+          "syl": "10.1.5|10.1.5|10.1.5|10.1.5|10.1.5|10.1.5|10.1.5|10.1.5"
+        },
+        {
+          "id": "antibodies",
+          "name": "Antibodies and active immunity",
+          "questions": 10,
+          "sig": "10:99znfb",
+          "syl": "10.1.7|10.1.8|10.1.9|10.1.7,10.1.8,10.1.9|10.1.8,10.1.10|10.1.8|10.1.6,10.1.10|10.1.11|10.1.7,10.1.8|10.1.8"
+        },
+        {
+          "id": "vaccination",
+          "name": "Vaccination",
+          "questions": 8,
+          "sig": "8:1ljyag7",
+          "syl": "10.1.11|10.1.11|10.1.11|10.1.10,10.1.11|10.1.11|10.1.11|10.1.12|10.1.12"
+        },
+        {
+          "id": "passive",
+          "name": "Passive immunity",
+          "questions": 8,
+          "sig": "8:1vxxuc4",
+          "syl": "10.1.13|10.1.10,10.1.13|10.1.13|10.1.6,10.1.13|10.1.13,10.1.15|10.1.13|10.1.14|10.1.10,10.1.13"
+        },
+        {
+          "id": "cholera",
+          "name": "Cholera",
+          "questions": 8,
+          "sig": "8:1516g53",
+          "syl": "10.1.16,10.1.17|10.1.17|10.1.17,3.2.7|10.1.17|10.1.17|10.1.16|10.1.17|10.1.16,10.1.5"
+        }
+      ]
+    },
     "cells-lab": {
       "name": "Cells Lab",
       "tab": "Cells",
@@ -416,7 +472,7 @@
           "id": "plant",
           "name": "The plant cell",
           "questions": 11,
-          "sig": "11:il3re9",
+          "sig": "11:jfgb5s",
           "syl": "2.1.3|2.1.3|2.1.4|2.1.1|2.1.1,2.1.4|2.1.1,2.1.6|2.1.4|2.1.4|2.1.4|2.1.1,3.2.8|2.1.1"
         },
         {
