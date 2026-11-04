@@ -34,7 +34,7 @@ PC, and progress is saved in the student's own browser.
 | **Foundations** | 2 · 3 · 4 · 5 | [Foundations Hub](https://nlcsbiology.com/foundations-hub/) 🟢 · [Cells Lab](https://nlcsbiology.com/cells-lab/) 🟢 · [Protein & Enzyme Sim](https://nlcsbiology.com/protein-enzyme-sim/) 🟢 |
 | **The human body** | 7 · 9–16 | [Human Body Hub](https://nlcsbiology.com/human-body-hub/) 🟢 · [Digestion Lab](https://nlcsbiology.com/digestion-lab/) 🟢 · [Circulation Lab](https://nlcsbiology.com/circulation-lab/) 🟢 · [Immunity Lab](https://nlcsbiology.com/immunity-lab/) 🟢 |
 | **Plants** | 6 · 8 · 14.5 · 16.3 · 18.2 | [Plants Hub](https://nlcsbiology.com/plants-hub/) 🟢 · [Plants Lab](https://nlcsbiology.com/plants-lab/) 🟢 |
-| **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 |
+| **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 · [Inheritance Lab](https://nlcsbiology.com/inheritance-lab/) 🟢 |
 
 The foot of the page lists only Key Stage 3 and IB pages (25 Oct 2026). Turn on **Key Stage 3** and a teal
 panel there lists the [Y7 Chemistry practical: separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/)
