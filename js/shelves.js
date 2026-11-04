@@ -160,7 +160,10 @@ window.HUB = {
       url:'https://nlcsbiology.com/ks3-separating-mixtures-pract/', ks3Only:true },
     { title:'Y7 Chemistry revision: states of matter, atoms and mixtures', kind:'revision', shelf:'foundations',
       sub:'notes, pictures to explore and checks as you go, with Korean and Chinese for every key word',
-      url:'https://nlcsbiology.com/ks3-y7-chemistry-revision/', ks3Only:true }
+      url:'https://nlcsbiology.com/ks3-y7-chemistry-revision/', ks3Only:true },
+    { title:'Y7 Biology practical: cell structures and organelles', kind:'practical', shelf:'foundations',
+      sub:'a 3D game inside a salivary gland cell: explore its organelles, make amylase and release it',
+      url:'https://nlcsbiology.com/ks3-y7-cell-organelles/', ks3Only:true }
   ],
 
   credits: [

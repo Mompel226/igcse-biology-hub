@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '3 Nov 2026 — Immunity Lab: 59 questions';
+var SCRIPT_EDITION = '4 Nov 2026 — 🔬 Practicals: the Y7 cell game (KS3)';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -10417,7 +10417,10 @@ var PRACTICALS = [
   { id:'ks3-separating-mixtures-pract', title:'Y7 Chemistry practical: separating mixtures', url:'https://nlcsbiology.com/ks3-separating-mixtures-pract' },
   /* 25 Oct 2026: the Year 7 Chemistry revision page (a revision booklet with checks), on the
      same board as the KS3 practicals. Every title: year (or IB), subject and kind first, then the topics (Daniel, 25 Oct 2026). */
-  { id:'ks3-y7-chemistry-revision', title:'Y7 Chemistry revision: states of matter, atoms and mixtures', url:'https://nlcsbiology.com/ks3-y7-chemistry-revision' }
+  { id:'ks3-y7-chemistry-revision', title:'Y7 Chemistry revision: states of matter, atoms and mixtures', url:'https://nlcsbiology.com/ks3-y7-chemistry-revision' },
+  /* 4 Nov 2026: the Year 7 cell game (make amylase and release it); its finished places are squares of kind task, as the
+     separating-mixtures benches are */
+  { id:'ks3-y7-cell-organelles', title:'Y7 Biology practical: cell structures and organelles', url:'https://nlcsbiology.com/ks3-y7-cell-organelles' }
 ];
 var PRACT_COLS = [
   { h:'Name', w:200, note:'From the Students tab. A student appears here the first time a practical page saves their work.' },
