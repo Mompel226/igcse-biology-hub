@@ -99,7 +99,7 @@
       var m = document.querySelector('meta[name="description"]');
       if (m) m.setAttribute('content', site.description);
     }
-    [['siteEyebrow', 'eyebrow'], ['siteMaker', 'maker'], ['siteByline', 'byline']].forEach(function (pair) {
+    [['siteEyebrow', 'eyebrow'], ['siteMaker', 'maker'], ['siteOwner', 'owner'], ['siteByline', 'byline']].forEach(function (pair) {
       var el = document.getElementById(pair[0]);
       if (el && site[pair[1]]) el.innerHTML = site[pair[1]];
     });
@@ -754,6 +754,7 @@
     var h = String(hash || '').replace(/^#/, '');
     if (!ENTRY) return 'revision';
     if (!h || h === 'entry') return 'entry';
+    if (h === 'teachers') return 'entry';                 /* the panel at the foot (section 7b) */
     if (h === 'revision') return 'revision';
     if (sectionOf(h)) return h;
     /* #vetsoc names a door on the Societies page: open that page with the door lit, the way
@@ -1923,6 +1924,69 @@
       return '<span class="cr"><b>' + esc(c.door) + '</b> — ' + t + (c.licence ? ' (' + esc(c.licence) + ')' : '') + '</span>';
     }).join(' · ') +
     '. <a href="' + creditsHref() + '" target="_blank" rel="noopener">Full credits</a>.';
+  }
+
+  /* ---------- 7b. for teachers ----------
+     Colleagues asked whether they could rely on the site (5 Nov 2026), so the foot carries a panel for
+     them: one row per live lab from the register (its topic, name and size, and its address to copy into
+     Google Classroom), then how the questions are checked. The words are the edition's own (js/local.js
+     `teachers`); an edition without them shows nothing. The address #teachers opens it. */
+  var TEACH = L.teachers, teachEl = document.getElementById('teachers');
+  if (TEACH && teachEl) {
+    var teachLabs = ((window.LABS_REGISTER || {}).labs || [])
+      .filter(function (l) { return l.status === 'live' && l.url; })
+      .sort(function (a, b) { return (a.topicNo || 99) - (b.topicNo || 99); });
+    /* "Plants: 6, 8, 14.5, 16.3, 18.2" is a lab over several topics: the numbers are what a teacher looks for */
+    var topicLine = function (l) {
+      var t = String(l.topic || ''), c = t.indexOf(':');
+      return c >= 0 ? 'Topics ' + t.slice(c + 1).trim() : 'Topic ' + l.topicNo + ' · ' + t;
+    };
+    document.getElementById('teachBtn').textContent = TEACH.summary || 'For teachers';
+    document.getElementById('teachPanel').innerHTML =
+      '<h2 class="teach__h">' + TEACH.title + '</h2>' +
+      '<p class="teach__p">' + TEACH.lede + '</p>' +
+      '<ul class="teach__list">' + teachLabs.map(function (l) {
+        return '<li class="teach__row"><a class="teach__lab" href="' + esc(l.url) + '">' +
+          '<span class="teach__topic">' + esc(topicLine(l)) + '</span>' +
+          '<span class="teach__name">' + esc(l.name) + '</span>' +
+          '<span class="teach__size">' + l.stations + ' stations · ' + l.questions + ' questions</span></a>' +
+          '<button type="button" class="teach__copy" data-url="' + esc(l.url) + '" aria-label="Copy the address of the ' +
+          esc(l.name) + '">Copy link</button></li>';
+      }).join('') + '</ul>' +
+      '<h3 class="teach__h3">' + TEACH.checkedTitle + '</h3>' +
+      '<ul class="teach__checks">' + (TEACH.checks || []).map(function (c) { return '<li>' + c + '</li>'; }).join('') + '</ul>';
+    teachEl.hidden = false;
+
+    /* the browser's own copy where it is allowed; otherwise the older way, through a box nobody sees */
+    var copied = function (b) {
+      b.textContent = 'Copied';
+      toast('Address copied. Paste it into Google Classroom.');
+      setTimeout(function () { b.textContent = 'Copy link'; }, 2400);
+    };
+    var copyOld = function (url, b) {
+      var t = document.createElement('textarea');
+      t.value = url; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(t);
+      if (ok) copied(b); else toast(url);
+    };
+    teachEl.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('.teach__copy');
+      if (!b) return;
+      var url = b.getAttribute('data-url');
+      if (navigator.clipboard && navigator.clipboard.writeText)
+        navigator.clipboard.writeText(url).then(function () { copied(b); }, function () { copyOld(url, b); });
+      else copyOld(url, b);
+    });
+
+    var openTeach = function () {
+      if (location.hash !== '#teachers') return;
+      teachEl.open = true;
+      teachEl.scrollIntoView({ block:'start' });
+    };
+    openTeach();
+    window.addEventListener('hashchange', openTeach);
   }
 
   /* ---------- 8. toast ---------- */

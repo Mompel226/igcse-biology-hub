@@ -669,6 +669,47 @@ body.ib .ib-note{display:inline}
 .colophon a{color:var(--chalk-dim);border-bottom:1px solid rgba(169,190,203,.35)}
 .colophon a:hover{color:var(--chalk)}
 .cr{white-space:nowrap}
+/* who owns the site (js/local.js `site.owner`): plain words above the contact line, nothing in an edition without it */
+.owner{font-size:12.5px;line-height:1.6;color:var(--chalk-dim)}
+.owner:empty{display:none}
+/* For teachers (5 Nov 2026): the credits' small button; open, a panel in the hub's cyan */
+.teach__panel{
+  margin-top:10px;font-size:13.5px;line-height:1.6;color:var(--chalk);
+  border:1px solid var(--rule);border-top:2px solid var(--cyan);border-radius:6px;padding:16px;
+  background:linear-gradient(180deg,rgba(79,195,247,.06),rgba(255,255,255,.012) 70%)
+}
+.teach__h{margin:0 0 6px;font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.25;color:var(--chalk)}
+.teach__p{margin:0 0 12px;color:var(--chalk-dim)}
+.teach__list{display:flex;flex-direction:column;gap:6px;margin:0 0 18px;padding:0;list-style:none}
+.teach__row{display:flex;align-items:center;gap:10px}
+.teach__lab{   /* the topic over the lab's name, its size on the right */
+  flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 14px;
+  padding:9px 14px;border-radius:5px;border:1px solid var(--rule);background:rgba(7,15,21,.35);transition:border-color .2s,background .2s
+}
+.teach__topic{grid-column:1}
+.teach__name{grid-column:1}
+.teach__size{grid-column:2;grid-row:1 / span 2}
+.teach__lab:hover,.teach__lab:focus-visible{border-color:var(--cyan);background:rgba(255,255,255,.05)}
+.teach__topic{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--chalk-dim)}
+.teach__name{font-family:var(--serif);font-size:17px;color:var(--chalk)}
+.teach__size{font-size:12.5px;color:var(--chalk-dim);white-space:nowrap}
+.teach__copy{
+  flex:none;min-height:40px;padding:0 14px;border:0;border-radius:5px;cursor:pointer;
+  font:500 12.5px/1 var(--sans);color:#08121A;background:var(--cyan);transition:filter .18s
+}
+.teach__copy:hover{filter:brightness(1.12)}
+.teach__copy:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+.teach__h3{margin:0 0 6px;font-family:var(--serif);font-weight:400;font-size:17px;color:var(--chalk)}
+.teach__checks{margin:0;padding-left:1.2em;list-style:disc;color:var(--chalk-dim)}
+.teach__checks li{margin:4px 0}
+.teach__checks li::marker{color:var(--cyan)}
+.teach__checks a{color:var(--cyan);border-bottom:1px solid rgba(79,195,247,.4)}
+@media (max-width:560px){   /* a phone: topic, name and size one under another */
+  .teach__panel{padding:12px 10px}
+  .teach__lab{grid-template-columns:minmax(0,1fr);padding:10px 12px}
+  .teach__size{grid-column:1;grid-row:auto}
+  .teach__copy{padding:0 10px}
+}
 
 .toast{
   position:fixed;left:50%;bottom:26px;transform:translate(-50%,12px);z-index:30;max-width:min(92vw,520px);
