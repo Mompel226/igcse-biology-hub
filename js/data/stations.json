@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-04T07:33:30.919Z",
+  "generated": "2026-11-04T12:28:28.915Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -374,7 +374,7 @@
           "id": "spread",
           "name": "Pathogens and how they spread",
           "questions": 9,
-          "sig": "9:1ysod3v",
+          "sig": "9:sp2pfr",
           "syl": "10.1.1|10.1.1|10.1.2|10.1.2|10.1.1,10.1.2|10.1.3|10.1.3|10.1.3|10.1.3"
         },
         {
@@ -395,7 +395,7 @@
           "id": "antibodies",
           "name": "Antibodies and active immunity",
           "questions": 10,
-          "sig": "10:99znfb",
+          "sig": "10:lawqc0",
           "syl": "10.1.7|10.1.8|10.1.9|10.1.7,10.1.8,10.1.9|10.1.8,10.1.10|10.1.8|10.1.6,10.1.10|10.1.11|10.1.7,10.1.8|10.1.8"
         },
         {
@@ -409,7 +409,7 @@
           "id": "passive",
           "name": "Passive immunity",
           "questions": 8,
-          "sig": "8:1vxxuc4",
+          "sig": "8:2m3a8a",
           "syl": "10.1.13|10.1.10,10.1.13|10.1.13|10.1.6,10.1.13|10.1.13,10.1.15|10.1.13|10.1.14|10.1.10,10.1.13"
         },
         {
