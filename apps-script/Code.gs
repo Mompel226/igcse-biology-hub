@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '4 Nov 2026 — 🔬 Practicals: the Y7 cell game (KS3)';
+var SCRIPT_EDITION = '9 Nov 2026 — 🆎 My words: each pupil\'s own keyword list';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -348,6 +348,10 @@ function doPost(e) {
        Neither is lab work, so both are answered here, before anything treats this as a lab. */
     if (String(d.action || '') === 'english.save') return _englishSave_(d);
     if (String(d.action || '') === 'english.mine') return _englishMine_(d);
+    /* 🆎 My words (9 Nov 2026): the pupil's own keyword list, saved as they move a word, and asked for back with the words
+       their reflections rated. Their own only. */
+    if (String(d.action || '') === 'words.save') return _wordsSave_(d);
+    if (String(d.action || '') === 'words.mine') return _wordsMine_(d);
 
     /* The Write-Up Lab the same way (3 Oct 2026): its parts saved as a pupil works, and asked for back. */
     if (String(d.action || '') === 'writeup.save') return _writeupSave_(d);
@@ -8564,9 +8568,12 @@ var ENGLISH_COLS = [
   { h:'Practised again', w:300, note:'Sets they started again (Start again), so they could try the questions again. Nothing is lost: the counts, Sets finished, Per set and homework keep their best, and right first time stays from their FIRST round.\n\n"T3 Keywords: meanings (round 2, 5/18)" — that set is on its 2nd round, with 5 of its 18 questions done so far in this round.' },
   /* ⏱️ Homework habits (1 Oct 2026): appended, so every column above keeps its position */
   { h:'Set times', w:200, hide:true,
-    note:'When each set was first tried, and when it was first finished, as the site’s saves arrived. Kept from the first save after this column appeared; a first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' }
+    note:'When each set was first tried, and when it was first finished, as the site’s saves arrived. Kept from the first save after this column appeared; a first time is never changed. The teacher page’s ⏱️ Homework habits reads it. Not marks. Do not edit.' },
+  /* 🆎 My words (9 Nov 2026): appended, so every column above keeps its position */
+  { h:'My words', w:200, hide:true,
+    note:'The keywords this student is learning, as Bio English Lab’s My words page saves them: each word, the list it is in (do not know yet, partly know, know) and when they last moved it. The words their assessment reflections rated are read from the Student Progress Tracker, not kept here. Written by the site. Do not edit.' }
 ];
-var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11, EN_AGAIN = 12, EN_TIMES = 13;
+var EN_LAST = 8, EN_EMAIL = 10, EN_SNAP = 11, EN_AGAIN = 12, EN_TIMES = 13, EN_WORDS = 14;
 /* One letter per question, as the site writes it. Two computers disagreeing keep the better. */
 var EN_RANK = { '0':0, 't':1, 's':2, '1':3, 'f':4 };   /* untouched < tried < answer shown < right < right first time */
 var EN_SID  = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -8887,6 +8894,144 @@ function _hwIsFor_(hw, email, cls) {
 function _englishTeacherUrl_() {
   var u = _teacherPageUrl_();
   return u ? u.replace(/\?page=teachers$/, '?page=english') : '';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🆎 MY WORDS (9 Nov 2026). Daniel: "the idea is to allow them to generate and personalise the lists of keyword/flashcards",
+   from the words their reflections rated AND the words they choose while they study, not only when they reflect.
+   Bio English Lab's page #/my shows the pupil's words in three lists (do not know yet · partly know · know) and practises
+   them as flashcards; a topic's keyword list has a ＋ beside each word. Here:
+     • words.save  { token, words: { <keyword id>: [list, when, from] } }: list n (do not know yet), r (partly), y (know) or
+                   x (taken out of the list); when = seconds since 1970, the moment the pupil moved it; from = where the word
+                   first came from ("w" a topic's keyword list, "r" a reflection, later a lab). The newest move of each word
+                   wins, so two computers agree; a time in the future counts as now. Answer: the whole list.
+     • words.mine  the list kept here, and `refl`: the words their reflections rated, [[word as written, n|r|y, when (ms)]],
+                   read from the Student Progress Tracker (_mwReflections_). The page puts each word on its keyword card
+                   with the reflection's own rule (a COPY of _vocabCardIndex_/_vocabCardsFor_, harness check_vocab_lists.mjs),
+                   and the newest choice wins between a reflection and a move (Daniel, 8 Oct 2026, the tracker's word lists).
+   Kept in the ✍️ Bio English tab's last column, My words (EN_WORDS), on the pupil's one row. A pupil not on the roster
+   leaves no trace, as every save. Nothing here is a mark, and nothing reads it but the page.
+   ═══════════════════════════════════════════════════════════════════════════ */
+var MW_ID = /^[a-z0-9][a-z0-9_.:-]{0,59}$/, MW_FROM = /^[a-z0-9:._-]{0,40}$/, MW_KEEP = 1500, MW_AT_ONCE = 600;
+/* one word as stored: [list, when (s), from], or null */
+function _mwOne_(x) {
+  if (!Array.isArray(x)) return null;
+  var b = String(x[0] == null ? '' : x[0]), t = Math.floor(Number(x[1]) || 0), f = String(x[2] == null ? '' : x[2]);
+  if (!/^[nryx]$/.test(b) || !(t > 1500000000) || !MW_FROM.test(f)) return null;
+  return [b, t, f];
+}
+function _mwParse_(cell) {
+  var o = null, out = {};
+  try { o = JSON.parse(String(cell == null ? '' : cell) || '{}'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+  Object.keys(o).forEach(function (id) { var x = MW_ID.test(id) ? _mwOne_(o[id]) : null; if (x) out[id] = x; });
+  return out;
+}
+/* the newest move of each word wins; a tie keeps what is there. Returns how many changed. */
+function _mwMerge_(kept, inc) {
+  var n = 0;
+  Object.keys(inc).forEach(function (id) { if (!kept[id] || inc[id][1] > kept[id][1]) { kept[id] = inc[id]; n++; } });
+  return n;
+}
+/* never more than MW_KEEP words: the oldest words taken out of the list go first, then the oldest moves */
+function _mwTrim_(kept) {
+  var ids = Object.keys(kept);
+  if (ids.length <= MW_KEEP) return kept;
+  ids.sort(function (a, b) { return ((kept[a][0] === 'x' ? 0 : 1) - (kept[b][0] === 'x' ? 0 : 1)) || (kept[a][1] - kept[b][1]); });
+  ids.slice(0, ids.length - MW_KEEP).forEach(function (id) { delete kept[id]; });
+  return kept;
+}
+function _mwPack_(kept) {
+  var o = {}; Object.keys(kept).sort().forEach(function (id) { o[id] = kept[id]; });
+  return JSON.stringify(o);
+}
+function _wordsSave_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoSaving_(d);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var student = _studentOf_(who.email), readAt = Date.now();
+  if (!student) return _json_({ ok:false, why:'not on your teacher’s class list (' + who.email + ')' });
+  var w = d.words && typeof d.words === 'object' && !Array.isArray(d.words) ? d.words : {};
+  var ids = Object.keys(w).filter(function (k) { return MW_ID.test(k); });
+  if (ids.length > MW_AT_ONCE) return _json_({ ok:false, why:'too much at once' });
+  var inc = {}, nowS = Math.floor(Date.now() / 1000);
+  ids.forEach(function (id) { var x = _mwOne_(w[id]); if (!x) return; if (x[1] > nowS + 300) x[1] = nowS; inc[id] = x; });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
+  try {
+    student = _freshStudent_(who.email, student, readAt);
+    var sh = _englishSheet_(), r = _enRowFor_(sh, who.email, student);
+    var kept = _mwParse_(sh.getRange(r, EN_WORDS).getValue()), n = _mwMerge_(kept, inc);
+    if (n) {
+      sh.getRange(r, EN_WORDS).setValue(_mwPack_(_mwTrim_(kept)));
+      _dressRows_(sh, ENGLISH_COLS, r, 1);
+      SpreadsheetApp.flush();
+    }
+    return _json_({ ok:true, saved:n, words:kept });
+  } finally { lock.releaseLock(); }
+}
+function _wordsMine_(d) {
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoSaving_(d);
+  if (!who) return _json_({ ok:false, why:'not signed in' });
+  var out = { ok:true, onList:false, words:{}, refl:[], reflOn:false };
+  if (!_studentOf_(who.email)) return _json_(out);      /* nothing, to anyone not on the roster */
+  out.onList = true;
+  var sh = _ss_().getSheetByName(T_ENGLISH);
+  if (sh && sh.getLastRow() >= 2 && sh.getMaxColumns() >= EN_WORDS) {
+    var em = sh.getRange(2, EN_EMAIL, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < em.length; i++) if (_cleanEmail_(em[i][0]) === who.email) { out.words = _mwParse_(sh.getRange(i + 2, EN_WORDS).getValue()); break; }
+  }
+  var R = _mwReflections_(who.email);
+  out.refl = R.refl; out.reflOn = R.on;
+  return _json_(out);
+}
+/* The words this pupil's reflections rated, the newest rating of each: { on, refl: [[word as written, n|r|y, when (ms)]] }.
+   The fold is My assessments' own (the reflection's 4_StudentDashboardHTML.gs _maWords_): every row of theirs in the
+   Student Progress Tracker's tabs that hold pupils' rows (Class of NNNN and TEST, the reflection's _isTrackerDataTab_),
+   oldest AssessmentDate first, so a later reflection's rating of a word replaces an earlier one, and inside one reflection
+   "didn't know" is written over "partly", "partly" over "knew". Read by heading: the headings, the Email column, then the
+   date and VocabDetailJSON cells of this pupil's rows only. Kept ten minutes per pupil (a reflection handed in shows within
+   ten minutes). on:false, and nothing kept, when there is no tracker (TRACKER_ID) or it cannot be read. Read only. */
+function _mwReflections_(email) {
+  var out = { on:false, refl:[] }, cache = null, key = 'MWR1_' + email, id = '';
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  if (cache) { try { var hit = cache.get(key); if (hit) return JSON.parse(hit); } catch (e) {} }
+  try { id = _trackerId_(); } catch (e) { id = ''; }
+  if (!id) return out;
+  var rows = [];
+  try {
+    SpreadsheetApp.openById(id).getSheets().forEach(function (sh) {
+      var name = sh.getName();
+      if (!/^Class of \d{4}$/.test(name) && name !== 'TEST') return;
+      var last = sh.getLastRow(), lc = sh.getLastColumn();
+      if (last < 2 || lc < 1) return;
+      var head = sh.getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h == null ? '' : h).trim(); });
+      var cE = head.indexOf('Email'), cD = head.indexOf('AssessmentDate'), cV = head.indexOf('VocabDetailJSON');
+      if (cE < 0 || cV < 0) return;
+      var em = sh.getRange(2, cE + 1, last - 1, 1).getValues();
+      for (var i = 0; i < em.length; i++) {
+        if (_cleanEmail_(em[i][0]) !== email) continue;
+        var vd = null, raw = sh.getRange(i + 2, cV + 1).getValue();
+        try { vd = raw ? JSON.parse(String(raw)) : null; } catch (eJ) { vd = null; }
+        if (!vd || typeof vd !== 'object') continue;
+        var dt = cD >= 0 ? sh.getRange(i + 2, cD + 1).getValue() : '';
+        rows.push({ vd: vd, ts: dt instanceof Date ? dt.getTime() : (Date.parse(String(dt)) || 0) });
+      }
+    });
+  } catch (e) { return out; }
+  var byTerm = {};
+  rows.sort(function (x, y) { return x.ts - y.ts; }).forEach(function (a) {
+    [['knew', 'y'], ['partial', 'r'], ['didntKnow', 'n']].forEach(function (pair) {
+      (Array.isArray(a.vd[pair[0]]) ? a.vd[pair[0]] : []).forEach(function (t) {
+        var k = String(t == null ? '' : t).toLowerCase().trim();
+        if (k) byTerm[k] = [String(t).trim().slice(0, 80), pair[1], a.ts];
+      });
+    });
+  });
+  out = { on:true, refl: Object.keys(byTerm).slice(0, 2000).map(function (k) { return byTerm[k]; }) };
+  if (cache) { try { cache.put(key, JSON.stringify(out), 600); } catch (e) {} }
+  return out;
 }
 
 /* The English tab read once, in the shape _hwScoreOne_ reads a lab's tab. No tab yet is NOT a

@@ -2769,7 +2769,7 @@ var BOOT = __BOOT__;
     });
     var s = r1 ? r1.s : '';
     return { s:s, checks:checks, rounds:x.r[x.r.length-1].n, later: laterRight && s!=='f' && s!=='1' && s!=='d', wrong:wrong,
-             tried: x.r.some(function(r){ return (r.c||0)>0 || r.s; }) };
+             tried: x.r.some(function(r){ return (r.c||0)>0 || r.s; }), a: r1 ? (r1.a||0) : 0, z: r1 ? (r1.z||0) : 0 };
   }
   var PR_SAY = { f:'right at the first check', '1':'right after more checks', t:'tried, not right yet', d:'answer written, or a bench experiment finished', '':'not checked in round 1' };
   function prSq(s){ return s==='f' ? 'f' : s==='1' ? 'm' : s==='t' ? 't' : s==='d' ? 'd' : 'z'; }
@@ -2822,6 +2822,25 @@ var BOOT = __BOOT__;
     var parts = []; cols.forEach(function(c){ if (parts.indexOf(c.part)<0) parts.push(c.part); });
     if (prState.part!=='all' && parts.indexOf(+prState.part)<0) prState.part='all';
     var partName = {}; (P.parts||[]).forEach(function(x){ partName[x.n]=x.title; });
+    /* a test part (4 Nov 2026, the Y7 cell game's final check: one go, marked at the end; its manifest part carries test):
+       its score, the squares right at the first check of all its marked squares, and its time, from its first moment (a
+       task square marks the start) to its last check, both read from each square's first round */
+    var testParts = (P.parts||[]).filter(function(x){ return x.test; }).map(function(x){ return x.n; });
+    function prTest(n, rec){
+      var got=0, of=0, t0=0, t1=0, done=false;
+      cols.forEach(function(c){
+        if (c.group || c.part!==n) return;
+        var task = c.q.kind==='task', x = prRead(rec&&rec.q?rec.q[c.q.id]:null);
+        if (!task) of++;
+        if (!x || !x.tried) return;
+        if (x.a && (!t0 || x.a<t0)) t0 = x.a;
+        if (x.z>t1) t1 = x.z;
+        if (!task) { done = true; if (x.s==='f') got++; }
+      });
+      return { done:done, started:!!t0, got:got, of:of, secs: done && t0 && t1>t0 ? t1-t0 : 0 };
+    }
+    function prDur(s){ var m = Math.round(s/60); return s<60 ? s+' s' : m<60 ? m+' min' : Math.floor(m/60)+' h '+(m%60)+' min'; }
+    function prTestSay(t){ return t.done ? t.got+'/'+t.of+' · '+prDur(t.secs) : t.started ? 'started' : '·'; }
     $('view').innerHTML =
       '<div class="bar2">'+
         (PR.length>1 ? '<div class="fld"><label for="prp">Practical</label><select id="prp">'+PR.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===prState.id?' selected':'')+'>'+esc(p.title)+'</option>'; }).join('')+'</select></div>' : '')+
@@ -2864,6 +2883,7 @@ var BOOT = __BOOT__;
     function paint(){
       var q = prState.q.trim().toLowerCase();
       var vcols = cols.filter(function(c){ return prState.part==='all' || String(c.part)===String(prState.part); });
+      var vtests = testParts.filter(function(n){ return prState.part==='all' || String(n)===String(prState.part); });
       var list = STUD.filter(function(s){ return (prState.cls==='all' || s.cls===prState.cls) && (!q || (s.name||'').toLowerCase().indexOf(q)>=0); });
       /* the summary and the stuck list count the students in view */
       var rows = list.map(function(s){
@@ -2888,6 +2908,7 @@ var BOOT = __BOOT__;
         '<th class="en sum" data-tip="Of the questions tried, the share right at the first check of round 1">Right 1st</th>'+
         '<th class="en sum" data-tip="Every check and every choice, in every round, in the parts shown">Checks</th>'+
         '<th class="en" data-tip="When their page last saved">Saved</th>'+
+        vtests.map(function(n){ return '<th class="en sum" data-tip="'+esc('Part '+n+' · '+(partName[n]||'test')+': the marks right, out of all its marks (one go, marked at the end), and the time from its start to its last answer')+'">'+esc(partName[n]||'Test')+'</th>'; }).join('')+
         vcols.map(function(c){ var f = c.part!==lastPart; lastPart=c.part;
           return '<th class="pq'+(f?' pfirst':'')+'" data-tip="'+esc('Part '+c.part+' · '+c.title)+'">'+esc(c.short)+'<span class="lt">'+(f?'P'+c.part:'&nbsp;')+'</span></th>'; }).join('')+'</tr>';
       var body = rows.map(function(r, i){
@@ -2895,6 +2916,7 @@ var BOOT = __BOOT__;
         return '<tr><td class="name"><div class="nm"><a href="#" class="prwho" data-i="'+i+'">'+esc(r.s.name||r.s.email)+'</a></div><div class="cl">'+esc(r.s.cls||'')+'</div></td>'+
           '<td class="cell">'+(r.rec?r.tried:'·')+'</td><td class="cell">'+(r.tried?r0(100*r.share)+'%':'·')+'</td><td class="cell">'+(r.rec?r.checks:'·')+'</td>'+
           '<td class="cell prwhen">'+(r.rec?esc(prAgo(r.rec.at)):'<span data-tip="Nothing saved yet: not signed in on the practical page, or not started">·</span>')+'</td>'+
+          vtests.map(function(n){ var t = prTest(n, r.rec); return '<td class="cell prtest">'+(t.done?'<b>'+t.got+'/'+t.of+'</b> · '+esc(prDur(t.secs)):esc(prTestSay(t)))+'</td>'; }).join('')+
           r.cells.map(function(o, j){ var f = vcols[j].part!==lp; lp=vcols[j].part; return '<td class="pc'+(f?' pfirst':'')+'">'+o.html+'</td>'; }).join('')+'</tr>';
       }).join('');
       $('prlist').innerHTML = '<div class="hmcard"><div class="hmwrap"><table class="hm"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
@@ -2973,7 +2995,8 @@ var BOOT = __BOOT__;
         if (c.group) { if (!o.tried) return; }
         else if (!o.x) return;
         any = true;
-        if (c.part!==lastPart) { lastPart=c.part; html += '<div class="prpart">Part '+esc(c.part)+(partName[c.part]?' · '+esc(partName[c.part]):'')+'</div>'; }
+        if (c.part!==lastPart) { lastPart=c.part; var tt = testParts.indexOf(c.part)>=0 ? prTest(c.part, r.rec) : null;
+          html += '<div class="prpart">Part '+esc(c.part)+(partName[c.part]?' · '+esc(partName[c.part]):'')+(tt&&tt.done?' · '+esc(tt.got+' of '+tt.of+' marks · '+prDur(tt.secs)):tt&&tt.started?' · started':'')+'</div>'; }
         var say;
         if (c.group) say = o.tried+' done, '+o.good+' right at the first check';
         else {
