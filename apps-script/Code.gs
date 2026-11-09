@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '9 Nov 2026 — 🆎 My words: each pupil\'s own keyword list';
+var SCRIPT_EDITION = '9 Nov 2026 — 🆎 My words: quicker, safer saves';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -350,8 +350,11 @@ function doPost(e) {
     if (String(d.action || '') === 'english.mine') return _englishMine_(d);
     /* 🆎 My words (9 Nov 2026): the pupil's own keyword list, saved as they move a word, and asked for back with the words
        their reflections rated. Their own only. */
-    if (String(d.action || '') === 'words.save') return _wordsSave_(d);
-    if (String(d.action || '') === 'words.mine') return _wordsMine_(d);
+    /* My words always answers in JSON, a failure too, so the page can read why and try again (the audit of 9 Nov 2026) */
+    if (String(d.action || '') === 'words.save' || String(d.action || '') === 'words.mine') {
+      try { return d.action === 'words.save' ? _wordsSave_(d) : _wordsMine_(d); }
+      catch (eW) { return _json_({ ok:false, why:'error: ' + String(eW).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) }); }
+    }
 
     /* The Write-Up Lab the same way (3 Oct 2026): its parts saved as a pupil works, and asked for back. */
     if (String(d.action || '') === 'writeup.save') return _writeupSave_(d);
@@ -8905,7 +8908,8 @@ function _englishTeacherUrl_() {
                    x (taken out of the list); when = seconds since 1970, the moment the pupil moved it; from = where the word
                    first came from ("w" a topic's keyword list, "r" a reflection, later a lab). The newest move of each word
                    wins, so two computers agree; a time in the future counts as now. Answer: the whole list.
-     • words.mine  the list kept here, and `refl`: the words their reflections rated, [[word as written, n|r|y, when (ms)]],
+     • words.mine  the list kept here, `moves`: the words they moved on My assessments (part 3, from the tracker's hidden tab
+                   "🆎 Word moves", which the reflection writes), and `refl`: the words their reflections rated, [[word as written, n|r|y, when (ms)]],
                    read from the Student Progress Tracker (_mwReflections_). The page puts each word on its keyword card
                    with the reflection's own rule (a COPY of _vocabCardIndex_/_vocabCardsFor_, harness check_vocab_lists.mjs),
                    and the newest choice wins between a reflection and a move (Daniel, 8 Oct 2026, the tracker's word lists).
@@ -8913,6 +8917,9 @@ function _englishTeacherUrl_() {
    leaves no trace, as every save. Nothing here is a mark, and nothing reads it but the page.
    ═══════════════════════════════════════════════════════════════════════════ */
 var MW_ID = /^[a-z0-9][a-z0-9_.:-]{0,59}$/, MW_FROM = /^[a-z0-9:._-]{0,40}$/, MW_KEEP = 1500, MW_AT_ONCE = 600;
+/* part 3 (9 Nov 2026): the moves a pupil makes on My assessments, kept by the reflection in the tracker's own hidden tab (one
+   row a pupil: Email · Words, the same [list, seconds, from] shape, from "a"); read here with the reflections' words */
+var MW_MOVES_TAB = '🆎 Word moves';
 /* one word as stored: [list, when (s), from], or null */
 function _mwOne_(x) {
   if (!Array.isArray(x)) return null;
@@ -8933,17 +8940,32 @@ function _mwMerge_(kept, inc) {
   Object.keys(inc).forEach(function (id) { if (!kept[id] || inc[id][1] > kept[id][1]) { kept[id] = inc[id]; n++; } });
   return n;
 }
-/* never more than MW_KEEP words: the oldest words taken out of the list go first, then the oldest moves */
+/* never more than MW_KEEP words, and never a cell near Google's 50,000-character limit (MW_CELL; the audit of 9 Nov 2026: a
+   list padded with made-up ids would otherwise stop every later save): the oldest words taken out of the list go first, then
+   the oldest moves */
+var MW_CELL = 45000;
 function _mwTrim_(kept) {
   var ids = Object.keys(kept);
-  if (ids.length <= MW_KEEP) return kept;
   ids.sort(function (a, b) { return ((kept[a][0] === 'x' ? 0 : 1) - (kept[b][0] === 'x' ? 0 : 1)) || (kept[a][1] - kept[b][1]); });
-  ids.slice(0, ids.length - MW_KEEP).forEach(function (id) { delete kept[id]; });
+  var drop = Math.max(0, ids.length - MW_KEEP);
+  ids.slice(0, drop).forEach(function (id) { delete kept[id]; });
+  var len = _mwPack_(kept).length, i = drop;
+  while (len > MW_CELL && i < ids.length) { len -= JSON.stringify(ids[i]).length + JSON.stringify(kept[ids[i]]).length + 2; delete kept[ids[i]]; i++; }
   return kept;
 }
 function _mwPack_(kept) {
   var o = {}; Object.keys(kept).sort().forEach(function (id) { o[id] = kept[id]; });
   return JSON.stringify(o);
+}
+/* Where each address's rows are on a sheet, { email: [row, …] }: the Email column read in one go (always the sheet as it
+   is now: a kept copy could point at rows that have moved). */
+function _mwRows_(sh, col) {
+  var map = {}, last = sh.getLastRow();
+  if (last >= 2) {
+    var v = sh.getRange(2, col, last - 1, 1).getValues();
+    for (var i = 0; i < v.length; i++) { var em = _cleanEmail_(v[i][0]); if (em) (map[em] = map[em] || []).push(i + 2); }
+  }
+  return map;
 }
 function _wordsSave_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
@@ -8960,64 +8982,72 @@ function _wordsSave_(d) {
   try { lock.waitLock(8000); } catch (e) { return _json_({ ok:false, why:'busy — it will try again' }); }
   try {
     student = _freshStudent_(who.email, student, readAt);
-    var sh = _englishSheet_(), r = _enRowFor_(sh, who.email, student);
+    var sh = _englishSheet_(), lastBefore = sh.getLastRow(), r = _enRowFor_(sh, who.email, student);
     var kept = _mwParse_(sh.getRange(r, EN_WORDS).getValue()), n = _mwMerge_(kept, inc);
     if (n) {
       sh.getRange(r, EN_WORDS).setValue(_mwPack_(_mwTrim_(kept)));
-      _dressRows_(sh, ENGLISH_COLS, r, 1);
+      if (r > lastBefore) _dressRows_(sh, ENGLISH_COLS, r, 1);   /* a row made just now is dressed once (not at every save: the audit) */
       SpreadsheetApp.flush();
     }
-    return _json_({ ok:true, saved:n, words:kept });
+    return _json_({ ok:true, saved:n, words:kept, now: Math.floor(Date.now() / 1000) });
   } finally { lock.releaseLock(); }
 }
 function _wordsMine_(d) {
   if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
   var who = _whoSaving_(d);
   if (!who) return _json_({ ok:false, why:'not signed in' });
-  var out = { ok:true, onList:false, words:{}, refl:[], reflOn:false };
+  var out = { ok:true, onList:false, words:{}, refl:[], reflOn:false, now: Math.floor(Date.now() / 1000) };
   if (!_studentOf_(who.email)) return _json_(out);      /* nothing, to anyone not on the roster */
   out.onList = true;
   var sh = _ss_().getSheetByName(T_ENGLISH);
   if (sh && sh.getLastRow() >= 2 && sh.getMaxColumns() >= EN_WORDS) {
-    var em = sh.getRange(2, EN_EMAIL, sh.getLastRow() - 1, 1).getValues();
-    for (var i = 0; i < em.length; i++) if (_cleanEmail_(em[i][0]) === who.email) { out.words = _mwParse_(sh.getRange(i + 2, EN_WORDS).getValue()); break; }
+    /* the Email column, then only the pupil's own row's My words cell (not the whole column of every pupil's lists) */
+    (_mwRows_(sh, EN_EMAIL)[who.email] || []).forEach(function (r) { _mwMerge_(out.words, _mwParse_(sh.getRange(r, EN_WORDS).getValue())); });
   }
   var R = _mwReflections_(who.email);
   out.refl = R.refl; out.reflOn = R.on;
+  out.moves = R.moves || {};   /* part 3: the moves made on My assessments; the page joins them, the newest of each word winning */
   return _json_(out);
 }
 /* The words this pupil's reflections rated, the newest rating of each: { on, refl: [[word as written, n|r|y, when (ms)]] }.
    The fold is My assessments' own (the reflection's 4_StudentDashboardHTML.gs _maWords_): every row of theirs in the
    Student Progress Tracker's tabs that hold pupils' rows (Class of NNNN and TEST, the reflection's _isTrackerDataTab_),
    oldest AssessmentDate first, so a later reflection's rating of a word replaces an earlier one, and inside one reflection
-   "didn't know" is written over "partly", "partly" over "knew". Read by heading: the headings, the Email column, then the
-   date and VocabDetailJSON cells of this pupil's rows only. Kept ten minutes per pupil (a reflection handed in shows within
-   ten minutes). on:false, and nothing kept, when there is no tracker (TRACKER_ID) or it cannot be read. Read only. */
+   "didn't know" is written over "partly", "partly" over "knew". Also `moves` (part 3, 9 Nov 2026): EVERY row of this pupil in
+   the hidden tab MW_MOVES_TAB (two reflection copies can each have made one), joined, the newest move of each word winning.
+   Read by heading; each tab's Email column in one go, then ONE read per row of this pupil's, from the date to the
+   VocabDetailJSON column (the audit of 9 Nov 2026: before, two reads per row).
+   Kept two minutes per pupil. on:false, and nothing kept, when there is no tracker (TRACKER_ID) or it cannot be read. */
 function _mwReflections_(email) {
-  var out = { on:false, refl:[] }, cache = null, key = 'MWR1_' + email, id = '';
+  var out = { on:false, refl:[], moves:{} }, cache = null, key = 'MWR2_' + email, id = '';
   try { cache = CacheService.getScriptCache(); } catch (e) {}
   if (cache) { try { var hit = cache.get(key); if (hit) return JSON.parse(hit); } catch (e) {} }
   try { id = _trackerId_(); } catch (e) { id = ''; }
   if (!id) return out;
-  var rows = [];
+  var rows = [], moves = {};
   try {
     SpreadsheetApp.openById(id).getSheets().forEach(function (sh) {
       var name = sh.getName();
+      if (name === MW_MOVES_TAB) {
+        (_mwRows_(sh, 1)[email] || []).forEach(function (r) { _mwMerge_(moves, _mwParse_(sh.getRange(r, 2).getValue())); });
+        return;
+      }
       if (!/^Class of \d{4}$/.test(name) && name !== 'TEST') return;
       var last = sh.getLastRow(), lc = sh.getLastColumn();
       if (last < 2 || lc < 1) return;
       var head = sh.getRange(1, 1, 1, lc).getValues()[0].map(function (h) { return String(h == null ? '' : h).trim(); });
       var cE = head.indexOf('Email'), cD = head.indexOf('AssessmentDate'), cV = head.indexOf('VocabDetailJSON');
       if (cE < 0 || cV < 0) return;
-      var em = sh.getRange(2, cE + 1, last - 1, 1).getValues();
-      for (var i = 0; i < em.length; i++) {
-        if (_cleanEmail_(em[i][0]) !== email) continue;
-        var vd = null, raw = sh.getRange(i + 2, cV + 1).getValue();
+      var mine = _mwRows_(sh, cE + 1)[email] || [];
+      var c0 = Math.min(cE, cV, cD >= 0 ? cD : cV), c1 = Math.max(cE, cV, cD >= 0 ? cD : cV);
+      mine.forEach(function (r) {
+        var v = sh.getRange(r, c0 + 1, 1, c1 - c0 + 1).getValues()[0];
+        var vd = null, raw = v[cV - c0];
         try { vd = raw ? JSON.parse(String(raw)) : null; } catch (eJ) { vd = null; }
-        if (!vd || typeof vd !== 'object') continue;
-        var dt = cD >= 0 ? sh.getRange(i + 2, cD + 1).getValue() : '';
+        if (!vd || typeof vd !== 'object') return;
+        var dt = cD >= 0 ? v[cD - c0] : '';
         rows.push({ vd: vd, ts: dt instanceof Date ? dt.getTime() : (Date.parse(String(dt)) || 0) });
-      }
+      });
     });
   } catch (e) { return out; }
   var byTerm = {};
@@ -9029,8 +9059,8 @@ function _mwReflections_(email) {
       });
     });
   });
-  out = { on:true, refl: Object.keys(byTerm).slice(0, 2000).map(function (k) { return byTerm[k]; }) };
-  if (cache) { try { cache.put(key, JSON.stringify(out), 600); } catch (e) {} }
+  out = { on:true, refl: Object.keys(byTerm).slice(0, 2000).map(function (k) { return byTerm[k]; }), moves: moves };
+  if (cache) { try { cache.put(key, JSON.stringify(out), 120); } catch (e) {} }
   return out;
 }
 

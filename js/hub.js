@@ -168,9 +168,18 @@
     return 'linear-gradient(to right,transparent ' + (100 * m.underWords[0] / w).toFixed(2) +
            '%,#000 ' + (100 * m.underWords[1] / w).toFixed(2) + '%)';
   }
-  function orbitPart(o, id) {
+  function orbitPart(o, id, stand) {
     if (!o || !o.rx) return '';
     var secs = o.seconds || 7, dot = o.r || 6, out = '';
+    /* `stand` (Reduce motion): each electron stands on its ring, a third of the way round from the last (Daniel, 9 Nov
+       2026: "Nothing should disappear") */
+    if (stand) return [0, 60, 120].map(function (deg, i) {
+      var a = Math.PI * (1 + 2 * i / 3), x = (o.rx * Math.cos(a)).toFixed(1), y = (o.ry * Math.sin(a)).toFixed(1);
+      return '<g transform="translate(' + o.cx + ' ' + o.cy + ') rotate(' + deg + ')"><g transform="translate(' + x + ' ' + y + ')">' +
+        '<circle r="' + (dot * 3.4) + '" fill="' + esc(o.glow || o.colour) + '" opacity=".16"/>' +
+        '<circle r="' + (dot * 1.9) + '" fill="' + esc(o.glow || o.colour) + '" opacity=".24"/>' +
+        '<circle r="' + dot + '" fill="' + esc(o.colour) + '"/></g></g>';
+    }).join('');
     /* the same three rings the crest carries, and one electron on each, evenly spread */
     [0, 60, 120].forEach(function (deg, i) {
       var ref = 'o-' + id + '-' + i;
@@ -262,11 +271,13 @@
   function motion(d) {
     var m = d.motion;
     if (!m) return '';
-    if (still && !m.draw) return '';        /* less movement: no lights or orbits, but a mark still stands */
-    var body = tracePart(m.trace, d.id) + orbitPart(m.orbits, d.id) + drawPart(m.draw, d.id);
+    /* less movement: no sweeping light (the mark it lights stands in the picture), the electrons stand on their rings,
+       and a drawn mark stands finished */
+    var stand = still && !m.draw;
+    var body = stand ? orbitPart(m.orbits, d.id, true) : tracePart(m.trace, d.id) + orbitPart(m.orbits, d.id) + drawPart(m.draw, d.id);
     if (!body) return '';
     var p = plateOf(d), mk = fadeMask(m, p[0], d.id);
-    return '<svg class="door__motion' + (m.draw ? ' door__motion--still' : '') + '" viewBox="0 0 ' + p[0] + ' ' + p[1] + '" ' +
+    return '<svg class="door__motion' + (m.draw || stand ? ' door__motion--still' : '') + '" viewBox="0 0 ' + p[0] + ' ' + p[1] + '" ' +
       'preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false" ' +
       'xmlns:xlink="http://www.w3.org/1999/xlink">' +
       mk[0] + '<g' + mk[1] + '>' + body + '</g></svg>';
