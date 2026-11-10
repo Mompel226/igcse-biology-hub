@@ -444,6 +444,17 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .mvrow select{max-width:150px}
 .card--mv{flex-wrap:wrap}
 .accon{color:var(--good);font-weight:600}
+/* the Accommodation made plain (Daniel, 10 Nov 2026: "where do I choose this accommodation? … make it very, very obvious …
+   right now I didn't know about this, and it's not clear for teachers anywhere"): a box at the top of Students, and the
+   button on every card in the page's green */
+.accbox{border-color:var(--good)}
+.accbox .coh__t{color:var(--good)}
+.accl{margin:4px 0 8px;padding-left:20px;color:var(--dim);font-size:13px;line-height:1.55}
+.accl li{margin:2px 0}
+.accn{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.act.acc{color:var(--good);border-color:var(--good)}
+.act.acc.ok{color:var(--ink)}
+.accb-demo{color:var(--good);font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--good);border-radius:999px;padding:3px 8px;white-space:nowrap}
 /* a pupil's card holds four buttons (Copy, Open tracker, Move, Accommodation; 8 Oct 2026): when they do not fit beside the
    name they take a row of their own, so the name never shrinks to nothing (the audit: names ran one letter per line) */
 .cards--wide .card{flex-wrap:wrap}
@@ -648,7 +659,7 @@ var BOOT = __BOOT__;
       note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. A lab’s % is their best, in any round: practising a station again (a new round) never lowers anything. Hover over any number for how it is worked out. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
-      note:'Copy gives a link to that pupil’s tracker: only a teacher or the pupil can open it. Accommodation is extra support for a pupil who needs it: press it on their card. With it on, when they give two different wrong answers to a question, the page explains why their answer is wrong (in the labs’ multiple-choice questions, most Bio English cards and the Write-Up tests), and Bio English can show keyword meanings in Korean or Chinese (the pupil chooses 한국어 or 中文). It starts the next time their page loads. The Students tab keeps it in its Accommodation column (Yes, or empty).' },
+      note:'Copy gives a link to that pupil’s tracker: only a teacher or the pupil can open it. The Accommodation box at the top says what it does and who has it.' },
     homework:{ label:'Set homework', accent:'#F5A623', accentL:'#B45309', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets, Write-Up Lab parts — say who it is for and when it is due.',
       note:'Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
@@ -1023,6 +1034,18 @@ var BOOT = __BOOT__;
         return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+' · released by '+esc(x.by||'a teacher')+(x.at?' on '+esc(x.at):'')+'</span></div>'; }).join('')+'</details>';
     return h+'</section>';
   }
+  /* the Accommodation box, first on Students (10 Nov 2026): what it is, how to give it, what it changes, and who has it
+     now (a name finds that pupil's card) */
+  function accBlock(STUD){
+    var on=STUD.filter(function(s){ return s.acc && !isLeft(s.cls); });
+    return '<section class="held accbox" id="accbox"><div class="coh"><span class="coh__t">Accommodation: extra support for a pupil</span><span class="n">'+on.length+'</span></div>'+
+      '<p class="card__d" style="margin:0">To give it, find the pupil below and press <span class="accb-demo">Accommodation: off</span> on their card; press it again to take it away. With it on:</p>'+
+      '<ul class="accl"><li>after two different wrong answers to a question, the page explains why their answer is wrong (the labs’ multiple-choice questions, most Bio English cards and the Write-Up tests);</li>'+
+      '<li>in Bio English Lab they can show each keyword’s meaning in 한국어 or 中文 as well as in English, on the flashcards and the keyword pages (they choose).</li></ul>'+
+      '<p class="card__d" style="margin:0 0 8px">It starts the next time their page loads. The Students tab of this spreadsheet keeps it in its Accommodation column (Yes, or empty).</p>'+
+      (on.length ? '<div class="accn"><span class="card__d">On now:</span>'+on.map(function(s){ return '<button class="chip" data-accfind="'+esc(s.name||s.email)+'">'+esc((s.name||s.email)+(s.cls?' · '+s.cls:''))+'</button>'; }).join('')+'</div>'
+        : '<p class="card__d" style="margin:0">No pupil has it yet.</p>')+'</section>';
+  }
   function vStudents(dir, base){
     var STUD = dir.students||[];
     if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
@@ -1052,10 +1075,10 @@ var BOOT = __BOOT__;
         '<button class="act" data-mv="'+esc(s.email)+'" aria-expanded="'+(open?'true':'false')+'">Move</button>'+
         /* Accommodation (Daniel, 8 Oct 2026): this pupil's pages explain the answer they chose after a SECOND wrong try, and
            Bio English offers keyword meanings in Korean or Chinese (the pupil chooses). Everyone else: as before. */
-        '<button class="act'+(s.acc?' ok':'')+'" data-acc="'+esc(s.email)+'" aria-pressed="'+(s.acc?'true':'false')+'" data-tip="'+
-          (s.acc?'Accommodation is on: when this pupil gives two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also see keyword meanings in Korean or Chinese. Press to turn it off.'
-                :'Accommodation is off. Turn it on for a pupil who needs extra support: when they give two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also see keyword meanings in Korean or Chinese.')+
-          '">Accommodation'+(s.acc?': on':'')+'</button></div>'+
+        '<button class="act acc'+(s.acc?' ok':'')+'" data-acc="'+esc(s.email)+'" aria-pressed="'+(s.acc?'true':'false')+'" data-tip="'+
+          (s.acc?'Accommodation is on: when this pupil gives two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also show keyword meanings in Korean or Chinese, on the flashcards and the keyword pages. Press to turn it off.'
+                :'Accommodation is off. Turn it on for a pupil who needs extra support: when they give two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also show keyword meanings in Korean or Chinese, on the flashcards and the keyword pages.')+
+          '">Accommodation: '+(s.acc?'on':'off')+'</button></div>'+
         (open?'<div class="mvrow"><label class="card__d" for="mv-to">Move to</label><select id="mv-to"><option value="">Choose a class…</option>'+
           (dir.classes||[]).filter(function(c){ return c!==s.cls; }).map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('')+
           (isLeft(s.cls)?'':'<option value="__left">Left: in no class</option>')+
@@ -1125,10 +1148,12 @@ var BOOT = __BOOT__;
           '<span class="pill--past">left · records kept</span><span class="n">'+gone.length+'</span></div>'+
           '<div class="cards cards--wide">'+gone.map(card).join('')+'</div></section>';
       }
-      body = heldBlock() + body;   /* §held-results: first, above the classes */
+      body = heldBlock() + accBlock(STUD) + body;   /* §held-results: first, above the classes; then the Accommodation */
       if (stState.msg) body='<div class="msg '+(stState.msg.bad?'bad':'ok')+'" role="status" style="margin:0 0 12px">'+esc(stState.msg.text)+'</div>'+body;
       $('slist2').innerHTML = body;
       wireMove();
+      document.querySelectorAll('[data-accfind]').forEach(function(b){ b.addEventListener('click', function(){
+        stState.q=b.getAttribute('data-accfind'); stState.grad='all'; stState.cls='all'; vStudents(dir, base); }); });
       $('scount').textContent = shown.length+' of '+STUD.length;
     }
     /* If the remembered cohort is gone (left the school, classes renamed), the select shows

@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '9 Nov 2026 — 🆎 My words: quicker, safer saves';
+var SCRIPT_EDITION = '10 Nov 2026 — Accommodation: a box on Students';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -8075,7 +8075,7 @@ function studentMove(d) {
    written: the labs' multiple-choice questions (their other types have none); Bio English's fix, trim, mark, keyword and exam
    cards (pick and choose explain every choice to everyone already, and so do the etymology cards' notes; order, build,
    gap and sort cards have no written explanation); every Write-Up test question. A keyword card's help never shows the
-   answer in any form (labs/bio-english-lab/js/engine.js kwMeaning). Bio English also offers keyword meanings in Korean or Chinese (the pupil chooses). Off: as everyone else. It writes Yes or nothing into the pupil's
+   answer in any form (labs/bio-english-lab/js/engine.js kwMeaning). Bio English also offers keyword meanings in Korean or Chinese (the pupil chooses: the switch at the top, and since 10 Nov 2026 under each flashcard). Off: as everyone else. It writes Yes or nothing into the pupil's
    Accommodation cell (the same cell a teacher can type in); a tab Tidy up has not given that column yet gets it inserted
    right after Course id.
    Each lab page reads it when it loads (the pupil's own answer: progress, english.mine, writeup.mine). Nothing else changes:
@@ -8107,7 +8107,7 @@ function studentAccommodation(d) {
   var note = on
     ? (name || 'This pupil') + ' has the accommodation now: after a second, different wrong try, their pages explain what they got ' +
       'wrong, where an explanation is written (the labs\' multiple-choice questions, most Bio English cards, the Write-Up tests); ' +
-      'Bio English also offers keyword meanings in Korean or Chinese (they choose 한국어 or 中文). They see it the next time a page loads.'
+      'Bio English also offers keyword meanings in Korean or Chinese, on the flashcards and the keyword pages (they choose 한국어 or 中文). They see it the next time a page loads.'
     : (name || 'This pupil') + ' has no accommodation now: the pages work for them as for everyone else.';
   /* the cell is written: a directory that cannot be read now must not turn that into "could not be reached" */
   var dir = null, base = '';
