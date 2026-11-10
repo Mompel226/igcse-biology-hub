@@ -7,12 +7,12 @@
 <meta name="author" content="Dr Daniel Mompel Riera">
 <meta name="copyright" content="Dr Daniel Mompel Riera">
 <meta name="theme-color" content="#0A141C">
-<meta name="description" content="A shelf for small, free, open-source apps that teachers have built for their own classrooms — and somewhere to put yours. Everything here runs on your own machine.">
+<meta name="description" content="A shelf for small, free, open-source apps that teachers have built for their own classrooms — and somewhere to put yours.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧬</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1794221043">
+<link rel="stylesheet" href="css/hub.css?v=1794284952">
 <style>
 /* A directory, not a brochure: the grid has to stay readable at two apps and at twenty, so a card
    carries only a picture, a name, one line and what it needs. Everything else waits in a sheet
@@ -96,7 +96,7 @@
       <a class="crumb" href="index.html">Biology Hub</a>
       <span class="eyebrow">Free · open source · anyone can add one</span>
       <h1>Apps <em>teachers made</em></h1>
-      <p class="lede">Small tools teachers built for their own classrooms. Both of the ones here run on
+      <p class="lede">Small tools teachers built for their own classrooms. The two Mac apps run on
          the files <strong>iSAMS</strong> already gives you: export three reports, drop them on the app,
          and you have a seating plan or a year of birthdays in <strong>under five minutes</strong>. Free, open, and
          running on your own machine. If you have made something, it belongs here.</p>
@@ -111,7 +111,7 @@
 
       <li><a class="card" style="--ac:#2DD4BF" href="https://github.com/Mompel226/seating-plan"
              data-app="seating-plan" aria-describedby="s-seating-plan-sum">
-        <img class="card__thumb" src="assets/apps/seating-plan-card.jpg?v=1794221043" width="800" height="450" loading="lazy"
+        <img class="card__thumb" src="assets/apps/seating-plan-card.jpg?v=1794284952" width="800" height="450" loading="lazy"
              alt="A seating plan: benches of four in a room, each chair holding a card with a photograph and a name.">
         <span class="card__b">
           <span class="card__kind">Classroom</span>
@@ -124,7 +124,7 @@
 
       <li><a class="card" style="--ac:#E879F9" href="https://github.com/Mompel226/birthday-reminder"
              data-app="birthday-reminder" aria-describedby="s-birthday-sum">
-        <img class="card__thumb" src="assets/apps/birthday-calendar-card.jpg?v=1794221043" width="800" height="450" loading="lazy"
+        <img class="card__thumb" src="assets/apps/birthday-calendar-card.jpg?v=1794284952" width="800" height="450" loading="lazy"
              alt="A birthday calendar for September, with cards for today and the days after along the top.">
         <span class="card__b">
           <span class="card__kind">Pastoral</span>
@@ -146,9 +146,9 @@
     </ul>
 
     <ul class="notes">
-      <li><b>Nothing leaves your machine.</b> No account and no server — each app runs locally and talks
+      <li><b>The Mac apps: nothing leaves your machine.</b> No account and no server — each runs locally and talks
         to nobody. Your classes sit in a folder you can open, read and delete yourself.</li>
-      <li><b>You need iSAMS.</b> Three reports give the full picture — the Export Wizard file, the
+      <li><b>The Mac apps need iSAMS.</b> Three reports give the full picture — the Export Wizard file, the
         Students Simple Report and the Student ID Badge. Fewer still work, with less on the cards.
         Without iSAMS there is nowhere for either app to get your class from.</li>
       <li><b>macOS will ask the first time.</b> These are not signed by Apple, so it checks with you
@@ -168,7 +168,7 @@
 <div id="details" hidden>
 
   <div data-detail="seating-plan" data-ac="#2DD4BF" data-kind="Classroom"
-       data-shot="assets/apps/seating-plan.jpg?v=1794221043"
+       data-shot="assets/apps/seating-plan.jpg?v=1794284952"
        data-alt="A seating plan: six benches of four in a room with a whiteboard, screen and teacher's desk at the front. Each chair holds a card with a photograph, a first name and a surname."
        data-repo="https://github.com/Mompel226/seating-plan">
     <h3 data-name>Draw the room once, then <em>drag faces into chairs</em></h3>
@@ -189,7 +189,7 @@
   </div>
 
   <div data-detail="birthday-reminder" data-ac="#E879F9" data-kind="Pastoral"
-       data-shot="assets/apps/birthday-calendar.jpg?v=1794221043"
+       data-shot="assets/apps/birthday-calendar.jpg?v=1794284952"
        data-alt="A birthday calendar for September, with cards along the top for today, tomorrow and the days after, and small student cards on the dates in the month grid."
        data-repo="https://github.com/Mompel226/birthday-reminder">
     <h3 data-name>A window that <em>finds you</em>, in the morning</h3>
@@ -232,9 +232,41 @@
   </div>
 </dialog>
 
+<script src="js/local.js?v=1794284952"></script>
 <script>
 (function(){
   "use strict";
+
+  /* The school's own apps (js/local.js `apps`; Quiz Hall at NLCS, 10 Nov 2026): a card each before "Add yours",
+     opening the app itself in the same tab. The open edition's local.js has none, so its shelf stays as it was. Built
+     from words, never from HTML, so local.js cannot put markup on the page by mistake. */
+  (function(){
+    var mine = ((window.HUB_LOCAL || {}).apps || []).filter(function(x){ return x && x.url && x.name; });
+    var grid = document.querySelector('.grid');
+    if (!mine.length || !grid) return;
+    var addLi = grid.querySelector('.card--add'); addLi = addLi && addLi.parentNode;
+    function make(tag, cls, text){ var n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n; }
+    mine.forEach(function(x){
+      var a = make('a', 'card'); a.href = x.url; a.style.setProperty('--ac', x.accent || '#4FC3F7');
+      if (x.pic){ var img = make('img', 'card__thumb'); img.src = x.pic; img.width = 800; img.height = 450; img.loading = 'lazy'; img.alt = x.alt || ''; a.appendChild(img); }
+      var b = make('span', 'card__b');
+      b.appendChild(make('span', 'card__kind', x.kind || ''));
+      b.appendChild(make('h2', 'card__n', x.name));
+      b.appendChild(make('span', 'card__s', x.sum || ''));
+      var needs = make('span', 'needs');
+      (x.needs || []).forEach(function(t){ needs.appendChild(make('span', 'need', t)); });
+      if (x.warn) needs.appendChild(make('span', 'need need--warn', x.warn));
+      b.appendChild(needs);
+      b.appendChild(make('span', 'card__more', x.more || 'Open \u2192'));
+      a.appendChild(b);
+      var li = make('li'); li.appendChild(a);
+      grid.insertBefore(li, addLi || null);
+    });
+    var count = document.getElementById('count');
+    var mac = document.querySelectorAll('.card[data-app]:not([data-app="add"])').length;
+    if (count) count.textContent = (mac + mine.length) + ' apps \u00b7 ' + mac + ' for macOS, ' + (mine.length === 1 ? 'one' : mine.length) + ' on this website';
+  })();
+
   var dlg = document.getElementById('sheet');
   if (!dlg || typeof dlg.showModal !== 'function') return;   /* no dialog: cards stay plain links */
 
