@@ -170,6 +170,15 @@ input::placeholder{color:var(--mute)}
 .heldr{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:8px 0;border-top:1px solid var(--line2)}
 .heldr .heldn{font-weight:600;min-width:160px}.heldr .card__d{flex:1 1 220px;margin:0}
 .held details{margin-top:10px}.held summary{cursor:pointer;color:var(--mute);font:500 11px/1.3 var(--mono)}
+/* §40.248: a class's line in Waiting for you carries its 🙈 Hide all; the hidden ones fold under "Hidden by you" */
+.heldch{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.act.hh{color:var(--mute)}
+/* the years on Students fold (Daniel, 10 Nov 2026): the year's line is a button; a folded year shows its line only */
+.cohf{width:100%;background:none;border:0;border-bottom:1px solid var(--line2);border-radius:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.cohf:hover .coh__t{text-decoration:underline;text-underline-offset:4px}
+.cohf:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.cohf__i{font:400 20px/1 var(--serif);color:var(--dim);min-width:18px;align-self:center}
+.grp--shut .coh{margin-bottom:0}
 .coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line2)}
 .coh__t{font:400 21px/1 var(--serif);color:var(--chalk)}
 .pill--yg{font:600 10px/1 var(--mono);color:var(--yg-ink);background:var(--yg-bg);border:1px solid var(--yg-edge);padding:5px 9px;border-radius:999px}
@@ -1020,19 +1029,46 @@ var BOOT = __BOOT__;
   function heldBlock(){
     if (stHeld === undefined) return '';
     if (stHeld === null) return '<section class="held"><div class="coh"><span class="coh__t">🕓 Waiting for you</span></div><p class="card__d">The Student Progress Tracker could not be read just now, so the results waiting for you are not shown. Press ↻ Refresh in a moment.</p></section>';
-    var L = stHeld.list || [], R = stHeld.recent || [];
-    if (!L.length && !R.length) return '';
+    var L = stHeld.list || [], R = stHeld.recent || [], H = stHeld.hidden || [];
+    if (!L.length && !R.length && !H.length) return '';
+    var row = function(x, acts){ return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+(x.what?' · '+esc(x.what):'')+(x.since?' · held since '+esc(x.since):'')+'</span>'+acts+'</div>'; };
     var byC = {}, h = '<section class="held" id="held"><div class="coh"><span class="coh__t">🕓 Waiting for you</span><span class="n">'+L.length+'</span></div>';
     L.forEach(function(x){ (byC[x.cls||'—']=byC[x.cls||'—']||[]).push(x); });
+    /* §40.248 (Daniel, 10 Nov 2026): each test's spreadsheet says who sees its students (their class's teachers and the ALL
+       line of 👥 Classes and teachers); 🙈 Hide takes results off this teacher's list only */
     h += L.length ? '<p class="card__d" style="margin:0">These students have marks from you but have not finished the reflection, so they see nothing of this test yet. '+
         'Talk with the student first, then press 🔓 Release: their My assessments page shows the result.</p>'+
-      Object.keys(byC).sort(cmpClass).map(function(c){ return '<div class="heldc"><b>'+esc(c)+'</b>'+byC[c].map(function(x){
-        return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+(x.what?' · '+esc(x.what):'')+(x.since?' · held since '+esc(x.since):'')+'</span>'+
-          '<button class="act" data-rel="'+esc(x.email)+'" data-aid="'+esc(x.aid)+'">🔓 Release</button></div>'; }).join('')+'</div>'; }).join('')
+        '<p class="card__d" style="margin:6px 0 0">You see the students of your own classes: the 👥 Classes and teachers tab of each test’s spreadsheet decides (their class’s teachers, and the ALL line). '+
+        'A class that does not do the reflection? Press 🙈 Hide: they leave your list only, and other teachers still see them.</p>'+
+      Object.keys(byC).sort(cmpClass).map(function(c){ return '<div class="heldc"><div class="heldch"><b>'+esc(c)+'</b>'+
+          '<button class="act hh" data-hhc="'+esc(c)+'">🙈 Hide all of '+esc(c)+' ('+byC[c].length+')</button></div>'+byC[c].map(function(x){
+        return row(x, '<button class="act hh" data-hh="'+esc(x.email)+'" data-aid="'+esc(x.aid)+'">🙈 Hide</button>'+
+          '<button class="act" data-rel="'+esc(x.email)+'" data-aid="'+esc(x.aid)+'">🔓 Release</button>'); }).join('')+'</div>'; }).join('')
       : '<p class="card__d" style="margin:0">Nothing is waiting for you.</p>';
+    if (H.length) h += '<details id="heldhid"'+(stState.hidOpen?' open':'')+'><summary>Hidden by you ('+H.length+')</summary>'+
+        '<p class="card__d" style="margin:6px 0 0">Only you stop seeing these. A result here is still held: the student sees nothing until a teacher releases it.</p>'+
+        H.map(function(x){ return row(x, '<span class="card__d" style="flex:0 0 auto">'+esc(x.cls||'—')+'</span><button class="act" data-hs="'+esc(x.email)+'" data-aid="'+esc(x.aid)+'">👀 Show again</button>'); }).join('')+
+        (H.length>1?'<div class="heldr"><button class="act" data-hsall="1">👀 Show all '+H.length+' again</button></div>':'')+'</details>';
     if (R.length) h += '<details><summary>Released in the last 14 days ('+R.length+')</summary>'+R.map(function(x){
         return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+' · released by '+esc(x.by||'a teacher')+(x.at?' on '+esc(x.at):'')+'</span></div>'; }).join('')+'</details>';
     return h+'</section>';
+  }
+  /* the years on Students fold (Daniel, 10 Nov 2026: "students in year should be collapsable"): a folded year shows its line
+     only. Kept on this computer; while a cohort, a class or a name is chosen, every year is open (a name found is shown). */
+  var STFOLD_KEY = 'labsTeacher.studentsFolded';
+  var stFold = (function(){ try { var o=JSON.parse(localStorage.getItem(STFOLD_KEY)||'{}'); return o&&typeof o==='object'?o:{}; } catch(e){ return {}; } })();
+  function stFiltered(){ return stState.grad!=='all' || stState.cls!=='all' || !!stState.q; }
+  function stShut(k){ return !stFiltered() && !!stFold[k]; }
+  function grpHead(k, title, pill, n){
+    if (stFiltered()) return '<div class="coh"><span class="coh__t">'+esc(title)+'</span>'+pill+'<span class="n">'+n+'</span></div>';
+    var shut=stShut(k);
+    return '<button type="button" class="coh cohf" data-fold="'+esc(k)+'" aria-expanded="'+(shut?'false':'true')+'">'+
+      '<span class="cohf__i" aria-hidden="true">'+(shut?'▸':'▾')+'</span><span class="coh__t">'+esc(title)+'</span>'+pill+'<span class="n">'+n+'</span></button>';
+  }
+  function grpSection(k, title, pill, list, card){
+    var shut=stShut(k);
+    return '<section class="grp'+(shut?' grp--shut':'')+'">'+grpHead(k, title, pill, list.length)+
+      (shut?'':'<div class="cards cards--wide">'+list.map(card).join('')+'</div>')+'</section>';
   }
   /* the Accommodation box, first on Students (10 Nov 2026): what it is, how to give it, what it changes, and who has it
      now (a name finds that pupil's card) */
@@ -1100,6 +1136,27 @@ var BOOT = __BOOT__;
             else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
           .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
           .studentRelease({ email:e, aid:a }); }); });
+      /* §40.248: 🙈 Hide / 👀 Show again — this teacher's own list of held results */
+      function heldHide(keys, hide, b){
+        if (b) { b.disabled=true; b.textContent=hide?'Hiding…':'Showing…'; }
+        google.script.run.withSuccessHandler(function(r){
+            if(r&&r.ok){ if(r.held!==undefined) stHeld=r.held; stState.msg={ text:r.note, bad:false };
+              putView('students', { ok:true, data:dir, trackerBase:base, held:stHeld }); paint(); }
+            else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
+          .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
+          .studentHeldHide({ keys:keys, hide:hide });
+      }
+      var hl=(stHeld&&stHeld.list)||[], hh=(stHeld&&stHeld.hidden)||[];
+      document.querySelectorAll('[data-hh]').forEach(function(b){ b.addEventListener('click', function(){
+        heldHide([{ email:b.getAttribute('data-hh'), aid:b.getAttribute('data-aid') }], true, b); }); });
+      document.querySelectorAll('[data-hhc]').forEach(function(b){ b.addEventListener('click', function(){
+        var c=b.getAttribute('data-hhc');
+        heldHide(hl.filter(function(x){ return (x.cls||'—')===c; }).map(function(x){ return { email:x.email, aid:x.aid }; }), true, b); }); });
+      document.querySelectorAll('[data-hs]').forEach(function(b){ b.addEventListener('click', function(){
+        heldHide([{ email:b.getAttribute('data-hs'), aid:b.getAttribute('data-aid') }], false, b); }); });
+      document.querySelectorAll('[data-hsall]').forEach(function(b){ b.addEventListener('click', function(){
+        heldHide(hh.map(function(x){ return { email:x.email, aid:x.aid }; }), false, b); }); });
+      var hd=$('heldhid'); if (hd) hd.addEventListener('toggle', function(){ stState.hidOpen=hd.open; });
       document.querySelectorAll('[data-acc]').forEach(function(b){ b.addEventListener('click', function(){
         var e=b.getAttribute('data-acc'), on=b.getAttribute('aria-pressed')!=='true';
         b.disabled=true; b.textContent='Saving…';
@@ -1132,26 +1189,25 @@ var BOOT = __BOOT__;
         COH.forEach(function(c){
           var list=shown.filter(function(s){ return s.cohort && s.cohort.grad===c.grad; });
           if(!list.length) return;
-          body+='<section class="grp"><div class="coh"><span class="coh__t">'+esc(c.title)+'</span>'+
-            (c.yg?'<span class="pill--yg">'+esc(c.yg)+' this year</span>':'<span class="pill--past">not in school</span>')+
-            '<span class="n">'+list.length+'</span></div><div class="cards cards--wide">'+
-            list.map(card).join('')+'</div></section>';
+          body+=grpSection('g'+c.grad, c.title, c.yg?'<span class="pill--yg">'+esc(c.yg)+' this year</span>':'<span class="pill--past">not in school</span>', list, card);
         });
         /* These were counted in the heading and then never listed, so a pupil in a class with no
            year number (a set, an intervention group) could never be opened at all. */
         var loose=shown.filter(function(s){ return !s.cohort && !isLeft(s.cls); }), gone=shown.filter(function(s){ return isLeft(s.cls); });
-        if (loose.length) body+='<section class="grp"><div class="coh"><span class="coh__t">Class not recognised</span>'+
-          '<span class="pill--past">no year group</span><span class="n">'+loose.length+'</span></div>'+
-          '<div class="cards cards--wide">'+loose.map(card).join('')+'</div></section>';
+        if (loose.length) body+=grpSection('loose', 'Class not recognised', '<span class="pill--past">no year group</span>', loose, card);
         /* in none of the classes (LEFT …): last, records kept; Move brings one back */
-        if (gone.length) body+='<section class="grp"><div class="coh"><span class="coh__t">In none of the classes</span>'+
-          '<span class="pill--past">left · records kept</span><span class="n">'+gone.length+'</span></div>'+
-          '<div class="cards cards--wide">'+gone.map(card).join('')+'</div></section>';
+        if (gone.length) body+=grpSection('gone', 'In none of the classes', '<span class="pill--past">left · records kept</span>', gone, card);
       }
       body = heldBlock() + accBlock(STUD) + body;   /* §held-results: first, above the classes; then the Accommodation */
       if (stState.msg) body='<div class="msg '+(stState.msg.bad?'bad':'ok')+'" role="status" style="margin:0 0 12px">'+esc(stState.msg.text)+'</div>'+body;
       $('slist2').innerHTML = body;
       wireMove();
+      document.querySelectorAll('[data-fold]').forEach(function(b){ b.addEventListener('click', function(){
+        var k=b.getAttribute('data-fold');
+        if (stFold[k]) delete stFold[k]; else stFold[k]=1;
+        try { localStorage.setItem(STFOLD_KEY, JSON.stringify(stFold)); } catch(e){}
+        paint();
+        var again=document.querySelector('[data-fold="'+k+'"]'); if (again) again.focus(); }); });
       document.querySelectorAll('[data-accfind]').forEach(function(b){ b.addEventListener('click', function(){
         stState.q=b.getAttribute('data-accfind'); stState.grad='all'; stState.cls='all'; vStudents(dir, base); }); });
       $('scount').textContent = shown.length+' of '+STUD.length;
