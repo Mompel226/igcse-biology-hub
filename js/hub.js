@@ -1306,6 +1306,77 @@
       else { rflGo.hidden = true; rflGo.removeAttribute('href'); }
       rflEl.hidden = false;
     }
+    /* ---------- "Quiz" (Quiz Hall, 10 Nov 2026) ----------
+       A fourth card, for a pupil with a Quiz Hall quiz open now or later, in any subject (Quiz Hall is the school's). It asks
+       Quiz Hall's own back office (L.quizHall, the school edition only), not the labs script: pupil.now, a light question
+       that writes nothing. Daniel (10 Nov 2026): once the teacher presses Start now the card "needs to be almost instant",
+       so it asks at sign-in, every 10 seconds while this page is in front (every 30 after a quarter of an hour; ± 20 % so a
+       class does not ask at the same second), and at once when the pupil comes back to the page. A staff address is never
+       asked. It signs in with the page's Google sign-in, or, after Google's hour, with Quiz Hall's own pass (kept under
+       quizhall.pass on this site) if the pupil has one. The link appears once the quiz is open, as the test's, and opens
+       Quiz Hall in this tab: a quiz locks when its tab is left, so the hub must not stay open beside it. */
+    var QH = L.quizHall || null;
+    var qzEl = document.getElementById('qz'), qzEye = document.getElementById('qzEye'), qzName = document.getElementById('qzName'),
+        qzWhen = document.getElementById('qzWhen'), qzGo = document.getElementById('qzGo'), qzGoText = document.getElementById('qzGoText');
+    var qzWho = null, qzGen = 0, qzTimer = null, qzSince = 0, qzAsking = false;
+    function qzHide() { clearTimeout(qzTimer); qzGen++; qzWho = null; qzAsking = false; if (qzEl) { qzEl.hidden = true; qzEl.classList.remove('is-open'); } }
+    function qzStart(v) {
+      qzHide();
+      if (!QH || !QH.backOffice || !qzEl || !v || !v.email || staffAddress(v)) return;
+      qzWho = { email: String(v.email) }; qzSince = Date.now();
+      qzAsk(qzGen);
+    }
+    function qzPass(email) {
+      try { var p = JSON.parse(localStorage.getItem('quizhall.pass') || 'null');
+            return p && p.pass && p.email === email && p.exp > Date.now() ? String(p.pass) : ''; } catch (e) { return ''; }
+    }
+    function qzNext(gen, slow) {
+      clearTimeout(qzTimer);
+      if (gen !== qzGen) return;
+      var gap = slow ? 60000 : Date.now() - qzSince > 15 * 60000 ? 30000 : 10000;
+      qzTimer = setTimeout(function () { qzAsk(gen); }, gap * (0.8 + Math.random() * 0.4));
+    }
+    function qzAsk(gen) {
+      if (gen !== qzGen || !qzWho || qzAsking) return;
+      if (document.hidden) return qzNext(gen);
+      var email = qzWho.email, body = { action: 'pupil.now' };
+      if (acting && acting.email === email && acting.token) body.token = acting.token;
+      var pass = qzPass(email);
+      if (pass) body.pass = pass;
+      if (!body.token && !body.pass) { qzEl.hidden = true; return; }          /* nothing to sign in with: no card, no asking */
+      qzAsking = true;
+      fetch(QH.backOffice, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (gen !== qzGen) return;
+          qzAsking = false;
+          if (j && j.ok) qzDraw(j);
+          else if (j && j.signin) qzEl.hidden = true;
+          qzNext(gen, !!(j && j.signin));
+        }, function () { if (gen === qzGen) { qzAsking = false; qzNext(gen); } });
+    }
+    function qzDraw(j) {
+      var rank = { writing: 0, locked: 1, ready: 2, soon: 3 };
+      var list = (Array.isArray(j.open) ? j.open : []).filter(function (q) { return q && rank.hasOwnProperty(q.state); });
+      if (!list.length) { qzEl.hidden = true; qzEl.classList.remove('is-open'); return; }
+      list.sort(function (a, b) { return (rank[a.state] - rank[b.state]) || (Number(a.opens) - Number(b.opens)); });
+      var q = list[0], more = list.length - 1, say;
+      if (q.state === 'soon')         say = ['Quiz soon', 'It opens ' + sitAt(Number(q.opens)) + '.', ''];
+      else if (q.state === 'ready')   say = ['Quiz open now', 'Begin by ' + hhmm(Number(q.beginBy)) + '.', 'Open Quiz Hall'];
+      else if (q.state === 'writing') say = ['Quiz started', 'Your answers are kept. Finish by ' + hhmm(Number(q.deadline)) + '.', 'Continue in Quiz Hall'];
+      else                            say = ['Quiz locked', 'Ask your teacher to unlock it. Your answers are kept.', 'Open Quiz Hall'];
+      qzEye.textContent = say[0];
+      qzName.textContent = String(q.title || 'Your quiz');
+      qzWhen.textContent = [q.teacher, q.className, q.minutes ? q.minutes + ' minutes' : ''].filter(Boolean).join(' \u00b7 ') +
+        '. ' + say[1] + (more > 0 ? ' And ' + more + ' more.' : '');
+      if (say[2]) { qzGoText.textContent = say[2]; qzGo.href = QH.site; qzGo.hidden = false; }
+      else { qzGo.hidden = true; qzGo.removeAttribute('href'); }
+      qzEl.classList.toggle('is-open', q.state !== 'soon');
+      qzEl.hidden = false;
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && qzWho) { qzSince = Date.now(); qzAsk(qzGen); }
+    });
     /* "today at 09:00", "tomorrow at 09:00", "Tue 22 Sep at 09:00" — in the reader's own time */
     function sitAt(ms) {
       var d = new Date(ms), now = new Date();
@@ -1674,6 +1745,7 @@
       if (!drawKnown(v, kn, true)) return false;
       resting = v.email; tools(v);
       chkSignIn();
+      qzStart({ email: v.email });                 /* with Quiz Hall's own pass only, if this pupil has one */
       return true;
     }
 
@@ -1704,7 +1776,11 @@
         /* On the list, nothing recorded yet — a new student, or one who has not sat a test or
            practised in a lab. Not an error, and not worth a link to an empty page. */
         mineShut(who);
-        asButton(lbl, teacher ? 'Test mode · no test reflections yet' : 'Your assessments start at your first reflection', true);
+        /* a colleague from another department (Quiz Hall, 10 Nov 2026) is on no list here: not a pupil's words, and the
+           way to the apps */
+        asButton(lbl, teacher ? 'Test mode · no test reflections yet'
+                              : staffAddress(who) ? 'Signed in · your apps are under Apps, top right'
+                              : 'Your assessments start at your first reflection', true);
         return;
       }
       mineOpen(who, t, instant);
@@ -1791,11 +1867,14 @@
        seating-plan app. The domain comes from the edition's own record, never hard-coded, because
        this file is shared with the open edition, where the school is somebody else's. */
     var toolsLink = document.querySelector('.tools');
-    function tools(v) {
-      if (!toolsLink) return;
+    function staffAddress(v) {
       var d = String((REC && REC.domain) || '').toLowerCase();
       var e = String((v && v.email) || '').toLowerCase();
-      toolsLink.hidden = !(d && e && e.slice(-(d.length + 1)) === '@' + d);
+      return !!(d && e && e.slice(-(d.length + 1)) === '@' + d);
+    }
+    function tools(v) {
+      if (!toolsLink) return;
+      toolsLink.hidden = !staffAddress(v);
     }
 
     /* Somebody is signed in: show them, at once from what is remembered, then ask. */
@@ -1815,6 +1894,7 @@
         ask(v, false);
       }
       sitAsk(v);
+      qzStart(v);
     }
 
     /* One place hears every change: a sign-in on this page, one renewed in the background, and
@@ -1858,7 +1938,7 @@
     }
     function stopActing() {
       acting = null; last = null;
-      sitLast = null; sitHide();
+      sitLast = null; sitHide(); qzHide();
       ++sitSeq; clearTimeout(chkWaitTimer); chkShow('');
       tools(null);
       clearTimeout(expiryTimer); clearTimeout(outTimer);

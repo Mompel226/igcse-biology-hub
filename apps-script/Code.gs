@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '10 Nov 2026 — Waiting: your classes, 🙈 Hide; years fold';
+var SCRIPT_EDITION = '10 Nov 2026 — Waiting: own classes only; Accommodation box';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -8127,17 +8127,21 @@ function studentAccommodation(d) {
    their class or have been marked as ALL … or provide the option to hide them"): the reflection writes in each held row's
    HeldTeachers the emails that see it (the class's teachers and the ALL lines without Just my classes, from the
    👥 Classes and teachers tab of the spreadsheet that synced it). A teacher not named there does not see it and cannot
-   release it; an empty cell (no teachers set in that spreadsheet, or a row synced before §40.248) is every teacher's.
+   release it. Since reflection §40.250 (Daniel, the same day: "this one really should only show the teacher that owns
+   that class. And even if I'm in the all, that all teacher should not see that"): HeldTeachers holds the teachers typed
+   beside the class ONLY, never the ALL line; an empty cell (no teacher named for the class, or a row synced by an older
+   copy) is NOBODY's list: only this script's owner sees it, as one line per class and test under "No teacher named"
+   (no names, no Release), so the tab can be filled and ✅ Sync teacher marks run again.
    🙈 Hide: a teacher's own list of results they do not want to see (a class that never does the reflection), kept per
    teacher in a script property (HELD_HIDE_KEY + email), folded under "Hidden by you"; nobody else's list changes. */
 var HELD_TAB = '🕓 Held results', RELEASED_TAB = '🔓 Released results', HELD_HIDE_KEY = 'heldHidden:', HELD_HIDE_MAX = 8000;
 var RELEASED_HEADERS = ['Email', 'AssessmentID', 'StudentName', 'Class', 'ReleasedBy', 'ReleasedAt'];
 var HELD_RECENT_DAYS = 14;
 function _heldKey_(email, aid) { var e = _cleanEmail_(email), a = String(aid == null ? '' : aid).trim(); return e && a ? e + '|' + a : ''; }
-/* whether the held row's HeldTeachers lets this teacher see it: empty = everyone; else their email in it */
+/* whether the held row's HeldTeachers lets this teacher see it: their email in it (§40.250: empty = nobody) */
 function _heldSeenBy_(teachers, me) {
   var t = String(teachers == null ? '' : teachers).toLowerCase().trim();
-  if (!t) return true;
+  if (!t) return false;
   var m = _cleanEmail_(me);
   return !!m && t.split(/[,;\s]+/).some(function (e) { return _cleanEmail_(e) === m; });
 }
@@ -8148,10 +8152,12 @@ function _heldHidden_(me) {
   try { var v = JSON.parse(PropertiesService.getScriptProperties().getProperty(HELD_HIDE_KEY + m) || '[]'); return Array.isArray(v) ? v.map(String) : []; }
   catch (e) { return []; }
 }
-/* { list: [ waiting… ], recent: [ released in the last 14 days… ], hidden: [ waiting, hidden by this teacher… ], mine: true }
-   each { email, name, cls, aid, test, what, since } (+ by, at); only the rows this teacher sees (§40.248) */
+/* { list: [ waiting… ], recent: [ released in the last 14 days… ], hidden: [ waiting, hidden by this teacher… ],
+     none: [ { cls, test, n } ], mine: true }
+   each { email, name, cls, aid, test, what, since } (+ by, at); only the rows this teacher sees (§40.248, §40.250). `none`:
+   for the script's owner only, the waiting results that name no teacher, counted per class and test (no names). */
 function _heldResults_(me) {
-  var out = { list: [], recent: [], hidden: [], mine: true }, id = _trackerId_();
+  var out = { list: [], recent: [], hidden: [], none: [], mine: true }, id = _trackerId_();
   if (!id) return out;
   var wb = SpreadsheetApp.openById(id), held = wb.getSheetByName(HELD_TAB);
   if (!held || held.getLastRow() < 2) return out;
@@ -8175,13 +8181,21 @@ function _heldResults_(me) {
     var ev = sh.getRange(2, e2 + 1, last - 1, 1).getValues(), av = sh.getRange(2, a2 + 1, last - 1, 1).getValues();
     for (var j = 0; j < ev.length; j++) { var k2 = _heldKey_(ev[j][0], av[j][0]); if (k2) fin[k2] = true; }
   });
-  var tz = _tz_(), now = Date.now(), hide = {};
+  var tz = _tz_(), now = Date.now(), hide = {}, owner = !!_cleanEmail_(me) && _cleanEmail_(me) === _owner_(), none = {};
   _heldHidden_(me).forEach(function (k) { hide[k] = true; });
   var day = function (v) { var t = v instanceof Date ? v.getTime() : Date.parse(String(v || '')); return isFinite(t) && t > 0 ? Utilities.formatDate(new Date(t), tz, 'd MMM') : ''; };
   var at = function (h, r) { return col[h] ? String(col[h][r][0] == null ? '' : col[h][r][0]).trim() : ''; };
   for (var r = 0; r < n; r++) {
     var key = _heldKey_(col.Email[r][0], col.AssessmentID[r][0]);
-    if (!key || fin[key] || !_heldSeenBy_(at('HeldTeachers', r), me)) continue;   /* §40.248: another teacher's class */
+    if (!key || fin[key]) continue;
+    if (!at('HeldTeachers', r)) {   /* §40.250: no teacher named for the class: nobody's list; the owner sees a count */
+      if (owner && !rel[key]) {
+        var nk = at('AssessmentName', r) + '|' + at('Class', r);
+        (none[nk] = none[nk] || { cls: at('Class', r) || '—', test: at('AssessmentName', r) || String(col.AssessmentID[r][0]).trim(), n: 0 }).n++;
+      }
+      continue;
+    }
+    if (!_heldSeenBy_(at('HeldTeachers', r), me)) continue;   /* §40.248: another teacher's class */
     var it = { email: _cleanEmail_(col.Email[r][0]), name: at('StudentName', r), cls: at('Class', r), aid: String(col.AssessmentID[r][0]).trim(),
                test: at('AssessmentName', r) || String(col.AssessmentID[r][0]).trim(), what: at('HeldWhat', r), since: day(at('LastUpdated', r)) };
     if (!rel[key]) { (hide[key] ? out.hidden : out.list).push(it); continue; }
@@ -8190,6 +8204,7 @@ function _heldResults_(me) {
   }
   var byCls = function (a, b) { return String(a.cls).localeCompare(String(b.cls)) || String(a.name).localeCompare(String(b.name)); };
   out.list.sort(byCls); out.hidden.sort(byCls);
+  out.none = Object.keys(none).map(function (k) { return none[k]; }).sort(function (a, b) { return String(a.test).localeCompare(String(b.test)) || String(a.cls).localeCompare(String(b.cls)); });
   out.recent.sort(function (a, b) { return b.ms - a.ms; });
   out.recent = out.recent.slice(0, 40).map(function (x) { delete x.ms; return x; });
   return out;
@@ -8222,7 +8237,7 @@ function studentHeldHide(d) {
     if (cur.length) sp.setProperty(HELD_HIDE_KEY + who, JSON.stringify(cur)); else sp.deleteProperty(HELD_HIDE_KEY + who);
   } catch (e) { return { ok:false, why:'That could not be saved just now. Try again in a moment.' }; }
   var n = keys.length;
-  return { ok:true, note: hide ? (n === 1 ? 'Hidden from your list. ' : n + ' results hidden from your list. ') + 'Other teachers still see them; "Hidden by you" shows them again.'
+  return { ok:true, note: hide ? (n === 1 ? 'Hidden from your list. ' : n + ' results hidden from your list. ') + 'Their class\'s other teachers still see them; "Hidden by you" shows them again.'
                                : (n === 1 ? 'Back on your list.' : n + ' results back on your list.'),
            held: _heldResultsSafe_(who) };
 }
@@ -8251,7 +8266,9 @@ function studentRelease(d) {
     if (found < 0) return { ok:false, why:'That result is not held any more. If the student has finished the reflection, they can see it already.' };
     hv = held.getRange(found, 1, 1, hd.length).getValues()[0];
     var pick = function (h) { var c = hd.indexOf(h); return c >= 0 ? String(hv[c] == null ? '' : hv[c]).trim() : ''; };
-    if (!_heldSeenBy_(pick('HeldTeachers'), who))   /* §40.248: only the class's teachers (and ALL) release it */
+    if (!pick('HeldTeachers'))   /* §40.250: no teacher named for the class: nobody releases it until the tab names one */
+      return { ok:false, why:'No teacher is named for that student\'s class in 👥 Classes and teachers (in the spreadsheet of that test). Type the class\'s teacher there, then run ✅ Sync teacher marks.' };
+    if (!_heldSeenBy_(pick('HeldTeachers'), who))   /* §40.248, §40.250: only the class's own teachers release it */
       return { ok:false, why:'That student is not in one of your classes (👥 Classes and teachers, in the spreadsheet of that test). Ask their teacher to release it.' };
     name = pick('StudentName'); test = pick('AssessmentName') || aid;
     var rt = wb.getSheetByName(RELEASED_TAB);

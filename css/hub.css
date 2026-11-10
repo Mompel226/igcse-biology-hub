@@ -249,6 +249,11 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 .sit--rfl .sit__go{color:#2A0930}
 .sit-note--rfl{border-left-color:rgba(232,121,249,.55)}
 @media (max-width:560px){.sit--rfl .sit__txt{flex-basis:100%}}
+/* "Quiz" (10 Nov 2026): a Quiz Hall quiz, in Quiz Hall's own periwinkle (its --accent, #8EA0F2), no picture; the dot
+   pulses only while the quiz is open (.is-open), as the test's */
+.sit--qz{--sit:#8EA0F2;border-color:rgba(142,160,242,.36);background:linear-gradient(90deg,rgba(142,160,242,.11),rgba(7,15,21,.62) 55%)}
+.sit--qz .sit__go{color:#0F161D}
+@media (max-width:560px){.sit--qz .sit__txt{flex-basis:100%}}
 /* "Checking… · Checked at 09:14" (13 Oct 2026): one quiet line under the cards for whoever they are for, so an empty
    space never reads as a hub that did nothing. Its dot breathes while the hub asks, is green once it has an answer and
    amber when something needs the pupil (a failed check, a sign-in too old to check with). Check again is a small
