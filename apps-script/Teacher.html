@@ -179,6 +179,7 @@ input::placeholder{color:var(--mute)}
 .cohf:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 .cohf__i{font:400 20px/1 var(--serif);color:var(--dim);min-width:18px;align-self:center}
 .grp--shut .coh{margin-bottom:0}
+.held--shut .coh{margin-bottom:0;padding-bottom:0;border-bottom:0}
 .coh{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line2)}
 .coh__t{font:400 21px/1 var(--serif);color:var(--chalk)}
 .pill--yg{font:600 10px/1 var(--mono);color:var(--yg-ink);background:var(--yg-bg);border:1px solid var(--yg-edge);padding:5px 9px;border-radius:999px}
@@ -1042,7 +1043,13 @@ var BOOT = __BOOT__;
     var L = stHeld.list || [], R = stHeld.recent || [], H = stHeld.hidden || [], N = stHeld.none || [];
     if (!L.length && !R.length && !H.length && !N.length) return '';
     var row = function(x, acts){ return '<div class="heldr"><span class="heldn">'+esc(x.name||x.email)+'</span><span class="card__d">'+esc(x.test)+(x.what?' · '+esc(x.what):'')+(x.since?' · held since '+esc(x.since):'')+'</span>'+acts+'</div>'; };
-    var byC = {}, h = '<section class="held" id="held"><div class="coh"><span class="coh__t">🕓 Waiting for you</span><span class="n">'+L.length+'</span></div>';
+    /* the box folds to its line (Daniel, 10 Nov 2026, evening: "the waiting for you could be collapsible. Not just hide it …
+       you can hide to never see it again, but then also collapse"): the same button and the same kept choice as the years
+       (stFold.held, on this computer); a search does not open it (it lists no search results) */
+    var shut = !!stFold.held, byC = {};
+    var h = '<section class="held'+(shut?' held--shut':'')+'" id="held"><button type="button" class="coh cohf" data-fold="held" aria-expanded="'+(shut?'false':'true')+'">'+
+      '<span class="cohf__i" aria-hidden="true">'+(shut?'▸':'▾')+'</span><span class="coh__t">🕓 Waiting for you</span><span class="n">'+L.length+'</span></button>';
+    if (shut) return h+'</section>';
     L.forEach(function(x){ (byC[x.cls||'—']=byC[x.cls||'—']||[]).push(x); });
     /* §40.248 (Daniel, 10 Nov 2026): each test's spreadsheet says who sees its students; §40.250 (the same day): only the
        teachers typed beside their class in 👥 Classes and teachers, never the ALL line; 🙈 Hide takes results off this
