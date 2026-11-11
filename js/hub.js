@@ -1311,10 +1311,13 @@
        Quiz Hall's own back office (L.quizHall, the school edition only), not the labs script: pupil.now, a light question
        that writes nothing. Daniel (10 Nov 2026): once the teacher presses Start now the card "needs to be almost instant",
        so it asks at sign-in, every 10 seconds while this page is in front (every 30 after a quarter of an hour; ± 20 % so a
-       class does not ask at the same second), and at once when the pupil comes back to the page. A staff address is never
-       asked. It signs in with the page's Google sign-in, or, after Google's hour, with Quiz Hall's own pass (kept under
-       quizhall.pass on this site) if the pupil has one. The link appears once the quiz is open, as the test's, and opens
-       Quiz Hall in this tab: a quiz locks when its tab is left, so the hub must not stay open beside it. */
+       class does not ask at the same second), and at once when the pupil comes back to the page. A staff address is asked
+       only for a teacher on this hub's list in Test mode, so a teacher sees the card as a pupil on their class list would,
+       marked "Test mode ·" as the test, reflection and feedback cards are (Daniel, 11 Nov 2026: he put himself on a class
+       list and could not see the card); in Teacher mode, or for a colleague on no list, nothing is asked. It signs in with
+       the page's Google sign-in, or, after Google's hour, with Quiz Hall's own pass (kept under quizhall.pass on this
+       site) if the pupil has one. The link appears once the quiz is open, as the test's, and opens Quiz Hall in this tab:
+       a quiz locks when its tab is left, so the hub must not stay open beside it. */
     var QH = L.quizHall || null;
     var qzEl = document.getElementById('qz'), qzEye = document.getElementById('qzEye'), qzName = document.getElementById('qzName'),
         qzWhen = document.getElementById('qzWhen'), qzGo = document.getElementById('qzGo'), qzGoText = document.getElementById('qzGoText');
@@ -1322,9 +1325,19 @@
     function qzHide() { clearTimeout(qzTimer); qzGen++; qzWho = null; qzAsking = false; if (qzEl) { qzEl.hidden = true; qzEl.classList.remove('is-open'); } }
     function qzStart(v) {
       qzHide();
-      if (!QH || !QH.backOffice || !qzEl || !v || !v.email || staffAddress(v)) return;
-      qzWho = { email: String(v.email) }; qzSince = Date.now();
+      if (!QH || !QH.backOffice || !qzEl || !v || !v.email) return;
+      qzWho = { email: String(v.email), staff: staffAddress(v) }; qzSince = Date.now();
       qzAsk(qzGen);
+    }
+    /* a staff address is asked for only while this is true: a teacher on the labs script's list, in Test mode */
+    function qzTeacherTest() { return !!teacher && mode() === 'test'; }
+    function qzOff() { qzEl.hidden = true; qzEl.classList.remove('is-open'); }
+    /* the Teacher | Test switch, or the labs script's answer saying who is a teacher: start or stop asking for a staff
+       address, at once */
+    function qzMode() {
+      if (!qzWho || !qzWho.staff) return;
+      clearTimeout(qzTimer);
+      if (qzTeacherTest()) { qzSince = Date.now(); qzAsk(qzGen); } else qzOff();
     }
     function qzPass(email) {
       try { var p = JSON.parse(localStorage.getItem('quizhall.pass') || 'null');
@@ -1338,6 +1351,7 @@
     }
     function qzAsk(gen) {
       if (gen !== qzGen || !qzWho || qzAsking) return;
+      if (qzWho.staff && !qzTeacherTest()) return qzOff();                  /* Teacher mode: nothing asked until Test */
       if (document.hidden) return qzNext(gen);
       var email = qzWho.email, body = { action: 'pupil.now' };
       if (acting && acting.email === email && acting.token) body.token = acting.token;
@@ -1356,6 +1370,7 @@
         }, function () { if (gen === qzGen) { qzAsking = false; qzNext(gen); } });
     }
     function qzDraw(j) {
+      if (qzWho && qzWho.staff && !qzTeacherTest()) return qzOff();        /* back to Teacher mode while it was asked */
       var rank = { writing: 0, locked: 1, ready: 2, soon: 3 };
       var list = (Array.isArray(j.open) ? j.open : []).filter(function (q) { return q && rank.hasOwnProperty(q.state); });
       if (!list.length) { qzEl.hidden = true; qzEl.classList.remove('is-open'); return; }
@@ -1365,7 +1380,7 @@
       else if (q.state === 'ready')   say = ['Quiz open now', 'Begin by ' + hhmm(Number(q.beginBy)) + '.', 'Open Quiz Hall'];
       else if (q.state === 'writing') say = ['Quiz started', 'Your answers are kept. Finish by ' + hhmm(Number(q.deadline)) + '.', 'Continue in Quiz Hall'];
       else                            say = ['Quiz locked', 'Ask your teacher to unlock it. Your answers are kept.', 'Open Quiz Hall'];
-      qzEye.textContent = say[0];
+      qzEye.textContent = (qzWho && qzWho.staff ? 'Test mode \u00b7 ' : '') + say[0];
       qzName.textContent = String(q.title || 'Your quiz');
       qzWhen.textContent = [q.teacher, q.className, q.minutes ? q.minutes + ' minutes' : ''].filter(Boolean).join(' \u00b7 ') +
         '. ' + say[1] + (more > 0 ? ' And ' + more + ' more.' : '');
@@ -1598,6 +1613,7 @@
       if (!b || b.getAttribute('aria-pressed') === 'true') return;
       try { localStorage.setItem(MODE_KEY, b.getAttribute('data-mode')); } catch (e2) {}
       footer(true);
+      qzMode();                   /* the Quiz card too: asked at once in Test mode, gone in Teacher mode */
       /* the door changes at once: from the last answer, or, before the quiet check has answered and after Google's
          hour, from what this computer remembers; an answer still on its way draws it again when it comes */
       if (last && acting) render(last.who, last.j, true);
@@ -1757,6 +1773,7 @@
       var page = String(j.teacherPage || '');
       teacher = j.teacher ? { page: /^https:\/\/script\.google\.com\//.test(page) ? page : '' } : null;
       footer(true);
+      qzMode();
       if (teacher && mode() === 'teacher') chkShow('');
 
       if (teacher && mode() === 'teacher') {
