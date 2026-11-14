@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '10 Nov 2026 — Waiting for you folds; own classes only';
+var SCRIPT_EDITION = '14 Nov 2026 — 🔐 model pages: 24 hours from the first visit';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -363,6 +363,13 @@ function doPost(e) {
     /* An IB practical (11 Oct 2026, §practicals): every check and choice per question, saved as a pupil works, and asked for back. */
     if (String(d.action || '') === 'lesson.save') return _lessonSave_(d);
     if (String(d.action || '') === 'lesson.mine') return _lessonMine_(d);
+
+    /* 🔐 A model page (14 Nov 2026): sent only to a pupil on its list, within their hours from their first visit; and the
+       keys the page blocked, added to their row. Always JSON. */
+    if (String(d.action || '') === 'model.open' || String(d.action || '') === 'model.flag') {
+      try { return d.action === 'model.open' ? _modelOpen_(d) : _modelFlag_(d); }
+      catch (eM) { return _json_({ ok:false, why:'error: ' + String(eM).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) }); }
+    }
 
     var lab = _labById_(String(d.app || ''));
     if (!lab) return _text_('unknown lab');
@@ -4360,16 +4367,20 @@ function _ownRecord_(d) {
 
   /* TWO numbers a student is told, never mixed up:
        reflected    digital reflections they finished (below, the cohort tabs and TEST)
-       assessments  everything with a real score — tests and lab reports the teacher marked,
-                    INCLUDING those reflected on. Teachers record scores for assessments a
-                    student never reflected on (earlier years, lab reports), so this is the
-                    bigger number, and "3 of 7 reflected" is what the student sees.
-     A test that has BOTH a reflection and a teacher score is one assessment, not two: the
-     tracker's "📦 Registry" tab (written by the reflection script's "Sync registry to
-     tracker") says which prior-assessment column a reflection stands for, in its PAID column
-     — the same link the student's own record page uses to show that test once. Without the
-     tab nothing breaks; such a test is simply counted twice in `assessments`. */
-  var paIdOf = {}, scoredPa = {};
+       assessments  the tests they COULD reflect on: those finished, those left unfinished, and
+                    those whose result the reflection system holds because they never finished
+                    or never opened the reflection (the "🕓 Held results" tab, reflection §40.206).
+                    So "2 of 3 reflected" is what the student sees.
+     11 Nov 2026 (Daniel, a pupil's "2 of 8 reflected": "it should be about the ones that they could
+     reflect, not all of the assessments … some assessments were prior assessments that they couldn't
+     reflect because they didn't do them with the reflection system"): until then `assessments` was
+     every test with a teacher's score, prior-assessment columns included (earlier years, lab reports,
+     written tasks). Those scores are no longer counted here; My assessments still shows them.
+     One test, counted once: the tracker's "📦 Registry" tab (the reflection script's "Sync registry
+     to tracker") says which prior-assessment column a reflection stands for, in its PAID column, so
+     two versions of one test (Test T11T12 and ·B share PA_T11T12) are one. Without the tab nothing
+     breaks: each paper is counted by its own id. */
+  var paIdOf = {};
   try {
     var reg = wb.getSheetByName('📦 Registry');
     if (reg && reg.getLastRow() >= 2) {
@@ -4383,9 +4394,6 @@ function _ownRecord_(d) {
       }
     }
   } catch (e) { /* no mirror: counted without the link, as above */ }
-  /* A prior-assessment cell counts as a score only if it holds a number — "absent", "-" or
-     "exempt" is a teacher's note that the student did NOT do it. */
-  function isScore(v) { return /\d/.test(String(v == null ? '' : v)); }
   var UNFINISHED_TAB = 'Unfinished reflections', UNFINISHED_EMAIL = 'Student Email';
 
   /* Two passes. FINISHED reflections live in the cohort tabs ("Class of 2028") and in
@@ -4402,8 +4410,6 @@ function _ownRecord_(d) {
     var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
     var cEmail = head.indexOf('Email');
     if (cEmail < 0) continue;
-    var paCols = [];
-    head.forEach(function (h, i) { if (/^PA_/.test(String(h))) paCols.push(i); });
     var cName = head.indexOf('StudentName'), cAss = head.indexOf('AssessmentName'),
         cId = head.indexOf('AssessmentID'), cWhen = head.indexOf('LastUpdated'), cDate = head.indexOf('AssessmentDate');
     /* 22 Oct 2026 (the tracker export; Daniel: "consider how quickly this can grow"): the Email column, then only this
@@ -4419,11 +4425,6 @@ function _ownRecord_(d) {
          script appended such rows from "Update deployment URL". */
       var aid = cId >= 0 ? String(vals[r][cId] || '').trim() : '';
       if (!aid) continue;
-      /* each row carries the prior-assessment scores synced for ITS assessment, so the full set
-         is the union across every row of theirs — exactly as the record page merges them */
-      for (var pc = 0; pc < paCols.length; pc++) {
-        if (isScore(vals[r][paCols[pc]])) scoredPa[String(head[paCols[pc]])] = true;
-      }
       if (cName >= 0 && !name) name = String(vals[r][cName] || '').trim();
       /* One row per student PER ASSESSMENT; counted once per paper all the same. */
       if (finished[aid]) continue;
@@ -4463,11 +4464,30 @@ function _ownRecord_(d) {
   }
   var count = Object.keys(finished).length, incomplete = unfinishedNames.length;
 
-  /* Every assessment, once: a teacher-scored prior assessment by its PA id, and a reflection
-     (finished or not) by the PA id it stands for, or by its own id when it stands for none. */
+  /* The tests they could reflect on but have no reflection of: the reflection system's ✅ Sync teacher
+     marks keeps such a pupil's result in "🕓 Held results" (one row per pupil and paper; its Email and
+     AssessmentID columns only, as _heldResults_ reads them: the other cells are big). A held row stays
+     there after a teacher releases it, and it still means a reflection was possible. */
+  var held = {};
+  try {
+    var ht = wb.getSheetByName(HELD_TAB);
+    if (ht && ht.getLastRow() >= 2) {
+      var hh = ht.getRange(1, 1, 1, ht.getLastColumn()).getValues()[0];
+      var hE = hh.indexOf('Email'), hA = hh.indexOf('AssessmentID');
+      if (hE >= 0 && hA >= 0) {
+        var hn = ht.getLastRow() - 1, hEm = ht.getRange(2, hE + 1, hn, 1).getValues(), hId = ht.getRange(2, hA + 1, hn, 1).getValues();
+        for (var hr = 0; hr < hn; hr++) {
+          var hid = String(hId[hr][0] == null ? '' : hId[hr][0]).trim();
+          if (hid && _cleanEmail_(hEm[hr][0]) === who.email) held[hid] = true;
+        }
+      }
+    }
+  } catch (eH) { /* no held tab: only the reflections are counted */ }
+
+  /* Every test they could reflect on, once: by the PA id it stands for, or by its own id when it
+     stands for none. */
   var events = {};
-  Object.keys(scoredPa).forEach(function (pa) { events[pa] = true; });
-  Object.keys(finished).concat(Object.keys(unfinished)).forEach(function (aid) {
+  Object.keys(finished).concat(Object.keys(unfinished), Object.keys(held)).forEach(function (aid) {
     events[paIdOf[aid] || aid] = true;
   });
   var assessments = Object.keys(events).length;
@@ -10938,4 +10958,160 @@ function _practicalsData_(now) {
                 .map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
     classes: dir.classes, rec: rec
   };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔐 MODEL PAGES (14 Nov 2026, Daniel: once a pupil opens the link, "they have a period of 24 hours to explore
+   everything, take notes … They cannot come back"; no extra cost, with the system he has). A private teaching page
+   (today: the ecology model mini IA, which uses the class's own shore data) opens at
+   nlcsbiology.com/biology-hub/model.html?p=<page>, a page that holds nothing itself. After a Google sign-in it asks
+   here (`model.open`). This script checks the account, notes the pupil's first visit, and sends the page only inside
+   their hours. The page's content is a gzip file in Daniel's own Drive (made by the model's _build/gate.py), never in
+   this script or on GitHub, which are both public; its link goes in the 🔐 Model pages tab.
+     - A pupil gets in if the tab's Who cell names their class (as the Students tab writes it) or their school email.
+     - Their hours start only when they press Start (`start` in the request): a pupil already signed in on the site who
+       opens the link just to look is told the rules and starts nothing (`not started`).
+     - From that first visit they have Hours per pupil (24), plus any Extra hours a teacher types on their row of
+       🔐 Model page visits. Then the page tells them their time is over; it never opens for them again.
+     - Closes for everyone: empty until the first pupil opens the page, then 21 days later. A teacher may change the
+       date, or type never.
+     - A teacher (_isTeacher_) always gets in, with no clock, and leaves no row.
+   Only Google's own sign-in opens it (_whoIs_), never this script's 30-day pass. The page sends `model.flag` now and
+   then with the keys and actions it blocked (copy, paste, print, Shift and Command together…): added up on the pupil's
+   row for the teacher, never a reason to refuse. Proof: gastest "— 🔐 model pages —". */
+var T_MODEL = '🔐 Model pages', T_MODEL_VISITS = '🔐 Model page visits';
+var MODEL_PAGES = { 'eco-mini-ia': 'Ecology mini IA: the model (the class’s shore data)' };
+var MODEL_HOURS = 24, MODEL_CLOSE_DAYS = 21;
+var MODEL_FLAGS = ['screen-keys', 'copy', 'paste', 'print', 'save', 'dev-tools', 'right-click'];
+var MODEL_HEAD = [
+  ['Page', 'The page’s name in its address: nlcsbiology.com/biology-hub/model.html?p=<this name>. Do not edit.'],
+  ['Title', 'What the page is.'],
+  ['Drive file (paste its link)', 'The Drive link of the page’s file (eco-mini-ia.model.gz), made by _build/gate.py in the model’s folder. Keep the file private: this script reads it as you. Replace the file in Drive (Manage versions) to update the page; the link stays the same.'],
+  ['Who (classes or school emails)', 'Who may open it: classes as the Students tab writes them (for example 12IB) and/or school emails, separated by commas. Teachers on the 👩‍🏫 Teachers tab can always open it, with no time limit. Empty: only teachers.'],
+  ['Hours per pupil', 'How long each pupil can read the page, counted from their first visit. 24 = one day.'],
+  ['Closes for everyone', 'After this, nobody but a teacher can open the page. Empty until the first pupil opens it; then the script writes 21 days later. Change the date to close it sooner or later, or type never.'],
+  ['First pupil opened', 'When the first pupil opened the page. Written by the script.']
+];
+var MODEL_VISIT_HEAD = [
+  ['Page', 'The page (its name in 🔐 Model pages). Do not edit.'],
+  ['School email', 'What ties this row to the pupil. Do not edit.'],
+  ['Name', 'From the Students tab.'],
+  ['Class', 'From the Students tab.'],
+  ['First opened', 'Their hours count from here. Delete the row to give the pupil a fresh start.'],
+  ['Last opened', 'The last time the page was sent to them.'],
+  ['Opens', 'How many times the page was sent to them.'],
+  ['Extra hours', 'Type a number to give this pupil more time (for example 2), or a negative number for less.'],
+  ['Blocked', 'What the page blocked while they read it. screen-keys = the keys that take a picture of the screen (Shift and Command (⌘) held together on a Mac, the Windows key with Shift, or Print Screen); the page hides itself while they are pressed. copy; paste; print; save; dev-tools = the keys that open the developer tools; right-click.']
+];
+function _modelTab_(name, head) {
+  var sh = _ss_().getSheetByName(name);
+  if (sh) return sh;
+  sh = _ss_().insertSheet(name);
+  sh.getRange(1, 1, 1, head.length).setValues([head.map(function (h) { return h[0]; })])
+    .setNotes([head.map(function (h) { return h[1]; })]);
+  try { sh.setFrozenRows(1); } catch (e) {}
+  return sh;
+}
+/* the page's row of 🔐 Model pages, made with its defaults the first time the page is asked for (under the lock) */
+function _modelSettings_(page) {
+  var sh = _modelTab_(T_MODEL, MODEL_HEAD), n = MODEL_HEAD.length, last = sh.getLastRow();
+  var rows = last >= 2 ? sh.getRange(2, 1, last - 1, n).getValues() : [];
+  for (var i = 0; i < rows.length; i++) if (String(rows[i][0]).trim() === page) return { sh: sh, row: i + 2, v: rows[i] };
+  var v = [page, MODEL_PAGES[page], '', '', MODEL_HOURS, '', ''];
+  sh.appendRow(v);
+  return { sh: sh, row: sh.getLastRow(), v: v };
+}
+/* the Who cell: classes (spaces and case ignored) and school emails, separated by commas, semicolons or new lines */
+function _modelWhoOk_(who, email, student) {
+  var parts = String(who || '').split(/[,;\n]+/);
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim();
+    if (!p) continue;
+    if (p.indexOf('@') > 0) {
+      if (p.split(/\s+/).some(function (x) { return _cleanEmail_(x) === email; })) return true;
+    } else if (student && student.cls && p.replace(/\s+/g, '').toUpperCase() === String(student.cls).replace(/\s+/g, '').toUpperCase()) return true;
+  }
+  return false;
+}
+function _modelFileId_(ref) { var m = String(ref || '').match(/[-\w]{25,}/); return m ? m[0] : ''; }
+/* the page's file from Drive, as it is (already gzip: the page unpacks it), checked to be a gzip */
+function _modelFile_(ref) {
+  var id = _modelFileId_(ref), bytes = null;
+  if (!id) return { ok:false, why:'not set up' };
+  try { bytes = DriveApp.getFileById(id).getBlob().getBytes(); }
+  catch (e) { return { ok:false, why:'not set up: the Drive file cannot be read' }; }
+  if (!bytes || bytes.length < 20 || (bytes[0] & 255) !== 31 || (bytes[1] & 255) !== 139)
+    return { ok:false, why:'not set up: the Drive file is not a built page' };
+  return { ok:true, b64: Utilities.base64Encode(bytes) };
+}
+function _modelRowOf_(V, page, email) {
+  var last = V.getLastRow();
+  if (last < 2) return { at: 0, v: null };
+  var all = V.getRange(2, 1, last - 1, MODEL_VISIT_HEAD.length).getValues();
+  for (var i = 0; i < all.length; i++) if (String(all[i][0]).trim() === page && _cleanEmail_(all[i][1]) === email) return { at: i + 2, v: all[i] };
+  return { at: 0, v: null };
+}
+function _modelOpen_(d) {
+  var page = String(d.page || '');
+  if (!Object.prototype.hasOwnProperty.call(MODEL_PAGES, page)) return _json_({ ok:false, why:'no such page' });
+  if (!_clientId_()) return _json_({ ok:false, why:'sign-in is not set up' });
+  var who = _whoIs_(String(d.token || ''));
+  if (!who || !who.email) return _json_({ ok:false, why:'not signed in' });
+  var email = who.email, teacher = _isTeacher_(email), student = teacher ? null : _studentOf_(email);
+  var name = (student && student.name) || who.name || email, now = Date.now(), ends = 0, first = 0, ref = '';
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return _json_({ ok:false, why:'busy' }); }
+  try {
+    var S = _modelSettings_(page), set = S.v;
+    ref = String(set[2] || '');
+    if (!teacher) {
+      if (!_modelWhoOk_(set[3], email, student)) return _json_({ ok:false, why:'not on the list', email: email });
+      if (!_modelFileId_(ref)) return _json_({ ok:false, why:'not set up' });
+      var never = /never/i.test(String(set[5] || '')), closes = never ? 0 : _hwMs_(set[5]);
+      var V = _modelTab_(T_MODEL_VISITS, MODEL_VISIT_HEAD), R = _modelRowOf_(V, page, email);
+      var hours = Number(set[4]) > 0 ? Number(set[4]) : MODEL_HOURS;
+      if (!R.v) {
+        if (closes && now >= closes) return _json_({ ok:false, why:'closed', closes: closes });
+        if (d.start !== true) return _json_({ ok:false, why:'not started', hours: hours, closes: closes, now: now, email: email });
+        if (!closes && !never) { closes = now + MODEL_CLOSE_DAYS * 864e5; S.sh.getRange(S.row, 6, 1, 2).setValues([[new Date(closes), set[6] || new Date(now)]]); }
+        V.appendRow([page, email, name, student ? student.cls : '', new Date(now), new Date(now), 0, '', '']);
+        R = _modelRowOf_(V, page, email);
+      }
+      first = _hwMs_(R.v[4]) || now;
+      var extra = Number(R.v[7]) || 0;
+      ends = first + (hours + extra) * 3600e3;
+      if (closes && closes < ends) ends = closes;
+      if (now >= ends) return _json_({ ok:false, why: (closes && now >= closes) ? 'closed' : 'time is up', ends: ends, first: first, now: now });
+      V.getRange(R.at, 6, 1, 2).setValues([[new Date(now), (Number(R.v[6]) || 0) + 1]]);
+    } else if (!_modelFileId_(ref)) return _json_({ ok:false, why:'not set up', teacher:true });
+  } finally { lock.releaseLock(); }
+  var got = _modelFile_(ref);                                /* outside the lock: Drive can be slow */
+  if (!got.ok) return _json_({ ok:false, why: got.why, teacher: teacher });
+  return _json_({ ok:true, page: page, data: got.b64, teacher: teacher, name: name, email: email, now: now, first: first, ends: ends });
+}
+/* the blocked keys and actions, added to the pupil's row (a teacher has none, so nothing is kept) */
+function _modelFlagParse_(s) {
+  var o = {}, m, re = /([a-z-]+) (\d+)/g;
+  while ((m = re.exec(String(s || '')))) o[m[1]] = Number(m[2]);
+  return o;
+}
+function _modelFlag_(d) {
+  var page = String(d.page || '');
+  if (!Object.prototype.hasOwnProperty.call(MODEL_PAGES, page)) return _json_({ ok:false, why:'no such page' });
+  var who = _whoIs_(String(d.token || ''));
+  if (!who || !who.email) return _json_({ ok:false, why:'not signed in' });
+  var add = {}, any = false, n = d.n || {};
+  MODEL_FLAGS.forEach(function (k) { var x = Math.floor(Number(n[k]) || 0); if (x > 0 && x < 1000) { add[k] = x; any = true; } });
+  if (!any) return _json_({ ok:true, kept:false });
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return _json_({ ok:false, why:'busy' }); }
+  try {
+    var V = _ss_().getSheetByName(T_MODEL_VISITS), R = V ? _modelRowOf_(V, page, who.email) : { v: null };
+    if (!R.v) return _json_({ ok:true, kept:false });
+    var had = _modelFlagParse_(R.v[8]);
+    Object.keys(add).forEach(function (k) { had[k] = (had[k] || 0) + add[k]; });
+    var text = MODEL_FLAGS.filter(function (k) { return had[k]; }).map(function (k) { return k + ' ' + had[k]; }).join(' · ');
+    V.getRange(R.at, 9).setValue(text);
+    return _json_({ ok:true, kept:true });
+  } finally { lock.releaseLock(); }
 }

@@ -1680,9 +1680,10 @@
     }
     function goMine(t) { var u = (t && t.url) || REC.url; if (mineEl) mineEl.href = u; return u; }
     /* Two numbers, never mixed up. `reflected` is digital reflections the student finished.
-       `assessments` is everything with a real score — tests and lab reports the teacher marked,
-       reflected on or not — so it is the bigger number: "3 of 7 reflected". Unfinished
-       reflections are counted apart: an assessment done, a reflection not. An answer from a
+       `assessments` is the tests they could reflect on: finished, unfinished, or held because
+       they never finished or opened the reflection (labs script _ownRecord_, 11 Nov 2026; never
+       an earlier year's score done without the reflection system): "2 of 3 reflected". Unfinished
+       reflections are also said apart: an assessment done, a reflection not. An answer from a
        labs script that predates the two numbers has only `count` (= reflections), and then
        only that is said. `practice`: they have lab or Bio English practice in the records, which
        My assessments shows too (Sept 2026), so the door opens for it before any reflection. */
