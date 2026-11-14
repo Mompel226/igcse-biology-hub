@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '14 Nov 2026 — 🔐 model pages: hub card, 📘 teacher section';
+var SCRIPT_EDITION = '14 Nov 2026 (late) — 🔐 model pages: hours per class';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -10982,15 +10982,16 @@ function _practicalsData_(now) {
        opens the link just to look is told the rules and starts nothing (`not started`).
      - From that first visit they have Hours per pupil (24), plus any Extra hours a teacher types on their row of
        🔐 Model page visits. Then the page tells them their time is over; it never opens for them again.
-     - Closes for everyone: empty until the first pupil opens the page, then 21 days later. A teacher may change the
+     - Closes for everyone: 21 days after the page was last opened for a class or given more time on the teacher page
+       (or, opened by hand in the tab, 21 days after the first pupil's Start). A teacher may change the
        date, or type never.
      - A teacher (_isTeacher_) always gets in, with no clock, and leaves no row.
    Only Google's own sign-in opens it (_whoIs_), never this script's 30-day pass. The page sends `model.flag` now and
    then with the keys and actions it blocked (copy, paste, print, Shift and Command together…): added up on the pupil's
    row for the teacher, never a reason to refuse. Proof: gastest "— 🔐 model pages —". */
 var T_MODEL = '🔐 Model pages', T_MODEL_VISITS = '🔐 Model page visits';
-var MODEL_PAGES = { 'eco-mini-ia': 'Ecology mini IA: the model (the class’s shore data)' };
-var MODEL_HOURS = 24, MODEL_CLOSE_DAYS = 21;
+var MODEL_PAGES = { 'eco-mini-ia': 'Ecology mini IA, step by step' };   /* the page's name on the hub card and the teacher page (14 Nov 2026: not "in R"; it teaches the analysis and the write-up) */
+var MODEL_HOURS = 24, MODEL_CLOSE_DAYS = 21, MODEL_MAX_HOURS = 720, MODEL_MAX_DAYS = 120;   /* the defaults a teacher can change per class on the teacher page */
 var MODEL_FLAGS = ['screen-keys', 'copy', 'paste', 'print', 'save', 'dev-tools', 'right-click'];
 var MODEL_HEAD = [
   ['Page', 'The page’s name in its address: nlcsbiology.com/biology-hub/model.html?p=<this name>. Do not edit.'],
@@ -10998,8 +10999,9 @@ var MODEL_HEAD = [
   ['Drive file (paste its link)', 'The Drive link of the page’s file (eco-mini-ia.model.gz), made by _build/gate.py in the model’s folder. Keep the file private: this script reads it as you. Replace the file in Drive (Manage versions) to update the page; the link stays the same.'],
   ['Who (classes or school emails)', 'Who may open it: classes as the Students tab writes them (for example 12IB) and/or school emails, separated by commas. Teachers on the 👩‍🏫 Teachers tab can always open it, with no time limit. Empty: only teachers. Easier: the teacher page, 📘 Mini IA models for students (Open for a class, Close, Another 24 hours). If you type here instead, open the teacher page once so the pupils’ hub cards follow (within 2 minutes).'],
   ['Hours per pupil', 'How long each pupil can read the page, counted from their first visit. 24 = one day.'],
-  ['Closes for everyone', 'After this, nobody but a teacher can open the page. Empty until the first pupil opens it; then the script writes 21 days later. Change the date to close it sooner or later, or type never.'],
-  ['First pupil opened', 'When the first pupil opened the page. Written by the script.']
+  ['Closes for everyone', 'After this, nobody but a teacher can open the page. Written by the script: 21 days after the page was last opened for a class or given more time on the teacher page (📘 Mini IA models for students). Change the date to close it sooner or later, or type never.'],
+  ['First pupil opened', 'When the first pupil opened the page. Written by the script.'],
+  ['Classes: hours and open until', 'Written by the teacher page (📘 Mini IA models for students) for each class it opened: the hours each pupil of that class gets, and when the class can no longer start. Change them there, not here.']
 ];
 var MODEL_VISIT_HEAD = [
   ['Page', 'The page (its name in 🔐 Model pages). Do not edit.'],
@@ -11012,6 +11014,23 @@ var MODEL_VISIT_HEAD = [
   ['Extra hours', 'Type a number to give this pupil more time (for example 2), or a negative number for less.'],
   ['Blocked', 'What the page blocked while they read it. screen-keys = the keys that take a picture of the screen (Shift and Command (⌘) held together on a Mac, the Windows key with Shift, or Print Screen); the page hides itself while they are pressed. copy; paste; print; save; dev-tools = the keys that open the developer tools; right-click.']
 ];
+function _modelNotes_(sh, head) {
+  try { sh.getRange(1, 1, 1, head.length).setValues([head.map(function (h) { return h[0]; })]).setNotes([head.map(function (h) { return h[1]; })]); } catch (e) {}
+}
+/* each open class's own hours and closing date (14 Nov 2026, Daniel: "Each teacher could decide how long … easy to edit"):
+   the 8th column, JSON { CLASSKEY: { cls, h, until } }; a pupil of that class reads h hours from Start and cannot start
+   after until (their hours also end there). A pupil named by email, or a class typed in Who by hand, has the page's own
+   Hours per pupil and Closes for everyone. */
+function _modelCfg_(cell) { try { var o = JSON.parse(String(cell || '') || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+function _modelFor_(set, cls) {
+  var never = /never/i.test(String(set[5] || '')), closes = never ? 0 : _hwMs_(set[5]);
+  var hours = Number(set[4]) > 0 ? Number(set[4]) : MODEL_HOURS, c = cls ? _modelCfg_(set[7])[_modelKey_(cls)] : null;
+  if (c) {
+    if (Number(c.h) > 0) hours = Number(c.h);
+    if (Number(c.until) > 0) { closes = closes ? Math.min(closes, Number(c.until)) : Number(c.until); never = false; }
+  }
+  return { hours: hours, closes: closes, never: never };
+}
 function _modelTab_(name, head) {
   var sh = _ss_().getSheetByName(name);
   if (sh) return sh;
@@ -11026,7 +11045,7 @@ function _modelSettings_(page) {
   var sh = _modelTab_(T_MODEL, MODEL_HEAD), n = MODEL_HEAD.length, last = sh.getLastRow();
   var rows = last >= 2 ? sh.getRange(2, 1, last - 1, n).getValues() : [];
   for (var i = 0; i < rows.length; i++) if (String(rows[i][0]).trim() === page) return { sh: sh, row: i + 2, v: rows[i] };
-  var v = [page, MODEL_PAGES[page], '', '', MODEL_HOURS, '', ''];
+  var v = [page, MODEL_PAGES[page], '', '', MODEL_HOURS, '', '', ''];
   sh.appendRow(v);
   return { sh: sh, row: sh.getLastRow(), v: v };
 }
@@ -11076,9 +11095,9 @@ function _modelOpen_(d) {
     if (!teacher) {
       if (!_modelWhoOk_(set[3], email, student)) return _json_({ ok:false, why:'not on the list', email: email });
       if (!_modelFileId_(ref)) return _json_({ ok:false, why:'not set up' });
-      var never = /never/i.test(String(set[5] || '')), closes = never ? 0 : _hwMs_(set[5]);
+      var F = _modelFor_(set, student && _modelWhoParse_(set[3]).classes.some(function (c) { return _modelKey_(c) === _modelKey_(student.cls); }) ? student.cls : '');
+      var never = F.never, closes = F.closes, hours = F.hours;
       var V = _modelTab_(T_MODEL_VISITS, MODEL_VISIT_HEAD), R = _modelRowOf_(V, page, email);
-      var hours = Number(set[4]) > 0 ? Number(set[4]) : MODEL_HOURS;
       if (!R.v) {
         if (closes && now >= closes) return _json_({ ok:false, why:'closed', closes: closes });
         if (d.start !== true) return _json_({ ok:false, why:'not started', hours: hours, closes: closes, now: now, email: email });
@@ -11097,7 +11116,7 @@ function _modelOpen_(d) {
   } finally { lock.releaseLock(); }
   var got = _modelFile_(ref);                                /* outside the lock: Drive can be slow */
   if (!got.ok) return _json_({ ok:false, why: got.why, teacher: teacher });
-  return _json_({ ok:true, page: page, data: got.b64, teacher: teacher, name: name, email: email, now: now, first: first, ends: ends });
+  return _json_({ ok:true, page: page, data: got.b64, teacher: teacher, name: name, email: email, now: now, first: first, ends: ends, hours: teacher ? 0 : hours });
 }
 /* the blocked keys and actions, added to the pupil's row (a teacher has none, so nothing is kept) */
 function _modelFlagParse_(s) {
@@ -11204,7 +11223,8 @@ function _modelWhoParse_(cell) {
 function _modelWhoText_(w) { return w.classes.concat(w.emails).join(', '); }
 function _modelOn_() { try { return PropertiesService.getScriptProperties().getProperty(MODEL_ON_PROP) === '1'; } catch (e) { return false; } }
 function _modelStateDrop_() { try { CacheService.getScriptCache().remove(MODEL_STATE_KEY); } catch (e) {} }
-/* who may open each page now, and each pupil's start: read from the two tabs (and the Students tab for the classes) */
+/* who may open each page now, each pupil's class (for its hours and date) and each pupil's start: read from the two tabs
+   (and the Students tab for the classes) */
 function _modelState_(fresh) {
   var cache = null;
   try { cache = CacheService.getScriptCache(); } catch (e) {}
@@ -11215,10 +11235,10 @@ function _modelState_(fresh) {
     sh.getRange(2, 1, sh.getLastRow() - 1, MODEL_HEAD.length).getValues().forEach(function (r) {
       var page = String(r[0]).trim();
       if (!Object.prototype.hasOwnProperty.call(MODEL_PAGES, page)) return;
-      var w = _modelWhoParse_(r[3]), never = /never/i.test(String(r[5] || ''));
-      var p = st.pages[page] = { file: !!_modelFileId_(r[2]), hours: Number(r[4]) > 0 ? Number(r[4]) : MODEL_HOURS,
-                                 closes: never ? 0 : _hwMs_(r[5]), classes: w.classes, allowed: {}, rows: {} };
-      w.emails.forEach(function (e) { p.allowed[e] = 1; });
+      var w = _modelWhoParse_(r[3]);
+      var p = st.pages[page] = { file: !!_modelFileId_(r[2]), set: r.slice(0, 8).map(function (x) { return x instanceof Date ? x.getTime() : x; }),
+                                 classes: w.classes, allowed: {}, rows: {} };
+      w.emails.forEach(function (e) { p.allowed[e] = ''; });
       if (w.classes.length) need = true;
       if (p.file) any = true;
     });
@@ -11227,7 +11247,7 @@ function _modelState_(fresh) {
       if (!e || !s.cls || _isLeftClass_(s.cls)) return;
       Object.keys(st.pages).forEach(function (page) {
         var p = st.pages[page];
-        if (p.classes.some(function (c) { return _modelKey_(c) === k; })) p.allowed[e] = 1;
+        if (p.classes.some(function (c) { return _modelKey_(c) === k; })) p.allowed[e] = s.cls;
       });
     });
     var V = ss.getSheetByName(T_MODEL_VISITS);
@@ -11240,23 +11260,30 @@ function _modelState_(fresh) {
   if (cache) { try { cache.put(MODEL_STATE_KEY, JSON.stringify(st), MODEL_STATE_S); } catch (e) {} }
   return st;
 }
-/* the hub's card: the pages this person can read now (a teacher: every page with its file, for test mode) */
+/* the hub's card: the pages this person can read now, with their own class's hours and closing date (a teacher: every page
+   with its file, for test mode, with each open class's hours and date) */
 function _modelCards_(email, teacher, now) {
   var st = _modelState_(), out = [];
   Object.keys(MODEL_PAGES).forEach(function (page) {
     var p = st.pages[page];
     if (!p || !p.file) return;
-    var card = { page: page, title: MODEL_PAGES[page], url: _modelAddress_(page), hours: p.hours };
-    if (teacher) { card.state = 'teacher'; card.classes = p.classes; out.push(card); return; }
-    if (!p.allowed[email]) return;
-    var r = p.rows[email];
-    if (!r) {
-      if (p.closes && now >= p.closes) return;
-      card.state = 'ready'; if (p.closes) card.closes = p.closes;
+    var card = { page: page, title: MODEL_PAGES[page], url: _modelAddress_(page) };
+    if (teacher) {
+      var cfg = _modelCfg_(p.set[7]);
+      card.state = 'teacher'; card.classes = p.classes;
+      card.open = p.classes.map(function (c) { var F = _modelFor_(p.set, c); return { cls: c, h: F.hours, until: F.closes }; });
       out.push(card); return;
     }
-    var ends = r[0] + (p.hours + r[1]) * 3600e3;
-    if (p.closes && p.closes < ends) ends = p.closes;
+    if (!Object.prototype.hasOwnProperty.call(p.allowed, email)) return;
+    var F = _modelFor_(p.set, p.allowed[email]), r = p.rows[email];
+    card.hours = F.hours;
+    if (!r) {
+      if (F.closes && now >= F.closes) return;
+      card.state = 'ready'; if (F.closes) card.closes = F.closes;
+      out.push(card); return;
+    }
+    var ends = r[0] + (F.hours + r[1]) * 3600e3;
+    if (F.closes && F.closes < ends) ends = F.closes;
     if (!r[0] || now >= ends) return;
     card.state = 'open'; card.ends = ends;
     out.push(card);
@@ -11276,14 +11303,15 @@ function _modelTeacherData_() {
     var r = setRows.filter(function (x) { return String(x[0]).trim() === page; })[0] || [page, MODEL_PAGES[page], '', '', MODEL_HOURS, '', ''];
     var w = _modelWhoParse_(r[3]), never = /never/i.test(String(r[5] || '')), closes = never ? 0 : _hwMs_(r[5]);
     var hours = Number(r[4]) > 0 ? Number(r[4]) : MODEL_HOURS, keys = w.classes.map(_modelKey_), rows = {}, pupils = [], seen = {};
+    var forCls = function (c) { return _modelFor_(r, keys.indexOf(_modelKey_(c)) >= 0 ? c : ''); };
     vis.forEach(function (v) { if (String(v[0]).trim() === page) rows[_cleanEmail_(v[1])] = v; });
     function add(email, s) {
       if (!email || seen[email]) return;
       seen[email] = 1;
       var v = rows[email], first = v ? _hwMs_(v[4]) : 0, extra = v ? Number(v[7]) || 0 : 0;
-      var ends = first ? first + (hours + extra) * 3600e3 : 0;
-      if (ends && closes && closes < ends) ends = closes;
-      var cls = s ? s.cls : (v ? String(v[3] || '') : '');
+      var cls = s ? s.cls : (v ? String(v[3] || '') : ''), F = forCls(cls);
+      var ends = first ? first + (F.hours + extra) * 3600e3 : 0;
+      if (ends && F.closes && F.closes < ends) ends = F.closes;
       pupils.push({ name: s ? s.name : (v ? String(v[2] || '') : '') || email, cls: cls, email: email,
                     open: keys.indexOf(_modelKey_(cls)) >= 0 || w.emails.indexOf(email) >= 0,
                     first: first, last: v ? _hwMs_(v[5]) : 0, opens: v ? Number(v[6]) || 0 : 0, ends: ends,
@@ -11295,7 +11323,8 @@ function _modelTeacherData_() {
     pupils.sort(function (a, b) { return a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : (a.name < b.name ? -1 : a.name > b.name ? 1 : 0); });
     var classes = w.classes.map(function (c) {
       var mine = pupils.filter(function (p) { return _modelKey_(p.cls) === _modelKey_(c); });
-      return { cls: c, onRoster: Object.keys(roster).some(function (x) { return _modelKey_(x) === _modelKey_(c); }), n: mine.length,
+      var F = forCls(c);
+      return { cls: c, h: F.hours, until: F.closes, onRoster: Object.keys(roster).some(function (x) { return _modelKey_(x) === _modelKey_(c); }), n: mine.length,
                started: mine.filter(function (p) { return p.first; }).length, reading: mine.filter(function (p) { return p.state === 'reading'; }).length,
                finished: mine.filter(function (p) { return p.state === 'finished'; }).length };
     });
@@ -11320,48 +11349,68 @@ function modelTeacherAction(a) {
   a = a || {};
   var page = String(a.page || ''), op = String(a.op || ''), cls = String(a.cls || '').trim(), em = _cleanEmail_(a.email || '');
   if (!Object.prototype.hasOwnProperty.call(MODEL_PAGES, page)) return { ok: false, why: 'No such page.' };
-  if (['open', 'close', 'more'].indexOf(op) < 0) return { ok: false, why: 'Unknown action.' };
+  if (['open', 'set', 'close', 'more'].indexOf(op) < 0) return { ok: false, why: 'Unknown action.' };
   if (!cls && !em) return { ok: false, why: 'Choose a class.' };
+  /* hours and days as the teacher typed them; left out, the page's Hours per pupil and MODEL_CLOSE_DAYS */
+  var given = function (x) { return x !== undefined && x !== null && String(x).trim() !== ''; };
+  var hIn = given(a.hours) ? Math.round(Number(a.hours)) : NaN, dIn = given(a.days) ? Math.round(Number(a.days)) : MODEL_CLOSE_DAYS;
+  if (given(a.hours) && !(hIn >= 1 && hIn <= MODEL_MAX_HOURS)) return { ok: false, why: 'The hours each pupil gets must be a whole number from 1 to ' + MODEL_MAX_HOURS + '.' };
+  if (given(a.days) && !(dIn >= 1 && dIn <= MODEL_MAX_DAYS)) return { ok: false, why: 'The days to start must be a whole number from 1 to ' + MODEL_MAX_DAYS + '.' };
   var lock = LockService.getScriptLock(), note = '';
   try { lock.waitLock(20000); } catch (e) { return { ok: false, why: 'Busy: press it again in a few seconds.' }; }
   try {
-    var S = _modelSettings_(page), w = _modelWhoParse_(S.v[3]), now = Date.now(), name = cls || em;
-    var hours = Number(S.v[4]) > 0 ? Number(S.v[4]) : MODEL_HOURS;
+    var S = _modelSettings_(page), w = _modelWhoParse_(S.v[3]), cfg = _modelCfg_(S.v[7]), now = Date.now(), name = cls || em, key = _modelKey_(cls);
+    _modelNotes_(S.sh, MODEL_HEAD);                       /* a tab made before gets today's headings and notes */
+    var pageHours = Number(S.v[4]) > 0 ? Number(S.v[4]) : MODEL_HOURS;
+    if (!(hIn >= 1)) hIn = (op === 'set' && cfg[key] && Number(cfg[key].h) > 0) ? Number(cfg[key].h) : pageHours;
     var never = /never/i.test(String(S.v[5] || '')), closes = never ? 0 : _hwMs_(S.v[5]);
-    var keepOpen = function () {
-      if (never) return;
-      var want = now + MODEL_CLOSE_DAYS * 864e5;
-      if (!closes || closes < want) S.sh.getRange(S.row, 6).setValue(new Date(want));
-    };
-    if (op === 'open') {
-      if (cls && !w.classes.some(function (c) { return _modelKey_(c) === _modelKey_(cls); })) w.classes.push(cls);
-      if (em && w.emails.indexOf(em) < 0) w.emails.push(em);
+    var isOpen = !!cls && w.classes.some(function (c) { return _modelKey_(c) === key; });
+    /* Closes for everyone is kept at or after every class's own date (unless it says never) */
+    var keepOpen = function (until) { if (!never && (!closes || closes < until)) { closes = until; S.sh.getRange(S.row, 6).setValue(new Date(until)); } };
+    var when = function (ms) { try { return Utilities.formatDate(new Date(ms), _tz_(), 'EEE d MMM, HH:mm'); } catch (e) { return new Date(ms).toISOString().slice(0, 16).replace('T', ' '); } };
+    if (op === 'open' || op === 'set') {
+      if (op === 'set' && cls && !isOpen) return { ok: false, why: cls + ' is not open: open it first.' };
+      if (cls) {
+        if (!isOpen) w.classes.push(cls);
+        cfg[key] = { cls: cls, h: hIn, until: now + dIn * 864e5 };
+        keepOpen(cfg[key].until);
+        note = (op === 'open' ? 'Open for ' + cls + '. Its pupils see a card on the Biology Hub; each' : cls + ' changed: each pupil') + ' has ' + hIn + ' hours from when they press Start, and can start until ' + when(cfg[key].until) + ' (' + dIn + ' day' + (dIn === 1 ? '' : 's') + ').';
+      } else {
+        if (w.emails.indexOf(em) < 0) w.emails.push(em);
+        keepOpen(now + MODEL_CLOSE_DAYS * 864e5);
+        note = 'Open for ' + em + ': ' + pageHours + ' hours from Start.';
+      }
       S.sh.getRange(S.row, 4).setValue(_modelWhoText_(w));
-      keepOpen();
-      note = 'Open for ' + name + '. Its pupils see a card on the Biology Hub, and each has ' + hours + ' hours from when they press Start.';
     } else if (op === 'close') {
-      w.classes = w.classes.filter(function (c) { return _modelKey_(c) !== _modelKey_(cls); });
+      w.classes = w.classes.filter(function (c) { return _modelKey_(c) !== key; });
+      if (cls) delete cfg[key];
       if (em) w.emails = w.emails.filter(function (e) { return e !== em; });
       S.sh.getRange(S.row, 4).setValue(_modelWhoText_(w));
       note = 'Closed for ' + name + '. The card has gone from their hub, and the page no longer opens for them.';
     } else {
-      var V = _modelTab_(T_MODEL_VISITS, MODEL_VISIT_HEAD), last = V.getLastRow(), n = 0, clsOf = {};
-      if (cls) _studentDirectory_().students.forEach(function (s) { if (s.email) clsOf[_cleanEmail_(s.email)] = s.cls; });
+      var V = _modelTab_(T_MODEL_VISITS, MODEL_VISIT_HEAD), last = V.getLastRow(), n = 0, clsOf = {}, hours = pageHours;
+      _studentDirectory_().students.forEach(function (s) { if (s.email) clsOf[_cleanEmail_(s.email)] = s.cls; });
+      if (cls) hours = (cfg[key] && Number(cfg[key].h) > 0) ? Number(cfg[key].h) : pageHours;
       if (last >= 2) V.getRange(2, 1, last - 1, MODEL_VISIT_HEAD.length).getValues().forEach(function (v, i) {
         if (String(v[0]).trim() !== page) return;
-        var e = _cleanEmail_(v[1]);
-        if (em ? e !== em : _modelKey_(clsOf[e] || v[3]) !== _modelKey_(cls)) return;
+        var e = _cleanEmail_(v[1]), c = clsOf[e] || v[3];
+        if (em ? e !== em : _modelKey_(c) !== key) return;
+        var h = em ? _modelFor_(S.v, w.classes.some(function (x) { return _modelKey_(x) === _modelKey_(c); }) ? c : '').hours : hours;
+        if (em) hours = h;
         var first = _hwMs_(v[4]), extra = Number(v[7]) || 0;
-        if (!first || first + (hours + extra) * 3600e3 >= now + hours * 3600e3) return;   /* not started, or a full spell already */
-        V.getRange(i + 2, 8).setValue(Math.ceil((now - first) / 36e3) / 100);              /* their hours now end `hours` from now */
+        if (!first || first + (h + extra) * 3600e3 >= now + h * 3600e3) return;   /* not started, or a full spell already */
+        V.getRange(i + 2, 8).setValue(Math.ceil((now - first) / 36e3) / 100);      /* their hours now end h hours from now */
         n++;
       });
-      keepOpen();
-      var shut = !!cls && !w.classes.some(function (c) { return _modelKey_(c) === _modelKey_(cls); });
+      /* the time must fit before the class's own date: it moves on if needed */
+      var ck = cls ? key : (em && clsOf[em] ? _modelKey_(clsOf[em]) : '');
+      if (ck && cfg[ck] && Number(cfg[ck].until) < now + hours * 3600e3) cfg[ck].until = now + hours * 3600e3 + 36e5;
+      keepOpen(ck && cfg[ck] ? Number(cfg[ck].until) : now + hours * 3600e3 + 36e5);
       note = (n ? (n === 1 ? '1 pupil has ' : n + ' pupils have ') + hours + ' more hours, from now.'
                 : 'Nobody needed more time: no pupil of ' + name + ' has started and run short of hours.') +
-             (cls && shut ? ' The page is closed for ' + cls + ': open it too, or they cannot use the time.' : '');
+             (cls && !isOpen ? ' The page is closed for ' + cls + ': open it too, or they cannot use the time.' : '');
     }
+    S.sh.getRange(S.row, 8).setValue(JSON.stringify(cfg));
   } finally { lock.releaseLock(); }
   _modelState_(true);
   return { ok: true, note: note, data: _teacherViewData_() };

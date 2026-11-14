@@ -1287,7 +1287,9 @@
       mdlName.textContent = m.title || 'A model page';
       if (m.state === 'teacher') {
         mdlEye.textContent = 'Test mode \u00b7 Model page';
-        mdlWhen.textContent = (m.classes && m.classes.length ? 'Open for ' + m.classes.join(', ') + '.' : 'Not open for any class yet.') + ' No time limit for you.' + more;
+        var opn = (m.open && m.open.length) ? m.open.map(function (o) { return o.cls + ' (' + o.h + ' h each' + (o.until ? ', until ' + sitAt(o.until) : '') + ')'; })
+                                            : (m.classes || []);
+        mdlWhen.textContent = (opn.length ? 'Open for ' + opn.join(', ') + '.' : 'Not open for any class yet.') + ' No time limit for you.' + more;
         mdlGo.firstChild.nodeValue = 'View the page ';
       } else if (m.state === 'open') {
         mdlEye.textContent = 'Open for you';
@@ -1295,8 +1297,10 @@
         mdlGo.firstChild.nodeValue = 'Open the page ';
       } else {
         mdlEye.textContent = 'Open for you';
-        mdlWhen.textContent = 'You have ' + (m.hours || 24) + ' hours from when you press Start on the page. Open it when you have time to study it.' +
-          (m.closes ? ' Start before ' + sitAt(m.closes) + '.' : '') + more;
+        var left = m.closes ? Math.max(1, Math.ceil((m.closes - now) / 864e5)) : 0;   /* days to start: a part day counts */
+        mdlWhen.textContent = 'You have ' + (m.hours || 24) + ' hours from when you press Start on the page.' +
+          (m.closes ? ' Start before ' + sitAt(m.closes) + ' (' + left + ' day' + (left === 1 ? '' : 's') + ' left).' : '') +
+          ' Open it when you have time to study it.' + more;
         mdlGo.firstChild.nodeValue = 'Open the page ';
       }
       mdlEl.classList.toggle('is-open', m.state === 'open');

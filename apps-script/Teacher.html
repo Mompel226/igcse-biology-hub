@@ -172,7 +172,11 @@ input::placeholder{color:var(--mute)}
 .mdl__c{color:var(--dim);font-size:13px;flex:1 1 220px}
 .mdl__bad{color:var(--bad-ink)}.mdl__ok{color:var(--good-ink)}.mdl__mute{color:var(--mute)}
 .mdl__row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 12px;margin:12px 0 0}
-.mdl__row .fld{flex:0 1 260px}
+.mdl__row .fld{flex:0 1 260px}.mdl__row .fld--n{flex:0 0 150px}
+.mdl input[type=number]{appearance:textfield;font:500 13.5px/1 var(--sans);color:var(--chalk);background:var(--cardhi);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;width:100%}
+.mdl input[type=number]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mdl__edit{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 12px;padding:10px 0 4px}.mdl__edit[hidden]{display:none}.mdl__edit .fld{flex:0 0 170px}
+.mdl__h1{color:var(--chalk)}
 .mdl__small{color:var(--mute);font-size:12.5px;margin:10px 0 0;max-width:none}
 .mdlwrap{overflow-x:auto;margin:10px 0 0}
 table.mdlt{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums;min-width:600px}
@@ -981,17 +985,23 @@ var BOOT = __BOOT__;
     var pages = M.pages || [];
     if (!pages.length) return '';
     return '<section class="mdl" aria-labelledby="mdlh"><div class="coh"><span class="coh__t" id="mdlh">📘 Mini IA models for students</span><span class="pill--yg">IB</span><span class="n">'+pages.length+'</span></div>'+
-      '<p class="mdl__lead">A private page each pupil can read for '+pages[0].hours+' hours from when they press Start. While it is open for their class, pupils see it as a card on the Biology Hub, and only there. Copying, printing and the screenshot keys do not work on the page; nothing on it tells the pupils so.</p>'+
+      '<p class="mdl__lead">A private page each pupil can read for the hours you choose ('+pages[0].hours+' unless you change them), counted from when they press Start. While it is open for their class, pupils see it as a card on the Biology Hub, and only there; the card shows their hours and the last day they can start. Copying, printing and the screenshot keys do not work on the page; nothing on it tells the pupils so.</p>'+
       pages.map(function(p){ return mdlCard(p, M); }).join('')+'</section>';
   }
   function mdlCard(p, M){
     var now = Date.now(), pg = esc(p.page), H = p.hours, note = mdlNote[p.page];
     var open = p.classes.map(function(c){ return mdlKey(c.cls); });
     var rows = p.classes.map(function(c){
-      return '<div class="mdl__cls"><b>'+esc(c.cls)+'</b><span class="mdl__c">'+c.n+' pupil'+(c.n===1?'':'s')+' · '+c.started+' started · '+c.reading+' reading now · '+c.finished+' finished'+
+      var h = c.h || H, days = c.until ? Math.max(0, Math.ceil((c.until - now) / 864e5)) : 0;
+      var dateTxt = c.until ? (c.until > now ? 'pupils can start until '+esc(mdlWhen(c.until))+' ('+days+' day'+(days===1?'':'s')+' left)' : '<span class="mdl__bad">its days to start are over</span>') : 'no last day';
+      return '<div class="mdl__cls"><b>'+esc(c.cls)+'</b><span class="mdl__c"><b class="mdl__h1">'+h+' h each</b> · '+dateTxt+'<br>'+c.n+' pupil'+(c.n===1?'':'s')+' · '+c.started+' started · '+c.reading+' reading now · '+c.finished+' finished'+
         (c.onRoster ? '' : ' · <span class="mdl__bad">not on the Students tab: nobody in it can open the page</span>')+'</span>'+
-        '<button type="button" class="act" data-mdl="more" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Another '+H+' hours</button>'+
-        '<button type="button" class="act danger" data-mdl="close" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Close</button></div>';
+        '<button type="button" class="act" data-mdl="more" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Another '+h+' hours</button>'+
+        '<button type="button" class="act" data-mdl="edit" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Change</button>'+
+        '<button type="button" class="act danger" data-mdl="close" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Close</button>'+
+        '<div class="mdl__edit" hidden data-edit="'+esc(c.cls)+'"><div class="fld"><label>Hours each pupil</label><input type="number" min="1" max="720" step="1" value="'+h+'" data-k="hours"></div>'+
+          '<div class="fld"><label>Days to start, from now</label><input type="number" min="1" max="120" step="1" value="'+(days || (M.closeDays||21))+'" data-k="days"></div>'+
+          '<button type="button" class="go" data-mdl="set" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Save</button></div></div>';
     }).join('') + p.emails.map(function(e){
       return '<div class="mdl__cls"><b>'+esc(e)+'</b><span class="mdl__c">named by email</span>'+
         '<button type="button" class="act danger" data-mdl="close" data-page="'+pg+'" data-email="'+esc(e)+'">Close</button></div>';
@@ -1003,16 +1013,17 @@ var BOOT = __BOOT__;
         var left = !u.first ? '<span class="mdl__mute">not started</span>' : (u.ends > now ? '<span class="mdl__ok">'+mdlLeft(u.ends-now)+'</span>' : '<span class="mdl__mute">finished</span>');
         return '<tr'+(u.open?'':' class="mdl__shut"')+'><td>'+esc(u.name)+'</td><td>'+esc(u.cls)+(u.open?'':' <span class="mdl__mute">(closed)</span>')+'</td><td>'+(u.first?esc(mdlWhen(u.first)):'—')+'</td><td>'+left+'</td>'+
           '<td>'+(u.opens||'—')+'</td><td class="mdl__blk">'+(u.blocked?esc(u.blocked):'—')+'</td>'+
-          '<td>'+(u.first?'<button type="button" class="act" data-mdl="more" data-page="'+pg+'" data-email="'+esc(u.email)+'">+'+H+' h</button>':'')+'</td></tr>';
+          '<td>'+(u.first?'<button type="button" class="act" data-mdl="more" data-page="'+pg+'" data-email="'+esc(u.email)+'">+ h</button>':'')+'</td></tr>';
       }).join('')+'</tbody></table></div>' : '';
     return '<div class="mdl__card">'+
       '<div class="mdl__h"><span class="mdl__t">'+esc(p.title)+'</span><a class="open" href="'+esc(p.url)+'" target="_blank" rel="noopener noreferrer">View the page ↗</a></div>'+
       (p.file ? '' : '<div class="warn">Not set up yet: the page has no file. In the Student data spreadsheet: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page… ▸ “Missing one?”: paste the Drive link of the page’s file (….model.gz), press Check, then “Use it for this model page”.</div>')+
       (rows ? '<p class="mdl__sub">Open for</p>'+rows : '<p class="mdl__sub">Not open for any class yet: pupils see nothing.</p>')+
       '<div class="mdl__row"><div class="fld"><label for="mdlc-'+pg+'">Open it for a class</label><select id="mdlc-'+pg+'">'+(opts||'<option value="">Every class on the Students tab is open</option>')+'</select></div>'+
-      '<button type="button" class="go" data-mdl="open" data-page="'+pg+'"'+(opts && p.file ? '' : ' disabled')+'>Open for '+H+' hours each</button></div>'+
-      '<p class="mdl__small">'+(p.never ? 'It never closes for everyone.' : p.closes ? 'It closes for everyone on '+esc(mdlWhen(p.closes))+': '+(M.closeDays||21)+' days after it was last opened or given more time.' : 'Once opened, it closes for everyone after '+(M.closeDays||21)+' days.')+
-        ' “Another '+H+' hours” gives every pupil of the class who has run short '+H+' hours from now; “+'+H+' h” does it for one pupil.</p>'+
+      '<div class="fld fld--n"><label for="mdlh-'+pg+'">Hours each pupil</label><input type="number" id="mdlh-'+pg+'" min="1" max="720" step="1" value="'+H+'"></div>'+
+      '<div class="fld fld--n"><label for="mdld-'+pg+'">Days to start</label><input type="number" id="mdld-'+pg+'" min="1" max="120" step="1" value="'+(M.closeDays||21)+'"></div>'+
+      '<button type="button" class="go" data-mdl="open" data-page="'+pg+'"'+(opts && p.file ? '' : ' disabled')+'>Open it</button></div>'+
+      '<p class="mdl__small">Each class has its own hours and days: <b>Hours each pupil</b> count from when a pupil presses Start; <b>Days to start</b> is how long the class has to begin (their hours also end then). Change them for an open class with <b>Change</b>. “Another N hours” gives every pupil of the class who has run short a full spell from now; “+ h” does it for one pupil.</p>'+
       '<p class="msg'+(note ? (note.bad?' bad':' ok') : '')+'" id="mdlmsg-'+pg+'" role="status">'+(note ? esc(note.t) : '')+'</p>'+
       pupils+
       '<details class="mdl__help"><summary>Your class is not in the list?</summary><p>The classes come from the Students tab of the Student data spreadsheet. To add yours, open Student data and choose <b>'+esc(M.importMenu||'🧪 Biology Labs ▸ 🎓 Import students from Classroom…')+'</b>, then tick your Google Classroom class. You need to be on this page’s teacher list and able to edit Student data. If you cannot, ask Daniel Mompel Riera to share it with you or to import the class. Then come back here and open it for the class.</p></details>'+
@@ -1024,7 +1035,11 @@ var BOOT = __BOOT__;
     var page = b.getAttribute('data-page'), a = { page: page, op: b.getAttribute('data-mdl') };
     if (b.hasAttribute('data-cls')) a.cls = b.getAttribute('data-cls');
     if (b.hasAttribute('data-email')) a.email = b.getAttribute('data-email');
-    if (a.op === 'open' && !a.cls) { var s = $('mdlc-'+page); a.cls = s ? s.value : ''; if (!a.cls) return; }
+    if (a.op === 'edit') { var ed = document.querySelector('.mdl__edit[data-edit="'+(window.CSS && CSS.escape ? CSS.escape(a.cls) : a.cls)+'"]'); if (ed) ed.hidden = !ed.hidden; return; }
+    if (a.op === 'open') { var s = $('mdlc-'+page); a.cls = s ? s.value : ''; if (!a.cls) return;
+      a.hours = ($('mdlh-'+page) || {}).value; a.days = ($('mdld-'+page) || {}).value; }
+    if (a.op === 'set') { var box = b.closest('.mdl__edit');
+      a.hours = box.querySelector('[data-k="hours"]').value; a.days = box.querySelector('[data-k="days"]').value; }
     mdlBusy = true; b.disabled = true;
     var m = $('mdlmsg-'+page); if (m) { m.textContent = 'Working…'; m.className = 'msg'; }
     var done = function(t, bad){ mdlBusy = false; mdlNote[page] = { t: t, bad: bad }; if (cur === 'teachers') redraw(); };
