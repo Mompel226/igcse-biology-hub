@@ -251,6 +251,10 @@ body:not([data-view="entry"][data-mine-door]) #acctWho{display:none!important}
 @media (max-width:560px){.sit--rfl .sit__txt{flex-basis:100%}}
 /* "Quiz" (10 Nov 2026): a Quiz Hall quiz, in Quiz Hall's own periwinkle (its --accent, #8EA0F2), no picture; the dot
    pulses only while the quiz is open (.is-open), as the test's */
+/* 📘 a model page open for this pupil (14 Nov 2026): leaf green */
+.sit--mdl{--sit:#A3D977;border-color:rgba(163,217,119,.34);background:linear-gradient(90deg,rgba(163,217,119,.10),rgba(7,15,21,.62) 55%)}
+.sit--mdl .sit__go{color:#13200A}
+@media (max-width:560px){.sit--mdl .sit__txt{flex-basis:100%}}
 .sit--qz{--sit:#8EA0F2;border-color:rgba(142,160,242,.36);background:linear-gradient(90deg,rgba(142,160,242,.11),rgba(7,15,21,.62) 55%)}
 .sit--qz .sit__go{color:#0F161D}
 @media (max-width:560px){.sit--qz .sit__txt{flex-basis:100%}}

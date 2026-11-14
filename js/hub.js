@@ -1240,6 +1240,7 @@
       if (sitNote) sitNote.hidden = true;
       if (fbkEl) fbkEl.hidden = true;
       if (rflEl) rflEl.hidden = true;
+      if (mdlEl) { mdlEl.hidden = true; mdlEl.classList.remove('is-open'); }
       if (rflNote) rflNote.hidden = true;
     }
     /* ---------- "New feedback" (25 Sep 2026; a 5-day nudge since 26 Sep — the lasting way in is My assessments) ----------
@@ -1263,6 +1264,44 @@
       fbkWhen.textContent = 'Shared ' + sitAt(f.at) + (f.more > 0 ? ' \u00b7 and ' + f.more + ' more' : '') + '. Read your marks and comments.';
       fbkGo.href = f.url;
       fbkEl.hidden = false;
+    }
+    /* ---------- "Open for you": a private model page (14 Nov 2026) ----------
+       Daniel: pupils reach the model mini IA "via the hub card and only via the hub card", so no link lies about in
+       Classroom once its time is over. The labs script sends `models` in the same answer as the test banner: the pages open
+       for this pupil now (its 🔐 Model pages: their class is open, and their hours, counted from Start, are not over). The
+       card says how long is left; it is gone when their time ends or the teacher closes the page for their class. A teacher
+       sees it only in test mode, with no clock. The address comes from the labs script (always this site's own). */
+    var mdlEl   = document.getElementById('mdl'),
+        mdlEye  = document.getElementById('mdlEye'),
+        mdlName = document.getElementById('mdlName'),
+        mdlWhen = document.getElementById('mdlWhen'),
+        mdlGo   = document.getElementById('mdlGo');
+    function mdlLeft(ms) { var m = Math.floor(ms / 60000), h = Math.floor(m / 60); return h ? h + ' h ' + (m % 60) + ' min' : (m < 1 ? 'less than a minute' : m + ' min'); }
+    function mdlDraw(j) {
+      if (!mdlEl || !j || !acting) return;
+      var all = (j.models || []).filter(function (m) { return m && /^https:\/\/nlcsbiology\.com\//.test(String(m.url || '')); });
+      if (!all.length) return;
+      if (j.teacher && mode() !== 'test') return;
+      var m = all[0], now = Date.now(), more = all.length > 1 ? ' And ' + (all.length - 1) + ' more page' + (all.length > 2 ? 's' : '') + '.' : '';
+      if (m.state === 'open' && !(m.ends > now)) return;                 /* their time ran out since the check */
+      mdlName.textContent = m.title || 'A model page';
+      if (m.state === 'teacher') {
+        mdlEye.textContent = 'Test mode \u00b7 Model page';
+        mdlWhen.textContent = (m.classes && m.classes.length ? 'Open for ' + m.classes.join(', ') + '.' : 'Not open for any class yet.') + ' No time limit for you.' + more;
+        mdlGo.firstChild.nodeValue = 'View the page ';
+      } else if (m.state === 'open') {
+        mdlEye.textContent = 'Open for you';
+        mdlWhen.textContent = mdlLeft(m.ends - now) + ' left, until ' + sitAt(m.ends) + '.' + more;
+        mdlGo.firstChild.nodeValue = 'Open the page ';
+      } else {
+        mdlEye.textContent = 'Open for you';
+        mdlWhen.textContent = 'You have ' + (m.hours || 24) + ' hours from when you press Start on the page. Open it when you have time to study it.' +
+          (m.closes ? ' Start before ' + sitAt(m.closes) + '.' : '') + more;
+        mdlGo.firstChild.nodeValue = 'Open the page ';
+      }
+      mdlEl.classList.toggle('is-open', m.state === 'open');
+      mdlGo.href = m.url; mdlGo.hidden = false;
+      mdlEl.hidden = false;
     }
     /* ---------- "Your reflection" (§hub-card, reflection spec §40.80; 28 Sep 2026) ----------
        A third card under the test's, for a reflection the teacher has switched on for the hub. The labs script works
@@ -1451,7 +1490,7 @@
       if (!acting) { if (!resting) chkShow(''); return; }      /* the remembered card keeps its sign-in line */
       var j = sitLast;
       if (!j) return;
-      var isT = !!j.teacher, shown = !sitEl.hidden || (fbkEl && !fbkEl.hidden) || (rflEl && !rflEl.hidden);
+      var isT = !!j.teacher, shown = !sitEl.hidden || (fbkEl && !fbkEl.hidden) || (rflEl && !rflEl.hidden) || (mdlEl && !mdlEl.hidden);
       var say = 'Checked at ' + hhmm(sitAnsweredAt) + '.';
       if (!isT && j.state === 'waiting') {
         say += ' Your test' + (j.name ? ' \u201c' + j.name + '\u201d' : '') + ' has not started yet. This page checks again every minute.';
@@ -1513,6 +1552,7 @@
       sitHide();
       fbkDraw(sitLast);
       rflDraw(sitLast);
+      mdlDraw(sitLast);
       var j = sitLast;
       if (!j || !acting || !sitEl) return;
       var t = !!j.teacher;

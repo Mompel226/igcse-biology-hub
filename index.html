@@ -20,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/hub.css?v=1794384708">
+<link rel="stylesheet" href="css/hub.css?v=1794642199">
 </head>
 <body>
 
@@ -141,6 +141,18 @@
         </div>
         <a class="sit__go" id="rflGo" hidden>Start your reflection <span aria-hidden="true">&rarr;</span></a>
       </section>
+      <!-- "Model page" (14 Nov 2026): a private model page (today the ecology mini IA's model) open for this pupil now: before
+           they start, and while their hours last; gone when their time is over or their teacher closes it. The only way pupils
+           are sent there (Daniel). Filled in by js/hub.js from the same answer as the test banner (the labs script's `models`);
+           a teacher sees it only in test mode. Opens in this tab. -->
+      <section class="sit sit--mdl" id="mdl" hidden aria-labelledby="mdlName">
+        <div class="sit__txt">
+          <span class="sit__eye"><span class="sit__dot" aria-hidden="true"></span><span id="mdlEye">Open for you</span></span>
+          <span class="sit__name" id="mdlName"></span>
+          <span class="sit__when" id="mdlWhen"></span>
+        </div>
+        <a class="sit__go" id="mdlGo" hidden>Open the page <span aria-hidden="true">&rarr;</span></a>
+      </section>
       <!-- "Quiz" (10 Nov 2026): a Quiz Hall quiz open now or later for this pupil, in any subject. Filled in by js/hub.js from
            Quiz Hall's own back office (js/local.js quizHall; the school edition only), asked every few seconds so it shows
            soon after the teacher presses Start now. The link appears once the quiz is open. -->
@@ -242,12 +254,12 @@
      leaves the rest of the hub exactly as it is — js/hub.js checks before it asks. -->
 <script src="https://accounts.google.com/gsi/client?hl=en-GB" async defer></script>
 
-<script src="js/data/labs.js?v=1794384708"></script>
-<script src="js/data/syllabus-years.js?v=1794384708"></script>
-<script src="js/progress.js?v=1794384708"></script>
-<script src="js/signin.js?v=1794384708"></script>
-<script src="js/shelves.js?v=1794384708"></script>
-<script src="js/local.js?v=1794384708"></script>
-<script src="js/hub.js?v=1794384708"></script>
+<script src="js/data/labs.js?v=1794642199"></script>
+<script src="js/data/syllabus-years.js?v=1794642199"></script>
+<script src="js/progress.js?v=1794642199"></script>
+<script src="js/signin.js?v=1794642199"></script>
+<script src="js/shelves.js?v=1794642199"></script>
+<script src="js/local.js?v=1794642199"></script>
+<script src="js/hub.js?v=1794642199"></script>
 </body>
 </html>

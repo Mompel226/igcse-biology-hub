@@ -74,7 +74,7 @@
       <div class="sum" id="leftOut"></div>
       <div class="sum" id="watchList"></div>
       <div class="row" style="margin-top:4px">
-        <label style="flex:1 1 320px">Missing one? Paste its address to see why
+        <label style="flex:1 1 320px">Missing one? Paste its address to see why (a spreadsheet, or a 🔐 model page’s Drive file)
           <input id="chkUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
         <button type="button" class="ghost" id="chkBtn">Check</button>
       </div>
@@ -303,6 +303,8 @@
     if(ac){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } })
               .withFailureHandler(function(){ busy(false); }).teacherAddChecked(ac); }
     if(e.target.getAttribute('data-fillform')!=null){ $('lUrl').value=$('chkUrl').value.trim(); $('lAss').focus(); }
+    var um=e.target.getAttribute('data-usemodel');
+    if(um){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } }).withFailureHandler(function(){ busy(false); }).teacherUseModelFile(um); }
     var wa=e.target.getAttribute('data-watch');
     if(wa){ busy(true); google.script.run.withSuccessHandler(function(d){ busy(false); if(d&&d.ok){ render(d); showCheck(d.check); } }).withFailureHandler(function(){ busy(false); }).teacherWatchFolder(wa); }
     var uw=e.target.getAttribute('data-unwatch');
@@ -340,11 +342,12 @@
   // "Missing one?": one address, every reason in plain words, and "Add it" when that is safe
   function showCheck(c){
     if(!c){ $('chkOut').innerHTML=''; return; }
-    var good = { listed:1, find:1, added:1, unindexed:1, watching:1 }[c.verdict] && !c.watchable;
+    var good = { listed:1, find:1, added:1, unindexed:1, watching:1, model:1, modelset:1, modeladded:1 }[c.verdict] && !c.watchable;
     $('chkOut').innerHTML = (c.say||[]).map(function(t,i){ return '<p class="'+(!good && i===c.say.length-1 ? 'no' : 'ok')+'">'+esc(t)+'</p>'; }).join('') +
       (c.canAdd && c.card && c.verdict!=='added' ? '<button type="button" data-addchk="'+esc(c.id)+'">Add it</button>' : '') +
       (c.verdict==='nolabel' ? '<button type="button" class="ghost" data-fillform="1">Fill in its address below</button>' : '') +
-      (c.watchable ? '<button type="button" data-watch="'+esc(c.id)+'">Let Find look in this folder</button>' : '');
+      (c.watchable ? '<button type="button" data-watch="'+esc(c.id)+'">Let Find look in this folder</button>' : '') +
+      (c.verdict==='model' ? '<button type="button" data-usemodel="'+esc(c.id)+'">Use it for this model page</button>' : '');
   }
   $('chkBtn').onclick = function(){
     var u = $('chkUrl').value.trim(); if(!u) return;

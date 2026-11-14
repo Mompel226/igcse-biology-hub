@@ -68,7 +68,7 @@ html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(-
    to Google's frame around it or to the browser, whose two-finger swipe means Back. Up and down scroll as before. Every box
    that scrolls sideways is in the second list (tools/teacher-fit.mjs fails on one that is not). */
 html,body{overscroll-behavior-x:none}
-.hmwrap,.cmpwrap,.draw__b,.rq,.pups,.hbwrap{overscroll-behavior-x:contain}
+.hmwrap,.cmpwrap,.draw__b,.rq,.pups,.hbwrap,.mdlwrap{overscroll-behavior-x:contain}
 body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-events:none;z-index:0;
   background:radial-gradient(1100px 420px at 82% -40%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 65%);transition:background .3s}
 /* ---- the shell: sticky, so the tabs and "signed in" never move between views ---- */
@@ -161,6 +161,28 @@ input::placeholder{color:var(--mute)}
 .go:disabled{opacity:.45;cursor:not-allowed}
 .msg{margin-top:10px;font-size:13px;min-height:1.2em}.msg.bad{color:var(--bad-ink)}.msg.ok{color:var(--good)}
 .tmsg{font-size:12px;line-height:1.45;color:var(--dim)}
+/* 📘 Mini IA models for students (14 Nov 2026): the first block of the Spreadsheets view */
+.mdl{margin:22px 0 0}
+.mdl__lead{color:var(--dim);font-size:13.5px;margin:0 0 12px;max-width:none}
+.mdl__card{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:14px 16px;margin:0 0 10px}
+.mdl__h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 6px}
+.mdl__t{font-weight:600;font-size:15px;color:var(--chalk)}
+.mdl__sub{font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute);margin:10px 0 2px}
+.mdl__cls{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-top:1px solid var(--line)}
+.mdl__c{color:var(--dim);font-size:13px;flex:1 1 220px}
+.mdl__bad{color:var(--bad-ink)}.mdl__ok{color:var(--good-ink)}.mdl__mute{color:var(--mute)}
+.mdl__row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 12px;margin:12px 0 0}
+.mdl__row .fld{flex:0 1 260px}
+.mdl__small{color:var(--mute);font-size:12.5px;margin:10px 0 0;max-width:none}
+.mdlwrap{overflow-x:auto;margin:10px 0 0}
+table.mdlt{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums;min-width:600px}
+table.mdlt th{font:600 9.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2)}
+table.mdlt td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.mdlt tr.mdl__shut td{color:var(--mute)}
+.mdl__blk{font:500 11px/1.35 var(--mono);color:var(--dim)}
+.mdl__help{margin:12px 0 0;font-size:13px;color:var(--dim)}
+.mdl__help summary{cursor:pointer;color:var(--chalk)}
+.mdl__help p{margin:8px 0 0}
 /* cards used by Spreadsheets + Students */
 .grp{margin:26px 0 0}
 /* §held-results: results waiting for a teacher to release them, at the top of the Students tab */
@@ -941,6 +963,77 @@ var BOOT = __BOOT__;
       (l.dash?'<a class="dash" href="'+esc(l.dash)+'" target="_blank" rel="noopener noreferrer">Dashboard</a>':'')+
       '<a class="open" href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+(l.dash?'Spreadsheet':'Open')+'</a></div></div>';
   }
+  /* 📘 Mini IA models for students (14 Nov 2026, Daniel: "within the teacher page … Mini IA models for students … if they
+     decide to post for 24 hours or repost for another extra 24 hours, it's easily done from there", and clear words for a
+     teacher whose class is not on the list). The first block of the Spreadsheets view, above its Find bar (the bar hides
+     every .grp without a link card): each model page, the classes it is open for and every pupil's hours, from the labs
+     script's _modelTeacherData_. Open for a class, Close, Another N hours call modelTeacherAction, which answers with this
+     view's new copy. Pupils reach the page only through its card on the Biology Hub. */
+  var mdlNote = {}, mdlBusy = false;
+  var MDL_DAYS = 'Sun Mon Tue Wed Thu Fri Sat'.split(' '), MDL_MON = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
+  function mdlWhen(ms){ if(!ms) return ''; var d=new Date(ms); return MDL_DAYS[d.getDay()]+' '+d.getDate()+' '+MDL_MON[d.getMonth()]+', '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+  function mdlLeft(ms){ var m=Math.floor(ms/60000), h=Math.floor(m/60); return h ? h+' h '+(m%60)+' min' : (m<1 ? 'under a minute' : m+' min'); }
+  function mdlKey(c){ return String(c||'').replace(/\s+/g,'').toUpperCase(); }
+  function mdlSection(M){
+    if (!M) return '';
+    if (M.error) return '<div class="warn">📘 Mini IA models for students could not be read just now ('+esc(M.error)+').</div>';
+    var pages = M.pages || [];
+    if (!pages.length) return '';
+    return '<section class="mdl" aria-labelledby="mdlh"><div class="coh"><span class="coh__t" id="mdlh">📘 Mini IA models for students</span><span class="n">'+pages.length+'</span></div>'+
+      '<p class="mdl__lead">A private page each pupil can read for '+pages[0].hours+' hours from when they press Start. While it is open for their class, pupils see it as a card on the Biology Hub, and only there. Copying, printing and the screenshot keys do not work on the page; nothing on it tells the pupils so.</p>'+
+      pages.map(function(p){ return mdlCard(p, M); }).join('')+'</section>';
+  }
+  function mdlCard(p, M){
+    var now = Date.now(), pg = esc(p.page), H = p.hours, note = mdlNote[p.page];
+    var open = p.classes.map(function(c){ return mdlKey(c.cls); });
+    var rows = p.classes.map(function(c){
+      return '<div class="mdl__cls"><b>'+esc(c.cls)+'</b><span class="mdl__c">'+c.n+' pupil'+(c.n===1?'':'s')+' · '+c.started+' started · '+c.reading+' reading now · '+c.finished+' finished'+
+        (c.onRoster ? '' : ' · <span class="mdl__bad">not on the Students tab: nobody in it can open the page</span>')+'</span>'+
+        '<button type="button" class="act" data-mdl="more" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Another '+H+' hours</button>'+
+        '<button type="button" class="act danger" data-mdl="close" data-page="'+pg+'" data-cls="'+esc(c.cls)+'">Close</button></div>';
+    }).join('') + p.emails.map(function(e){
+      return '<div class="mdl__cls"><b>'+esc(e)+'</b><span class="mdl__c">named by email</span>'+
+        '<button type="button" class="act danger" data-mdl="close" data-page="'+pg+'" data-email="'+esc(e)+'">Close</button></div>';
+    }).join('');
+    var opts = (M.roster||[]).filter(function(c){ return open.indexOf(mdlKey(c.cls)) < 0; })
+      .map(function(c){ return '<option value="'+esc(c.cls)+'">'+esc(c.cls)+' ('+c.n+' pupil'+(c.n===1?'':'s')+')</option>'; }).join('');
+    var pupils = p.pupils.length ? '<div class="mdlwrap"><table class="mdlt"><thead><tr><th>Pupil</th><th>Class</th><th>Started</th><th>Time left</th><th>Opened</th><th>Blocked</th><th></th></tr></thead><tbody>'+
+      p.pupils.map(function(u){
+        var left = !u.first ? '<span class="mdl__mute">not started</span>' : (u.ends > now ? '<span class="mdl__ok">'+mdlLeft(u.ends-now)+'</span>' : '<span class="mdl__mute">finished</span>');
+        return '<tr'+(u.open?'':' class="mdl__shut"')+'><td>'+esc(u.name)+'</td><td>'+esc(u.cls)+(u.open?'':' <span class="mdl__mute">(closed)</span>')+'</td><td>'+(u.first?esc(mdlWhen(u.first)):'—')+'</td><td>'+left+'</td>'+
+          '<td>'+(u.opens||'—')+'</td><td class="mdl__blk">'+(u.blocked?esc(u.blocked):'—')+'</td>'+
+          '<td>'+(u.first?'<button type="button" class="act" data-mdl="more" data-page="'+pg+'" data-email="'+esc(u.email)+'">+'+H+' h</button>':'')+'</td></tr>';
+      }).join('')+'</tbody></table></div>' : '';
+    return '<div class="mdl__card">'+
+      '<div class="mdl__h"><span class="mdl__t">'+esc(p.title)+'</span><a class="open" href="'+esc(p.url)+'" target="_blank" rel="noopener noreferrer">View the page ↗</a></div>'+
+      (p.file ? '' : '<div class="warn">Not set up yet: the page has no file. In the Student data spreadsheet: 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page… ▸ “Missing one?”: paste the Drive link of the page’s file (….model.gz), press Check, then “Use it for this model page”.</div>')+
+      (rows ? '<p class="mdl__sub">Open for</p>'+rows : '<p class="mdl__sub">Not open for any class yet: pupils see nothing.</p>')+
+      '<div class="mdl__row"><div class="fld"><label for="mdlc-'+pg+'">Open it for a class</label><select id="mdlc-'+pg+'">'+(opts||'<option value="">Every class on the Students tab is open</option>')+'</select></div>'+
+      '<button type="button" class="go" data-mdl="open" data-page="'+pg+'"'+(opts && p.file ? '' : ' disabled')+'>Open for '+H+' hours each</button></div>'+
+      '<p class="mdl__small">'+(p.never ? 'It never closes for everyone.' : p.closes ? 'It closes for everyone on '+esc(mdlWhen(p.closes))+': '+(M.closeDays||21)+' days after it was last opened or given more time.' : 'Once opened, it closes for everyone after '+(M.closeDays||21)+' days.')+
+        ' “Another '+H+' hours” gives every pupil of the class who has run short '+H+' hours from now; “+'+H+' h” does it for one pupil.</p>'+
+      '<p class="msg'+(note ? (note.bad?' bad':' ok') : '')+'" id="mdlmsg-'+pg+'" role="status">'+(note ? esc(note.t) : '')+'</p>'+
+      pupils+
+      '<details class="mdl__help"><summary>Your class is not in the list?</summary><p>The classes come from the Students tab of the Student data spreadsheet. To add yours, open Student data and choose <b>'+esc(M.importMenu||'🧪 Biology Labs ▸ 🎓 Import students from Classroom…')+'</b>, then tick your Google Classroom class. You need to be on this page’s teacher list and able to edit Student data. If you cannot, ask Daniel Mompel Riera to share it with you or to import the class. Then come back here and open it for the class.</p></details>'+
+      '</div>';
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('[data-mdl]') : null;
+    if (!b || mdlBusy) return;
+    var page = b.getAttribute('data-page'), a = { page: page, op: b.getAttribute('data-mdl') };
+    if (b.hasAttribute('data-cls')) a.cls = b.getAttribute('data-cls');
+    if (b.hasAttribute('data-email')) a.email = b.getAttribute('data-email');
+    if (a.op === 'open' && !a.cls) { var s = $('mdlc-'+page); a.cls = s ? s.value : ''; if (!a.cls) return; }
+    mdlBusy = true; b.disabled = true;
+    var m = $('mdlmsg-'+page); if (m) { m.textContent = 'Working…'; m.className = 'msg'; }
+    var done = function(t, bad){ mdlBusy = false; mdlNote[page] = { t: t, bad: bad }; if (cur === 'teachers') redraw(); };
+    google.script.run
+      .withSuccessHandler(function(r){
+        if (r && r.ok) { putView('teachers', { ok: true, data: r.data }); done(r.note, false); }
+        else done((r && r.why) || 'That did not work.', true); })
+      .withFailureHandler(function(){ done('That did not work: the spreadsheet could not be reached. Try again.', true); })
+      .modelTeacherAction(a);
+  });
   function vSpreadsheets(g){
     /* Rows whose Link this page cannot read — in practice a smart chip, which shows the file's name and
        hides its address — are named here, rather than silently left out or opened at the wrong place. */
@@ -970,8 +1063,9 @@ var BOOT = __BOOT__;
     if (gDel.length) warn += '<div class="warn">'+(gDel.length===1?'1 spreadsheet was':gDel.length+' spreadsheets were')+' deleted, so '+
       (gDel.length===1?'its row':'their rows')+(gDel.every(function(u){ return u.removed; })?' in 🔗 Teacher links '+(gDel.length===1?'was':'were')+' removed: '
         :' in 🔗 Teacher links '+(gDel.length===1?'is':'are')+' not shown and will be removed at the next look: ')+nm(gDel)+'.</div>';
+    var mdl = mdlSection(g && g.models);              /* 📘 Mini IA models for students: above the Find bar */
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
-      return $('view').innerHTML = warn || '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</div>';
+      return $('view').innerHTML = warn + mdl + (mdl ? '' : '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</div>');
     var present={}, body='';
     if (g.records.length) body += '<section class="grp" data-cur="1"><div class="coh"><span class="coh__t">Records</span><span class="n">'+g.records.length+'</span></div>'+
       '<div class="cards">'+g.records.map(function(l){ present.records=1; return linkCard(l,'records','records'); }).join('')+'</div></section>';
@@ -992,7 +1086,7 @@ var BOOT = __BOOT__;
       [['reflection','Reflection'],['test','Test'],['survey','Survey'],['records','Records'],['other','Other']]
       .filter(function(p){return present[p[0]];})
       .map(function(p){ return '<button class="chip'+(sState.f===p[0]?' on':'')+'" data-f="'+p[0]+'">'+p[1]+'</button>'; }).join('');
-    $('view').innerHTML = warn +
+    $('view').innerHTML = warn + mdl +
       '<div class="bar2"><div class="fld fld--grow"><label for="sq">Find</label><input id="sq" type="search" placeholder="a spreadsheet…" value="'+esc(sState.q)+'"></div>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+chips+'</div>'+
       '<label class="ck"><input type="checkbox" id="sonly"'+(sState.only?' checked':'')+'><span>Only current cohorts</span></label></div>'+
