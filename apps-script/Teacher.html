@@ -161,8 +161,8 @@ input::placeholder{color:var(--mute)}
 .go:disabled{opacity:.45;cursor:not-allowed}
 .msg{margin-top:10px;font-size:13px;min-height:1.2em}.msg.bad{color:var(--bad-ink)}.msg.ok{color:var(--good)}
 .tmsg{font-size:12px;line-height:1.45;color:var(--dim)}
-/* 📘 Mini IA models for students (14 Nov 2026): the first block of the Spreadsheets view */
-.mdl{margin:22px 0 0}
+/* 📘 Mini IA models for students (14 Nov 2026): the last block of the Spreadsheets view, marked IB */
+.mdl{margin:34px 0 0}
 .mdl__lead{color:var(--dim);font-size:13.5px;margin:0 0 12px;max-width:none}
 .mdl__card{border:1px solid var(--line);border-radius:13px;background:var(--card);padding:14px 16px;margin:0 0 10px}
 .mdl__h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 6px}
@@ -965,8 +965,9 @@ var BOOT = __BOOT__;
   }
   /* 📘 Mini IA models for students (14 Nov 2026, Daniel: "within the teacher page … Mini IA models for students … if they
      decide to post for 24 hours or repost for another extra 24 hours, it's easily done from there", and clear words for a
-     teacher whose class is not on the list). The first block of the Spreadsheets view, above its Find bar (the bar hides
-     every .grp without a link card): each model page, the classes it is open for and every pupil's hours, from the labs
+     teacher whose class is not on the list). The LAST block of the Spreadsheets view, after every spreadsheet, marked IB
+     (Daniel, 14 Nov 2026: the view "is mostly about the records … it's not a priority, should not be the first thing to
+     appear"); outside #slist, so the Find bar (which hides every .grp without a link card) never hides it: each model page, the classes it is open for and every pupil's hours, from the labs
      script's _modelTeacherData_. Open for a class, Close, Another N hours call modelTeacherAction, which answers with this
      view's new copy. Pupils reach the page only through its card on the Biology Hub. */
   var mdlNote = {}, mdlBusy = false;
@@ -979,7 +980,7 @@ var BOOT = __BOOT__;
     if (M.error) return '<div class="warn">📘 Mini IA models for students could not be read just now ('+esc(M.error)+').</div>';
     var pages = M.pages || [];
     if (!pages.length) return '';
-    return '<section class="mdl" aria-labelledby="mdlh"><div class="coh"><span class="coh__t" id="mdlh">📘 Mini IA models for students</span><span class="n">'+pages.length+'</span></div>'+
+    return '<section class="mdl" aria-labelledby="mdlh"><div class="coh"><span class="coh__t" id="mdlh">📘 Mini IA models for students</span><span class="pill--yg">IB</span><span class="n">'+pages.length+'</span></div>'+
       '<p class="mdl__lead">A private page each pupil can read for '+pages[0].hours+' hours from when they press Start. While it is open for their class, pupils see it as a card on the Biology Hub, and only there. Copying, printing and the screenshot keys do not work on the page; nothing on it tells the pupils so.</p>'+
       pages.map(function(p){ return mdlCard(p, M); }).join('')+'</section>';
   }
@@ -1063,9 +1064,9 @@ var BOOT = __BOOT__;
     if (gDel.length) warn += '<div class="warn">'+(gDel.length===1?'1 spreadsheet was':gDel.length+' spreadsheets were')+' deleted, so '+
       (gDel.length===1?'its row':'their rows')+(gDel.every(function(u){ return u.removed; })?' in 🔗 Teacher links '+(gDel.length===1?'was':'were')+' removed: '
         :' in 🔗 Teacher links '+(gDel.length===1?'is':'are')+' not shown and will be removed at the next look: ')+nm(gDel)+'.</div>';
-    var mdl = mdlSection(g && g.models);              /* 📘 Mini IA models for students: above the Find bar */
+    var mdl = mdlSection(g && g.models);              /* 📘 Mini IA models for students (IB): the last block */
     if (!g || (!g.records.length && !g.cohorts.length && !g.loose.length))
-      return $('view').innerHTML = warn + mdl + (mdl ? '' : '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</div>');
+      return $('view').innerHTML = warn + '<div class="empty">No links yet. Add them from 🧪 Biology Labs ▸ 🔗 Add or remove links on the teacher page.</div>' + mdl;
     var present={}, body='';
     if (g.records.length) body += '<section class="grp" data-cur="1"><div class="coh"><span class="coh__t">Records</span><span class="n">'+g.records.length+'</span></div>'+
       '<div class="cards">'+g.records.map(function(l){ present.records=1; return linkCard(l,'records','records'); }).join('')+'</div></section>';
@@ -1086,11 +1087,11 @@ var BOOT = __BOOT__;
       [['reflection','Reflection'],['test','Test'],['survey','Survey'],['records','Records'],['other','Other']]
       .filter(function(p){return present[p[0]];})
       .map(function(p){ return '<button class="chip'+(sState.f===p[0]?' on':'')+'" data-f="'+p[0]+'">'+p[1]+'</button>'; }).join('');
-    $('view').innerHTML = warn + mdl +
+    $('view').innerHTML = warn +
       '<div class="bar2"><div class="fld fld--grow"><label for="sq">Find</label><input id="sq" type="search" placeholder="a spreadsheet…" value="'+esc(sState.q)+'"></div>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+chips+'</div>'+
       '<label class="ck"><input type="checkbox" id="sonly"'+(sState.only?' checked':'')+'><span>Only current cohorts</span></label></div>'+
-      '<div id="slist">'+body+'</div><p class="empty" id="snone" hidden>Nothing matches that.</p>';
+      '<div id="slist">'+body+'</div><p class="empty" id="snone" hidden>Nothing matches that.</p>' + mdl;
     var q=$('sq'), only=$('sonly');
     function apply(){
       var t=sState.q.trim().toLowerCase(), shown=0;
