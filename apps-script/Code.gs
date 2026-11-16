@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '14 Nov 2026 (late) — 🔐 model pages: hours per class';
+var SCRIPT_EDITION = '16 Nov 2026 — 🔬 final check answers on release';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -10697,7 +10697,9 @@ var PRACTICALS = [
   { id:'ks3-y7-chemistry-revision', title:'Y7 Chemistry revision: states of matter, atoms and mixtures', url:'https://nlcsbiology.com/ks3-y7-chemistry-revision' },
   /* 4 Nov 2026: the Year 7 cell game (make amylase and release it); its finished places are squares of kind task, as the
      separating-mixtures benches are */
-  { id:'ks3-y7-cell-organelles', title:'Y7 Biology practical: cell structures and organelles', url:'https://nlcsbiology.com/ks3-y7-cell-organelles' }
+  { id:'ks3-y7-cell-organelles', title:'Y7 Biology practical: cell structures and organelles', url:'https://nlcsbiology.com/ks3-y7-cell-organelles',
+    /* 16 Nov 2026: its final check (squares fc-…) shows each pupil the right answers once a teacher releases them (§review) */
+    review:'fc-', reviewTitle:'Final check' }
 ];
 var PRACT_COLS = [
   { h:'Name', w:200, note:'From the Students tab. A student appears here the first time a practical page saves their work.' },
@@ -10925,6 +10927,8 @@ function _lessonMine_(d) {
   var out = { ok:true, name: who.name || '', onList:false, cls:'', q:{} };
   /* the way to the teacher page only for Google's own sign-in, never for a pass */
   if (!who.viaPass && _isTeacher_(who.email)) { out.teacher = true; out.teacherPage = _practicalsTeacherUrl_(); }
+  /* a teacher (Google's own sign-in) may open the answers of a test part at any time, to go through them with a class */
+  if (out.teacher) { var tk = _reviewKeyFor_(p, null, null); if (tk) out.review = tk; }
   var student = _studentOf_(who.email);
   if (!student) return _json_(out);                    /* nothing, to anyone not on the roster */
   out.onList = true; out.cls = student.cls;
@@ -10935,7 +10939,97 @@ function _lessonMine_(d) {
       if (_cleanEmail_(v[i][0]) === who.email && String(v[i][1]) === p.id) { out.q = _prParse_(v[i][PR_REC - PR_EMAIL]); break; }
     }
   }
+  if (!out.review) { var rk = _reviewKeyFor_(p, { email: who.email, cls: student.cls }, out.q); if (rk) out.review = rk; }
   return _json_(out);
+}
+
+/* ══ §review — A TEST'S ANSWERS, SHOWN WHEN THE TEACHER RELEASES THEM (16 Nov 2026) ══
+   Daniel, 16 Nov 2026, of the Y7 cell game's final check: after it a pupil sees the score and which questions were not
+   right, and "I like that … Until … everyone is not done, or I individually press release feedback, they cannot actually
+   see which one was right … because then it allows me to have time to go through all of the questions as a class … it
+   should be done as a release, whole release of the class, but I could also release it one by one". Then each pupil
+   sees every question with their answer, the right answer, why, and where the game teaches it.
+   The answers are in the practical's page, locked (AES-256-GCM: its js/final-review.js, written by its
+   tools/make-final.mjs). This script keeps the key (Script Property REVIEW_KEYS, { <practical>: key }, typed once on
+   the teacher page by the owner; never in this file, which is public) and who is released (REVIEW_REL_<practical>:
+   { cls:[…], em:[…] }). lesson.mine gives the key (`review`) to:
+     - a teacher signed in with Google's own sign-in (to go through the questions with a class), at any time;
+     - a pupil on the class list whose class, or who, is released, and who has FINISHED (their record has a square of the
+       test, `review` its prefix, other than <prefix>begin): never to one who has not sat it yet.
+   A practical opts in with `review` (and `reviewTitle`) in PRACTICALS. Proof: gastest "— 🔬 a test's answers —",
+   tools/teacher-practicals.mjs (the buttons), the game's tools/review-check.mjs (what a pupil sees). */
+var REVIEW_KEYS = 'REVIEW_KEYS', REVIEW_REL = 'REVIEW_REL_', REVIEW_KEY_RX = /^[A-Za-z0-9_-]{43}$/;
+function _reviewKeys_() {
+  try { var k = JSON.parse(PropertiesService.getScriptProperties().getProperty(REVIEW_KEYS) || '{}'); return k && typeof k === 'object' ? k : {}; }
+  catch (e) { return {}; }
+}
+function _reviewRel_(id) {
+  var r = null;
+  try { r = JSON.parse(PropertiesService.getScriptProperties().getProperty(REVIEW_REL + id) || 'null'); } catch (e) { r = null; }
+  r = r && typeof r === 'object' ? r : {};
+  return { cls: Array.isArray(r.cls) ? r.cls.map(String) : [], em: Array.isArray(r.em) ? r.em.map(_cleanEmail_) : [] };
+}
+/* finished: a square of the test in their record with at least one round (the test's start square does not count) */
+function _reviewFinished_(p, q) {
+  var pre = p.review;
+  return Object.keys(q || {}).some(function (id) {
+    return id.indexOf(pre) === 0 && id !== pre + 'begin' && q[id] && Array.isArray(q[id].r) && q[id].r.length > 0;
+  });
+}
+/* the key for this caller, or '': pupil null = a teacher */
+function _reviewKeyFor_(p, pupil, q) {
+  if (!p || !p.review) return '';
+  var key = _reviewKeys_()[p.id];
+  if (!key || !REVIEW_KEY_RX.test(key)) return '';
+  if (!pupil) return key;
+  var rel = _reviewRel_(p.id);
+  var on = (pupil.cls && rel.cls.indexOf(String(pupil.cls)) >= 0) || rel.em.indexOf(_cleanEmail_(pupil.email)) >= 0;
+  return on && _reviewFinished_(p, q) ? key : '';
+}
+/* for the teacher page: per practical with a test, whether its key is set, and who is released */
+function _reviewState_() {
+  var keys = _reviewKeys_(), out = {};
+  PRACTICALS.forEach(function (p) {
+    if (!p.review) return;
+    var r = _reviewRel_(p.id);
+    out[p.id] = { title: p.reviewTitle || 'The test', key: !!(keys[p.id] && REVIEW_KEY_RX.test(keys[p.id])), cls: r.cls, em: r.em };
+  });
+  return out;
+}
+/* the teacher page: show the answers to a class or one pupil (on), or stop showing them (on false) */
+function practicalReview(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var p = _practicalById_(String(d.id || ''));
+  if (!p || !p.review) return { ok:false, why:'This practical has no test answers to show.' };
+  var cls = String(d.cls || '').trim().slice(0, 40), em = _cleanEmail_(d.email || ''), on = d.on !== false;
+  if (!cls && !em) return { ok:false, why:'Choose a class or a pupil.' };
+  if (em && !/@/.test(em)) return { ok:false, why:'That is not a school email.' };
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (e) { return { ok:false, why:'Busy — try again in a moment.' }; }
+  try {
+    var r = _reviewRel_(p.id);
+    var put = function (list, x) { var i = list.indexOf(x); if (on && i < 0) list.push(x); if (!on && i >= 0) list.splice(i, 1); };
+    if (cls) put(r.cls, cls);
+    if (em) put(r.em, em);
+    PropertiesService.getScriptProperties().setProperty(REVIEW_REL + p.id, JSON.stringify(r));
+  } finally { lock.releaseLock(); }
+  return { ok:true, review: _reviewState_() };
+}
+/* the teacher page: the key, once (the owner only: it opens every answer of the test) */
+function practicalReviewKey(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  if (who !== _owner_()) return { ok:false, why:'Only the owner of this script can set the key.' };
+  d = d || {};
+  var p = _practicalById_(String(d.id || ''));
+  if (!p || !p.review) return { ok:false, why:'This practical has no test answers to show.' };
+  var key = String(d.key || '').trim();
+  if (!REVIEW_KEY_RX.test(key)) return { ok:false, why:'That is not the key: it is 43 letters, numbers, - and _ (the file tools/final-review.key).' };
+  var keys = _reviewKeys_(); keys[p.id] = key;
+  PropertiesService.getScriptProperties().setProperty(REVIEW_KEYS, JSON.stringify(keys));
+  return { ok:true, review: _reviewState_() };
 }
 function _practicalsTeacherUrl_() {
   var u = _teacherPageUrl_();
@@ -10961,8 +11055,9 @@ function _practicalsData_(now) {
     practicals: PRACTICALS.map(function (p) {
       var m = null; try { m = _practicalManifest_(p); } catch (e) { m = null; }
       return { id: p.id, title: p.title, url: p.url, ok: !!m, parts: m && m.parts ? m.parts : [], groups: m && m.groups ? m.groups : [],
-               questions: m ? m.questions.filter(function (q) { return q && q.id && PR_QID.test(q.id); }) : [] };
+               questions: m ? m.questions.filter(function (q) { return q && q.id && PR_QID.test(q.id); }) : [], review: p.review || '' };
     }),
+    review: _reviewState_(),                           /* §review: the test answers' key set, and who sees them */
     students: dir.students.filter(function (s) { return !_isLeftClass_(s.cls); })
                 .map(function (s) { return { name: s.name, cls: s.cls, email: s.email }; }),
     classes: dir.classes, rec: rec
