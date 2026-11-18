@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '18 Nov 2026 (night) — 📈 Homework analysis, easier to read; ← Back to Biology Hub a button';
+var SCRIPT_EDITION = '18 Nov 2026 (late) — 📈 Show the answers';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -7642,12 +7642,14 @@ function _hwAnalysisData_(now, who) {
       dueDay: hw.due ? Utilities.formatDate(new Date(hw.due), _tz_(), 'yyyy-MM-dd') : '',
       created: hw.created, waiting: hw.waiting, startText: hw.startText,
       secs: S.secs.map(function (x) { var o = { lab: x.lab, id: x.id, kind: x.kind, name: x.name, n: x.n };
+        if (x.sig) o.sig = x.sig;   /* the answers are used only under this fingerprint (18 Nov 2026) */
         if (x.qn != null) o.qn = x.qn; if (x.m != null) o.m = x.m; if (x.v) o.v = x.v; return o; }),
       missing: S.missing, pupils: pupils
     };
   });
   return { generatedAt: new Date().toISOString(), homework: out, classes: dir.classes,
-           whose: !who ? '' : (seesAll ? 'all' : 'mine'), manifestOk: !!man.labsOk, hubSet: !!_hubUrl_() };
+           whose: !who ? '' : (seesAll ? 'all' : 'mine'), manifestOk: !!man.labsOk, hubSet: !!_hubUrl_(),
+           answers: { key: !!_answersKey_(), owner: !!who && who === _owner_() } };
 }
 /* A homework's parts, each once, in the order they were set: { lab, id, kind lab|en|wu, name, n (what "done" counts: a
    station's or a set's questions, a Write-Up part's red-pen marks and questions), qn and m (Write-Up: its questions, its
@@ -7869,6 +7871,41 @@ function _labActivities_(labId) {
   return out;
 }
 
+/* The labs' answers for teachers (18 Nov 2026, Daniel: "both"): each lab's build writes js/data/answers.lock.json, its answers
+   locked with AES-256-GCM (labs-shared/teacher-answers/lock.mjs); the one key is in this script's properties, pasted once by the
+   owner on the teacher page (teacherAnswersKey), never in this file (it is public). uiData('answers', lab) gives a teacher the
+   locked file and the key; the page opens it in the browser and keeps it in memory only. A station is used only where its
+   fingerprint in the file is the hub list's (the page compares). Pupils never reach it: uiData is the teacher gate. */
+var ANSWERS_KEY_PROP = 'TEACHER_ANSWERS_KEY', ANSWERS_KEY_RX = /^[A-Za-z0-9_-]{43}$/;
+function _answersKey_() {
+  try { var k = String(PropertiesService.getScriptProperties().getProperty(ANSWERS_KEY_PROP) || ''); return ANSWERS_KEY_RX.test(k) ? k : ''; } catch (e) { return ''; }
+}
+function _labAnswers_(labId) {
+  var F = _labFile_(String(labId || '').slice(0, 40));
+  if (!F) return null;
+  var key = _answersKey_();
+  if (!key) return { why: 'nokey' };
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(F.base + '/js/data/answers.lock.json' + (F.ver ? '?v=' + encodeURIComponent(F.ver) : ''), { muteHttpExceptions: true, followRedirects: true });
+    if (res.getResponseCode() !== 200) return { why: 'nofile' };
+    txt = String(res.getContentText());
+  } catch (e) { return { why: 'nofile' }; }
+  var o = null;
+  try { o = JSON.parse(txt); } catch (e) { o = null; }
+  if (!o || o.v !== 1 || !o.iv || !o.data) return { why: 'nofile' };
+  return { lock: { sigs: o.sigs || {}, iv: String(o.iv), data: String(o.data) }, key: key };
+}
+function teacherAnswersKey(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  if (who !== _owner_()) return { ok:false, why:'Only the owner of this script can set the answers key.' };
+  var key = String((d && d.key) || '').trim();
+  if (!ANSWERS_KEY_RX.test(key)) return { ok:false, why:'That is not the answers key: it is 43 letters, numbers, - and _ (the file labs-shared/teacher-answers/answers.key).' };
+  PropertiesService.getScriptProperties().setProperty(ANSWERS_KEY_PROP, key);
+  return { ok:true, note:'The answers key is saved: every teacher can now show the labs’ answers.' };
+}
+
 /* Bio English's questions, the same way (18 Nov 2026). The site keeps every set scrambled in its public js/data/content.js
    with a key the file carries (so a pupil cannot read the answers in the page's source, not as a secret): the script opens
    a set exactly as the site's app.js does, and gives only what a pupil sees before answering — the command word, the
@@ -7889,6 +7926,15 @@ function _enActLean_(it) {
     o.table = { head: (fg.table.head || []).map(String), rows: fg.table.rows.map(function (r) { return (r || []).map(String); }) };
     if (fg.cap) o.cap = String(fg.cap).slice(0, 300);
   }
+  var srt = function (L) { return (L || []).map(function (x) { return String(typeof x === 'string' ? x : (x && x.t) || ''); }).filter(function (x) { return !!x; }).sort(function (a, b) { return a.localeCompare(b); }); };
+  /* the pieces of the other kinds, as pupils see them before answering (18 Nov 2026): in alphabetical order, never the answer's */
+  if (t === 'order' && Array.isArray(it.steps)) o.items = srt(it.steps);
+  if (t === 'sort' && Array.isArray(it.bins)) { o.bins = it.bins.map(String); o.items = srt(it.items); }
+  if (t === 'build') o.pieces = srt((it.chunks || []).concat(it.extra || []));
+  if (t === 'trim' && Array.isArray(it.chunks)) o.chunks = it.chunks.map(function (c) { return String((c && c.t) || c || ''); });
+  if (t === 'exam' && Array.isArray(it.ideas)) o.pieces = srt(it.ideas);
+  if (t === 'mark') { o.answer = String(it.answer || '').slice(0, 3000); o.scheme = (it.scheme || []).map(function (x) { return String((x && x.t) || ''); }); }
+  if (t === 'fix' && Array.isArray(it.flaws)) o.fixOpts = it.flaws.map(function (f) { return srt((f && f.opts) || []); });
   var tx = String(it.text || '').slice(0, 3000);
   if (t === 'choose') o.text = tx.replace(/\[\[([^\]]*)\]\]/g, function (_, x) {
     return '[[' + x.split('|').map(function (y) { return y.split('~')[0].trim(); }).filter(function (y) { return !!y; })
@@ -7897,20 +7943,48 @@ function _enActLean_(it) {
   if (t === 'fix') o.text = tx;            /* the underlined words pupils are asked to change; the right ones are not in it */
   return o;
 }
+/* a Bio English question's answer, for a TEACHER only (uiData('enans'); 18 Nov 2026, Daniel: "the answers should be a toggle"):
+   the right choice(s) and why, the gap words, the corrections, the right order, each item's group, the pieces that build the
+   answer, the parts to strike out, the scheme points the answer earned, the scoring ideas, and the model answer. Kept apart from
+   _enActLean_ so the questions alone never carry an answer. */
+function _enAnsOf_(it) {
+  var t = String((it && it.type) || ''), o = { t: t }, S = function (x) { return String(x == null ? '' : x); };
+  var opts = it.options || [];
+  if (t === 'pick') { o.right = opts.filter(function (x) { return x && x.ok; }).map(function (x) { return S(x.t); });
+                      o.why = S((opts.filter(function (x) { return x && x.ok; })[0] || {}).why); }
+  if (t === 'kw') o.right = [S(it.key)];
+  if (t === 'choose') o.right = (S(it.text).match(/\[\[([^\]]*)\]\]/g) || []).map(function (m) {
+    var alts = m.slice(2, -2).split('|').map(function (y) { return y.trim(); }), ok = alts.filter(function (y) { return y.indexOf('~') < 0; });
+    return (ok[0] || alts[0] || '').split('~')[0].trim(); });
+  if (t === 'gap') o.g = (S(it.text).match(/\{\{[^}]*\}\}/g) || []).map(function (m) { return m.slice(2, -2).split('|').map(function (y) { return y.trim(); }); });
+  if (t === 'fix') { o.f = (it.flaws || []).map(function (f) { return S(f && f.fix); }); o.why = (it.flaws || []).map(function (f) { return S(f && f.why); }); }
+  if (t === 'order') o.o = (it.steps || []).map(S);
+  if (t === 'sort') o.it = (it.items || []).map(function (x) { return [S(x && x.t), Number(x && x.b) || 0]; });
+  if (t === 'build') { var ch = it.chunks || [], ord = (it.orders && it.orders[0]) || ch.map(function (x, i) { return i; }); o.o = ord.map(function (i) { return S(ch[i]); }); }
+  if (t === 'trim') { o.x = []; o.why = []; (it.chunks || []).forEach(function (c, i) { if (c && c.x) { o.x.push(i); o.why.push(S(c.why)); } }); }
+  if (t === 'mark') { o.got = (it.scheme || []).map(function (x) { return !!(x && x.got); }); o.why = (it.scheme || []).map(function (x) { return S(x && x.why); }); }
+  if (t === 'exam') o.ok = (it.ideas || []).filter(function (x) { return x && x.ok; }).map(function (x) { return S(x.t); });
+  if (Array.isArray(it.model)) o.model = it.model.map(S).slice(0, 12);
+  return o;
+}
 function _enOpen_(raw, key) {
   var b = Utilities.base64Decode(String(raw || '')), k = String(key || ''), out = [];
   if (!k) return null;
   for (var i = 0; i < b.length; i++) { var v = ((b[i] & 255) ^ k.charCodeAt(i % k.length)) & 255; out.push(v > 127 ? v - 256 : v); }
   try { return JSON.parse(Utilities.newBlob(out).getDataAsString('UTF-8')); } catch (e) { return null; }
 }
-function _enActivities_(setId) {
+function _enActivities_(setId) { return _enRead_(setId, 'ENQ_'); }
+function _enAnswers_(setId) { return _enRead_(setId, 'ENA_'); }
+/* one Bio English set's questions (ENQ_) or answers (ENA_), from the script cache under the site's stamp; on a miss the whole
+   content.js is read once and every set's two are kept (six hours) */
+function _enRead_(setId, kind) {
   setId = String(setId || '').slice(0, 80);
   if (!EN_SID.test(setId)) return null;
   var base = ENGLISH_URL.replace(/\/+$/, ''), cache = null;
   try { cache = CacheService.getScriptCache(); } catch (e) {}
   var stamp = cache ? (cache.get('EN_STAMP') || '') : '';
   if (!stamp) { try { _englishManifest_(); stamp = cache ? (cache.get('EN_STAMP') || '') : ''; } catch (e) {} }
-  var KEY = 'ENQ_' + (stamp || 'none') + '_';
+  var KEY = kind + (stamp || 'none') + '_';
   if (cache && stamp) { var hit = cache.get(KEY + setId); if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} } }
   var txt = '';
   try {
@@ -7925,15 +7999,18 @@ function _enActivities_(setId) {
   if (!AL || !AL.sets || !AL.meta || !AL.meta.sets) return null;
   var put = {}, mine = null;
   Object.keys(AL.meta.sets).forEach(function (sid) {
-    var m = AL.meta.sets[sid], o = AL.sets[sid] ? _enOpen_(AL.sets[sid], AL.k) : null, one = null;
+    var m = AL.meta.sets[sid], o = AL.sets[sid] ? _enOpen_(AL.sets[sid], AL.k) : null, q = null, ans = null;
     if (m && o && Array.isArray(o.items)) {
       var byId = {};
       o.items.forEach(function (it) { if (it && it.id) byId[it.id] = it; });
-      one = { v: String(m.v || ''), acts: (m.keys || []).map(function (k) { var it = byId[String(k).split('@')[0]]; return it ? _enActLean_(it) : null; }) };
+      var items = (m.keys || []).map(function (k) { return byId[String(k).split('@')[0]] || null; });
+      q = { v: String(m.v || ''), acts: items.map(function (it) { return it ? _enActLean_(it) : null; }) };
+      ans = { v: String(m.v || ''), ans: items.map(function (it) { return it ? _enAnsOf_(it) : null; }) };
     }
-    if (sid === setId) mine = one;
-    var j = one ? JSON.stringify(one) : '-';
-    if (j.length < 95000) put[KEY + sid] = j;
+    if (sid === setId) mine = kind === 'ENA_' ? ans : q;
+    var jq = q ? JSON.stringify(q) : '-', ja = ans ? JSON.stringify(ans) : '-';
+    if (jq.length < 95000) put['ENQ_' + (stamp || 'none') + '_' + sid] = jq;
+    if (ja.length < 95000) put['ENA_' + (stamp || 'none') + '_' + sid] = ja;
   });
   if (cache && stamp) { try { cache.putAll(put, 21600); } catch (e) {} }
   return mine;
@@ -8700,6 +8777,8 @@ function uiData(which, arg) {
     if (which === 'questions') return { ok:true, data:_labQuestions_(String(arg || '').slice(0, 40)) };   /* one lab's question words (6 Oct 2026) */
     if (which === 'acts')      return { ok:true, data:_labActivities_(String(arg || '').slice(0, 40)) };  /* one lab's activities, whole (18 Nov 2026) */
     if (which === 'enacts')    return { ok:true, data:_enActivities_(String(arg || '').slice(0, 80)) };   /* one Bio English set's questions, no answers */
+    if (which === 'enans')     return { ok:true, data:_enAnswers_(String(arg || '').slice(0, 80)) };      /* its answers, for a teacher (18 Nov 2026) */
+    if (which === 'answers')   return { ok:true, data:_labAnswers_(String(arg || '').slice(0, 40)) };     /* one lab's locked answers and the key */
     if (which === 'teachers')  return { ok:true, data:_teacherViewData_() };   /* + the 📘 model pages (14 Nov 2026) */
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_(), held:_heldResultsSafe_(who) };   /* + results held for this teacher to release (§held-results; only their classes, §40.248) */

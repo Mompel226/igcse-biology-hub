@@ -824,6 +824,46 @@ details.ha-how li b{color:var(--chalk)}
 .ha-sqsay:empty{display:none}.ha-sqsay{margin-top:8px}
 .ha-dq .ha-sheet,.ha-dp .ha-sheet{padding:13px 14px}
 @media (max-width:700px){.ha-bar{width:100%}.ha-opts{grid-template-columns:1fr}.ha-pairs{grid-template-columns:1fr}.ha-slots li i{width:70px}}
+/* 📈 Show the answers (18 Nov 2026, Daniel: "the answers should be a toggle"): the switch, and the answered sheet in the
+   right-first-time green; the explanation and a model answer below */
+.ha-sidehd .ha-ansbtn{margin-left:auto}
+.ha-ansbtn{font:600 10.5px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--accent);background:var(--card);border:1.5px solid var(--accent);border-radius:999px;padding:8px 13px;cursor:pointer}
+.ha-ansbtn.on{background:var(--accent);color:var(--ink)}
+.ha-ansbtn:focus-visible{outline:2px solid var(--chalk);outline-offset:2px}
+.ha-dqbar{display:flex;justify-content:flex-end;margin:0 0 8px}
+.ha-anstag{font:600 9.5px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--rf-ink);background:var(--rf-bg);border-radius:6px;padding:3px 7px}
+.ha-sheet.answered{border-color:var(--rf);box-shadow:inset 0 0 0 1px var(--rf)}
+.ha-opts li.ok{border-color:var(--rf);background:var(--rf-bg)}
+.ha-opts li.ok .ha-ol{background:var(--rf);border-color:var(--rf);color:var(--sqtxt)}
+.ha-gap.ha-fill{color:var(--rf-ink);background:var(--rf-bg);border-bottom:2px solid var(--rf);font:600 14px/1.6 var(--sans);padding:0 8px;min-width:0}
+.ha-tok.ok{border-color:var(--rf);background:var(--rf-bg)}
+.ha-bin.ok{text-align:left;border-style:solid;border-color:var(--rf);color:var(--chalk)}
+.ha-bin.ok b{display:block;margin-bottom:6px;color:var(--dim)}
+.ha-olist{margin:8px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--chalk)}
+.ha-pairs-a{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ha-pairs-a li{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.3fr);gap:10px;align-items:center;font-size:13.5px;color:var(--chalk);border:1px solid var(--rf);background:var(--rf-bg);border-radius:8px;padding:7px 10px}
+.ha-pairs-a li i{font-style:normal;color:var(--rf-ink)}
+.ha-slots li i.ha-fillbox{width:auto;height:auto;min-width:110px;border:1.5px solid var(--rf);background:var(--rf-bg);border-radius:8px;padding:5px 9px;font-style:normal;font-size:13.5px;color:var(--rf-ink)}
+.ha-ftab td.ha-tick.ok{color:var(--rf-ink);background:var(--rf-bg);text-align:center;font-weight:700}
+.ha-hot i.ok{background:var(--rf);color:var(--sqtxt)}
+.ha-ph span.ok{outline:2px solid var(--chalk);outline-offset:-2px}
+.ha-choice.ok{color:var(--rf-ink);background:var(--rf-bg);border-color:var(--rf);font-weight:600}
+.ha-wrong{color:var(--mute)}
+.ha-built{font:500 15px/1.6 var(--sans);color:var(--chalk);border:1.5px solid var(--rf);background:var(--rf-bg);border-radius:10px;padding:10px 12px;margin:8px 0 0}
+.ha-trim{margin:12px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--chalk)}
+.ha-trim li.cut .t{text-decoration:line-through;color:var(--mute)}
+.ha-trim li em,.ha-scheme em{display:block;font-style:normal;font-size:12.5px;color:var(--dim)}
+.ha-quote{margin:6px 0 0;padding:10px 12px;border-left:3px solid var(--line2);background:var(--cardhi);border-radius:0 8px 8px 0;font-size:14px;color:var(--chalk)}
+.ha-scheme{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ha-scheme li{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--chalk)}
+.ha-scheme li i{font-style:normal;font-weight:700;width:16px;flex:none}.ha-scheme li.ok i{color:var(--rf)}.ha-scheme li.no i{color:var(--rt)}
+.ha-why,.ha-model{margin-top:6px;border-radius:10px;padding:10px 12px;background:var(--cardhi);font-size:14px;line-height:1.55;color:var(--chalk)}
+.ha-why p,.ha-model p{margin:0 0 6px}.ha-why p:last-child,.ha-model p:last-child{margin:0}
+.ha-k{font-weight:700}
+.ha-ansnote{font-size:13px;color:var(--dim);margin:10px 0 0}
+.ha-keybox{margin-top:12px;border:1.5px dashed var(--accent);border-radius:10px;padding:12px}
+.ha-keybox label{font-size:13.5px;color:var(--chalk);font-weight:600}
+.ha-keyrow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.ha-keyrow input{flex:1 1 220px}
 </style>
 </head>
 <body>
@@ -3496,7 +3536,7 @@ var BOOT = __BOOT__;
      drop"), its words read on demand: a lab's activities from its own page (uiData('acts')), a Bio English set's questions
      without the answers (uiData('enacts')). Its colours are its own three (Daniel, on the plan: the green, brown and red
      "are very hard to differentiate"): --rf right first time, --rm right after more checks, --rt not right. */
-  var haState = { cls:'all', whose:null, when:'all', q:'', open:null, secF:{}, more:{}, sel:{}, fu:{}, sort:'follow' }, haTimer = null, haD = null;
+  var haState = { cls:'all', whose:null, when:'all', q:'', open:null, secF:{}, more:{}, sel:{}, fu:{}, sort:'follow', ans:false }, haTimer = null, haD = null;
   var HA_ACT = {}, HA_WAIT = {}, HA_WHY = {};
   var HA_KIND = { mcq:'Multiple choice', blank:'Fill the gaps', sort:'Sort into groups', order:'Put in order', match:'Match the pairs', drag:'Drag & drop',
                   grid:'Tick the table', hotspot:'Click on the picture', ph:'Set the pH',
@@ -3538,52 +3578,144 @@ var BOOT = __BOOT__;
     if (!st) return { why:'This station has been rewritten since: its questions now are not the ones the pupils answered.' };
     return st[q] || { why:'This question is not in the station now.' };
   }
+  /* Bio English marks its key words {k:…}, {d:…}, {n:…}, {c:…}: drawn as bold words, as its own pages draw them (18 Nov 2026) */
+  function haRich(h){ return String(h).replace(/\{([kdnc]):([^}]*)\}/g, '<b class="ha-k">$2</b>'); }
   function haHl(t){
     t = String(t||''); var marks='', mm=t.match(/\((\d+) marks?\)/);
     if (mm) { marks=mm[1]; if (/\(\d+ marks?\)\.?\s*$/.test(t)) t=t.replace(/\s*\(\d+ marks?\)\.?\s*$/, ''); }
-    return { h: esc(t).replace(HA_CMDRE, function(_,a,b){ return a+'<b class="ha-cmd">'+b+'</b>'; }), marks: marks };
+    return { h: haRich(esc(t)).replace(HA_CMDRE, function(_,a,b){ return a+'<b class="ha-cmd">'+b+'</b>'; }), marks: marks };
   }
-  function haToks(list){ return '<div class="ha-toks">'+(list||[]).map(function(x){ return '<span class="ha-tok">'+esc(x)+'</span>'; }).join('')+'</div>'; }
+  function haE(x){ return haRich(esc(x)); }
+  function haToks(list, on){ return '<div class="ha-toks">'+(list||[]).map(function(x){ return '<span class="ha-tok'+(on&&on(x)?' ok':'')+'">'+haE(x)+'</span>'; }).join('')+'</div>'; }
   function haTable(t, cap){ if (!t || !t.rows) return '';
     return '<div class="ha-tw"><table class="ha-ftab">'+(t.head&&t.head.length?'<thead><tr>'+t.head.map(function(x){return '<th>'+esc(x)+'</th>';}).join('')+'</tr></thead>':'')+
       '<tbody>'+t.rows.map(function(r){ return '<tr>'+r.map(function(x){return '<td>'+esc(x)+'</td>';}).join('')+'</tr>'; }).join('')+'</tbody></table></div>'+(cap?'<div class="ha-fcap">'+esc(cap)+'</div>':''); }
-  function haBody(a){
-    var L='ABCDEFGHIJ', o=a.options||[];
+  function haFill(list){ list = list||[]; return '<span class="ha-gap ha-fill"'+(list.length>1?' data-tip="'+esc('Also accepted: '+list.slice(1).join(' · '))+'"':'')+'>'+esc(list[0]||'')+'</span>'; }
+  /* the activity; with A (its answer, Show the answers on) the same activity answered: right options marked, gaps filled, the
+     pieces in their groups or places, the steps in order (18 Nov 2026, Daniel: "You toggle and then you show the answers") */
+  function haBody(a, A){
+    var L='ABCDEFGHIJ', o=a.options||[], ans = A && !A.no ? A : null, i;
     switch (a.type) {
       case 'mcq': case 'pick': case 'kw':
+        var ok = function(x,i){ return ans ? (a.type==='mcq' ? (ans.c||[]).indexOf(i)>=0 : (ans.right||[]).indexOf(x)>=0) : false; };
         return (a.multi?'<p class="ha-task">More than one answer is right.</p>':'')+'<ol class="ha-opts'+(o.some(function(x){ return String(x).length>48; })?' one':'')+'">'+
-          o.map(function(x,i){ return '<li><span class="ha-ol">'+L.charAt(i)+'</span><span>'+esc(x)+'</span></li>'; }).join('')+'</ol>';
-      case 'blank': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{(\d+)\}/g, '<span class="ha-gap">$1</span>')+'</p>';
-      case 'sort': return '<div class="ha-bins">'+(a.bins||[]).map(function(b){ return '<div class="ha-bin">'+esc(b)+'</div>'; }).join('')+'</div><div class="ha-lbl">To sort</div>'+haToks(a.items);
-      case 'order': return a.items ? '<div class="ha-lbl">In the order pupils see them</div>'+haToks(a.items) : '';
-      case 'match': return '<div class="ha-pairs"><ul>'+(a.left||[]).map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul><ul>'+(a.right||[]).map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul></div>';
-      case 'drag': return '<div class="ha-lbl">Pieces to drag</div>'+haToks((a.tokens||[]).concat(a.distractors||[]).slice().sort(function(x,y){ return String(x).localeCompare(String(y)); }))+
-        '<ul class="ha-slots">'+(a.slots||[]).map(function(x){ return '<li><i></i><span>'+esc(x)+'</span></li>'; }).join('')+'</ul>';
+          o.map(function(x,i){ var r=ok(x,i); return '<li'+(r?' class="ok"':'')+'><span class="ha-ol">'+(r?'✓':L.charAt(i))+'</span><span>'+haE(x)+'</span></li>'; }).join('')+'</ol>';
+      case 'blank': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{(\d+)\}/g, function(_,g){ return ans && ans.g && ans.g[g] ? haFill(ans.g[g]) : '<span class="ha-gap">'+g+'</span>'; })+'</p>';
+      case 'sort':
+        if (ans && ans.it) return '<div class="ha-bins">'+(a.bins||[]).map(function(b,bi){ return '<div class="ha-bin ok"><b>'+haE(b)+'</b>'+haToks(ans.it.filter(function(x){ return +x[1]===bi; }).map(function(x){ return x[0]; }))+'</div>'; }).join('')+'</div>';
+        return '<div class="ha-bins">'+(a.bins||[]).map(function(b){ return '<div class="ha-bin">'+haE(b)+'</div>'; }).join('')+'</div><div class="ha-lbl">To sort</div>'+haToks(a.items);
+      case 'order':
+        if (ans && ans.o) return '<div class="ha-lbl">In the right order</div><ol class="ha-olist">'+ans.o.map(function(x){ return '<li>'+haE(x)+'</li>'; }).join('')+'</ol>';
+        return a.items ? '<div class="ha-lbl">In the order pupils see them</div>'+haToks(a.items) : '';
+      case 'match':
+        if (ans && ans.p) return '<div class="ha-lbl">The right pairs</div><ul class="ha-pairs-a">'+ans.p.map(function(pr){ return '<li><span>'+haE((a.left||[])[pr[0]])+'</span><i aria-hidden="true">→</i><span>'+haE((a.right||[])[pr[1]])+'</span></li>'; }).join('')+'</ul>';
+        return '<div class="ha-pairs"><ul>'+(a.left||[]).map(function(x){ return '<li>'+haE(x)+'</li>'; }).join('')+'</ul><ul>'+(a.right||[]).map(function(x){ return '<li>'+haE(x)+'</li>'; }).join('')+'</ul></div>';
+      case 'drag':
+        var used = ans && ans.s ? ans.s : null;
+        return '<div class="ha-lbl">Pieces to drag'+(used?' (the ones not used stay grey)':'')+'</div>'+haToks((a.tokens||[]).concat(a.distractors||[]).slice().sort(function(x,y){ return String(x).localeCompare(String(y)); }), used ? function(x){ return used.indexOf(x)>=0; } : null)+
+          '<ul class="ha-slots">'+(a.slots||[]).map(function(x,si){ return '<li>'+(used?'<i class="ha-fillbox">'+esc(used[si]||'')+'</i>':'<i></i>')+'<span>'+haE(x)+'</span></li>'; }).join('')+'</ul>';
       case 'grid': return '<div class="ha-tw"><table class="ha-ftab"><thead><tr><th></th>'+(a.cols||[]).map(function(c){ return '<th>'+esc(c)+'</th>'; }).join('')+'</tr></thead><tbody>'+
-        (a.rows||[]).map(function(r){ return '<tr><td><b>'+esc(r.label)+'</b>'+(r.note?'<br><span class="ha-fcap">'+esc(r.note)+'</span>':'')+'</td>'+(a.cols||[]).map(function(){ return '<td class="ha-tick"></td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>';
+        (a.rows||[]).map(function(r,ri){ return '<tr><td><b>'+esc(r.label)+'</b>'+(r.note?'<br><span class="ha-fcap">'+esc(r.note)+'</span>':'')+'</td>'+(a.cols||[]).map(function(c,ci){ var t = ans && ans.ticks && (ans.ticks[ri]||[]).indexOf(ci)>=0;
+          return '<td class="ha-tick'+(t?' ok':'')+'">'+(t?'✓':'')+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>';
       case 'hotspot': return a.img ? '<div class="ha-hot"><img src="'+esc(a.img)+'" alt="'+esc(a.cap||'The picture of the question')+'" loading="lazy">'+
-        (a.regions||[]).map(function(r,i){ return '<i style="left:'+(+r.x||0)+'%;top:'+(+r.y||0)+'%">'+(i+1)+'</i>'; }).join('')+'</div>' : '';
-      case 'ph': var c=''; for (var p=1;p<=14;p++) c+='<span>'+p+'</span>';
-        return '<div class="ha-ph" aria-hidden="true">'+c+'</div><p class="ha-task">A slider from pH 1 to pH 14, for '+esc(a.enzyme||'the enzyme')+'.</p>';
-      case 'choose': return '<p class="ha-passage">'+esc(a.text||'').replace(/\[\[([^\]]*)\]\]/g, function(_,x){ return '<span class="ha-choice">'+x.split('|').join(' · ')+'</span>'; })+'</p>';
-      case 'gap': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{\{\}\}/g, '<span class="ha-gap"></span>')+'</p>';
-      case 'fix': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{([^}]*)\}/g, '<span class="ha-uline">$1</span>')+'</p>';
+        (a.regions||[]).map(function(r,i){ var ids = ans ? (ans.c||[]) : [], on = r.id && ids.indexOf(r.id)>=0;
+          return '<i class="'+(on?'ok':'')+'" style="left:'+(+r.x||0)+'%;top:'+(+r.y||0)+'%"'+(on&&ans.labels&&ans.labels[r.id]?' data-tip="'+esc(ans.labels[r.id])+'"':'')+'>'+(on?'✓':i+1)+'</i>'; }).join('')+'</div>' : '';
+      case 'ph': var c=''; for (var p=1;p<=14;p++) c+='<span'+(ans && Math.abs(p-ans.opt)<=ans.tol?' class="ok"':'')+'>'+p+'</span>';
+        return '<div class="ha-ph" aria-hidden="true">'+c+'</div><p class="ha-task">'+(ans?'The optimum: <b>pH '+esc(ans.opt)+'</b> (pH '+esc(ans.opt-ans.tol)+' to '+esc(+ans.opt+ +ans.tol)+' is accepted).':'A slider from pH 1 to pH 14, for '+esc(a.enzyme||'the enzyme')+'.')+'</p>';
+      case 'choose': i=0; return '<p class="ha-passage">'+haE(a.text||'').replace(/\[\[([^\]]*)\]\]/g, function(_,x){ var r = ans && ans.right ? ans.right[i++] : null;
+          return r ? '<span class="ha-choice ok">'+esc(r)+'</span>' : '<span class="ha-choice">'+x.split('|').join(' · ')+'</span>'; })+'</p>';
+      case 'gap': i=0; return '<p class="ha-passage">'+haE(a.text||'').replace(/\{\{\}\}/g, function(){ var g = ans && ans.g ? ans.g[i++] : null; return g ? haFill(g) : '<span class="ha-gap"></span>'; })+'</p>';
+      case 'fix': i=0; return '<p class="ha-passage">'+haE(a.text||'').replace(/\{([^}]*)\}/g, function(_,w){ var f = ans && ans.f ? ans.f[i++] : null;
+          return f ? '<s class="ha-wrong">'+w+'</s> <span class="ha-choice ok">'+esc(f)+'</span>' : '<span class="ha-uline">'+w+'</span>'; })+'</p>'+
+          (!ans && a.fixOpts ? a.fixOpts.map(function(L2,k){ return '<div class="ha-lbl">Choices for word '+(k+1)+'</div>'+haToks(L2); }).join('') : '');
+      case 'build':
+        if (ans && ans.o) return '<div class="ha-lbl">The answer that scores, built</div><p class="ha-built">'+ans.o.map(haE).join(' ')+'</p>';
+        return a.pieces ? '<div class="ha-lbl">Pieces to build with</div>'+haToks(a.pieces) : '';
+      case 'trim': return (a.chunks||[]).length ? '<ol class="ha-trim">'+a.chunks.map(function(x,k){ var cut = ans && (ans.x||[]).indexOf(k)>=0;
+          return '<li'+(cut?' class="cut"':'')+'><span class="t">'+haE(x)+'</span>'+(cut&&ans.why[(ans.x||[]).indexOf(k)]?'<em>'+esc(ans.why[(ans.x||[]).indexOf(k)])+'</em>':'')+'</li>'; }).join('')+'</ol>' : '';
+      case 'mark': return (a.answer?'<div class="ha-lbl">The answer to mark</div><blockquote class="ha-quote">'+haE(a.answer)+'</blockquote>':'')+
+        ((a.scheme||[]).length?'<div class="ha-lbl">The mark scheme'+(ans?': what this answer earns':'')+'</div><ul class="ha-scheme">'+a.scheme.map(function(x,k){ var g = ans && ans.got ? ans.got[k] : null;
+          return '<li'+(g===true?' class="ok"':g===false?' class="no"':'')+'><i aria-hidden="true">'+(g===true?'✓':g===false?'✗':'·')+'</i><span>'+haE(x)+(ans&&ans.why&&ans.why[k]?'<em>'+esc(ans.why[k])+'</em>':'')+'</span></li>'; }).join('')+'</ul>':'');
+      case 'exam': return a.pieces ? '<div class="ha-lbl">'+(ans?'The ideas that score (green)':'Ideas to choose from')+'</div>'+haToks(a.pieces, ans && ans.ok ? function(x){ return ans.ok.indexOf(x)>=0; } : null) : '';
     }
     return '';
   }
-  /* the question as pupils see it: what they do, the command word, the marks, the whole activity; never its answer */
+  /* what explains the answer: the right option's explanation, the pH's, the corrections' whys, a model answer */
+  function haWhy(a, A){
+    if (!A || A.no) return '';
+    var out = '';
+    if (A.t==='mcq' && A.why && (A.c||[]).length) out += A.c.map(function(c){ return A.why[c] ? '<p>'+haE(A.why[c])+'</p>' : ''; }).join('');
+    if (A.t==='ph' && A.ex) out += '<p>'+haE(A.ex)+'</p>';
+    if (A.t==='pick' && A.why) out += '<p>'+haE(A.why)+'</p>';
+    if (A.t==='fix' && A.why) out += A.why.filter(Boolean).map(function(w){ return '<p>'+haE(w)+'</p>'; }).join('');
+    var model = A.model && A.model.length ? '<div class="ha-lbl">A model answer</div><div class="ha-model">'+A.model.map(function(m){ return '<p>'+haE(m)+'</p>'; }).join('')+'</div>' : '';
+    return (out ? '<div class="ha-lbl">Why</div><div class="ha-why">'+out+'</div>' : '')+model;
+  }
+  /* the answers of one lab (locked, opened here with the key the script gives a teacher) or one Bio English set: in memory only,
+     never in the browser's storage */
+  var HA_ANS = {}, HA_ANSWAIT = {};
+  function haAnsKey(s){ return s.kind==='en' ? 'en:'+s.id : s.kind==='lab' ? 'lab:'+s.lab : ''; }
+  function haOpenLock(lock, key){
+    if (!window.crypto || !crypto.subtle || !window.TextDecoder) return Promise.reject(new Error('no crypto'));
+    var b = function(t){ var bin=atob(t), u=new Uint8Array(bin.length); for (var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; };
+    return crypto.subtle.importKey('raw', b(String(key).replace(/-/g,'+').replace(/_/g,'/')+'='), 'AES-GCM', false, ['decrypt'])
+      .then(function(k){ return crypto.subtle.decrypt({ name:'AES-GCM', iv:b(lock.iv) }, k, b(lock.data)); })
+      .then(function(buf){ return JSON.parse(new TextDecoder().decode(buf)); });
+  }
+  function haAnsLoad(s, cb){
+    var key = haAnsKey(s);
+    if (!key || HA_ANS[key] !== undefined) return cb && cb();
+    if (HA_ANSWAIT[key]) { if (cb) HA_ANSWAIT[key].push(cb); return; }
+    HA_ANSWAIT[key] = cb ? [cb] : [];
+    var done = function(v){ HA_ANS[key] = v; var c = HA_ANSWAIT[key] || []; delete HA_ANSWAIT[key]; c.forEach(function(f){ f(); }); };
+    google.script.run
+      .withSuccessHandler(function(r){ var d = r && r.ok ? r.data : null;
+        if (s.kind==='en') return done(d && d.ans ? d : { no:'none' });
+        if (!d) return done({ no:'none' });
+        if (d.why) return done({ no:d.why });
+        haOpenLock(d.lock, d.key).then(function(A){ done({ sigs:d.lock.sigs||{}, a:A }); }, function(){ done({ no:'open' }); }); })
+      .withFailureHandler(function(){ done({ no:'none' }); })
+      .uiData(s.kind==='en' ? 'enans' : 'answers', s.kind==='en' ? s.id : s.lab);
+  }
+  function haAnswer(s, q){
+    var d = HA_ANS[haAnsKey(s)];
+    /* { no: why it cannot be shown } apart from the answer's own `why` (its explanation) */
+    if (s.kind==='wu') return { no:'wu' };
+    if (d === undefined) return { no:'wait' };
+    if (d.no) return d;
+    if (s.kind==='en') return String(d.v||'')===String(s.v||'') ? ((d.ans||[])[q] || { no:'none' }) : { no:'changed' };
+    if (!d.sigs || !s.sig || d.sigs[s.id]!==s.sig || !d.a || !d.a[s.id]) return { no:'changed' };
+    return d.a[s.id][q] || { no:'none' };
+  }
+  function haAnsNote(A){
+    var w = A && A.no;
+    if (!w) return '';
+    if (w==='wait') return '<p class="ha-ansnote">Reading the answers…</p>';
+    if (w==='wu') return '<p class="ha-ansnote">The Write-Up Lab’s answers are on its own pages.</p>';
+    if (w==='changed') return '<p class="ha-ansnote">This part has been rewritten since the pupils answered it, so its answers now would not match: they are not shown.</p>';
+    if (w==='nokey') return haD && haD.answers && haD.answers.owner
+      ? '<div class="ha-keybox"><label for="hakey">The labs’ answers are locked. Paste their key once, and every teacher can show them:</label>'+
+        '<div class="ha-keyrow"><input id="hakey" type="text" autocomplete="off" spellcheck="false" placeholder="43 letters, numbers, - and _"><button type="button" class="act ok" data-hakeysave="1">Save the key</button></div>'+
+        '<p class="ha-ansnote">The key is in the paste list, and in labs-shared/teacher-answers/answers.key on your computer. It is kept in the labs script only, never in a file on GitHub.</p><p class="ha-ansnote" id="hakeymsg" role="status"></p></div>'
+      : '<p class="ha-ansnote">The labs’ answers are not switched on yet: the owner of this page pastes their key once.</p>';
+    return '<p class="ha-ansnote">The answers could not be read just now. Press Refresh, then try again.</p>';
+  }
+  /* the question as pupils see it: what they do, the command word, the marks, the whole activity; never its answer, unless Show
+     the answers is on: then the same sheet answered, its explanation and a model answer below */
   function haSheet(s, q){
     var a = haAct(s, q);
     if (a.why === 'wait') return '<div class="ha-sheet"><p class="ha-task">Reading the question…</p></div>';
     if (a.why === 'wu') return '<div class="ha-sheet"><div class="ha-top"><span class="ha-qtype">Test yourself</span></div><p class="ha-stem">Question '+(q+1)+' of “'+esc(s.name)+'” in the Write-Up Lab.</p>'+
       '<p class="ha-task">The Write-Up Lab’s questions are read on its own pages: <a href="https://nlcsbiology.com/write-up-lab/#/part/'+encodeURIComponent(s.id)+'/test" target="_blank" rel="noopener noreferrer">open this part there ↗</a></p></div>';
     if (a.why) return '<div class="ha-sheet"><p class="ha-task">'+esc(a.why)+'</p></div>';
-    var en = s.kind==='en', P = haHl(en ? a.q : a.prompt), marks = en && a.marks ? String(a.marks) : P.marks;
-    return '<div class="ha-sheet"><div class="ha-top"><span class="ha-qtype">'+esc(HA_KIND[a.type]||'Question')+'</span>'+
-      (en&&a.cmd?'<span class="ha-cmdtag">'+esc(a.cmd)+'</span>':'')+(marks?'<span class="ha-marks" data-tip="Marks, as on an exam paper">['+esc(marks)+']</span>':'')+'</div>'+
+    var en = s.kind==='en', P = haHl(en ? a.q : a.prompt), marks = en && a.marks ? String(a.marks) : P.marks, A = haState.ans ? haAnswer(s, q) : null;
+    return '<div class="ha-sheet'+(A&&!A.no?' answered':'')+'"><div class="ha-top"><span class="ha-qtype">'+esc(HA_KIND[a.type]||'Question')+'</span>'+
+      (en&&a.cmd?'<span class="ha-cmdtag">'+esc(a.cmd)+'</span>':'')+(A&&!A.no?'<span class="ha-anstag">Answers shown</span>':'')+(marks?'<span class="ha-marks" data-tip="Marks, as on an exam paper">['+esc(marks)+']</span>':'')+'</div>'+
       haTable(a.table, a.cap)+(a.img&&a.type!=='hotspot'?'<figure class="ha-fig"><img src="'+esc(a.img)+'" alt="'+esc(a.cap||'')+'" loading="lazy"></figure>':'')+
-      '<p class="ha-stem">'+P.h+'</p>'+(en&&a.task?'<p class="ha-task">'+esc(a.task)+'</p>':'')+haBody(a)+'</div>';
+      '<p class="ha-stem">'+P.h+'</p>'+(en&&a.task?'<p class="ha-task">'+haE(a.task)+'</p>':'')+haBody(a, A)+haAnsNote(A)+haWhy(a, A)+'</div>';
   }
+  /* Show the answers / Hide the answers: one switch for the page while it is open (never kept) */
+  function haAnsBtn(){ return '<button type="button" class="ha-ansbtn'+(haState.ans?' on':'')+'" data-haans="1" aria-pressed="'+(!!haState.ans)+'">'+(haState.ans?'Hide the answers':'Show the answers')+'</button>'; }
   function haStem(s, q){ var a=haAct(s, q);
     if (a.why==='wait') return '<span class="ha-dim">Reading the question…</span>';
     if (a.why==='wu') return 'Test yourself, question '+(q+1);
@@ -3708,6 +3840,7 @@ var BOOT = __BOOT__;
           top = haState.more[oh.id] ? shown : shown.slice(0,5);
       top.forEach(function(r){ var k=haKey(r.s); if (k && HA_ACT[k]===undefined) want[k]=r.s; });
       Object.keys(want).forEach(function(k){ haWords(want[k], function(){ if (window.__view && haD && $('halist')) haPaint(); }); });
+      if (haState.ans) oh.secs.forEach(function(sx){ var k=haAnsKey(sx); if (k && HA_ANS[k]===undefined && !HA_ANSWAIT[k]) haAnsLoad(sx, function(){ if (haD && $('halist')) haPaint(); }); });
     }
   }
   function haTally(h){ var t={done:0,partly:0,tried:0,none:0}; h.pupils.forEach(function(p){ if (t[p.state]!=null) t[p.state]++; }); return t; }
@@ -3754,7 +3887,7 @@ var BOOT = __BOOT__;
         '<div class="ha-qn"><b>'+r.hard+' of '+r.tried+'</b><span>not right at the first try</span></div></div>'; }).join('');
     var rest = shown.length - 5;
     /* the panel carries the chosen question's number, as its row does, in the same colour (Teacher.html CSS .ha-rt) */
-    var side = cur ? '<div class="ha-side" aria-live="polite"><div class="ha-sidehd"><span class="ha-rk">'+(shown.indexOf(cur)+1)+'</span><span class="ha-qw">'+haWhere(cur.s,cur.q)+'</span></div>'+haSheet(cur.s,cur.q)+haStats(cur)+haWho(cur)+'</div>' : '';
+    var side = cur ? '<div class="ha-side" aria-live="polite"><div class="ha-sidehd"><span class="ha-rk">'+(shown.indexOf(cur)+1)+'</span><span class="ha-qw">'+haWhere(cur.s,cur.q)+'</span>'+haAnsBtn()+'</div>'+haSheet(cur.s,cur.q)+haStats(cur)+haWho(cur)+'</div>' : '';
     var reteach = '<section class="ha-box"><div class="ha-bh"><h3><small>What to re-teach</small>The questions they found hardest</h3></div>'+chips+
       (rows ? '<div class="ha-rt"><div class="ha-list">'+rows+(rest>0?'<button type="button" class="ha-more" data-hamore="1" aria-expanded="'+more+'">'+(more?'See fewer':'See more ('+rest+')')+'</button>':'')+'</div>'+side+'</div>'
             : '<div class="empty">'+(h.pupils.some(function(p){ return p.sec.some(function(c){ return !!c.q; }); }) ? 'Every question tried here was right at the first try.' : 'Nobody has tried a question of this homework yet.')+'</div>')+'</section>';
@@ -3806,6 +3939,8 @@ var BOOT = __BOOT__;
     var t, h = (haD.homework||[]).filter(function(x){ return x.id===haState.open; })[0];
     if ((t = e.target.closest('[data-ha]'))) { var id=t.getAttribute('data-ha'); haState.open = haState.open===id ? null : id; haPaint(); return; }
     if (!h) return;
+    if ((t = e.target.closest('[data-haans]'))) { haState.ans = !haState.ans; haPaint(); return; }
+    if ((t = e.target.closest('[data-hakeysave]'))) { haSaveKey($('halist'), haPaint); return; }
     if ((t = e.target.closest('[data-hasec]'))) { var v=t.getAttribute('data-hasec'); haState.secF[h.id] = v==='' ? null : +v; haState.more[h.id]=false; haState.sel[h.id]=null; haPaint(); return; }
     if ((t = e.target.closest('[data-hamore]'))) { haState.more[h.id] = !haState.more[h.id]; haPaint(); return; }
     if ((t = e.target.closest('[data-hafu]'))) { var k=t.getAttribute('data-hafu'); haState.fu[h.id] = haState.fu[h.id]===k ? '' : k; haPaint(); return; }
@@ -3818,8 +3953,36 @@ var BOOT = __BOOT__;
   /* a phone: the question in the side panel, the drawer of Lab progress */
   function haQCard(h, si, q){
     var r = haQuestions(h).filter(function(x){ return x.si===si && x.q===q; })[0]; if (!r) return;
-    var paint = function(){ V.openDraw(r.s.name+' · question '+(q+1), esc(h.title), '<div class="ha-dq">'+haSheet(r.s, q)+haStats(r)+haWho(r)+'</div>'); };
-    paint(); haWords(r.s, function(){ var d=$('draw'); if (d && d.classList.contains('on')) $('drawb').innerHTML='<div class="ha-dq">'+haSheet(r.s, q)+haStats(r)+haWho(r)+'</div>'; });
+    var body = function(){ return '<div class="ha-dq"><div class="ha-dqbar">'+haAnsBtn()+'</div>'+haSheet(r.s, q)+haStats(r)+haWho(r)+'</div>'; };
+    var again = function(){ var d=$('draw'); if (d && d.classList.contains('on') && haDrawRedo===redo) $('drawb').innerHTML = body(); };
+    var redo = function(){ $('drawb').innerHTML = body(); if (haState.ans) haAnsLoad(r.s, again); };
+    V.openDraw(r.s.name+' · question '+(q+1), esc(h.title), body());
+    haDrawRedo = redo; haWireDraw();
+    haWords(r.s, again);
+    if (haState.ans) haAnsLoad(r.s, again);
+  }
+  /* the drawer's Show the answers and the key box: one listener, for whichever card is open */
+  var haDrawWired = false, haDrawRedo = null;
+  function haWireDraw(){
+    if (haDrawWired) return; haDrawWired = true;
+    $('drawb').addEventListener('click', function(e){
+      var t = e.target.closest ? e.target.closest('[data-haans],[data-hakeysave]') : null;
+      if (!t || !haDrawRedo) return;
+      if (t.hasAttribute('data-haans')) { haState.ans = !haState.ans; haDrawRedo(); if (haD && $('halist')) haPaint(); }
+      else haSaveKey($('drawb'), haDrawRedo);
+    });
+  }
+  /* the owner pastes the labs' answers key once (teacherAnswersKey); then the labs' answers are read again */
+  function haSaveKey(scope, then){
+    var inp = scope.querySelector('#hakey'), msg = scope.querySelector('#hakeymsg');
+    if (!inp) return;
+    if (msg) msg.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function(r){
+        if (r && r.ok) { Object.keys(HA_ANS).forEach(function(k){ if (k.indexOf('lab:')===0) delete HA_ANS[k]; }); if (haD && haD.answers) haD.answers.key = true; then(); }
+        else if (msg) msg.textContent = (r && r.why) || 'The key was not saved.'; })
+      .withFailureHandler(function(err){ if (msg) msg.textContent = 'The key was not saved: '+((err && err.message) || 'the spreadsheet could not be reached'); })
+      .teacherAnswersKey({ key: inp.value });
   }
   /* a pupil: each part, its questions as squares (first round; a dot when a later round got it right; the number, every check);
      a square pressed shows that question under the squares */
@@ -3834,14 +3997,16 @@ var BOOT = __BOOT__;
       return '<div class="ha-sqrow"><div class="ha-sqn">'+esc(s.name)+'<span>'+c.d+' of '+s.n+' done'+(s.kind==='wu'&&c.r!=null?' · red pen '+c.r+' of '+(s.m||0):'')+(c.p?' · ⏪ began before it was set':'')+'</span></div>'+
         '<div class="ha-sqs">'+sq+'</div><div class="ha-sqsay" data-hpsay="'+si+'"></div></div>'; }).join('');
     V.openDraw(p.name+(p.cls?' · '+p.cls:''), esc(h.title)+' · '+p.done+' of '+p.total+' done · '+haPc(f.r)+' right at the first try'+(f.t?' ('+f.f+' of '+f.t+')':''),
-      '<div class="ha-dp">'+rows+'<div class="ha-key"><span><i class="ha-sq f"></i> right first time</span><span><i class="ha-sq m"></i> right after more checks</span><span><i class="ha-sq t"></i> not right</span>'+
+      '<div class="ha-dp"><div class="ha-dqbar">'+haAnsBtn()+'</div>'+rows+'<div class="ha-key"><span><i class="ha-sq f"></i> right first time</span><span><i class="ha-sq m"></i> right after more checks</span><span><i class="ha-sq t"></i> not right</span>'+
       '<span><i class="ha-sq s"></i> saw the answer</span><span><i class="ha-sq z"></i> not tried</span><span>each square: their first round · dot: right in a later round · number: checks</span></div></div>');
-    var box = $('drawb');
+    var box = $('drawb'), active = null;
+    var showOn = function(b){ var si=+b.getAttribute('data-hpsi'), q=+b.getAttribute('data-hpq'), s=h.secs[si], say=box.querySelector('[data-hpsay="'+si+'"]');
+      var show = function(){ if (b.classList.contains('on') && say && haDrawRedo===redo) say.innerHTML = '<div class="ha-qw">Question '+(q+1)+'</div>'+haSheet(s, q); };
+      show(); haWords(s, show); if (haState.ans) haAnsLoad(s, show); };
+    var redo = function(){ var bar = box.querySelector('.ha-dqbar'); if (bar) bar.innerHTML = haAnsBtn(); if (active) showOn(active); };
+    haDrawRedo = redo; haWireDraw();
     box.querySelectorAll('[data-hpsi]').forEach(function(b){ b.addEventListener('click', function(){
-      var si=+b.getAttribute('data-hpsi'), q=+b.getAttribute('data-hpq'), s=h.secs[si], say=box.querySelector('[data-hpsay="'+si+'"]');
-      box.querySelectorAll('.ha-sq.on').forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on');
-      var show = function(){ if (b.classList.contains('on') && say) say.innerHTML = '<div class="ha-qw">Question '+(q+1)+'</div>'+haSheet(s, q); };
-      show(); haWords(s, show); }); });
+      box.querySelectorAll('.ha-sq.on').forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); active = b; showOn(b); }); });
   }
   /* Set homework's "See how they did →" opens one homework here */
   window.haOpenFor = function(id, other){ haState.open = id; haState.cls='all'; haState.when='all'; haState.q=''; if (other) haState.whose='all'; };
