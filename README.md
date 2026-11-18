@@ -407,6 +407,26 @@ deploy.
 are on it. (The older `TEACHERS` / `TEACHER_PAGE_URL` lines near the top of the script still work as
 a fallback, but the window is the easy way.)
 
+**The answers on Homework analysis (since 18 November 2026).** A teacher can press **Show the answers** above a question to
+see it answered, with the explanation and a model answer where one is written. Pupils never can: the labs script hands the
+answers only to a teacher it has recognised through Google's sign-in, and the page keeps them only while it is open, never on
+the computer. Where they come from:
+
+- **Bio English.** Its questions are already in the Bio English Lab's own public file, scrambled so a pupil cannot read the
+  answers in the page's source. The labs script unscrambles a set the way the site does and sends its answers to teachers
+  only. Nothing to set up.
+- **The topic labs.** Their answers are in no page: each lab keeps them in a master file that is never published (that is
+  why a pupil cannot read them). Since this date each lab's build also writes its answers into `js/data/answers.lock.json`,
+  **locked** (AES-256 encryption) with one key. The pages never load that file, and nobody can read it without the key.
+  The key is in no repository and not in `Code.gs`: it is made once, on the computer that builds the labs, and the
+  script's owner pastes it once on the teacher page (Homework analysis ▸ Show the answers ▸ **Save the key**). The labs
+  script keeps it in its own settings, which survive pasting a new copy of `Code.gs`, and gives it, with the locked file, only
+  to a teacher, whose page opens the answers.
+
+**If your school runs its own copy:** Bio English's answers work as they are. The labs' locked files open only with their
+author's key, which is not published, so in your copy **Show the answers** says the labs' answers are locked unless the author
+gives your school the key.
+
 </details>
 
 ---
