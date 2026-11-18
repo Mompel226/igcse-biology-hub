@@ -41,6 +41,9 @@
   --glass:rgba(120,200,230,.06);--tint:rgba(120,200,230,.03);--tint2:rgba(150,190,215,.08);--hover:rgba(150,190,215,.06);
   --track:rgba(150,190,215,.12);--track2:rgba(150,190,215,.18);--scrim:rgba(4,10,14,.62);--shadow:rgba(0,0,0,.5);
   --hb:46% 20%;--hd:52% 40%;--hf:78% 76%;
+  /* 📈 Homework analysis's answer colours (18 Nov 2026): far apart in both versions; --sqtxt the ink on its filled squares */
+  --rf:#4ADE80;--rm:#FBBF24;--rt:#FB7185;--rf-bg:rgba(74,222,128,.32);--rm-bg:rgba(251,191,36,.32);--rt-bg:rgba(251,113,133,.32);
+  --rf-ink:#BBF7D0;--rm-ink:#FDE68A;--rt-ink:#FECDD3;--ph1:#EF4444;--ph7:#22C55E;--ph14:#6366F1;--sqtxt:#0A141C;
   --accent:#4FC3F7;
   --serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
@@ -60,6 +63,8 @@
   --glass:#FFFFFF;--tint:#FFFFFF;--tint2:rgba(15,30,40,.04);--hover:rgba(15,30,40,.05);
   --track:rgba(15,30,40,.09);--track2:rgba(15,30,40,.14);--scrim:rgba(15,30,40,.35);--shadow:rgba(15,30,40,.18);
   --hb:70% 91%;--hd:55% 40%;--hf:70% 25%;
+  --rf:#16A34A;--rm:#F59E0B;--rt:#E11D48;--rf-bg:#BBF7D0;--rm-bg:#FDE68A;--rt-bg:#FECDD3;
+  --rf-ink:#166534;--rm-ink:#92400E;--rt-ink:#9F1239;--ph1:#EF4444;--ph7:#22C55E;--ph14:#6366F1;--sqtxt:#0A141C;
 }
 *{box-sizing:border-box}[hidden]{display:none!important}
 html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
@@ -68,7 +73,7 @@ html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(-
    to Google's frame around it or to the browser, whose two-finger swipe means Back. Up and down scroll as before. Every box
    that scrolls sideways is in the second list (tools/teacher-fit.mjs fails on one that is not). */
 html,body{overscroll-behavior-x:none}
-.hmwrap,.cmpwrap,.draw__b,.rq,.pups,.hbwrap,.mdlwrap{overscroll-behavior-x:contain}
+.hmwrap,.cmpwrap,.draw__b,.rq,.pups,.hbwrap,.mdlwrap,.ha-gwrap,.ha-tw{overscroll-behavior-x:contain}
 body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-events:none;z-index:0;
   background:radial-gradient(1100px 420px at 82% -40%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 65%);transition:background .3s}
 /* ---- the shell: sticky, so the tabs and "signed in" never move between views ---- */
@@ -88,8 +93,10 @@ body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-eve
    row) ran past the screen edge and the whole page scrolled sideways (1 Oct 2026). One row looks as before: 20 px
    corners on a 39 px bar draw the same round ends as the 999 px they replace. */
 .tabs{display:inline-flex;flex-wrap:wrap;max-width:100%;gap:4px;padding:4px;border:1px solid var(--line2);border-radius:20px;background:var(--card)}
-.tab{font:600 11px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);background:none;border:0;
-  padding:9px 14px;border-radius:999px;cursor:pointer;transition:color .15s,background .15s;white-space:nowrap}
+/* nine tabs on one row from 1100 px (18 Nov 2026, 📈 Homework analysis): 9 px at each side and .06em (were 14 px and .07em,
+   when eight tabs took 980 of the row's 1056 px; nine at the old size needed 1138 and took two rows at every width) */
+.tab{font:600 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);background:none;border:0;
+  padding:9px 9px;border-radius:999px;cursor:pointer;transition:color .15s,background .15s;white-space:nowrap}
 .tab:hover{color:var(--chalk)}.tab.on{color:var(--ink);background:var(--chalk)}
 .tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tgrp{display:inline-flex;gap:4px}
@@ -469,6 +476,7 @@ details[open]>summary .chev{transform:rotate(90deg)}
 /* homework reminders (🔔) and the list's sort switch, 1 Oct 2026 */
 .hw__r{font:500 11px/1.4 var(--mono);color:var(--dim);margin-top:4px;overflow-wrap:anywhere}.hw__r.bad{color:var(--warn)}
 .hwrem{margin-top:9px;font-size:12.5px;color:var(--dim)}
+.hwsee{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0 2px}.hwsee span{font-size:12.5px;color:var(--dim)}   /* 18 Nov 2026: each pupil is on 📈 Homework analysis */
 .duechg{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .duechg__b{display:flex;gap:7px;flex-wrap:wrap}.duechg .tmsg{flex-basis:100%}
 .outside{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
@@ -641,6 +649,154 @@ td.prtest .prshow{display:table;margin:5px auto 0}   /* under the score, so the 
 .prq__t{font-size:12.5px;color:var(--chalk);font-weight:600;line-height:1.35}.prq__t span{color:var(--mute);font-weight:500}
 .prq__w{font-size:12px;color:var(--dim);line-height:1.45;margin-top:2px}
 .prpart{margin:14px 0 2px;font:600 9.5px/1.3 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
+/* ── 📈 Homework analysis (18 Nov 2026): the questions they found hardest, whom to talk to, each pupil. Its answer colours are
+   its own three, far apart in both versions (Daniel, on the plan: the green, brown and red "are very hard to differentiate"):
+   --rf right first time, --rm right after more checks, --rt not right; a thin gap between the parts of a bar. ── */
+.ha-pill{display:inline-block;font:600 9px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;border-radius:999px;padding:4px 7px;margin-left:8px;vertical-align:2px;border:1px solid var(--line2);color:var(--dim)}
+.ha-pill.is-open{color:var(--rf-ink);background:var(--rf-bg);border-color:transparent}
+.ha-pill.is-wait{color:var(--rm-ink);background:var(--rm-bg);border-color:transparent}
+.ha-x{font-size:12.5px;color:var(--dim);margin-top:5px}.ha-x b{color:var(--rt);font-weight:600}
+.ha-hw.ha-on{border-color:color-mix(in srgb,var(--accent) 45%,transparent)}   /* never .open: the Spreadsheets buttons' class */
+.ha-bar{flex:none;width:150px}
+.ha-mbar,.ha-qbar{display:flex;gap:2px;height:8px;border-radius:5px;overflow:hidden;background:var(--track)}
+.ha-qbar{height:7px;margin-top:7px}
+.ha-mbar i,.ha-qbar i{display:block;height:100%}
+.ha-mbar .d,.ha-qbar .f{background:var(--rf)}.ha-mbar .p,.ha-qbar .m{background:var(--rm)}.ha-qbar .t{background:var(--rt)}
+.ha-mbar .t{background:repeating-linear-gradient(135deg,var(--rm) 0 2px,var(--track2) 2px 5px)}
+.ha-mk{font:500 11px/1.3 var(--mono);color:var(--dim);margin-top:5px;font-variant-numeric:tabular-nums}
+.ha-grp{margin:18px 0 0}
+.ha-grph{font:600 10px/1.3 var(--mono);letter-spacing:.11em;text-transform:uppercase;color:var(--mute);margin:0 0 8px;display:flex;gap:8px;align-items:baseline}
+.ha-b{border-top:1px solid var(--line);padding:14px 15px 16px;display:flex;flex-direction:column;gap:14px}
+.ha-box{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--cardhi);min-width:0}
+.ha-bh{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.ha-bh h3{margin:0;font:400 19px/1.2 var(--serif);color:var(--chalk)}
+.ha-bh h3 small{display:block;font:600 9.5px/1.3 var(--mono);letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
+.ha-s{font-size:12.5px;color:var(--mute);margin:6px 0 0}
+.ha-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ha-chip{font:500 12.5px/1.25 var(--sans);color:var(--dim);background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:6px 10px;cursor:pointer;max-width:100%;text-align:left}
+.ha-chip b{font:600 12px/1 var(--mono);margin-left:5px;font-variant-numeric:tabular-nums}
+.ha-chip.on{color:var(--chalk);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ha-chip.lo b{color:var(--rt)}.ha-chip.mid b{color:var(--rm-ink)}.ha-chip.hi b{color:var(--rf)}
+.ha-rt{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:16px;margin-top:12px;align-items:start}
+.ha-list{min-width:0}
+.ha-side{position:sticky;top:calc(var(--topbar,140px) + 10px);min-width:0}
+@media (max-width:900px){.ha-rt{grid-template-columns:1fr}.ha-side{display:none}}
+.ha-q{display:grid;grid-template-columns:24px minmax(0,1fr) 128px;gap:10px;align-items:start;padding:10px 8px;border-top:1px solid var(--line);border-radius:8px;cursor:pointer}
+.ha-q:hover{background:var(--hover)}
+.ha-q.sel{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+.ha-q:focus-visible,.ha-fug:focus-visible,.ha-chip:focus-visible,.ha-sq:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ha-qr{font:600 13px/1.6 var(--mono);color:var(--mute);text-align:right}
+.ha-qm{min-width:0}
+.ha-ql{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ha-qw{font-size:12px;color:var(--mute);font-weight:500}
+.ha-qtype{font:600 9.5px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);background:var(--track);border-radius:6px;padding:3px 6px}
+.ha-qs{font-size:14px;line-height:1.5;margin-top:4px;color:var(--chalk);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ha-qn{text-align:right}
+.ha-qn b{display:block;font:600 15px/1.2 var(--mono);color:var(--rt);font-variant-numeric:tabular-nums}
+.ha-qn span{display:block;font-size:11.5px;color:var(--mute)}
+@media (max-width:520px){.ha-q{grid-template-columns:20px minmax(0,1fr)}.ha-qn{grid-column:2;text-align:left}.ha-qn b,.ha-qn span{display:inline;margin-right:6px}}
+.ha-more{margin-top:8px;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:none;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:999px;padding:8px 12px;cursor:pointer}
+.ha-dim{color:var(--mute)}
+/* the question, as a short exam sheet */
+.ha-sheet{background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:16px 18px 18px;margin-top:6px}
+.ha-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ha-top .ha-marks{margin-left:auto;font:600 13px/1 var(--mono);color:var(--dim)}
+.ha-cmdtag{font:600 9.5px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:6px;padding:2px 6px}
+.ha-stem{font:400 16px/1.65 var(--sans);color:var(--chalk);margin:12px 0 0;max-width:62ch}
+.ha-cmd{color:var(--accent);font-weight:700}
+.ha-task{font-size:13.5px;color:var(--dim);margin:6px 0 0}
+.ha-opts{list-style:none;margin:14px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ha-opts.one{grid-template-columns:1fr}
+.ha-opts li{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line2);border-radius:10px;padding:9px 11px;font-size:14px;line-height:1.45;background:var(--cardhi);color:var(--chalk)}
+.ha-ol{flex:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);font:600 11px/20px var(--mono);text-align:center;color:var(--dim)}
+.ha-passage{font:400 15px/2.1 var(--sans);margin:14px 0 0;max-width:62ch;color:var(--chalk)}
+.ha-gap{display:inline-block;min-width:84px;border-bottom:2px dashed var(--line2);text-align:center;font:600 10px/1 var(--mono);color:var(--mute);vertical-align:-2px;padding:0 4px 2px}
+.ha-toks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ha-tok{border:1px solid var(--line2);background:var(--cardhi);border-radius:8px;padding:5px 9px;font-size:13.5px;line-height:1.3;color:var(--chalk)}
+.ha-lbl{font:600 9.5px/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin-top:14px}
+.ha-bins{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px}
+.ha-bin{border:1.5px dashed var(--line2);border-radius:10px;padding:10px;min-height:54px;font-weight:600;font-size:13.5px;text-align:center;color:var(--dim)}
+.ha-pairs{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:8px 14px;margin-top:12px}
+.ha-pairs ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ha-pairs li{border:1px solid var(--line2);border-radius:8px;padding:7px 9px;font-size:13.5px;line-height:1.4;background:var(--cardhi);color:var(--chalk)}
+.ha-slots{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
+.ha-slots li{display:flex;gap:10px;align-items:center;font-size:14px;line-height:1.4;color:var(--chalk)}
+.ha-slots li i{flex:none;width:110px;height:28px;border:1.5px dashed var(--line2);border-radius:8px}
+.ha-ph{display:grid;grid-template-columns:repeat(14,1fr);gap:2px;margin-top:14px;font:600 10px/24px var(--mono);text-align:center;color:var(--sqtxt);border-radius:6px;overflow:hidden;
+  background:linear-gradient(90deg,var(--ph1),var(--ph7),var(--ph14))}
+.ha-ph span{border-right:1px solid var(--card)}.ha-ph span:last-child{border-right:0}
+.ha-tw{overflow-x:auto;margin-top:12px}
+.ha-ftab{border-collapse:collapse;font-size:13px;color:var(--chalk)}
+.ha-ftab th,.ha-ftab td{border:1px solid var(--line2);padding:5px 9px;text-align:left;vertical-align:top}
+.ha-ftab th{font:600 10px/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--mute);background:var(--cardhi)}
+.ha-ftab td.ha-tick{width:44px}
+.ha-fcap{font-size:12px;color:var(--mute);margin-top:4px}
+.ha-fig{margin:12px 0 0}.ha-fig img{max-width:100%;border-radius:8px;border:1px solid var(--line)}
+.ha-hot{position:relative;margin-top:12px;max-width:100%}.ha-hot img{display:block;max-width:100%;border-radius:8px;border:1px solid var(--line)}
+.ha-hot i{position:absolute;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--ink);font:600 11px/22px var(--mono);font-style:normal;text-align:center}
+.ha-choice{display:inline-block;border:1px solid var(--line2);border-radius:7px;padding:0 7px;font-size:13px;line-height:1.7;color:var(--dim);background:var(--cardhi)}
+.ha-uline{text-decoration:underline;text-decoration-style:wavy;text-decoration-color:var(--rm);text-underline-offset:4px}
+.ha-stats{margin-top:12px}.ha-stats p{margin:0;font-size:13px;color:var(--dim)}.ha-stats p b{color:var(--chalk)}
+.ha-ag{color:var(--rt)}
+.ha-wg{margin-top:10px}
+.ha-wgh{font:600 10px/1.3 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--mute);display:flex;gap:7px;align-items:center}
+.ha-wgh i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.ha-wgh i.f{background:var(--rf)}.ha-wgh i.m{background:var(--rm)}.ha-wgh i.t{background:var(--rt)}.ha-wgh i.z{background:var(--track2)}
+.ha-wgh i.l{background:repeating-linear-gradient(135deg,var(--rf) 0 2px,var(--rt) 2px 4px)}
+.ha-wgn{font-size:13.5px;margin-top:3px;color:var(--chalk)}
+/* who to follow up */
+.ha-fu{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.ha-fug{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--card);cursor:pointer}
+.ha-fug.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ha-fugh{display:flex;justify-content:space-between;gap:8px;font-weight:600;font-size:13.5px;color:var(--chalk)}
+.ha-fugh b{font:600 13px/1.4 var(--mono);font-variant-numeric:tabular-nums}
+.ha-fug.lo .ha-fugh b{color:var(--rt)}.ha-fug.mid .ha-fugh b{color:var(--rm-ink)}
+.ha-fugn{font-size:12.5px;color:var(--dim);margin-top:2px}
+/* each pupil: the table and its key are at most as tall as the window below the pinned header (memory tables-fit-the-window) */
+.ha-gcard{display:flex;flex-direction:column;max-height:max(320px,calc(100vh - var(--topbar,140px) - 14px));max-height:max(320px,calc(100dvh - var(--topbar,140px) - 14px))}
+.ha-gwrap{flex:1 1 auto;min-height:0;overflow:auto;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.ha-pg{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+.ha-pg th,.ha-pg td{padding:6px 9px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:center;color:var(--chalk)}
+.ha-pg thead th{font:600 9.5px/1.25 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);background:var(--card);position:sticky;top:0;z-index:2;vertical-align:bottom}
+.ha-pg thead th.ha-sec{white-space:normal;min-width:70px;max-width:112px}
+.ha-pg .ha-nm{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;min-width:150px;font-weight:400}
+.ha-pg thead .ha-nm{z-index:3}
+.ha-pg tbody tr:hover td,.ha-pg tbody tr:hover th{background:var(--hover)}
+.ha-pg tbody tr.dim td,.ha-pg tbody tr.dim th{opacity:.32}
+.ha-nm button{font:600 13px/1.2 var(--sans);color:var(--chalk);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.ha-nm button:hover{text-decoration:underline}
+.ha-nm small{color:var(--mute);font:500 10px/1 var(--mono);margin-left:6px}
+.ha-num{font:500 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--dim)}
+.ha-num .st-pill{margin-left:6px}
+.ha-mark{display:inline-flex;align-items:center;justify-content:center;width:26px;height:22px;border-radius:6px;font:600 14px/1 var(--mono);cursor:help}
+.ha-mark.hi{color:var(--rf-ink);background:var(--rf-bg)}.ha-mark.mid{color:var(--rm-ink);background:var(--rm-bg)}
+.ha-mark.lo{color:var(--rt-ink);background:var(--rt-bg)}.ha-mark.no{color:var(--mute);background:var(--track)}
+.ha-pre{font-size:10px;margin-left:3px}
+.ha-key{flex:none;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--mute);margin-top:10px;align-items:center}
+.ha-key .ha-mark{width:22px;height:19px;font-size:12px;cursor:default}
+.ha-gcard .fld{flex:0 0 220px}
+.ha-seg{display:inline-flex;border:1px solid var(--line2);border-radius:9px;overflow:hidden}
+.ha-seg button{font:500 13px/1.2 var(--sans);color:var(--dim);background:var(--cardhi);border:0;padding:10px 12px;cursor:pointer}
+.ha-seg button.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--chalk)}
+details.ha-how{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:0 14px}
+details.ha-how>summary{cursor:pointer;padding:12px 0;font-weight:600;font-size:13.5px;color:var(--chalk)}
+details.ha-how ul{margin:0 0 14px;padding-left:18px;display:flex;flex-direction:column;gap:7px;color:var(--lede);font-size:13.5px}
+details.ha-how li b{color:var(--chalk)}
+/* a pupil's questions, in the drawer */
+.ha-sqrow{padding:10px 0;border-bottom:1px solid var(--line)}
+.ha-sqn{font-size:13.5px;font-weight:600;color:var(--chalk)}
+.ha-sqn span{display:block;font:500 11px/1.4 var(--mono);color:var(--mute);font-weight:500}
+.ha-sqs{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.ha-sq{position:relative;display:inline-block;width:23px;height:23px;border-radius:5px;border:1px solid transparent;padding:0;font:600 10px/21px var(--mono);text-align:center;color:var(--sqtxt);cursor:pointer;vertical-align:middle}
+.ha-sq.f{background:var(--rf)}.ha-sq.m{background:var(--rm)}.ha-sq.t{background:var(--rt)}
+.ha-sq.s{background:repeating-linear-gradient(135deg,var(--rt) 0 3px,var(--rt-bg) 3px 6px);border-color:var(--rt)}
+.ha-sq.z{background:none;border-color:var(--line2);color:var(--mute)}
+.ha-sq.on{box-shadow:0 0 0 2px var(--chalk)}
+.ha-sq.later::after{content:"";position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--rf);border:2px solid var(--ink)}
+.ha-key i.ha-sq{width:14px;height:14px;cursor:default}
+.ha-sqsay:empty{display:none}.ha-sqsay{margin-top:8px}
+.ha-dq .ha-sheet,.ha-dp .ha-sheet{padding:13px 14px}
+@media (max-width:700px){.ha-bar{width:100%}.ha-opts{grid-template-columns:1fr}.ha-pairs{grid-template-columns:1fr}.ha-slots li i{width:70px}}
 </style>
 </head>
 <body>
@@ -726,6 +882,9 @@ var BOOT = __BOOT__;
     writeup:{ label:'Report write-up', accent:'#FB7185', accentL:'#BE123C', h1:'Report <em>write-up</em>',
       lede:'Lab reports: how far each student has got with the parts of the Write-Up Lab, red pens and questions together.',
       note:'Each cell is the share of a part finished (red-pen mistakes found and questions answered), as homework counts it. It is their best ever: when a part is rewritten, what they did on the earlier version still counts.' },
+    hwanalysis:{ label:'Homework analysis', accent:'#A3E635', accentL:'#4D7C0F', h1:'Homework <em>analysis</em>',
+      lede:'How each homework went: the questions to go over again, and the pupils to talk to.',
+      note:'A question’s words come from the lab’s own page, as the pupils see it, when you open a homework; Bio English’s without the answers. The words are read again after an hour, so a question rewritten since shows its new words only where its fingerprint still matches.' },
     habits:{ label:'Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'Homework <em>habits</em>',
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
       note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. Choose a name in Student to show that pupil alone, for example to their parents: no other pupil’s name is on the screen. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
@@ -744,7 +903,7 @@ var BOOT = __BOOT__;
      homework tabs. Each group wraps as one piece (.tgrp), so a pair is never split across rows; a thin line parts the
      groups (TAB_GROUP: the first tab of each), hidden on a group the bar has wrapped to a new row (fitSeps); a phone shares
      its rows out as before (.tgrp: display:contents) and has no lines. */
-  var ORDER = ['teachers','students','progress','english','writeup','practicals','homework','habits'];
+  var ORDER = ['teachers','students','progress','english','writeup','practicals','homework','hwanalysis','habits'];
   var TAB_GROUP = { students:1, progress:1, homework:1 };
   /* cache: each view's newest copy. fresh: read from the sheet (or written) since this page opened. drawn: the copy on the
      screen now. touched: the teacher has clicked or typed in the view since it was drawn. newer: a newer copy waits for
@@ -913,8 +1072,14 @@ var BOOT = __BOOT__;
     $('who').innerHTML = BOOT.email
       ? '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="4" fill="currentColor"/>'+
         '<path d="M4.2 21c.8-4.2 4-6.6 7.8-6.6s7 2.4 7.8 6.6z" fill="currentColor"/></svg>'+esc(BOOT.email) : '';
+    anaBack();
     showAge();
   }
+  /* 📊 Analysis carries this page's own address and the tab on show (18 Nov 2026, Daniel: the analysis page had no way back
+     here): after #teacher= in the link, which the analysis page reads for its ← Teacher page. Never in a public file. */
+  function anaBack(){ var a=$('ana'), self=String(BOOT.self||''); if (!a || a.hidden) return;
+    var base=String(a.getAttribute('href')||'').split('#')[0];
+    if (/^https:\/\/script\.google\.com\/[^\s?#"'<>]+\/exec$/.test(self)) a.setAttribute('href', base+'#teacher='+encodeURIComponent(self+'?page='+cur)); }
   function go(tab, force){
     var moved = cur !== tab;
     if (moved) {                               /* each view comes back where the teacher left it on the page */
@@ -949,6 +1114,7 @@ var BOOT = __BOOT__;
     if (cur==='english') return window.vEnglish(r.data);
     if (cur==='writeup') return window.vWriteup(r.data);
     if (cur==='habits') return window.vHabits(r.data);
+    if (cur==='hwanalysis') return window.vHwAnalysis(r.data);
     if (cur==='practicals') return window.vPracticals(r.data);
   }
 
@@ -2438,12 +2604,10 @@ var BOOT = __BOOT__;
           '<i class="p" style="width:'+(100*pa/w)+'%"></i><i class="t" style="width:'+(100*tr/w)+'%"></i><i class="z" style="width:'+(n?100*z/w:100)+'%"></i></div>'+
           '<div class="hw__k">'+(n? d+' of '+n+' done' : 'nobody left')+'</div>'+
           '<div class="hw__due '+dueCls(h)+'"><b>'+esc(fmtD(h))+'</b>'+(h.dueText&&!/, \d\d:\d\d$/.test(h.dueText)?'due at 23:59':'due')+'</div></div>'+
-          (op?'<div class="hw__b">'+(h.pupils.map(function(x){
-            return '<div class="prow"><div class="prow__n">'+esc(x.name||'(no name)')+'<span>'+esc(x.cls||'')+'</span></div>'+
-              '<div class="prow__v" style="color:'+(x.state==='done'?'var(--good)':x.state==='partly'?'var(--warn)':x.state==='tried'?'var(--warn-ink)':'var(--mute)')+'">'+x.done+'/'+x.total+'</div>'+
-              /* tried (14 Oct 2026): answers checked at a set station, none right yet; not started: nothing checked there */
-              '<div><span class="st-pill '+esc(x.state)+'">'+(x.state==='none'?'not started':x.state==='tried'?'tried, 0 right':x.state)+'</span></div></div>'; }).join('')
-            ||'<div class="empty">Nobody on the roster matches this any more.</div>')+
+          (op?'<div class="hw__b">'+(h.pupils.length
+            /* how each pupil did, question by question, is on 📈 Homework analysis (18 Nov 2026, Daniel: Set homework only sets homework) */
+            ? '<div class="hwsee"><button class="act ok" data-see="'+esc(h.id)+'"'+(h.mine===false?' data-other="1"':'')+'>See how they did →</button><span>the questions they found hardest, and each pupil, on Homework analysis</span></div>'
+            : '<div class="empty">Nobody on the roster matches this any more.</div>')+
             (some(h)?'<div class="hwrem">👤 Set for these pupils only'+(h.inClassroom?': in Google Classroom it is an assignment of its own, posted to them alone':'')+
               '. Change the due date, Hide and Remove act on this homework only.</div>':'')+
             (h.outside&&h.outside.length?outsideBox(h):'')+
@@ -2636,6 +2800,9 @@ var BOOT = __BOOT__;
         if(b.checked) hState.picked[q[0]][q[1]]=1; else delete hState.picked[q[0]][q[1]]; paint(); }); });
       document.querySelectorAll('.hw__h').forEach(function(h){ h.addEventListener('click', function(){
         var id=h.getAttribute('data-hw'); hState.expand[id]=!hState.expand[id]; paint(); }); });
+      document.querySelectorAll('[data-see]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
+        if (window.haOpenFor) window.haOpenFor(b.getAttribute('data-see'), b.getAttribute('data-other')==='1');
+        var t=document.getElementById('tab-hwanalysis'); if (t) t.click(); }); });
       document.querySelectorAll('[data-again]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         var id=b.getAttribute('data-again'), h=null; HW.forEach(function(x){ if(x.id===id) h=x; });
         if(!h) return; hState.picked={}; hState.open={};
@@ -3291,6 +3458,359 @@ var BOOT = __BOOT__;
     revPanel();
     paint();
   };
+  /* ─────────────────────── 📈 Homework analysis (18 Nov 2026) ───────────────────────
+     Daniel: to check homework he scrolled down to the Archive and opened one, and saw each pupil, but not "per question how
+     they've done … which questions they struggle the most, what do they struggle the most". Set homework only sets homework
+     now; this view is for what a teacher does next: what to go over again (the questions most pupils did not get right at
+     the first try, five, then See more) and whom to talk to (not started, tried with none right, part way, finished with
+     under half right first time), then each pupil in one compact grid. The server sends each pupil's letters per part
+     (_hwAnalysisData_); the counting is done here, from those letters only. Each question is shown whole, as pupils see it
+     (Daniel, on the plan: "make sure that the question is easy to read … show the whole activity if they have to drag and
+     drop"), its words read on demand: a lab's activities from its own page (uiData('acts')), a Bio English set's questions
+     without the answers (uiData('enacts')). Its colours are its own three (Daniel, on the plan: the green, brown and red
+     "are very hard to differentiate"): --rf right first time, --rm right after more checks, --rt not right. */
+  var haState = { cls:'all', whose:null, when:'all', q:'', open:null, secF:{}, more:{}, sel:{}, fu:{}, sort:'follow' }, haTimer = null, haD = null;
+  var HA_ACT = {}, HA_WAIT = {}, HA_WHY = {};
+  var HA_KIND = { mcq:'Multiple choice', blank:'Fill the gaps', sort:'Sort into groups', order:'Put in order', match:'Match the pairs', drag:'Drag & drop',
+                  grid:'Tick the table', hotspot:'Click on the picture', ph:'Set the pH',
+                  pick:'Choose the answer that scores', choose:'Choose the words that score', build:'Build the answer', fix:'Change the words that do not score',
+                  trim:'Strike out what scores nothing', gap:'Write the missing words', mark:'Mark an answer', exam:'Write an exam answer', kw:'Choose the keyword' };
+  var HA_CMD = ['State','Describe','Explain','Suggest','Calculate','Compare','Define','Outline','Predict','Evaluate','Identify','Name','Give','Determine','Discuss','Sketch','Deduce'];
+  var HA_CMDRE = new RegExp('(^|[.!?:]\\s+|[\\u201C\\u2018]\\s*|&quot;\\s*|&#39;\\s*)('+HA_CMD.join('|')+')\\b', 'g');
+  var HA_B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+  function haN(ch){ var i=HA_B36.indexOf(ch||''); return i<0?0:i; }
+  function haKey(s){ return s.kind==='en' ? 'en:'+s.id : s.kind==='lab' ? 'lab:'+s.lab : ''; }
+  /* one read per lab (or per Bio English set) at a time, kept in this window for an hour, as the question words of Lab progress are */
+  function haWords(s, cb){
+    var key = haKey(s);
+    if (!key) return cb && cb();
+    if (HA_ACT[key] !== undefined) return cb && cb();
+    try { var raw=sessionStorage.getItem('teach.a.'+key), o=raw&&JSON.parse(raw);
+      if (o&&o.w&&o.at&&(Date.now()-o.at)<60*60*1000) { HA_ACT[key]=o.w; return cb && cb(); } } catch(e){}
+    if (HA_WAIT[key]) { if (cb) HA_WAIT[key].push(cb); return; }
+    HA_WAIT[key] = cb ? [cb] : [];
+    google.script.run
+      .withSuccessHandler(function(r){ var w=r&&r.ok&&r.data?r.data:null, cbs=HA_WAIT[key]; delete HA_WAIT[key];
+        HA_ACT[key]=w; HA_WHY[key]=w?'':((r&&r.why)||'its page could not be read');
+        if (w) { try { sessionStorage.setItem('teach.a.'+key, JSON.stringify({at:Date.now(), w:w})); } catch(e){} }
+        cbs.forEach(function(f){ f(); }); })
+      .withFailureHandler(function(err){ var cbs=HA_WAIT[key]; delete HA_WAIT[key];
+        HA_ACT[key]=null; HA_WHY[key]=(err&&err.message)||'the spreadsheet could not be reached';
+        cbs.forEach(function(f){ f(); }); })
+      .uiData(s.kind==='en'?'enacts':'acts', s.kind==='en'?s.id:s.lab);
+  }
+  /* the activity of question q of part s: an object; '…' while it is read; or the reason it cannot be shown */
+  function haAct(s, q){
+    var key = haKey(s), d = HA_ACT[key];
+    if (s.kind==='wu') return { why:'wu' };
+    if (d === undefined) return { why:'wait' };
+    if (d === null) return { why:'Its words could not be read: '+(HA_WHY[key]||'')+'.' };
+    if (s.kind==='en') { if (String(d.v||'')!==String(s.v||'')) return { why:'This set has been rewritten since: its questions now are not the ones the pupils answered.' };
+      return (d.acts||[])[q] || { why:'This question is not in the set now.' }; }
+    var st = d[s.id];
+    if (!st) return { why:'This station has been rewritten since: its questions now are not the ones the pupils answered.' };
+    return st[q] || { why:'This question is not in the station now.' };
+  }
+  function haHl(t){
+    t = String(t||''); var marks='', mm=t.match(/\((\d+) marks?\)/);
+    if (mm) { marks=mm[1]; if (/\(\d+ marks?\)\.?\s*$/.test(t)) t=t.replace(/\s*\(\d+ marks?\)\.?\s*$/, ''); }
+    return { h: esc(t).replace(HA_CMDRE, function(_,a,b){ return a+'<b class="ha-cmd">'+b+'</b>'; }), marks: marks };
+  }
+  function haToks(list){ return '<div class="ha-toks">'+(list||[]).map(function(x){ return '<span class="ha-tok">'+esc(x)+'</span>'; }).join('')+'</div>'; }
+  function haTable(t, cap){ if (!t || !t.rows) return '';
+    return '<div class="ha-tw"><table class="ha-ftab">'+(t.head&&t.head.length?'<thead><tr>'+t.head.map(function(x){return '<th>'+esc(x)+'</th>';}).join('')+'</tr></thead>':'')+
+      '<tbody>'+t.rows.map(function(r){ return '<tr>'+r.map(function(x){return '<td>'+esc(x)+'</td>';}).join('')+'</tr>'; }).join('')+'</tbody></table></div>'+(cap?'<div class="ha-fcap">'+esc(cap)+'</div>':''); }
+  function haBody(a){
+    var L='ABCDEFGHIJ', o=a.options||[];
+    switch (a.type) {
+      case 'mcq': case 'pick': case 'kw':
+        return (a.multi?'<p class="ha-task">More than one answer is right.</p>':'')+'<ol class="ha-opts'+(o.some(function(x){ return String(x).length>48; })?' one':'')+'">'+
+          o.map(function(x,i){ return '<li><span class="ha-ol">'+L.charAt(i)+'</span><span>'+esc(x)+'</span></li>'; }).join('')+'</ol>';
+      case 'blank': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{(\d+)\}/g, '<span class="ha-gap">$1</span>')+'</p>';
+      case 'sort': return '<div class="ha-bins">'+(a.bins||[]).map(function(b){ return '<div class="ha-bin">'+esc(b)+'</div>'; }).join('')+'</div><div class="ha-lbl">To sort</div>'+haToks(a.items);
+      case 'order': return a.items ? '<div class="ha-lbl">In the order pupils see them</div>'+haToks(a.items) : '';
+      case 'match': return '<div class="ha-pairs"><ul>'+(a.left||[]).map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul><ul>'+(a.right||[]).map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul></div>';
+      case 'drag': return '<div class="ha-lbl">Pieces to drag</div>'+haToks((a.tokens||[]).concat(a.distractors||[]).slice().sort(function(x,y){ return String(x).localeCompare(String(y)); }))+
+        '<ul class="ha-slots">'+(a.slots||[]).map(function(x){ return '<li><i></i><span>'+esc(x)+'</span></li>'; }).join('')+'</ul>';
+      case 'grid': return '<div class="ha-tw"><table class="ha-ftab"><thead><tr><th></th>'+(a.cols||[]).map(function(c){ return '<th>'+esc(c)+'</th>'; }).join('')+'</tr></thead><tbody>'+
+        (a.rows||[]).map(function(r){ return '<tr><td><b>'+esc(r.label)+'</b>'+(r.note?'<br><span class="ha-fcap">'+esc(r.note)+'</span>':'')+'</td>'+(a.cols||[]).map(function(){ return '<td class="ha-tick"></td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>';
+      case 'hotspot': return a.img ? '<div class="ha-hot"><img src="'+esc(a.img)+'" alt="'+esc(a.cap||'The picture of the question')+'" loading="lazy">'+
+        (a.regions||[]).map(function(r,i){ return '<i style="left:'+(+r.x||0)+'%;top:'+(+r.y||0)+'%">'+(i+1)+'</i>'; }).join('')+'</div>' : '';
+      case 'ph': var c=''; for (var p=1;p<=14;p++) c+='<span>'+p+'</span>';
+        return '<div class="ha-ph" aria-hidden="true">'+c+'</div><p class="ha-task">A slider from pH 1 to pH 14, for '+esc(a.enzyme||'the enzyme')+'.</p>';
+      case 'choose': return '<p class="ha-passage">'+esc(a.text||'').replace(/\[\[([^\]]*)\]\]/g, function(_,x){ return '<span class="ha-choice">'+x.split('|').join(' · ')+'</span>'; })+'</p>';
+      case 'gap': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{\{\}\}/g, '<span class="ha-gap"></span>')+'</p>';
+      case 'fix': return '<p class="ha-passage">'+esc(a.text||'').replace(/\{([^}]*)\}/g, '<span class="ha-uline">$1</span>')+'</p>';
+    }
+    return '';
+  }
+  /* the question as pupils see it: what they do, the command word, the marks, the whole activity; never its answer */
+  function haSheet(s, q){
+    var a = haAct(s, q);
+    if (a.why === 'wait') return '<div class="ha-sheet"><p class="ha-task">Reading the question…</p></div>';
+    if (a.why === 'wu') return '<div class="ha-sheet"><div class="ha-top"><span class="ha-qtype">Test yourself</span></div><p class="ha-stem">Question '+(q+1)+' of “'+esc(s.name)+'” in the Write-Up Lab.</p>'+
+      '<p class="ha-task">The Write-Up Lab’s questions are read on its own pages: <a href="https://nlcsbiology.com/write-up-lab/#/part/'+encodeURIComponent(s.id)+'/test" target="_blank" rel="noopener noreferrer">open this part there ↗</a></p></div>';
+    if (a.why) return '<div class="ha-sheet"><p class="ha-task">'+esc(a.why)+'</p></div>';
+    var en = s.kind==='en', P = haHl(en ? a.q : a.prompt), marks = en && a.marks ? String(a.marks) : P.marks;
+    return '<div class="ha-sheet"><div class="ha-top"><span class="ha-qtype">'+esc(HA_KIND[a.type]||'Question')+'</span>'+
+      (en&&a.cmd?'<span class="ha-cmdtag">'+esc(a.cmd)+'</span>':'')+(marks?'<span class="ha-marks" data-tip="Marks, as on an exam paper">['+esc(marks)+']</span>':'')+'</div>'+
+      haTable(a.table, a.cap)+(a.img&&a.type!=='hotspot'?'<figure class="ha-fig"><img src="'+esc(a.img)+'" alt="'+esc(a.cap||'')+'" loading="lazy"></figure>':'')+
+      '<p class="ha-stem">'+P.h+'</p>'+(en&&a.task?'<p class="ha-task">'+esc(a.task)+'</p>':'')+haBody(a)+'</div>';
+  }
+  function haStem(s, q){ var a=haAct(s, q);
+    if (a.why==='wait') return '<span class="ha-dim">Reading the question…</span>';
+    if (a.why==='wu') return 'Test yourself, question '+(q+1);
+    if (a.why) return '<span class="ha-dim">'+esc(a.why)+'</span>';
+    return haHl(s.kind==='en'?a.q:a.prompt).h; }
+  function haType(s, q){ var a=haAct(s, q); return a.why ? (s.kind==='wu'?'Test yourself':'') : (HA_KIND[a.type]||''); }
+  function haWhere(s, q){ return esc(s.name)+' · question '+(q+1)+(s.kind==='en'?' · Bio English':s.kind==='wu'?' · Write-Up':''); }
+
+  /* ── the counting, from the letters only ── */
+  /* done some of it, or answered in a later round, though no first round is kept: never "not tried" (the audit, 18 Nov 2026) */
+  function haDid(c){ return c.d>0 || /[^0]/.test(String(c.b||'')); }
+  function haLetters(s, c){ var n = s.kind==='wu' ? (s.qn||0) : s.n, q = String(c.q||'').slice(0, n); while (q.length < n) q += '0';
+    return c.q ? q : ''; }
+  function haQuestions(h){
+    var out = [];
+    h.secs.forEach(function(s, si){
+      var n = s.kind==='wu' ? (s.qn||0) : s.n;
+      for (var i=0; i<n; i++){
+        /* f right first time · m right after more checks · l not right in the first round, right in a later one · s saw the answer
+           and not right since · t not right yet · z not tried · u no record of each question (it was set, done, but not kept) */
+        var g = { f:[], m:[], l:[], t:[], s:[], z:[], u:[] }, ck=0, ag=0;
+        h.pupils.forEach(function(p){
+          var c = p.sec[si]||{d:0}, L = haLetters(s, c);
+          if (!L) { (haDid(c) ? g.u : g.z).push(p.name); return; }       /* no first round: not started, or not kept question by question */
+          var ch = L.charAt(i)||'0', b = String(c.b||L).charAt(i)||ch, later = (ch==='t'||ch==='s') && (b==='1'||b==='f');
+          (ch==='f'?g.f:ch==='1'?g.m:later?g.l:ch==='t'?g.t:ch==='s'?g.s:g.z).push(p.name);
+          if (c.k) ck += haN(String(c.k).charAt(i));
+          if (c.a && String(c.a).charAt(i)==='1') ag++;
+        });
+        var tried = g.f.length+g.m.length+g.l.length+g.t.length+g.s.length, hard = tried-g.f.length;
+        out.push({ si:si, s:s, q:i, g:g, tried:tried, hard:hard, ck:ck, re:g.l.length, ag:ag });
+      }
+    });
+    return out.filter(function(r){ return r.hard > 0; })
+      .sort(function(a,b){ return b.hard-a.hard || (b.hard/b.tried)-(a.hard/a.tried) || b.ag-a.ag || a.si-b.si || a.q-b.q; });
+  }
+  /* a pupil's first try, over the parts with letters: tried, right first time (never more right than tried) */
+  function haFirst(h, p){ var t=0, f=0;
+    h.secs.forEach(function(s, si){ var L=haLetters(s, p.sec[si]||{}); for (var i=0;i<L.length;i++){ var ch=L.charAt(i); if (ch!=='0') t++; if (ch==='f') f++; } });
+    return { t:t, f:f, r: t ? f/t : null }; }
+  function haSecFirst(h, si){ var t=0, f=0, s=h.secs[si];
+    h.pupils.forEach(function(p){ var L=haLetters(s, p.sec[si]||{}); for (var i=0;i<L.length;i++){ var ch=L.charAt(i); if (ch!=='0') t++; if (ch==='f') f++; } });
+    return t ? f/t : null; }
+  function haBand(r){ return r==null ? 'no' : r>=0.8 ? 'hi' : r>=0.5 ? 'mid' : 'lo'; }
+  function haPc(r){ return r==null ? '–' : Math.round(100*r)+'%'; }
+  function haGroups(h){
+    var P = h.pupils.map(function(p, i){ return { p:p, i:i, f:haFirst(h, p) }; }), open = !h.overdue, out = [];
+    function grp(key, label, cls, tip, pick){ var L=P.filter(pick); if (L.length) out.push({ key:key, label:label, cls:cls, tip:tip, L:L }); }
+    grp('none', open?'Not started yet':'Did not start', 'lo', 'Nothing checked at any part of it.', function(x){ return x.p.state==='none'; });
+    grp('tried', open?'Tried, none right yet':'Tried, none right', 'lo', 'Answers checked, none right.', function(x){ return x.p.state==='tried'; });
+    grp('partly', open?'Part way':'Did not finish', 'mid', 'Some of it done, not all.', function(x){ return x.p.state==='partly'; });
+    grp('low', 'Finished, under half right first time', 'mid', 'Everything done, but most answers needed more than one try.', function(x){ return x.p.state==='done' && x.f.r!=null && x.f.r<0.5; });
+    return out;
+  }
+
+  window.vHwAnalysis = function(D){
+    haD = D;
+    var HW = (D.homework||[]).slice();
+    if (!haState.whose){ var w0=''; try { w0=localStorage.getItem('homework.whose')||''; } catch(e){} haState.whose=(w0==='all')?'all':'mine'; }
+    if (!HW.length) { $('view').innerHTML = '<div class="empty">No homework yet. Set some on the Set homework tab: each one is then here, with the questions the pupils found hardest and how each pupil did.</div>'; return; }
+    var all = D.whose==='all';
+    var CLS = []; HW.forEach(function(h){ var c=h.cls||'chosen'; if (CLS.indexOf(c)<0) CLS.push(c); });
+    CLS.sort(function(a,b){ return a==='chosen'?1:b==='chosen'?-1:cmpClass(a,b); });
+    if (haState.cls!=='all' && CLS.indexOf(haState.cls)<0) haState.cls='all';
+    var MONTH = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var MOS = []; HW.forEach(function(h){ var m=String(h.dueDay||'').slice(0,7); if (h.overdue && m && MOS.indexOf(m)<0) MOS.push(m); });
+    MOS.sort().reverse();
+    if (haState.when!=='all' && haState.when!=='open' && MOS.indexOf(haState.when)<0) haState.when='all';
+    function mName(m){ return MONTH[+m.slice(5,7)-1]+' '+m.slice(0,4); }
+    $('view').innerHTML =
+      '<div class="bar2">'+
+        '<div class="fld"><label for="hac">Class</label><select id="hac"><option value="all">All classes</option>'+
+          CLS.map(function(c){ return '<option value="'+esc(c)+'"'+(c===haState.cls?' selected':'')+'>'+(c==='chosen'?'Chosen pupils':esc(c))+'</option>'; }).join('')+'</select></div>'+
+        (all?'<div class="fld"><label>Whose</label><div class="ha-seg" role="group" aria-label="Whose homework">'+
+          '<button type="button" data-hawho="mine" aria-pressed="'+(haState.whose==='mine')+'"'+(haState.whose==='mine'?' class="on"':'')+'>Mine</button>'+
+          '<button type="button" data-hawho="all" aria-pressed="'+(haState.whose==='all')+'"'+(haState.whose==='all'?' class="on"':'')+'>All teachers</button></div></div>':'')+
+        '<div class="fld"><label for="haw">When</label><select id="haw"><option value="all">Open now and every month</option><option value="open"'+(haState.when==='open'?' selected':'')+'>Open now</option>'+
+          MOS.map(function(m){ return '<option value="'+m+'"'+(haState.when===m?' selected':'')+'>'+mName(m)+'</option>'; }).join('')+'</select></div>'+
+        '<div class="fld fld--grow"><label for="haq">Find a homework</label><input id="haq" type="search" placeholder="its name, or a part of it (Stomach…)" value="'+esc(haState.q)+'"></div>'+
+      '</div><div id="halist"></div>';
+    $('hac').addEventListener('change', function(){ haState.cls=this.value; haPaint(); });
+    $('haw').addEventListener('change', function(){ haState.when=this.value; haPaint(); });
+    $('haq').addEventListener('input', function(){ haState.q=this.value; clearTimeout(haTimer); haTimer=setTimeout(haPaint, 150); });
+    document.querySelectorAll('[data-hawho]').forEach(function(b){ b.addEventListener('click', function(){ haState.whose=b.getAttribute('data-hawho');
+      try { localStorage.setItem('homework.whose', haState.whose); } catch(e){} window.vHwAnalysis(D); }); });
+    var L = $('halist');
+    L.addEventListener('click', haClick);
+    /* a homework's head (.hw__h) answers Enter and Space through the page's own handler; the other role=button rows here */
+    L.addEventListener('keydown', function(e){ if ((e.key==='Enter'||e.key===' ') && e.target.matches && e.target.matches('[role="button"]') && !e.target.classList.contains('hw__h')) { e.preventDefault(); e.target.click(); } });
+    L.addEventListener('change', function(e){ if (e.target.id==='hasort') { haState.sort=e.target.value; haPaint(); } });
+    haPaint();
+  };
+  function haList(){
+    var D = haD, all = D.whose==='all', q = String(haState.q||'').trim().toLowerCase();
+    return (D.homework||[]).filter(function(h){
+      if (all && haState.whose==='mine' && !h.mine) return false;
+      if (haState.cls!=='all' && (h.cls||'chosen')!==haState.cls) return false;
+      if (haState.when==='open' && h.overdue) return false;
+      if (haState.when!=='all' && haState.when!=='open' && !(h.overdue && String(h.dueDay||'').slice(0,7)===haState.when)) return false;
+      if (q) { var t=(h.title+' '+h.who+' '+(h.secs||[]).map(function(s){ return s.name; }).join(' ')).toLowerCase(); if (t.indexOf(q)<0) return false; }
+      return true; });
+  }
+  function haPaint(){
+    var box = $('halist'); if (!box || !haD) return;
+    var hs = haList(), open = hs.filter(function(h){ return !h.overdue; }), past = hs.filter(function(h){ return h.overdue; });
+    open.sort(function(a,b){ return (a.waiting?1:0)-(b.waiting?1:0) || (Date.parse(a.due||'')||9e15)-(Date.parse(b.due||'')||9e15); });
+    past.sort(function(a,b){ return (Date.parse(b.due||'')||0)-(Date.parse(a.due||'')||0); });
+    var MONTH = ['January','February','March','April','May','June','July','August','September','October','November','December'], h = '';
+    if (open.length) h += '<div class="ha-grp"><div class="ha-grph">Open now <span class="sec__n">'+open.length+'</span></div>'+open.map(haRow).join('')+'</div>';
+    var by = {}, order = [];
+    past.forEach(function(x){ var m=String(x.dueDay||'').slice(0,7)||'?'; if (!by[m]) { by[m]=[]; order.push(m); } by[m].push(x); });
+    order.forEach(function(m){ h += '<div class="ha-grp"><div class="ha-grph">'+(m==='?'?'No due date':MONTH[+m.slice(5,7)-1]+' '+m.slice(0,4))+' · due date passed <span class="sec__n">'+by[m].length+'</span></div>'+by[m].map(haRow).join('')+'</div>'; });
+    if (!hs.length) h = '<div class="empty">No homework matches. Clear the boxes above to see all of it.</div>';
+    box.innerHTML = h;
+    /* the words of the questions on show: one read per lab or set, then this list again */
+    var oh = hs.filter(function(x){ return x.id===haState.open; })[0];
+    if (oh && !oh.waiting) {
+      var want = {}, Q = haQuestions(oh), secF = haState.secF[oh.id], shown = Q.filter(function(r){ return secF==null || r.si===secF; }),
+          top = haState.more[oh.id] ? shown : shown.slice(0,5);
+      top.forEach(function(r){ var k=haKey(r.s); if (k && HA_ACT[k]===undefined) want[k]=r.s; });
+      Object.keys(want).forEach(function(k){ haWords(want[k], function(){ if (window.__view && haD && $('halist')) haPaint(); }); });
+    }
+  }
+  function haTally(h){ var t={done:0,partly:0,tried:0,none:0}; h.pupils.forEach(function(p){ if (t[p.state]!=null) t[p.state]++; }); return t; }
+  function haRow(h){
+    var op = haState.open===h.id, n = h.pupils.length, t = haTally(h), nq = h.secs.reduce(function(a,s){ return a+s.n; }, 0);
+    var Q = h.waiting ? [] : haQuestions(h), top = Q[0], w = n||1;
+    var due = h.dueText ? '<b>'+esc(h.dueText)+'</b>'+(/, \d\d:\d\d$/.test(h.dueText)?'due':'due at 23:59') : (h.dueBad?'<b>—</b>no due date':'<b>—</b>');
+    return '<div class="hw ha-hw'+(op?' ha-on':'')+'"><div class="hw__h ha-h" role="button" tabindex="0" aria-expanded="'+op+'" data-ha="'+esc(h.id)+'">'+
+      '<div class="hw__m"><div class="hw__t">'+esc(h.title)+(h.waiting?'<span class="ha-pill is-wait">starts '+esc(h.startText)+'</span>':h.overdue?'<span class="ha-pill is-past">past</span>':'<span class="ha-pill is-open">open</span>')+'</div>'+
+      /* set for a later date: the server sends no pupils (nobody has it yet), so no count of them, never "0 pupils" */
+      '<div class="hw__s">'+esc(h.cls||h.who)+(h.waiting?'':' · '+n+' pupil'+(n===1?'':'s'))+' · '+h.secs.length+' part'+(h.secs.length===1?'':'s')+' · '+nq+' questions'+
+        (h.teacher&&!h.mine?' · set by '+esc(h.teacher):'')+'</div>'+
+      (h.waiting?'<div class="ha-x">Nothing to see until pupils get it.</div>':top?'<div class="ha-x">Hardest: '+haWhere(top.s,top.q)+' · <b>'+top.hard+' of '+top.tried+'</b> not right at the first try</div>':'')+'</div>'+
+      (h.waiting?'':'<div class="ha-bar"><div class="ha-mbar" aria-hidden="true" data-tip="'+t.done+' done, '+t.partly+' part way, '+t.tried+' tried (none right yet), '+t.none+' not started">'+
+        '<i class="d" style="width:'+(100*t.done/w)+'%"></i><i class="p" style="width:'+(100*t.partly/w)+'%"></i><i class="t" style="width:'+(100*t.tried/w)+'%"></i></div>'+
+        '<div class="ha-mk">'+(n?t.done+' of '+n+' done':'nobody left')+'</div></div>')+
+      '<div class="hw__due">'+due+'</div></div>'+(op&&!h.waiting?haOpen(h):'')+'</div>';
+  }
+  /* the first round only: right first time, right after more checks, not right (whatever came later) */
+  function haBarQ(g, tried){ return '<div class="ha-qbar" aria-hidden="true"><i class="f" style="width:'+(100*g.f.length/tried)+'%"></i><i class="m" style="width:'+(100*g.m.length/tried)+'%"></i><i class="t" style="width:'+(100*(g.l.length+g.t.length+g.s.length)/tried)+'%"></i></div>'; }
+  function haStats(r){
+    return '<div class="ha-stats"><p><b>'+r.hard+' of '+r.tried+'</b> pupil'+(r.tried===1?'':'s')+' who tried it '+(r.hard===1?'was':'were')+' not right at the first try'+
+      (r.ck?' · <span data-tip="Every press of Check at this question by these pupils, all rounds added up (counted by question since 7 Oct 2026).">'+r.ck+' check'+(r.ck===1?'':'s')+', every round</span>':'')+
+      (r.re?' · '+r.re+' got it right later':'')+(r.ag?' · <span class="ha-ag">'+r.ag+' failed it again in a later round</span>':'')+'.</p>'+haBarQ(r.g, r.tried)+'</div>'; }
+  function haWho(r){ var g=r.g;
+    function G(lbl, cls, L, tip){ return L.length ? '<div class="ha-wg"><div class="ha-wgh"'+(tip?' data-tip="'+esc(tip)+'"':'')+'><i class="'+cls+'"></i>'+lbl+' · '+L.length+'</div><div class="ha-wgn">'+L.map(esc).join(', ')+'</div></div>' : ''; }
+    return G('Not right yet','t',g.t)+G('Saw the answer','t',g.s,'Shown the answer after three tries (Bio English, the Write-Up Lab), and not right since.')+
+      G('Right in a later round','l',g.l,'Not right in their first round; right when they did the part again.')+G('Right after more checks','m',g.m)+G('Right first time','f',g.f)+
+      G('Not tried','z',g.z)+G('Not shown question by question','z',g.u,'They have done some of this part, but their first round was not kept question by question: the part was rewritten since, or the work is older than that record.'); }
+  function haOpen(h){
+    var Q = haQuestions(h), secF = haState.secF[h.id], shown = Q.filter(function(r){ return secF==null || r.si===secF; }), more = !!haState.more[h.id], top = more ? shown : shown.slice(0,5);
+    var sel = haState.sel[h.id], cur = shown.filter(function(r){ return sel && r.si===sel.si && r.q===sel.q; })[0] || top[0] || null;
+    var parts = h.secs.map(function(s,i){ return { i:i, s:s, r:haSecFirst(h,i) }; }).sort(function(a,b){ return (a.r==null?2:a.r)-(b.r==null?2:b.r) || a.i-b.i; });
+    var chips = h.secs.length>1 ? '<div class="ha-chips" role="group" aria-label="Show the questions of one part only"><button type="button" class="ha-chip'+(secF==null?' on':'')+'" data-hasec="" aria-pressed="'+(secF==null)+'">All parts</button>'+
+        parts.map(function(x){ return '<button type="button" class="ha-chip '+haBand(x.r)+(secF===x.i?' on':'')+'" data-hasec="'+x.i+'" aria-pressed="'+(secF===x.i)+'" data-tip="'+esc(x.r==null?'Nothing tried here yet.':'Of the answers tried here, the share right at the first try.')+'">'+esc(x.s.name)+'<b>'+haPc(x.r)+'</b></button>'; }).join('')+'</div>'+
+        '<p class="ha-s">Each part, weakest first: the share of answers right at the first try. Click one to see only its questions.</p>' : '';
+    var rows = top.map(function(r,k){
+      return '<div class="ha-q'+(cur===r?' sel':'')+'" role="button" tabindex="0" aria-pressed="'+(cur===r)+'" data-hasi="'+r.si+'" data-haqn="'+r.q+'"><div class="ha-qr">'+(k+1)+'</div>'+
+        '<div class="ha-qm"><div class="ha-ql"><span class="ha-qw">'+haWhere(r.s,r.q)+'</span>'+(haType(r.s,r.q)?'<span class="ha-qtype">'+esc(haType(r.s,r.q))+'</span>':'')+'</div>'+
+        '<div class="ha-qs">'+haStem(r.s,r.q)+'</div>'+haBarQ(r.g, r.tried)+'</div>'+
+        '<div class="ha-qn"><b>'+r.hard+' of '+r.tried+'</b><span>not right at the first try</span></div></div>'; }).join('');
+    var rest = shown.length - 5;
+    var side = cur ? '<div class="ha-side" aria-live="polite"><div class="ha-qw">'+haWhere(cur.s,cur.q)+'</div>'+haSheet(cur.s,cur.q)+haStats(cur)+haWho(cur)+'</div>' : '';
+    var reteach = '<section class="ha-box"><div class="ha-bh"><h3><small>What to re-teach</small>The questions they found hardest</h3></div>'+chips+
+      (rows ? '<div class="ha-rt"><div class="ha-list">'+rows+(rest>0?'<button type="button" class="ha-more" data-hamore="1" aria-expanded="'+more+'">'+(more?'See fewer':'See more ('+rest+')')+'</button>':'')+'</div>'+side+'</div>'
+            : '<div class="empty">'+(h.pupils.some(function(p){ return p.sec.some(function(c){ return !!c.q; }); }) ? 'Every question tried here was right at the first try.' : 'Nobody has tried a question of this homework yet.')+'</div>')+'</section>';
+    var G = haGroups(h), on = haState.fu[h.id]||'';
+    var follow = '<section class="ha-box"><div class="ha-bh"><h3><small>Who to follow up</small>Pupils to talk to</h3></div>'+
+      (G.length ? '<p class="ha-s">Click a group to pick out its pupils in the grid below.</p><div class="ha-fu">'+G.map(function(g){
+        return '<div class="ha-fug '+g.cls+(on===g.key?' on':'')+'" role="button" tabindex="0" aria-pressed="'+(on===g.key)+'" data-hafu="'+g.key+'" data-tip="'+esc(g.tip)+'"><div class="ha-fugh"><span>'+g.label+'</span><b>'+g.L.length+'</b></div>'+
+          '<div class="ha-fugn">'+g.L.map(function(x){ return esc(x.p.name); }).join(', ')+'</div></div>'; }).join('')+'</div>'
+        : '<p class="ha-s">Nobody: every pupil has finished it, with half or more of their answers right at the first try.</p>')+'</section>';
+    /* by the pupil's place in the list, never by name: two pupils of one name in one class stay apart (the audit, 18 Nov 2026) */
+    var inG = {}; if (on) (G.filter(function(g){ return g.key===on; })[0]||{L:[]}).L.forEach(function(x){ inG[x.i]=1; });
+    var ORD = { none:0, tried:1, partly:2, done:3 };
+    var P = h.pupils.map(function(p, i){ return { p:p, i:i, f:haFirst(h,p) }; });
+    P.sort(function(a,b){
+      if (haState.sort==='name') return String(a.p.name).localeCompare(String(b.p.name));
+      if (haState.sort==='class') return cmpClass(a.p.cls,b.p.cls) || String(a.p.name).localeCompare(String(b.p.name));
+      if (haState.sort==='rft') return (a.f.r==null?2:a.f.r)-(b.f.r==null?2:b.f.r) || String(a.p.name).localeCompare(String(b.p.name));
+      return (ORD[a.p.state]-ORD[b.p.state]) || ((a.p.total?a.p.done/a.p.total:0)-(b.p.total?b.p.done/b.p.total:0)) || ((a.f.r||0)-(b.f.r||0)) || String(a.p.name).localeCompare(String(b.p.name)); });
+    var STW = { done:'done', partly:'part way', tried:'tried, 0 right', none:'not started' };
+    var head = '<tr><th class="ha-nm" scope="col">Pupil</th><th scope="col">Done</th><th scope="col">Right first time</th>'+h.secs.map(function(s){ return '<th class="ha-sec" scope="col">'+esc(s.name)+'</th>'; }).join('')+'</tr>';
+    var body = P.map(function(x){ var p=x.p;
+      return '<tr'+(on&&!inG[x.i]?' class="dim"':'')+'><th class="ha-nm" scope="row"><button type="button" data-hapu="'+x.i+'">'+esc(p.name||'(no name)')+'</button><small>'+esc(p.cls||'')+'</small></th>'+
+        '<td class="ha-num">'+p.done+'/'+p.total+' <span class="st-pill '+esc(p.state)+'">'+STW[p.state]+'</span></td>'+
+        '<td class="ha-num" data-tip="'+esc(x.f.t?x.f.f+' of the '+x.f.t+' answers they tried were right at the first try':'Nothing tried yet')+'">'+haPc(x.f.r)+'</td>'+
+        h.secs.map(function(s, si){ var c=p.sec[si]||{d:0}, d=c.d, L=haLetters(s, c), t=0, f=0, i;
+          for (i=0;i<L.length;i++){ var ch=L.charAt(i); if (ch!=='0') t++; if (ch==='f') f++; }
+          var m = d>=s.n ? '✓' : d*2>=s.n ? '≈' : d>0 ? '~' : '✗', b = t ? haBand(f/t) : 'no';
+          var tip = s.name+': '+d+' of '+s.n+' done'+(s.kind==='wu'&&c.r!=null?' ('+c.r+' of '+(s.m||0)+' red-pen mistakes found)':'')+
+            (t ? ' · '+f+' of '+t+' tried right at the first try' : haDid(c) ? ' · not shown question by question' : ' · nothing tried')+(c.p?' · began before this homework was set':'');
+          return '<td><span class="ha-mark '+b+'" data-tip="'+esc(tip)+'">'+m+'</span>'+(c.p?'<span class="ha-pre" aria-label="began before it was set">⏪</span>':'')+'</td>'; }).join('')+'</tr>'; }).join('');
+    var grid = '<section class="ha-box ha-gcard"><div class="ha-bh"><h3><small>Each pupil</small>How each pupil did</h3>'+
+      '<div class="fld"><label for="hasort">Sort</label><select id="hasort">'+[['follow','To follow up first'],['rft','Lowest right first time first'],['class','By class'],['name','By name']]
+        .map(function(o){ return '<option value="'+o[0]+'"'+(haState.sort===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></div></div>'+
+      '<div class="ha-gwrap"><table class="ha-pg"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
+      '<div class="ha-key"><span><span class="ha-mark no">✓</span> all done</span><span><span class="ha-mark no">≈</span> most (half or more)</span><span><span class="ha-mark no">~</span> some</span><span><span class="ha-mark no">✗</span> none</span>'+
+        '<span>colour, right at the first try: <span class="ha-mark hi">&nbsp;</span> 80% or more <span class="ha-mark mid">&nbsp;</span> 50–79% <span class="ha-mark lo">&nbsp;</span> under 50%</span><span>⏪ began before it was set</span>'+
+        '<span>Point at a mark for its numbers; click a name for that pupil’s questions.</span></div></section>';
+    var how = '<details class="ha-how"><summary>How this is worked out</summary><ul>'+
+      '<li><b>Who counts.</b> The pupils it was set for, the same as on Set homework: a pupil who joined the class after it was set is not in it, and a pupil who moved keeps it under their new class.</li>'+
+      '<li><b>Not right at the first try.</b> From each pupil’s first round at that part, the round “Right first time” counts: they needed more than one check, saw the answer, or have not got it right yet.</li>'+
+      '<li><b>The order.</b> Most pupils not right at the first try first, then the bigger share of those who tried it. A pupil who has not tried a question is left out of its count.</li>'+
+      '<li><b>Done.</b> Their best in any round: the same number as Set homework and the labs’ own colours.</li>'+
+      '<li><b>Before it was set.</b> A pupil who began a part before this homework was set is counted from that earlier round, and ⏪ says so.</li>'+
+      '<li><b>Rewritten parts.</b> A station or set rewritten since a pupil answered it keeps their score but shows nothing question by question: its questions are not the same ones.</li></ul></details>';
+    var miss = h.missing && h.missing.length ? '<div class="gone">Not counted: '+esc(h.missing.join(', '))+'. That part is no longer in the lab, so it is left out rather than counted as nothing done.</div>' : '';
+    return '<div class="ha-b">'+miss+reteach+follow+grid+how+'</div>';
+  }
+  function haClick(e){
+    var t, h = (haD.homework||[]).filter(function(x){ return x.id===haState.open; })[0];
+    if ((t = e.target.closest('[data-ha]'))) { var id=t.getAttribute('data-ha'); haState.open = haState.open===id ? null : id; haPaint(); return; }
+    if (!h) return;
+    if ((t = e.target.closest('[data-hasec]'))) { var v=t.getAttribute('data-hasec'); haState.secF[h.id] = v==='' ? null : +v; haState.more[h.id]=false; haState.sel[h.id]=null; haPaint(); return; }
+    if ((t = e.target.closest('[data-hamore]'))) { haState.more[h.id] = !haState.more[h.id]; haPaint(); return; }
+    if ((t = e.target.closest('[data-hafu]'))) { var k=t.getAttribute('data-hafu'); haState.fu[h.id] = haState.fu[h.id]===k ? '' : k; haPaint(); return; }
+    if ((t = e.target.closest('[data-hasi]'))) {
+      var si=+t.getAttribute('data-hasi'), qn=+t.getAttribute('data-haqn');
+      if (window.matchMedia && window.matchMedia('(max-width:900px)').matches) { haQCard(h, si, qn); return; }
+      haState.sel[h.id] = { si:si, q:qn }; haPaint(); return; }
+    if ((t = e.target.closest('[data-hapu]'))) { haPCard(h, h.pupils[+t.getAttribute('data-hapu')]); return; }
+  }
+  /* a phone: the question in the side panel, the drawer of Lab progress */
+  function haQCard(h, si, q){
+    var r = haQuestions(h).filter(function(x){ return x.si===si && x.q===q; })[0]; if (!r) return;
+    var paint = function(){ V.openDraw(r.s.name+' · question '+(q+1), esc(h.title), '<div class="ha-dq">'+haSheet(r.s, q)+haStats(r)+haWho(r)+'</div>'); };
+    paint(); haWords(r.s, function(){ var d=$('draw'); if (d && d.classList.contains('on')) $('drawb').innerHTML='<div class="ha-dq">'+haSheet(r.s, q)+haStats(r)+haWho(r)+'</div>'; });
+  }
+  /* a pupil: each part, its questions as squares (first round; a dot when a later round got it right; the number, every check);
+     a square pressed shows that question under the squares */
+  function haPCard(h, p){
+    if (!p) return;
+    var f = haFirst(h, p), SQ = { f:['f','right first time'], '1':['m','right after more checks'], t:['t','not right in the first round'], s:['s','saw the answer in the first round'], '0':['z','not tried'] };
+    var rows = h.secs.map(function(s, si){ var c=p.sec[si]||{d:0}, L=haLetters(s, c);
+      var sq = L ? L.split('').map(function(ch, i){ var k=SQ[ch]||SQ['0'], b=String(c.b||L).charAt(i)||ch, later=(ch==='t'||ch==='s')&&(b==='1'||b==='f'), n=c.k?haN(String(c.k).charAt(i)):0;
+          var tip='Question '+(i+1)+': '+k[1]+(later?', right in a later round':'')+(n?', '+n+' check'+(n===1?'':'s')+' in every round':'');
+          return '<button type="button" class="ha-sq '+k[0]+(later?' later':'')+'" data-hpsi="'+si+'" data-hpq="'+i+'" aria-label="'+esc(tip)+'" data-tip="'+esc(tip)+'">'+(n>1?(n>=35?'35+':n):'')+'</button>'; }).join('')
+        : '<span class="ha-dim">'+(haDid(c)?'Not shown question by question: their first round here was not kept (the part was rewritten since, or the work is older than that record).':'Not started.')+'</span>';
+      return '<div class="ha-sqrow"><div class="ha-sqn">'+esc(s.name)+'<span>'+c.d+' of '+s.n+' done'+(s.kind==='wu'&&c.r!=null?' · red pen '+c.r+' of '+(s.m||0):'')+(c.p?' · ⏪ began before it was set':'')+'</span></div>'+
+        '<div class="ha-sqs">'+sq+'</div><div class="ha-sqsay" data-hpsay="'+si+'"></div></div>'; }).join('');
+    V.openDraw(p.name+(p.cls?' · '+p.cls:''), esc(h.title)+' · '+p.done+' of '+p.total+' done · '+haPc(f.r)+' right at the first try'+(f.t?' ('+f.f+' of '+f.t+')':''),
+      '<div class="ha-dp">'+rows+'<div class="ha-key"><span><i class="ha-sq f"></i> right first time</span><span><i class="ha-sq m"></i> right after more checks</span><span><i class="ha-sq t"></i> not right</span>'+
+      '<span><i class="ha-sq s"></i> saw the answer</span><span><i class="ha-sq z"></i> not tried</span><span>each square: their first round · dot: right in a later round · number: checks</span></div></div>');
+    var box = $('drawb');
+    box.querySelectorAll('[data-hpsi]').forEach(function(b){ b.addEventListener('click', function(){
+      var si=+b.getAttribute('data-hpsi'), q=+b.getAttribute('data-hpq'), s=h.secs[si], say=box.querySelector('[data-hpsay="'+si+'"]');
+      box.querySelectorAll('.ha-sq.on').forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on');
+      var show = function(){ if (b.classList.contains('on') && say) say.innerHTML = '<div class="ha-qw">Question '+(q+1)+'</div>'+haSheet(s, q); };
+      show(); haWords(s, show); }); });
+  }
+  /* Set homework's "See how they did →" opens one homework here */
+  window.haOpenFor = function(id, other){ haState.open = id; haState.cls='all'; haState.when='all'; haState.q=''; if (other) haState.whose='all'; };
 })();
 </script>
 </body>

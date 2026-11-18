@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '16 Nov 2026 — 🔬 final check answers on release';
+var SCRIPT_EDITION = '18 Nov 2026 — 📈 Homework analysis';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -1093,12 +1093,12 @@ function _reject_(lab, row) {
 function doGet(e) {
   /* the teachers' page — see "The teacher page" at the top. Anything else is the health check. */
   var page = e && e.parameter ? String(e.parameter.page || '') : '';
-  /* All the teacher views (seven since Write-Up, 8 Oct 2026; six since ⏱️ Homework habits, 1 Oct) are ONE page now: the tabs swap in the browser instead of loading a
+  /* All the teacher views (nine since 📈 Homework analysis, 18 Nov 2026; seven since Write-Up, 8 Oct 2026) are ONE page now: the tabs swap in the browser instead of loading a
      new document, so nothing flickers, the header never moves, and no link ever tries to open
      script.google.com inside the sandbox frame. The old ?page= values still work — each simply
      decides which tab opens first, so every bookmark and the hub's own door keep working. */
   if (page === 'teachers' || page === 'progress' || page === 'students' || page === 'homework' ||
-      page === 'english' || page === 'writeup' || page === 'habits' || page === 'practicals') {
+      page === 'english' || page === 'writeup' || page === 'habits' || page === 'practicals' || page === 'hwanalysis') {
     return _teacherAppPage_(page);
   }
   /* The health check names the script's edition, so a paste can be confirmed from outside
@@ -7067,43 +7067,17 @@ function _cutWords_(s, n) {
   return (sp > n * 0.6 ? cut.slice(0, sp) : cut).replace(/[\s,;:.]+$/, '') + '\u2026';
 }
 function _labQuestions_(labId) {
-  var lab = null;
-  LABS.forEach(function (l) { if (l.id === labId) lab = l; });
-  var site = String(_hubUrl_() || '').match(/^https:\/\/[^\/]+/);
-  if (!lab || !site) return null;
-  var base = site[0] + '/' + lab.id, cache = null, ver = '';
-  try { cache = CacheService.getScriptCache(); } catch (e) {}
-  ver = cache ? (cache.get('LABV_' + lab.id) || '') : '';
-  if (!ver) {
-    try {
-      var vr = UrlFetchApp.fetch(base + '/version.txt', { muteHttpExceptions: true, followRedirects: true });
-      if (vr.getResponseCode() === 200) ver = String(vr.getContentText()).trim().slice(0, 20);
-    } catch (e) {}
-    if (cache && ver) { try { cache.put('LABV_' + lab.id, ver, 600); } catch (e) {} }
-  }
-  /* which stations get words depends on the hub's station list too (its stamp): a station opened between the labs' push
-     and the hub's was cached without words for six hours (the audit, 7 Oct 2026) */
-  var hubStamp = '';
-  try { _manifest_(); hubStamp = cache ? (cache.get('HUB_STAMP') || '') : ''; } catch (e) { hubStamp = ''; }
-  var KEY = 'LABQ_' + lab.id + '_' + (ver || 'none') + '_' + (hubStamp || 'h');
-  if (cache && ver) { var hit = cache.get(KEY); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
-  var txt = '';
-  try {
-    var res = UrlFetchApp.fetch(base + '/js/data/stations.js' + (ver ? '?v=' + encodeURIComponent(ver) : ''), { muteHttpExceptions: true, followRedirects: true });
-    if (res.getResponseCode() !== 200) return null;
-    txt = String(res.getContentText());
-  } catch (e) { return null; }
-  var a = txt.indexOf('window.STATIONS = '), z = a < 0 ? -1 : txt.indexOf('\n];', a);
-  if (a < 0 || z < 0) return null;
-  var S = null;
-  try { S = JSON.parse(txt.slice(a + 'window.STATIONS = '.length, z + 2)); } catch (e) { return null; }
-  var man = _manifest_(), want = {}, out = {};
-  if (man && man.labs && man.labs[lab.id]) (man.labs[lab.id].stations || []).forEach(function (x) { want[x.id] = String(x.sig || ''); });
-  (S || []).forEach(function (st) {
-    if (!st || !st.id || !want[st.id] || want[st.id] !== _labSig_(st)) return;
+  var F = _labFile_(labId);
+  if (!F) return null;
+  var KEY = 'LABQ_' + F.lab.id + '_' + (F.ver || 'none') + '_' + (F.stamp || 'h');
+  if (F.cache && F.ver) { var hit = F.cache.get(KEY); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var S = _labFileStations_(F), out = {};
+  if (!S) return null;
+  S.forEach(function (st) {
+    if (!st || !st.id || !F.want[st.id] || F.want[st.id] !== _labSig_(st)) return;
     out[st.id] = (st.activities || []).map(function (q) { return _cutWords_(q.prompt || q.text || q.type, 170); });
   });
-  if (cache && ver) { try { cache.put(KEY, JSON.stringify(out), 21600); } catch (e) {} }
+  if (F.cache && F.ver) { try { F.cache.put(KEY, JSON.stringify(out), 21600); } catch (e) {} }
   return out;
 }
 
@@ -7618,6 +7592,351 @@ function _homeworkData_(now, who) {
     /* false: some homework wants reminders and Google has not been allowed to post Classroom announcements */
     remindAllowed: anyRemind ? _hwAnnounceAllowed_() : null
   };
+}
+
+/* ── 📈 Homework analysis, for teachers (18 Nov 2026, Daniel: to check homework he scrolled to the Archive and opened one, and
+   saw each pupil, but not "per question how they've done … which questions they struggle the most, what do they struggle
+   the most"; Set homework only sets homework now) ──
+   The teacher page's Homework analysis view (uiData('hwanalysis')). Read only. Every homework the teacher may see — their
+   own; the owner everyone's, each marked `mine`, as on Set homework — with its parts in the order they were set, and for
+   each pupil it counts:
+     • who: _hwPupils_, the Set homework rule (a pupil who joined the class after it was set is not in it; a pupil who moved
+       keeps it, under their new class);
+     • done, total and state: _hwScoreOne_ itself, so the numbers are the same on both tabs and in the labs' own colours;
+     • per part (`sec`, one cell per part, in `secs` order): d — its done count, as the scorer counts it (best in any round,
+       never above the part's size); q — the letters of each question in their FIRST round (labs: _questionLetters_, the round
+       Right first time counts; Bio English: the first go; Write-Up: the part's one record, where f is right at the first
+       try): f right first time · 1 right after more checks · t tried, not right yet · s saw the answer · 0 not tried; '' when
+       the letters were not kept, or the part was rewritten since (another fingerprint or version: other questions); b — the
+       best in any round, only where it differs; k — labs: every check at each question, all rounds added up (one base-36
+       character each, 35 at most; counted by question since 7 Oct 2026); a — labs: 1 at a question failed again (not right
+       at the first check in round 1, and again not right at the first check in a later round); r — Write-Up: red-pen
+       mistakes found; p — 1 when their first try at this part came before the homework was set (the times cell).
+   The page does the counting (the questions most pupils did not get right at the first try, who to follow up), as Lab
+   progress does. Homework set for a later date that has not started sends no pupils: nobody has seen it yet. */
+function _hwAnalysisData_(now, who) {
+  var man = _hwManifest_(), dir = _studentDirectory_(now), roster = dir.students;
+  var list = _homeworkRows_();
+  var seesAll = !who || who === _owner_();
+  if (!seesAll) list = list.filter(function (hw) { return hw.teacher === who; });
+  var ids = [], pupilsFor = {}, need = {};
+  list.forEach(function (hw) {
+    hw.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); });
+    var ps = hw.waiting ? [] : _hwPupils_(hw, roster);
+    pupilsFor[hw.id] = ps;
+    ps.forEach(function (p) { need[p.email] = 1; });
+  });
+  var index = _hwLabIndex_(ids, need), qx = _hwQIndex_(ids, need, man);
+  var out = list.map(function (hw) {
+    var S = _hwSections_(hw, man), fromMs = _hwMs_(hw.from);
+    var pupils = (pupilsFor[hw.id] || []).map(function (p) {
+      var s = _hwScoreOne_(hw, p.email, index, man);
+      return { name: p.name, cls: p.cls, done: s.done, total: s.total,
+               state: (s.state === 'none' && s.tried) ? 'tried' : s.state,
+               sec: S.secs.map(function (x) { return _hwSecCell_(x, p.email, index, qx, fromMs); }) };
+    });
+    return {
+      id: hw.id, title: hw.title, who: hw.who, teacher: hw.teacher, mine: !!who && hw.teacher === who,
+      cls: String((hw.targets || {}).cls || '').trim().toUpperCase(),
+      due: hw.due, dueText: hw.dueText, dueBad: hw.dueBad, overdue: hw.overdue,
+      dueDay: hw.due ? Utilities.formatDate(new Date(hw.due), _tz_(), 'yyyy-MM-dd') : '',
+      created: hw.created, waiting: hw.waiting, startText: hw.startText,
+      secs: S.secs.map(function (x) { var o = { lab: x.lab, id: x.id, kind: x.kind, name: x.name, n: x.n };
+        if (x.qn != null) o.qn = x.qn; if (x.m != null) o.m = x.m; if (x.v) o.v = x.v; return o; }),
+      missing: S.missing, pupils: pupils
+    };
+  });
+  return { generatedAt: new Date().toISOString(), homework: out, classes: dir.classes,
+           whose: !who ? '' : (seesAll ? 'all' : 'mine'), manifestOk: !!man.labsOk, hubSet: !!_hubUrl_() };
+}
+/* A homework's parts, each once, in the order they were set: { lab, id, kind lab|en|wu, name, n (what "done" counts: a
+   station's or a set's questions, a Write-Up part's red-pen marks and questions), qn and m (Write-Up: its questions, its
+   red-pen marks), sig (labs) or v (Bio English, Write-Up): the version its letters must have }. A part the site no longer
+   has is in `missing`, never counted: the scorer leaves it out the same way. */
+function _hwSections_(hw, man) {
+  var secs = [], seen = {}, missing = [], wm = null;
+  (hw.tasks || []).forEach(function (t) {
+    var lm = man && man.labs ? man.labs[t.labId] : null, known = {};
+    if (lm) (lm.stations || []).forEach(function (s) { known[s.id] = s; });
+    (t.stationIds || []).forEach(function (sid) {
+      var key = t.labId + '|' + sid;
+      if (seen[key]) return;
+      seen[key] = 1;
+      var k = known[sid];
+      if (!k) { if (missing.indexOf(sid) < 0) missing.push(sid); return; }
+      var x = { lab: t.labId, id: sid, name: k.name, n: Number(k.questions) || 0,
+                kind: t.labId === ENGLISH_ID ? 'en' : t.labId === WRITEUP_ID ? 'wu' : 'lab' };
+      if (x.kind === 'lab') x.sig = String(k.sig || '');
+      if (x.kind === 'en') (man.en && man.en.sets || []).forEach(function (s) { if (s.id === sid) x.v = String(s.v || ''); });
+      if (x.kind === 'wu') {
+        if (!wm) wm = _wuPartsById_(man.wu);
+        var p = wm[sid];
+        if (p) { x.v = String(p.v || ''); x.qn = Number(p.questions) || 0;
+                 x.m = (p.redpens || []).reduce(function (a, y) { return a + (Number(y.n) || 0); }, 0); }
+      }
+      secs.push(x);
+    });
+  });
+  return { secs: secs, missing: missing };
+}
+/* One pupil, one part: its done count exactly as _hwScoreOne_ adds it up, and its letters (see _hwAnalysisData_). */
+function _hwSecCell_(x, email, index, qx, fromMs) {
+  var idx = index[x.lab], rec = idx ? idx[email] : null, got = rec ? rec.byId[x.id] : null;
+  var c = { d: got ? Math.max(0, Math.min(Number(got.done) || 0, x.n)) : 0 };
+  var L = qx[x.lab] && qx[x.lab][email] ? qx[x.lab][email] : null, y = L ? L.by[x.id] : null;
+  if (y) {
+    if (y.q) c.q = y.q;
+    if (y.b && y.b !== y.q) c.b = y.b;
+    if (y.k && /[^0]/.test(y.k)) c.k = y.k;
+    if (y.a && /1/.test(y.a)) c.a = y.a;
+    if (y.r != null) c.r = y.r;
+  }
+  var t0 = L && L.t[x.id] ? L.t[x.id][0] : 0;
+  if (t0 && fromMs && Math.abs(t0) < fromMs) c.p = 1;   /* a negative time is "at or before": before only when that is */
+  return c;
+}
+/* Each question's letters for the pupils some homework names, every tab read ONCE (as _hwLabIndex_ reads them):
+   { lab: { email: { by: { part: { q, b, k, a, r } }, t: the times cell } } }. A lab station's letters only under the hub
+   list's fingerprint, a Bio English set's and a Write-Up part's only under its version now. When a tab holds two rows for
+   one pupil, the later row is read, as _hwLabIndex_ does, so the letters and the score come from the same row. */
+function _hwQIndex_(labIds, need, man) {
+  var ss = _ss_(), out = {};
+  labIds.forEach(function (id) {
+    if (id in out) return;
+    out[id] = {};
+    if (id === ENGLISH_ID) {
+      var en = ss.getSheetByName(T_ENGLISH), vs = {}, ns = {};
+      if (!en || en.getLastRow() < 2) return;
+      (man.en && man.en.sets || []).forEach(function (s) { vs[s.id] = String(s.v || ''); ns[s.id] = Number(s.total) || 0; });
+      en.getRange(2, 1, en.getLastRow() - 1, Math.min(EN_TIMES, en.getMaxColumns())).getValues().forEach(function (r) {
+        var em = _cleanEmail_(r[EN_EMAIL - 1]); if (!em || !need[em]) return;
+        var kept = _enParse_(r[EN_SNAP - 1]), by = {};
+        Object.keys(kept).forEach(function (sid) {
+          var x = kept[sid], n = ns[sid] || 0;
+          if (!n || !vs[sid] || x.v !== vs[sid]) return;                 /* rebuilt since: other questions */
+          var first = _enMax_(x.s1, x.g === 1 ? x.s : ''), best = _enMax_(_enMax_(x.b, x.s), first);
+          if (!/[^0]/.test(first + best)) return;                        /* letters not kept (a full cell drops them) */
+          /* a first go not kept (only a later one) is no first go: never "not tried" at every question (the audit, 18 Nov 2026) */
+          by[sid] = { q: /[^0]/.test(first) ? _hwFit_(first, n) : '', b: _hwFit_(best, n) };
+        });
+        out[id][em] = { by: by, t: _stParse_(EN_TIMES <= r.length ? r[EN_TIMES - 1] : '') };
+      });
+      return;
+    }
+    if (id === WRITEUP_ID) {
+      var wt = ss.getSheetByName(T_WRITEUP), byW = _wuPartsById_(man.wu);
+      if (!wt || wt.getLastRow() < 2) return;
+      wt.getRange(2, 1, wt.getLastRow() - 1, Math.min(WU_TIMES, wt.getMaxColumns())).getValues().forEach(function (r) {
+        var em = _cleanEmail_(r[WU_EMAIL - 1]); if (!em || !need[em]) return;
+        var kept = _wuParse_(r[WU_SNAP - 1]), by = {};
+        Object.keys(kept).forEach(function (pid) {
+          var p = byW[pid], fit = p ? _wuFit_(kept[pid], p) : null;
+          if (!fit) return;                                               /* an older version of the part */
+          var c = _wuCount_(fit, p);
+          by[pid] = { q: /[^0]/.test(fit.q) ? fit.q : '', r: c.found };
+        });
+        out[id][em] = { by: by, t: _stParse_(WU_TIMES <= r.length ? r[WU_TIMES - 1] : '') };
+      });
+      return;
+    }
+    var lab = null, want = {};
+    LABS.forEach(function (l) { if (l.id === id) lab = l; });
+    var sh = lab ? ss.getSheetByName(lab.name) : null;
+    if (!sh || sh.getLastRow() < 2) return;
+    var lm = man && man.labs ? man.labs[id] : null;
+    if (lm) (lm.stations || []).forEach(function (s) { if (s.sig) want[s.id] = String(s.sig); });
+    var rok = _roundsColOk_(sh);
+    sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(LAB_ROUNDS, sh.getMaxColumns())).getValues().forEach(function (r) {
+      var em = _cleanEmail_(r[LAB_EMAIL - 1]); if (!em || !need[em]) return;
+      var e = {}, by = {};
+      _questionLetters_(e, want, r[LAB_SNAP - 1], r[LAB_FIRST - 1], r[LAB_BEST - 1]);
+      /* _questionLetters_ pads a first round it does not have with 0s: that is "not kept", never "not tried" (the audit, 18 Nov 2026) */
+      Object.keys(e.q || {}).forEach(function (sid) { var q = /[^0]/.test(e.q[sid]) ? e.q[sid] : '';
+        by[sid] = { q: q, b: (e.b && e.b[sid]) || q }; });
+      if (rok && LAB_ROUNDS <= r.length) {
+        var P = _rParse_(r[LAB_ROUNDS - 1]);
+        P.order.forEach(function (key) {
+          var v = P.by[key];
+          if (!v.list.length || want[v.id] !== v.sig) return;             /* another version of the station */
+          var n = parseInt(v.sig, 10) || 0, tot = [], ag = [], i, L = v.list.map(_rTok_);
+          if (!n) return;
+          var q = by[v.id] ? by[v.id].q : '';
+          var r1 = (q && /[^0]/.test(q) && L[0].k === 1) ? q : L[0].l;     /* round 1's letters: the record Right first time reads */
+          for (i = 0; i < n; i++) { tot.push(0); ag.push('0'); }
+          L.forEach(function (x, j) {
+            for (i = 0; i < n; i++) {
+              tot[i] += _rN_(x.c.charAt(i));
+              var c = x.l.charAt(i), f = r1.charAt(i);
+              if (j && (c === 't' || c === '1') && (f === 't' || f === '1')) ag[i] = '1';
+            }
+          });
+          if (!by[v.id]) by[v.id] = { q: '', b: '' };
+          by[v.id].k = tot.map(_rC_).join('');
+          by[v.id].a = ag.join('');
+        });
+      }
+      out[id][em] = { by: by, t: _stParse_(LAB_TIMES <= r.length ? r[LAB_TIMES - 1] : '') };
+    });
+  });
+  return out;
+}
+function _hwFit_(x, n) { x = String(x || '').slice(0, n); while (x.length < n) x += '0'; return x; }
+
+/* ── each question whole, as pupils see it (18 Nov 2026, Daniel: "make sure that the question is easy to read. And if it's
+   an activity … show the whole activity if they have to drag and drop") ──
+   A lab's activities come from its own public js/data/stations.js, the file pupils load: it holds no answers, only salted
+   fingerprints, and only these fields of it go to the page (never `k` or the hints). A station is given only when its
+   fingerprint is the hub list's, the one its letters were checked against. Kept in the script cache a station at a time
+   (a lab's whole list is more than one cache entry holds), under the lab's version and the hub list's stamp. */
+var ACT_KEEP = { mcq: ['options', 'multi'], blank: ['text'], sort: ['bins', 'items'], order: ['items'], match: ['left', 'right'],
+                 drag: ['tokens', 'distractors'], grid: [], hotspot: ['need'], ph: ['enzyme'] };
+function _actLean_(a, base) {
+  var t = String((a && a.type) || ''), o = { type: t, prompt: String(a.prompt || a.text || '').slice(0, 3000) };
+  (ACT_KEEP[t] || []).forEach(function (k) { if (a[k] != null) o[k] = a[k]; });
+  if (t === 'blank') o.text = String(a.text || '').slice(0, 3000);
+  if (t === 'drag') o.slots = (a.slots || []).map(function (s) { return String((s && s.label) || ''); });
+  if (t === 'grid') { o.rows = (a.rows || []).map(function (r) { return { label: String((r && r.label) || ''), note: String((r && r.note) || '') }; });
+                      o.cols = (a.cols || []).map(function (c) { return String((c && c.label) || ''); }); }
+  if (t === 'hotspot') o.regions = (a.regions || []).map(function (r) { return { x: Number(r.x) || 0, y: Number(r.y) || 0 }; });
+  if (a.img && /^[\w.\/-]{1,120}$/.test(String(a.img)) && !/\.\./.test(String(a.img))) o.img = base + '/assets/photos/' + String(a.img);
+  if (a.imgCap) o.cap = String(a.imgCap).slice(0, 300);
+  if (a.table && Array.isArray(a.table.rows)) o.table = { head: (a.table.head || []).map(String), rows: a.table.rows.map(function (r) { return (r || []).map(String); }) };
+  return o;
+}
+/* The lab, its site and the version of its station file, or null: shared by the question words (_labQuestions_) and the
+   whole activities (_labActivities_), which are cached under these. */
+function _labFile_(labId) {
+  var lab = null;
+  LABS.forEach(function (l) { if (l.id === labId) lab = l; });
+  var site = String(_hubUrl_() || '').match(/^https:\/\/[^\/]+/);
+  if (!lab || !site) return null;
+  var base = site[0] + '/' + lab.id, cache = null, ver = '';
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  ver = cache ? (cache.get('LABV_' + lab.id) || '') : '';
+  if (!ver) {
+    try {
+      var vr = UrlFetchApp.fetch(base + '/version.txt', { muteHttpExceptions: true, followRedirects: true });
+      if (vr.getResponseCode() === 200) ver = String(vr.getContentText()).trim().slice(0, 20);
+    } catch (e) {}
+    if (cache && ver) { try { cache.put('LABV_' + lab.id, ver, 600); } catch (e) {} }
+  }
+  /* which stations get words depends on the hub's station list too (its stamp): a station opened between the labs' push
+     and the hub's was cached without words for six hours (the audit, 7 Oct 2026) */
+  var hubStamp = '';
+  try { _manifest_(); hubStamp = cache ? (cache.get('HUB_STAMP') || '') : ''; } catch (e) { hubStamp = ''; }
+  var man = _manifest_(), want = {};
+  if (man && man.labs && man.labs[lab.id]) (man.labs[lab.id].stations || []).forEach(function (x) { want[x.id] = String(x.sig || ''); });
+  return { lab: lab, base: base, ver: ver, stamp: hubStamp, cache: cache, want: want };
+}
+/* The stations of that file (the array pupils' pages load), or null when it cannot be read. */
+function _labFileStations_(F) {
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(F.base + '/js/data/stations.js' + (F.ver ? '?v=' + encodeURIComponent(F.ver) : ''), { muteHttpExceptions: true, followRedirects: true });
+    if (res.getResponseCode() !== 200) return null;
+    txt = String(res.getContentText());
+  } catch (e) { return null; }
+  var a = txt.indexOf('window.STATIONS = '), z = a < 0 ? -1 : txt.indexOf('\n];', a);
+  if (a < 0 || z < 0) return null;
+  try { return JSON.parse(txt.slice(a + 'window.STATIONS = '.length, z + 2)) || []; } catch (e) { return null; }
+}
+function _labActivities_(labId) {
+  var F = _labFile_(String(labId || '').slice(0, 40));
+  if (!F) return null;
+  var BASE = 'LABA_' + F.lab.id + '_' + (F.ver || 'none') + '_' + (F.stamp || 'h') + '_', sids = Object.keys(F.want), out = {};
+  if (F.cache && F.ver) {
+    var got = null;
+    try { got = F.cache.getAll([BASE + '#'].concat(sids.map(function (s) { return BASE + s; }))); } catch (e) { got = null; }
+    if (got && got[BASE + '#']) {
+      var all = true;
+      sids.forEach(function (s) { var v = got[BASE + s]; if (v == null) { all = false; return; } if (v !== '-') { try { out[s] = JSON.parse(v); } catch (e) { all = false; } } });
+      if (all) return out;
+      out = {};
+    }
+  }
+  var S = _labFileStations_(F);
+  if (!S) return null;
+  var put = {};
+  S.forEach(function (st) {
+    if (!st || !st.id || !F.want[st.id] || F.want[st.id] !== _labSig_(st)) return;
+    out[st.id] = (st.activities || []).map(function (a) { return _actLean_(a, F.base); });
+  });
+  if (F.cache && F.ver) {
+    sids.forEach(function (s) { var j = out[s] ? JSON.stringify(out[s]) : '-'; if (j.length < 95000) put[BASE + s] = j; });
+    put[BASE + '#'] = '1';
+    try { F.cache.putAll(put, 21600); } catch (e) {}
+  }
+  return out;
+}
+
+/* Bio English's questions, the same way (18 Nov 2026). The site keeps every set scrambled in its public js/data/content.js
+   with a key the file carries (so a pupil cannot read the answers in the page's source, not as a secret): the script opens
+   a set exactly as the site's app.js does, and gives only what a pupil sees before answering — the command word, the
+   marks, the question, the task, the choices (in alphabetical order, so the first is never the answer), a data table, a
+   passage with its gaps empty. Never `ok`, `why`, `key`, `accept` or a gap's word. The questions in the order the site keeps
+   the letters (its `keys`), with the set's version, which the page compares with the version the letters were saved under.
+   Every set is kept in the script cache (six hours, under the site's publish stamp) the first time any is asked for: the
+   file is about 3 MB. */
+function _enActLean_(it) {
+  var t = String((it && it.type) || ''), o = { type: t, cmd: String(it.cmd || '').slice(0, 30), marks: Math.max(0, Number(it.marks) || 0),
+            q: String(it.q || it.prompt || '').slice(0, 3000), task: String(it.task || '').slice(0, 300) };
+  var opts = it.options || it.opts;
+  if ((t === 'pick' || t === 'kw') && Array.isArray(opts))
+    o.options = opts.map(function (x) { return typeof x === 'string' ? x : String((x && x.t) || ''); })
+                    .filter(function (x) { return !!x; }).sort(function (a, b) { return a.localeCompare(b); });
+  var fg = it.figure && typeof it.figure === 'object' ? it.figure : null;
+  if (fg && fg.table && Array.isArray(fg.table.rows)) {
+    o.table = { head: (fg.table.head || []).map(String), rows: fg.table.rows.map(function (r) { return (r || []).map(String); }) };
+    if (fg.cap) o.cap = String(fg.cap).slice(0, 300);
+  }
+  var tx = String(it.text || '').slice(0, 3000);
+  if (t === 'choose') o.text = tx.replace(/\[\[([^\]]*)\]\]/g, function (_, x) {
+    return '[[' + x.split('|').map(function (y) { return y.split('~')[0].trim(); }).filter(function (y) { return !!y; })
+                 .sort(function (a, b) { return a.localeCompare(b); }).join('|') + ']]'; });
+  if (t === 'gap') o.text = tx.replace(/\{\{[^}]*\}\}/g, '{{}}');
+  if (t === 'fix') o.text = tx;            /* the underlined words pupils are asked to change; the right ones are not in it */
+  return o;
+}
+function _enOpen_(raw, key) {
+  var b = Utilities.base64Decode(String(raw || '')), k = String(key || ''), out = [];
+  if (!k) return null;
+  for (var i = 0; i < b.length; i++) { var v = ((b[i] & 255) ^ k.charCodeAt(i % k.length)) & 255; out.push(v > 127 ? v - 256 : v); }
+  try { return JSON.parse(Utilities.newBlob(out).getDataAsString('UTF-8')); } catch (e) { return null; }
+}
+function _enActivities_(setId) {
+  setId = String(setId || '').slice(0, 80);
+  if (!EN_SID.test(setId)) return null;
+  var base = ENGLISH_URL.replace(/\/+$/, ''), cache = null;
+  try { cache = CacheService.getScriptCache(); } catch (e) {}
+  var stamp = cache ? (cache.get('EN_STAMP') || '') : '';
+  if (!stamp) { try { _englishManifest_(); stamp = cache ? (cache.get('EN_STAMP') || '') : ''; } catch (e) {} }
+  var KEY = 'ENQ_' + (stamp || 'none') + '_';
+  if (cache && stamp) { var hit = cache.get(KEY + setId); if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} } }
+  var txt = '';
+  try {
+    var res = UrlFetchApp.fetch(base + '/js/data/content.js' + (stamp ? '?v=' + encodeURIComponent(stamp) : ''), { muteHttpExceptions: true, followRedirects: true });
+    if (res.getResponseCode() !== 200) return null;
+    txt = String(res.getContentText());
+  } catch (e) { return null; }
+  var a = txt.indexOf('window.AL = '), z = txt.lastIndexOf('}');
+  if (a < 0 || z < a) return null;
+  var AL = null;
+  try { AL = JSON.parse(txt.slice(a + 'window.AL = '.length, z + 1)); } catch (e) { return null; }
+  if (!AL || !AL.sets || !AL.meta || !AL.meta.sets) return null;
+  var put = {}, mine = null;
+  Object.keys(AL.meta.sets).forEach(function (sid) {
+    var m = AL.meta.sets[sid], o = AL.sets[sid] ? _enOpen_(AL.sets[sid], AL.k) : null, one = null;
+    if (m && o && Array.isArray(o.items)) {
+      var byId = {};
+      o.items.forEach(function (it) { if (it && it.id) byId[it.id] = it; });
+      one = { v: String(m.v || ''), acts: (m.keys || []).map(function (k) { var it = byId[String(k).split('@')[0]]; return it ? _enActLean_(it) : null; }) };
+    }
+    if (sid === setId) mine = one;
+    var j = one ? JSON.stringify(one) : '-';
+    if (j.length < 95000) put[KEY + sid] = j;
+  });
+  if (cache && stamp) { try { cache.putAll(put, 21600); } catch (e) {} }
+  return mine;
 }
 
 /* ---- the two writes, both gated ---- */
@@ -8364,7 +8683,8 @@ function _teacherAppPage_(startTab) {
     email: email,
     tab: startTab || 'teachers',
     analysis: _analysisLink_(email),     /* 📊 Analysis: the website's address for a viewer on its 👥 list, else '' */
-    hub: _hubUrl_()                      /* ← Biology Hub (2 Oct 2026): the hub opens this page in the same tab; HUB_URL, or '' */
+    hub: _hubUrl_(),                     /* ← Biology Hub (2 Oct 2026): the hub opens this page in the same tab; HUB_URL, or '' */
+    self: _teacherPageUrl_().replace(/\?.*$/, '')   /* this page's own /exec address (18 Nov 2026): the 📊 Analysis link carries it for the analysis page's ← Teacher page */
   };
   var json = JSON.stringify(boot).replace(/</g, '\\u003c');
   var html = HtmlService.createHtmlOutputFromFile('Teacher').getContent()
@@ -8378,6 +8698,8 @@ function uiData(which, arg) {
   if (!who) return { ok:false, why:'Not allowed.' };
   try {
     if (which === 'questions') return { ok:true, data:_labQuestions_(String(arg || '').slice(0, 40)) };   /* one lab's question words (6 Oct 2026) */
+    if (which === 'acts')      return { ok:true, data:_labActivities_(String(arg || '').slice(0, 40)) };  /* one lab's activities, whole (18 Nov 2026) */
+    if (which === 'enacts')    return { ok:true, data:_enActivities_(String(arg || '').slice(0, 80)) };   /* one Bio English set's questions, no answers */
     if (which === 'teachers')  return { ok:true, data:_teacherViewData_() };   /* + the 📘 model pages (14 Nov 2026) */
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_(), held:_heldResultsSafe_(who) };   /* + results held for this teacher to release (§held-results; only their classes, §40.248) */
@@ -8385,6 +8707,7 @@ function uiData(which, arg) {
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
     if (which === 'writeup')   return { ok:true, data:_writeupProgressData_() };   /* the Write-Up view (8 Oct 2026): read only */
     if (which === 'habits')    return { ok:true, data:_habitsData_() };      /* ⏱️ Homework habits (1 Oct 2026): read only */
+    if (which === 'hwanalysis') return { ok:true, data:_hwAnalysisData_(undefined, who) };   /* 📈 Homework analysis (18 Nov 2026): their own homework, read only */
     if (which === 'practicals') return { ok:true, data:_practicalsData_() };  /* 🔬 Practicals (11 Oct 2026, §practicals): read only */
   } catch (err) { return { ok:false, why:String(err) }; }
   return { ok:false, why:'Unknown view.' };
