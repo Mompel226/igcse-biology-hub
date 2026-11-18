@@ -798,12 +798,14 @@ body[data-view="entry"]{
     radial-gradient(42% 42% at 96% 108%, rgba(217,154,43,.12), transparent 70%)
 }
 .crumb{
-  display:flex;width:max-content;align-items:center;gap:8px;margin-bottom:12px;
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim);
-  transition:color .18s
+  /* the way back to the Biology Hub, a button as on every other site (18 Nov 2026, Daniel: "so hard to actually discern as a
+     button … make it so much more obvious how to return to the biology hub") */
+  display:flex;width:max-content;align-items:center;gap:7px;min-height:34px;margin-bottom:14px;padding:0 16px 0 13px;
+  font:650 14px/1 var(--sans);letter-spacing:0;text-transform:none;color:var(--ink-0);background:var(--cyan);border-radius:999px;
+  box-shadow:0 1px 2px rgba(0,0,0,.3);transition:background .18s
 }
-.crumb::before{content:"\2190";font-size:13px;color:var(--chalk-mute)}
-.crumb:hover,.crumb:focus-visible{color:var(--chalk)}
+.crumb::before{content:"\2190";font-size:15px;color:inherit}
+.crumb:hover,.crumb:focus-visible{color:var(--ink-0);background:var(--blue)}
 /* the hub's own controls only make sense in the hub — but the record card beside them is
    about the reader, not the page, so it is the inner wrapper that goes and not the column */
 body[data-view="entry"] .masthead__hub,body[data-view="ccas"] .masthead__hub,

@@ -44,6 +44,8 @@
   /* 📈 Homework analysis's answer colours (18 Nov 2026): far apart in both versions; --sqtxt the ink on its filled squares */
   --rf:#4ADE80;--rm:#FBBF24;--rt:#FB7185;--rf-bg:rgba(74,222,128,.32);--rm-bg:rgba(251,191,36,.32);--rt-bg:rgba(251,113,133,.32);
   --rf-ink:#BBF7D0;--rm-ink:#FDE68A;--rt-ink:#FECDD3;--ph1:#EF4444;--ph7:#22C55E;--ph14:#6366F1;--sqtxt:#0A141C;
+  --ro:#FB923C;--rb:#60A5FA;   /* 📈 who to follow up: tried with none right (orange), finished with under half right (blue) */
+  --hubb:#4FC3F7;--hubb-hi:#7DD3FC;--hubb-ink:#06212A;   /* ← Back to Biology Hub, a button (18 Nov 2026) */
   --accent:#4FC3F7;
   --serif:Fraunces,Georgia,serif;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
@@ -65,6 +67,8 @@
   --hb:70% 91%;--hd:55% 40%;--hf:70% 25%;
   --rf:#16A34A;--rm:#F59E0B;--rt:#E11D48;--rf-bg:#BBF7D0;--rm-bg:#FDE68A;--rt-bg:#FECDD3;
   --rf-ink:#166534;--rm-ink:#92400E;--rt-ink:#9F1239;--ph1:#EF4444;--ph7:#22C55E;--ph14:#6366F1;--sqtxt:#0A141C;
+  --ro:#EA580C;--rb:#2563EB;
+  --hubb:#0369A1;--hubb-hi:#075985;--hubb-ink:#FFFFFF;
 }
 *{box-sizing:border-box}[hidden]{display:none!important}
 html,body{margin:0;background:var(--ink);color:var(--chalk);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
@@ -124,7 +128,10 @@ body::before{content:"";position:fixed;inset:0 0 auto 0;height:420px;pointer-eve
 .wrap{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:clamp(18px,3vw,30px) clamp(16px,4vw,32px) 64px}
 h1{font:400 clamp(30px,4.6vw,46px)/1.05 var(--serif);letter-spacing:-.02em;margin:6px 0 10px}
 h1 em{font-style:italic;color:var(--accent);transition:color .3s}
-.lede{color:var(--lede);max-width:62ch;margin:0 0 4px;font-size:15px}
+/* the description takes the page's width, and never leaves one word alone on a line (18 Nov 2026, Daniel: "the two makes a
+   second line … everything uses up the available space as best as it can") */
+.lede{color:var(--lede);max-width:none;margin:0 0 4px;font-size:15px;text-wrap:pretty}
+.note,.hw__s,.ha-s,.ha-stem,.ha-task,.ha-x{text-wrap:pretty}
 .stamp{font:500 11px/1 var(--mono);color:var(--mute)}
 /* loading + empty */
 .load{padding:50px 20px;text-align:center;color:var(--mute);font:500 13px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
@@ -601,8 +608,12 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .panel--keyed>.hbwrap,.panel--keyed>.hmwrap,.hmcard>.hmwrap{flex:1 1 auto;min-height:0;max-height:none}
 .panel--keyed>.hbkey,.panel--keyed>.hmleg,.hmcard>.hmleg{flex:none;position:sticky;bottom:0;z-index:6;background:var(--card)}
 /* ← Biology Hub: the way back, where the page's name stood (the hub opens this page in the same tab since 2 Oct 2026). */
-.backhub{color:inherit;text-decoration:none;border-bottom:1px solid transparent}.backhub:hover{color:var(--chalk);border-bottom-color:currentColor}
-.backhub:focus-visible{outline:2px solid var(--ana-ring);outline-offset:3px}.backhub:not([hidden])::after{content:' · '}
+/* a button, as on every other site (18 Nov 2026, Daniel: the way back was "so hard to actually discern as a button") */
+.backhub{display:inline-flex;align-items:center;min-height:32px;padding:0 15px 0 12px;margin:0 12px 0 0;vertical-align:middle;
+  font:650 13.5px/1 var(--sans);letter-spacing:0;text-transform:none;color:var(--hubb-ink);background:var(--hubb);border-radius:999px;
+  text-decoration:none;box-shadow:0 1px 2px var(--shadow)}
+.backhub:hover{background:var(--hubb-hi);color:var(--hubb-ink)}
+.backhub:focus-visible{outline:2px solid var(--ana-ring);outline-offset:3px}
 /* 📊 Analysis (1 Oct 2026; opens in THIS tab since 2 Oct 2026 — Daniel: "I have three tabs open instead of one"; the browser's
    Back comes back here): a link to the analysis website, in its own colour, for the people on that website's
    👥 list only. Not a view: never class "tab", never inside the tab list (markTabs and the phone rule act on .tab). */
@@ -677,13 +688,21 @@ td.prtest .prshow{display:table;margin:5px auto 0}   /* under the score, so the 
 .ha-chip b{font:600 12px/1 var(--mono);margin-left:5px;font-variant-numeric:tabular-nums}
 .ha-chip.on{color:var(--chalk);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .ha-chip.lo b{color:var(--rt)}.ha-chip.mid b{color:var(--rm-ink)}.ha-chip.hi b{color:var(--rf)}
-.ha-rt{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:16px;margin-top:12px;align-items:start}
+/* the question chosen on the left and the panel on the right share one colour and touch, like a tab and its page, and
+   both carry its number (18 Nov 2026, Daniel: "it's not obvious that what you're seeing on the right is the question
+   selected on the left") */
+.ha-rt{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:16px;margin-top:12px;align-items:start;
+  --ha-sel:color-mix(in srgb,var(--accent) 17%,var(--card))}
 .ha-list{min-width:0}
-.ha-side{position:sticky;top:calc(var(--topbar,140px) + 10px);min-width:0}
-@media (max-width:900px){.ha-rt{grid-template-columns:1fr}.ha-side{display:none}}
+.ha-side{position:sticky;top:calc(var(--topbar,140px) + 10px);min-width:0;z-index:1;background:var(--ha-sel);border-radius:14px;padding:12px 16px 16px}
+.ha-sidehd{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.ha-rk{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--ink);font:700 12px/1 var(--mono)}
+@media (max-width:900px){.ha-rt{grid-template-columns:1fr}.ha-side{display:none}.ha-q.sel{margin-right:0;padding-right:8px;border-radius:10px}}
 .ha-q{display:grid;grid-template-columns:24px minmax(0,1fr) 128px;gap:10px;align-items:start;padding:10px 8px;border-top:1px solid var(--line);border-radius:8px;cursor:pointer}
 .ha-q:hover{background:var(--hover)}
-.ha-q.sel{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+.ha-q.sel{background:var(--ha-sel);border-radius:10px 0 0 10px;margin-right:-16px;padding-right:24px;position:relative;z-index:2;border-top-color:transparent}
+.ha-q.sel+.ha-q{border-top-color:transparent}
+.ha-q.sel .ha-qr .ha-rk{margin-top:-1px}
 .ha-q:focus-visible,.ha-fug:focus-visible,.ha-chip:focus-visible,.ha-sq:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ha-qr{font:600 13px/1.6 var(--mono);color:var(--mute);text-align:right}
 .ha-qm{min-width:0}
@@ -743,15 +762,23 @@ td.prtest .prshow{display:table;margin:5px auto 0}   /* under the score, so the 
 .ha-wgh i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .ha-wgh i.f{background:var(--rf)}.ha-wgh i.m{background:var(--rm)}.ha-wgh i.t{background:var(--rt)}.ha-wgh i.z{background:var(--track2)}
 .ha-wgh i.l{background:repeating-linear-gradient(135deg,var(--rf) 0 2px,var(--rt) 2px 4px)}
-.ha-wgn{font-size:13.5px;margin-top:3px;color:var(--chalk)}
+/* each pupil's name on its own, so many names stay easy to read (18 Nov 2026, Daniel) */
+.ha-pns{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.ha-pn{font:500 13px/1.3 var(--sans);color:var(--chalk);background:var(--card);border:1px solid var(--line2);border-radius:999px;padding:3px 10px;white-space:nowrap}
 /* who to follow up */
 .ha-fu{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.ha-fug{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--card);cursor:pointer}
-.ha-fug.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+/* who to follow up, a colour each (18 Nov 2026, Daniel: "maybe color code it"): not started rose, tried with none right orange,
+   part way yellow, finished with under half right first time blue; the grid marks the chosen group's pupils in its colour */
+.ha-fug{border:1px solid var(--line);border-left:5px solid var(--gc,var(--line2));border-radius:10px;padding:9px 12px;cursor:pointer;
+  background:color-mix(in srgb,var(--gc,var(--line2)) 9%,var(--card))}
+.ha-fug.g-none,.ha-pg.g-none{--gc:var(--rt)}.ha-fug.g-tried,.ha-pg.g-tried{--gc:var(--ro)}.ha-fug.g-partly,.ha-pg.g-partly{--gc:var(--rm)}.ha-fug.g-low,.ha-pg.g-low{--gc:var(--rb)}
+.ha-fugh i{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--gc);margin-right:7px}
+.ha-pg[class*="g-"] tbody tr:not(.dim) .ha-nm{box-shadow:inset 4px 0 0 var(--gc)}
+.ha-fug.on{border-color:var(--gc);border-left-color:var(--gc);box-shadow:inset 0 0 0 1px var(--gc)}
 .ha-fugh{display:flex;justify-content:space-between;gap:8px;font-weight:600;font-size:13.5px;color:var(--chalk)}
 .ha-fugh b{font:600 13px/1.4 var(--mono);font-variant-numeric:tabular-nums}
-.ha-fug.lo .ha-fugh b{color:var(--rt)}.ha-fug.mid .ha-fugh b{color:var(--rm-ink)}
-.ha-fugn{font-size:12.5px;color:var(--dim);margin-top:2px}
+.ha-fugh b{color:var(--chalk)}
+.ha-fugn{margin-top:0}
 /* each pupil: the table and its key are at most as tall as the window below the pinned header (memory tables-fit-the-window) */
 .ha-gcard{display:flex;flex-direction:column;max-height:max(320px,calc(100vh - var(--topbar,140px) - 14px));max-height:max(320px,calc(100dvh - var(--topbar,140px) - 14px))}
 .ha-gwrap{flex:1 1 auto;min-height:0;overflow:auto;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
@@ -805,7 +832,7 @@ details.ha-how li b{color:var(--chalk)}
     <div class="row1">
     <!-- ← Biology Hub (Daniel, 2 Oct 2026: the hub opens this page in the SAME tab, so it needs a way back). Shown only
          when the server gave the hub's address (BOOT.hub = the labs script's HUB_URL). -->
-    <p class="eye"><a class="backhub" id="backHub" href="#" hidden>← Biology Hub</a><span id="eyeHub">Biology Hub · </span><b>Teachers only</b></p>
+    <p class="eye"><a class="backhub" id="backHub" href="#" hidden>← Back to Biology Hub</a><span id="eyeHub">Biology Hub · </span><b>Teachers only</b></p>
     <div class="meta">
     <span class="who" id="who"></span>
     <span class="age" id="age" aria-live="polite"></span>
@@ -3597,9 +3624,12 @@ var BOOT = __BOOT__;
   function haFirst(h, p){ var t=0, f=0;
     h.secs.forEach(function(s, si){ var L=haLetters(s, p.sec[si]||{}); for (var i=0;i<L.length;i++){ var ch=L.charAt(i); if (ch!=='0') t++; if (ch==='f') f++; } });
     return { t:t, f:f, r: t ? f/t : null }; }
+  /* a part's answers: how many the pupils tried, how many were right at their first try, and the share */
   function haSecFirst(h, si){ var t=0, f=0, s=h.secs[si];
     h.pupils.forEach(function(p){ var L=haLetters(s, p.sec[si]||{}); for (var i=0;i<L.length;i++){ var ch=L.charAt(i); if (ch!=='0') t++; if (ch==='f') f++; } });
-    return t ? f/t : null; }
+    return { r: t ? f/t : null, f:f, t:t }; }
+  /* names one by one, never a run of commas (18 Nov 2026, Daniel: "it's a bit hard to read those names when there's many") */
+  function haNames(L){ return '<div class="ha-pns">'+L.map(function(n){ return '<span class="ha-pn">'+esc(n)+'</span>'; }).join('')+'</div>'; }
   function haBand(r){ return r==null ? 'no' : r>=0.8 ? 'hi' : r>=0.5 ? 'mid' : 'lo'; }
   function haPc(r){ return r==null ? '–' : Math.round(100*r)+'%'; }
   function haGroups(h){
@@ -3703,32 +3733,36 @@ var BOOT = __BOOT__;
       (r.ck?' · <span data-tip="Every press of Check at this question by these pupils, all rounds added up (counted by question since 7 Oct 2026).">'+r.ck+' check'+(r.ck===1?'':'s')+', every round</span>':'')+
       (r.re?' · '+r.re+' got it right later':'')+(r.ag?' · <span class="ha-ag">'+r.ag+' failed it again in a later round</span>':'')+'.</p>'+haBarQ(r.g, r.tried)+'</div>'; }
   function haWho(r){ var g=r.g;
-    function G(lbl, cls, L, tip){ return L.length ? '<div class="ha-wg"><div class="ha-wgh"'+(tip?' data-tip="'+esc(tip)+'"':'')+'><i class="'+cls+'"></i>'+lbl+' · '+L.length+'</div><div class="ha-wgn">'+L.map(esc).join(', ')+'</div></div>' : ''; }
+    function G(lbl, cls, L, tip){ return L.length ? '<div class="ha-wg"><div class="ha-wgh"'+(tip?' data-tip="'+esc(tip)+'"':'')+'><i class="'+cls+'"></i>'+lbl+' · '+L.length+'</div>'+haNames(L)+'</div>' : ''; }
     return G('Not right yet','t',g.t)+G('Saw the answer','t',g.s,'Shown the answer after three tries (Bio English, the Write-Up Lab), and not right since.')+
       G('Right in a later round','l',g.l,'Not right in their first round; right when they did the part again.')+G('Right after more checks','m',g.m)+G('Right first time','f',g.f)+
       G('Not tried','z',g.z)+G('Not shown question by question','z',g.u,'They have done some of this part, but their first round was not kept question by question: the part was rewritten since, or the work is older than that record.'); }
   function haOpen(h){
     var Q = haQuestions(h), secF = haState.secF[h.id], shown = Q.filter(function(r){ return secF==null || r.si===secF; }), more = !!haState.more[h.id], top = more ? shown : shown.slice(0,5);
     var sel = haState.sel[h.id], cur = shown.filter(function(r){ return sel && r.si===sel.si && r.q===sel.q; })[0] || top[0] || null;
-    var parts = h.secs.map(function(s,i){ return { i:i, s:s, r:haSecFirst(h,i) }; }).sort(function(a,b){ return (a.r==null?2:a.r)-(b.r==null?2:b.r) || a.i-b.i; });
+    var parts = h.secs.map(function(s,i){ var c=haSecFirst(h,i); return { i:i, s:s, r:c.r, f:c.f, t:c.t }; }).sort(function(a,b){ return (a.r==null?2:a.r)-(b.r==null?2:b.r) || a.i-b.i; });
     var chips = h.secs.length>1 ? '<div class="ha-chips" role="group" aria-label="Show the questions of one part only"><button type="button" class="ha-chip'+(secF==null?' on':'')+'" data-hasec="" aria-pressed="'+(secF==null)+'">All parts</button>'+
-        parts.map(function(x){ return '<button type="button" class="ha-chip '+haBand(x.r)+(secF===x.i?' on':'')+'" data-hasec="'+x.i+'" aria-pressed="'+(secF===x.i)+'" data-tip="'+esc(x.r==null?'Nothing tried here yet.':'Of the answers tried here, the share right at the first try.')+'">'+esc(x.s.name)+'<b>'+haPc(x.r)+'</b></button>'; }).join('')+'</div>'+
-        '<p class="ha-s">Each part, weakest first: the share of answers right at the first try. Click one to see only its questions.</p>' : '';
+        parts.map(function(x){ return '<button type="button" class="ha-chip '+haBand(x.r)+(secF===x.i?' on':'')+'" data-hasec="'+x.i+'" aria-pressed="'+(secF===x.i)+'" data-tip="'+esc(x.r==null?'Nothing tried here yet.':'Of the '+x.t+' answers pupils gave here, '+x.f+' were right at their first try.')+'">'+esc(x.s.name)+' · <b>'+haPc(x.r)+'</b>'+(x.r==null?'':' right first time')+'</button>'; }).join('')+'</div>'+
+        /* the % in words a teacher reads at once (18 Nov 2026, Daniel: "the share right at the first try is very hard to understand") */
+        '<p class="ha-s">Each part, weakest first.'+(function(){ var x=parts.filter(function(y){ return y.r!=null; })[0];
+          return x ? ' For example, “'+esc(x.s.name)+' · '+haPc(x.r)+' right first time”: '+x.f+' of the '+x.t+' answers pupils gave there were right at their first try.' : ''; })()+
+        ' Click a part to see only its questions.</p>' : '';
     var rows = top.map(function(r,k){
-      return '<div class="ha-q'+(cur===r?' sel':'')+'" role="button" tabindex="0" aria-pressed="'+(cur===r)+'" data-hasi="'+r.si+'" data-haqn="'+r.q+'"><div class="ha-qr">'+(k+1)+'</div>'+
+      return '<div class="ha-q'+(cur===r?' sel':'')+'" role="button" tabindex="0" aria-pressed="'+(cur===r)+'" data-hasi="'+r.si+'" data-haqn="'+r.q+'"><div class="ha-qr">'+(cur===r?'<span class="ha-rk">'+(k+1)+'</span>':(k+1))+'</div>'+
         '<div class="ha-qm"><div class="ha-ql"><span class="ha-qw">'+haWhere(r.s,r.q)+'</span>'+(haType(r.s,r.q)?'<span class="ha-qtype">'+esc(haType(r.s,r.q))+'</span>':'')+'</div>'+
         '<div class="ha-qs">'+haStem(r.s,r.q)+'</div>'+haBarQ(r.g, r.tried)+'</div>'+
         '<div class="ha-qn"><b>'+r.hard+' of '+r.tried+'</b><span>not right at the first try</span></div></div>'; }).join('');
     var rest = shown.length - 5;
-    var side = cur ? '<div class="ha-side" aria-live="polite"><div class="ha-qw">'+haWhere(cur.s,cur.q)+'</div>'+haSheet(cur.s,cur.q)+haStats(cur)+haWho(cur)+'</div>' : '';
+    /* the panel carries the chosen question's number, as its row does, in the same colour (Teacher.html CSS .ha-rt) */
+    var side = cur ? '<div class="ha-side" aria-live="polite"><div class="ha-sidehd"><span class="ha-rk">'+(shown.indexOf(cur)+1)+'</span><span class="ha-qw">'+haWhere(cur.s,cur.q)+'</span></div>'+haSheet(cur.s,cur.q)+haStats(cur)+haWho(cur)+'</div>' : '';
     var reteach = '<section class="ha-box"><div class="ha-bh"><h3><small>What to re-teach</small>The questions they found hardest</h3></div>'+chips+
       (rows ? '<div class="ha-rt"><div class="ha-list">'+rows+(rest>0?'<button type="button" class="ha-more" data-hamore="1" aria-expanded="'+more+'">'+(more?'See fewer':'See more ('+rest+')')+'</button>':'')+'</div>'+side+'</div>'
             : '<div class="empty">'+(h.pupils.some(function(p){ return p.sec.some(function(c){ return !!c.q; }); }) ? 'Every question tried here was right at the first try.' : 'Nobody has tried a question of this homework yet.')+'</div>')+'</section>';
     var G = haGroups(h), on = haState.fu[h.id]||'';
     var follow = '<section class="ha-box"><div class="ha-bh"><h3><small>Who to follow up</small>Pupils to talk to</h3></div>'+
       (G.length ? '<p class="ha-s">Click a group to pick out its pupils in the grid below.</p><div class="ha-fu">'+G.map(function(g){
-        return '<div class="ha-fug '+g.cls+(on===g.key?' on':'')+'" role="button" tabindex="0" aria-pressed="'+(on===g.key)+'" data-hafu="'+g.key+'" data-tip="'+esc(g.tip)+'"><div class="ha-fugh"><span>'+g.label+'</span><b>'+g.L.length+'</b></div>'+
-          '<div class="ha-fugn">'+g.L.map(function(x){ return esc(x.p.name); }).join(', ')+'</div></div>'; }).join('')+'</div>'
+        return '<div class="ha-fug g-'+g.key+(on===g.key?' on':'')+'" role="button" tabindex="0" aria-pressed="'+(on===g.key)+'" data-hafu="'+g.key+'" data-tip="'+esc(g.tip)+'"><div class="ha-fugh"><span><i aria-hidden="true"></i>'+g.label+'</span><b>'+g.L.length+'</b></div>'+
+          '<div class="ha-fugn">'+haNames(g.L.map(function(x){ return x.p.name; }))+'</div></div>'; }).join('')+'</div>'
         : '<p class="ha-s">Nobody: every pupil has finished it, with half or more of their answers right at the first try.</p>')+'</section>';
     /* by the pupil's place in the list, never by name: two pupils of one name in one class stay apart (the audit, 18 Nov 2026) */
     var inG = {}; if (on) (G.filter(function(g){ return g.key===on; })[0]||{L:[]}).L.forEach(function(x){ inG[x.i]=1; });
@@ -3754,7 +3788,7 @@ var BOOT = __BOOT__;
     var grid = '<section class="ha-box ha-gcard"><div class="ha-bh"><h3><small>Each pupil</small>How each pupil did</h3>'+
       '<div class="fld"><label for="hasort">Sort</label><select id="hasort">'+[['follow','To follow up first'],['rft','Lowest right first time first'],['class','By class'],['name','By name']]
         .map(function(o){ return '<option value="'+o[0]+'"'+(haState.sort===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></div></div>'+
-      '<div class="ha-gwrap"><table class="ha-pg"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
+      '<div class="ha-gwrap"><table class="ha-pg'+(on?' g-'+on:'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
       '<div class="ha-key"><span><span class="ha-mark no">✓</span> all done</span><span><span class="ha-mark no">≈</span> most (half or more)</span><span><span class="ha-mark no">~</span> some</span><span><span class="ha-mark no">✗</span> none</span>'+
         '<span>colour, right at the first try: <span class="ha-mark hi">&nbsp;</span> 80% or more <span class="ha-mark mid">&nbsp;</span> 50–79% <span class="ha-mark lo">&nbsp;</span> under 50%</span><span>⏪ began before it was set</span>'+
         '<span>Point at a mark for its numbers; click a name for that pupil’s questions.</span></div></section>';
