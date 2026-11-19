@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '18 Nov 2026 (late) — 📈 Show the answers';
+var SCRIPT_EDITION = '19 Nov 2026 (later) — 📚 Homework on My assessments';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -369,6 +369,13 @@ function doPost(e) {
     if (String(d.action || '') === 'model.open' || String(d.action || '') === 'model.flag') {
       try { return d.action === 'model.open' ? _modelOpen_(d) : _modelFlag_(d); }
       catch (eM) { return _json_({ ok:false, why:'error: ' + String(eM).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) }); }
+    }
+
+    /* 📚 A pupil's own homework for My assessments (19 Nov 2026, §hw-mine): asked only by a script running as this script's
+       owner (its own Google access token, checked with Google), never by a page. Read only. Always JSON. */
+    if (String(d.action || '') === 'homework.pupil') {
+      try { return _hwForMyAssessments_(d); }
+      catch (eH) { return _json_({ ok:false, why:'error: ' + String(eH).replace(/[A-Za-z0-9_-]{25,}/g, '…').slice(0, 160) }); }
     }
 
     var lab = _labById_(String(d.app || ''));
@@ -954,7 +961,7 @@ function _passSig_(body) {
   return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(body), key)).replace(/=+$/, '');
 }
 /* a request body as the Rejected tab keeps it: never a Google sign-in or a pass in a cell (audit, 6 Oct 2026) */
-function _noCredentials_(k, v) { return k === 'token' || k === 'pass' ? undefined : v; }
+function _noCredentials_(k, v) { return k === 'token' || k === 'pass' || k === 'key' ? undefined : v; }   /* key: §hw-mine's access token */
 /* the same text, compared in the same time whatever it holds */
 function _sameText_(a, b) {
   a = String(a); b = String(b);
@@ -4289,6 +4296,213 @@ function _ownHomework_(email, cls) {
     out.sort(function (a, b) { return String(a.dueAt || '9').localeCompare(String(b.dueAt || '9')); });
   } catch (e) { out = []; }
   return out;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   §hw-mine — 📚 A PUPIL'S OWN HOMEWORK, FOR MY ASSESSMENTS (Daniel, 19 Nov 2026)
+   "Their homework should appear in their personalized website" (My assessments, the page the reflection system makes for
+   each pupil), as its last tab, with one sentence at the top on WHEN they work: ahead, on time, at the last minute, or
+   missing homework. He chose the live way: My assessments (the reflection's script, which knows the pupil from Google's own
+   school sign-in) asks this script, and this script answers with the SAME functions the teacher page uses, so a pupil and
+   their teacher never see different numbers:
+     • whose: _hwIsFor_, the Set homework rule (a pupil who joined the class after it was set is not in it; a pupil who
+       moved keeps it); homework set for a later date that has not started is not theirs yet (as ⏱️ Homework habits);
+     • done, total and state: _hwScoreOne_; each part's own count: _hwScoreOne_ on that part alone (as _ownHomework_);
+     • when they finished: _hwHabitCell_ and its bands (_hwHabitCat_), exactly as ⏱️ Homework habits shows them to the
+       teacher: before it was set · early · in good time · last minute (after 85% of the time, the second reminder) ·
+       late · not done · still open. Work finished before the times began to be kept (1 Oct 2026) is "when is not known"
+       and counts in no sentence; a homework with no due date (words typed in Due) has no band and is never "missed".
+   There are no lesson dates anywhere in the estate, so "ahead" means "finished before the homework was set" (Daniel was
+   told, 19 Nov 2026).
+   The sentence (_hwPupilSays_) reads the pupil's last HW_HABIT_LAST homework that have a band, oldest first, and the first
+   rule that holds wins: late or not done in a third or more of them → "missing"; last minute, late or not done in half or
+   more → "last minute"; done before it was set in half or more → "ahead"; otherwise → "on time".
+   WHO MAY ASK (action homework.pupil): only a script running as this script's owner. My assessments is deployed "Execute
+   as: Me" by the same account and sends its own Google access token (ScriptApp.getOAuthToken()); Google's tokeninfo turns
+   it into an address, and anything that is not the owner's is refused. The pupil's address in the request is trusted only
+   then: My assessments takes it from Session.getActiveUser(), and a teacher's view of a pupil only after its own teacher
+   check. No page, pupil or browser can ask: they never hold the owner's token. Read only: nothing is written anywhere.
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+/* The pupil's words, one place. `next` is the next step under the sentence. */
+var HW_PUPIL_SAYS = {
+  miss:   { say: 'You are missing homework.',
+            next: 'Finish your open homework first. It is in the list below.',
+            nextNoOpen: 'Finish each homework before its due date. Start it on the day your teacher sets it.' },
+  last:   { say: 'You finish your homework at the last minute.',
+            next: 'Start each homework on the day your teacher sets it. Then you have time to ask about the questions you get wrong.' },
+  ahead:  { say: 'You are ahead: you finish the work before your teacher sets it.',
+            next: 'Do the same with the next topic: study it in the labs before the lesson.' },
+  ontime: { say: 'You are doing your job: you finish your homework on time.',
+            next: 'Study each topic in the labs before the lesson. Then the lesson makes what you already understand stronger, and it is not new to you.' },
+  none:   { say: 'Your teacher has not set you any homework in the Biology Hub labs yet.',
+            why: 'When they do, it appears here, with its due date.' },
+  wait:   { say: 'When you finish your next homework, this page says when you do your homework.' },
+  list:   { say: 'Your school account is not on the Biology Hub class list, so this page cannot show your homework.',
+            why: 'Ask your teacher to check that your email address is on the class list.' }
+};
+/* a band (_hwHabitCat_) → the pupil's kind: the four colours of the page, and the words of each homework */
+var HW_PUPIL_KIND = { before: 'ahead', early: 'ontime', good: 'ontime', last: 'last', late: 'late', none: 'none',
+                      open: 'open', unknown: 'unknown', nodue: 'nodue' };
+
+/* "1 ahead, 3 on time and 1 at the last minute": a list in words */
+function _hwAnd_(a) { return a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join(''); }
+
+/* The sentence. `cats`: [{ c }] the bands of every homework that has one (before … none), oldest due first; `open`: the
+   homework still open and not done, soonest due first ([{ due: words or '' }]); `any`: some homework is set at all.
+   { kind, say, why, next, n (homework read), k (how many of each) }. */
+function _hwPupilSays_(cats, open, any) {
+  var use = (cats || []).filter(function (x) { return HW_CAT_PLACE[x.c] !== undefined; });
+  var more = use.length > HW_HABIT_LAST;
+  use = use.slice(-HW_HABIT_LAST);
+  var k = { ahead: 0, ontime: 0, last: 0, late: 0, none: 0 };
+  use.forEach(function (x) { k[HW_PUPIL_KIND[x.c]]++; });
+  var n = use.length, o = open || [];
+  if (!n) {
+    if (!any) return { kind: 'none', say: HW_PUPIL_SAYS.none.say, why: HW_PUPIL_SAYS.none.why, next: '', n: 0, k: k };
+    if (o.length) {
+      var due = String(o[0].due || '');
+      return { kind: 'open', n: 0, k: k,
+               say: o.length === 1 ? 'You have 1 homework open.' + (due ? ' It is due on ' + due + '.' : '')
+                                   : 'You have ' + o.length + ' homework open.' + (due ? ' The next one is due on ' + due + '.' : ''),
+               why: 'When you finish your homework, this page says when you do it: before your teacher sets it, on time or at the last minute.',
+               next: o.length === 1 ? 'Finish it early, before the lesson.' : 'Finish them early, before the lesson.' };
+    }
+    return { kind: 'wait', say: HW_PUPIL_SAYS.wait.say, why: '', next: '', n: 0, k: k };
+  }
+  var said = [];
+  if (k.ahead) said.push(k.ahead + ' ahead');
+  if (k.ontime) said.push(k.ontime + ' on time');
+  if (k.last) said.push(k.last + ' at the last minute');
+  if (k.late) said.push(k.late + ' finished after the due date');
+  if (k.none) said.push(k.none + ' not finished by the due date');
+  var why = (more ? 'Your last ' + n + ' homework: ' : 'Your homework so far: ') + _hwAnd_(said) + '.';
+  var kind = (k.late + k.none) * 3 >= n ? 'miss'
+           : (k.last + k.late + k.none) * 2 >= n ? 'last'
+           : k.ahead * 2 >= n ? 'ahead' : 'ontime';
+  var W = HW_PUPIL_SAYS[kind];
+  return { kind: kind, say: W.say, why: why, next: (kind === 'miss' && !o.length) ? W.nextNoOpen : W.next, n: n, k: k };
+}
+
+/* One homework's "when", in the pupil's words, or '': c the band, e the finish (ms; positive only when known exactly), D due */
+function _hwPupilWhen_(c, e, D) {
+  if (c === 'before') return 'Ahead: done before your teacher set it';
+  if ((c === 'early' || c === 'good') && e > 0) return 'On time: done ' + _hwSpanWords_(D - e) + ' before the due date';
+  if (c === 'last' && e > 0) return 'Last minute: done ' + _hwSpanWords_(D - e) + ' before the due date';
+  if (c === 'late' && e > 0) return 'Late: done ' + _hwSpanWords_(e - D) + ' after the due date';
+  if (c === 'none') return 'Not finished by the due date';
+  return '';
+}
+
+/* One pupil's homework, at `now` (ms; the tests pass a fake clock). Read only. Homework due in the last year (as ⏱️ Homework
+   habits reads it) and all that is still to come; a homework with no due date counts from when it was set. Never throws for a
+   missing tab: no Homework tab is nothing set. */
+function _hwPupilData_(email, now) {
+  now = now || Date.now();
+  email = _cleanEmail_(email);
+  var out = { ok: true, onList: false, at: new Date(now).toISOString(), homework: [], says: null,
+              sum: { n: 0, done: 0, total: 0, finished: 0, partly: 0, notStarted: 0, missed: 0 } };
+  var me = email ? _studentOf_(email) : null;
+  if (!me) { out.says = { kind: 'list', say: HW_PUPIL_SAYS.list.say, why: HW_PUPIL_SAYS.list.why, next: '', n: 0, k: {} }; return out; }
+  out.onList = true;
+  var list = [];
+  if (_ss_().getSheetByName(T_HOMEWORK)) {
+    var since = now - HW_HABIT_DAYS * 864e5;
+    _homeworkRows_().forEach(function (hw) {
+      if (hw.start && _hwMs_(hw.start) > now) return;                  /* set for a later date: nobody has it yet */
+      if (!_hwIsFor_(hw, email, me.cls)) return;
+      var S = _hwMs_(hw.from || hw.created), D = _hwMs_(hw.due), ref = D || S;
+      if (ref && ref < since) return;                                   /* more than a year ago */
+      hw.S = S; hw.D = D; list.push(hw);
+    });
+  }
+  var man = _hwManifest_(), ids = [], need = {};
+  need[email] = 1;
+  list.forEach(function (hw) { hw.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); }); });
+  var index = ids.length ? _hwLabIndex_(ids, need) : {}, extra = ids.length ? _hwTimesIndex_(ids, need) : {};
+  var cats = [], openNotDone = [], rows = [];
+  list.forEach(function (hw) {
+    var s = _hwScoreOne_(hw, email, index, man);
+    if (!s.total) return;                                               /* nothing in it can be scored: the labs no longer have it */
+    var parts = [];
+    _hwSections_(hw, man).secs.forEach(function (x) {
+      var one = _hwScoreOne_({ tasks: [{ labId: x.lab, stationIds: [x.id] }] }, email, index, man);
+      if (one.missing.length || !one.total) return;
+      var lm = man && man.labs ? man.labs[x.lab] : null;
+      parts.push({ kind: x.kind, lab: x.lab, id: x.id, name: String(x.name || x.id), d: one.done, n: one.total,
+                   labName: x.kind === 'en' ? 'Bio English Lab' : x.kind === 'wu' ? 'Write-Up Lab' : String((lm && lm.name) || x.lab),
+                   url: x.kind === 'en' ? ENGLISH_URL + '/#/hw/' + encodeURIComponent(hw.id)
+                      : x.kind === 'wu' ? WRITEUP_URL + '/#/hw/' + encodeURIComponent(hw.id)
+                      : 'https://nlcsbiology.com/' + x.lab + '/?tab=practise#' + encodeURIComponent(x.id) });
+    });
+    var S = hw.S, D = hw.D, c, e = 0;
+    if (!D) c = 'nodue';
+    else {
+      var cell = (S && D > S) ? _hwHabitCell_(hw, email, index, extra, man, {}, now) : null;
+      if (cell) { c = cell.c; e = cell.e; }
+      else c = s.state === 'done' ? 'unknown' : (now > D ? 'none' : 'open');
+    }
+    var open = !D || now <= D;
+    if (HW_CAT_PLACE[c] !== undefined) cats.push({ c: c, D: D });
+    if (open && s.state !== 'done') openNotDone.push({ due: hw.dueText || '', D: D || Infinity });
+    rows.push({ D: D, hw: hw, o: {
+      id: hw.id, title: hw.title, set: S ? _hwWhen_(S) : '', due: hw.dueText || '', open: open,
+      soon: !!D && D >= now && D - now < 3 * 864e5,
+      state: s.state, tried: !!s.tried, done: s.done, total: s.total,
+      k: HW_PUPIL_KIND[c] || 'unknown', when: _hwPupilWhen_(c, e, D), parts: parts } });
+    var sum = out.sum;
+    sum.n++; sum.done += s.done; sum.total += s.total;
+    if (s.state === 'done') sum.finished++;
+    else if (s.state === 'partly') sum.partly++;
+    else if (open) sum.notStarted++;
+    else sum.missed++;
+  });
+  /* open first, the soonest due first (no due date last); then the ones past their due date, the newest first */
+  rows.sort(function (a, b) {
+    var ao = a.o.open ? 0 : 1, bo = b.o.open ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    if (ao === 0) return (a.D || Infinity) - (b.D || Infinity);
+    return b.D - a.D;
+  });
+  out.homework = rows.map(function (r) { return r.o; });
+  cats.sort(function (a, b) { return a.D - b.D; });
+  openNotDone.sort(function (a, b) { return a.D - b.D; });
+  out.says = _hwPupilSays_(cats, openNotDone, rows.length > 0);
+  return out;
+}
+
+/* Is this access token the owner's own (a script of theirs, "Execute as: Me")? Asked of Google's tokeninfo once per token,
+   then remembered until it runs out (at most 50 minutes); a token Google refuses is remembered for five minutes. It must
+   name the owner, verified, still in date, and carry Apps Script's own permission to reach other websites
+   (script.external_request): a website or app the owner once signed in to holds tokens with their address too, but never
+   that permission, so it cannot use one here. The token is never written anywhere (_noCredentials_ drops `key`). */
+function _ownerToken_(key) {
+  key = String(key || '');
+  if (!/^[A-Za-z0-9._~+\/-]{20,4096}$/.test(key)) return false;
+  var own = _owner_();
+  if (!own) return false;
+  var cache = CacheService.getScriptCache();
+  var h = 'OT_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key)).slice(0, 40);
+  var hit = cache.get(h);
+  if (hit === 'ok') return true;
+  if (hit === 'no') return false;
+  var res;
+  try { res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(key), { muteHttpExceptions: true }); }
+  catch (e) { return false; }
+  if (res.getResponseCode() !== 200) { if (res.getResponseCode() === 400) cache.put(h, 'no', 300); return false; }
+  var t; try { t = JSON.parse(res.getContentText()); } catch (e) { return false; }
+  var left = Number(t.expires_in) || 0;
+  var scopes = String(t.scope || '').split(/\s+/);
+  if (_cleanEmail_(t.email) !== own || String(t.email_verified) !== 'true' || !(left > 0) ||
+      scopes.indexOf('https://www.googleapis.com/auth/script.external_request') < 0) { cache.put(h, 'no', 300); return false; }
+  cache.put(h, 'ok', Math.max(1, Math.min(left - 60, 3000)));
+  return true;
+}
+/* action homework.pupil — { key: the owner's access token, email: the pupil } → _hwPupilData_. Always JSON. */
+function _hwForMyAssessments_(d) {
+  if (!_ownerToken_(d && d.key)) return _json_({ ok: false, why: 'not allowed' });
+  var email = _cleanEmail_(d.email);
+  if (!email) return _json_({ ok: false, why: 'no pupil' });
+  return _json_(_hwPupilData_(email, Date.now()));
 }
 
 /* ============================================================

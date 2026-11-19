@@ -174,7 +174,32 @@ input::placeholder{color:var(--mute)}
   border:1px solid var(--accent);border-radius:999px;padding:12px 20px;cursor:pointer}
 .go:disabled{opacity:.45;cursor:not-allowed}
 .msg{margin-top:10px;font-size:13px;min-height:1.2em}.msg.bad{color:var(--bad-ink)}.msg.ok{color:var(--good)}
-.tmsg{font-size:12px;line-height:1.45;color:var(--dim)}
+.tmsg{font-size:12px;line-height:1.45;color:var(--dim)}.tmsg.is-bad{color:var(--bad-ink)}
+/* Set homework's time boxes and topic boxes (19 Nov 2026): a clock and a list of the page's own, under their box */
+.tbox,.cbx{position:relative;display:block}
+.tbox input{padding-right:40px}.cbx input{padding-right:38px}.cbx.is-load input{padding-right:60px}
+.tbox.is-bad input{border-color:var(--bad-edge);background:var(--bad-bg)}
+.tbox__c,.cbx__b{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px;display:grid;place-items:center;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dim);cursor:pointer}
+.tbox__c:hover,.tbox__c[aria-expanded=true],.cbx__b:hover{color:var(--chalk);background:var(--hover)}
+.tbox__c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.cbx__spin,.spin14{width:14px;height:14px;border:2px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:cbxspin .8s linear infinite}
+.cbx__spin{position:absolute;right:40px;top:50%;margin-top:-7px;display:none}.cbx.is-load .cbx__spin{display:block}.spin14{flex:0 0 auto}
+@keyframes cbxspin{to{transform:rotate(360deg)}}
+.clk,.cbxl{position:fixed;z-index:45;left:0;top:0;border:1px solid var(--line2);background:var(--card);box-shadow:0 14px 34px var(--shadow)}
+.clk[hidden],.cbxl[hidden]{display:none}
+.clk{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px}
+.clk__now{font:600 20px/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--chalk);text-align:center;padding:2px 0 4px}
+.clk__h,.clk__cols{display:flex;gap:6px}
+.clk__k{flex:0 0 66px;font:600 9.5px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--mute);text-align:center}
+.clk__col{position:relative;flex:0 0 66px;height:216px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:2px;padding:2px;border:1px solid var(--line);border-radius:9px}
+.clk__c{flex:0 0 30px;border:0;border-radius:7px;background:transparent;color:var(--dim);font:500 14px/1 var(--sans);font-variant-numeric:tabular-nums;cursor:pointer}
+.clk__c:hover{background:var(--hover);color:var(--chalk)}.clk__c[aria-selected=true]{background:var(--chalk);color:var(--ink);font-weight:700}
+.clk__c:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.clk__f{display:flex;justify-content:space-between;gap:8px}
+.cbxl{max-height:264px;overflow-y:auto;overscroll-behavior:contain;padding:4px;border-radius:10px}
+.cbxl__o{padding:9px 10px;border-radius:7px;font-size:13.5px;line-height:1.3;color:var(--chalk);cursor:pointer}
+.cbxl__o b{font-weight:700}.cbxl__o:hover{background:var(--hover)}.cbxl__o[aria-selected=true]{background:var(--tint2);box-shadow:inset 3px 0 0 var(--accent)}
+.cbxl__s{display:flex;align-items:center;gap:9px;padding:10px;font-size:12.5px;line-height:1.45;color:var(--dim)}
 /* 📘 Mini IA models for students (14 Nov 2026): the last block of the Spreadsheets view, marked IB */
 .mdl{margin:34px 0 0}
 .mdl__lead{color:var(--dim);font-size:13.5px;margin:0 0 12px;max-width:none}
@@ -2370,7 +2395,7 @@ var BOOT = __BOOT__;
   /* `later` (2 Oct 2026): the homework is set for a later date; each class row then has its own start date and time */
   /* each class row (10 Oct 2026): `some` (Some pupils, not the whole class) and `pick` (the ticked pupils of its class) */
   var hState = { title:'', rows:[newRow()], picked:{}, open:{}, expand:{}, confirmDel:null, busy:false,
-                 post:true, remind:true, sort:'', enYr:'', topic:'', topics:{}, topicMsg:'', later:false, whose:'',
+                 post:true, remind:true, sort:'', enYr:'', topic:'', ctopics:{}, later:false, whose:'',   /* ctopics (19 Nov 2026): each class's Classroom topics */
                  editDue:null, dueDraft:null, cardMsg:null, outPick:{},   /* 6 Oct 2026: Change the due date (the card open for it, what is typed), a card's answer, the ticks of its pupils outside it */
                  arch:false, hidOpen:false, archMsg:null,   /* 7 Oct 2026: the Archive (homework past its due date) open, its hidden homework shown, its answer */
                  archY:'', archM:'' };   /* 28 Oct 2026: the Archive's Year and Month ('' = all) */
@@ -2394,6 +2419,170 @@ var BOOT = __BOOT__;
              'Use it only for homework set by mistake. To keep its record, press “Keep it”, then “Hide”.'
   };
   function newRow(){ return {cls:'',due:'',time:'',topic:'',some:false,pick:{}}; }
+  /* ── Set homework's time boxes and topic boxes (19 Nov 2026) ──────────────────────────────────────────────────────
+     The time (Daniel: "when you set a time … by hand and you click on the watch, it should automatically show that time").
+     Chrome's own time box keeps its value empty until every part of it is typed: on a computer in US English that is the
+     AM/PM too, so "03:30 --" showed a time while the homework was set for 23:59, and its clock then opened at the time now.
+     A page inside Apps Script may not open that clock itself (showPicker is refused in Google's frame), and it cannot read
+     the half-typed parts. So a time is typed in a plain box (15:30, 1530, 3:30 pm and 3pm all read; anything else says so,
+     and Set homework waits) and the clock beside it is this page's own: it opens at the time typed, and a time chosen on it
+     is written into the box at once. */
+  function hmRead(s){
+    var t=String(s==null?'':s).toLowerCase().replace(/\s+/g,''), ap='', m, h, mi;
+    if(!t) return { empty:true, hm:'' };
+    if((m=t.match(/^(.*?)(a|p)\.?(m\.?)?$/))){ t=m[1]; ap=m[2]; }
+    if((m=t.match(/^(\d{1,2})[:.h](\d{2})$/))){ h=+m[1]; mi=+m[2]; }
+    else if(/^\d{1,4}$/.test(t)){ h=t.length<3?+t:+t.slice(0,t.length-2); mi=t.length<3?0:+t.slice(-2); }
+    else return { bad:true, hm:'' };
+    if(ap){ if(h<1||h>12) return { bad:true, hm:'' }; h=h%12+(ap==='p'?12:0); }
+    if(h>23||mi>59) return { bad:true, hm:'' };
+    return { ok:true, hm:(h<10?'0':'')+h+':'+(mi<10?'0':'')+mi };
+  }
+  function hmOf(s){ return hmRead(s).hm; }
+  function two(n){ return (n<10?'0':'')+n; }
+  var CLOCK_SVG='<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var CHEV_SVG='<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  /* a time box: the box, and the clock button in its right end. `what` names it ("the due time"). */
+  function timeBox(id, attr, val, what){
+    return '<span class="tbox'+(hmRead(val).bad?' is-bad':'')+'"><input id="'+esc(id)+'" type="text" '+attr+' value="'+esc(val||'')+'" maxlength="9" autocomplete="off" spellcheck="false" placeholder="hh:mm">'+
+      '<button type="button" class="tbox__c" data-clock="'+esc(id)+'" data-what="'+esc(what)+'" aria-haspopup="dialog" aria-expanded="false" aria-label="'+esc('Choose '+what+' on a clock')+'"'+
+      ' data-tip="'+esc('Choose '+what+' on a clock. It opens at the time typed.')+'">'+CLOCK_SVG+'</button></span>'; }
+  /* leaving a box writes a time it read the way it is kept (3:30 pm → 15:30); a box holding no time turns red */
+  function hmTidy(i){ var r=hmRead(i.value);
+    if(r.ok&&i.value!==r.hm){ i.value=r.hm; i.dispatchEvent(new Event('input',{bubbles:true})); }
+    var b=i.closest('.tbox'); if(b) b.classList.toggle('is-bad', !!r.bad); }
+  function hmLive(i){ var b=i.closest('.tbox'); if(b&&!hmRead(i.value).bad) b.classList.remove('is-bad'); }
+  /* The pop-ups (the clock, the topic list) hang under their box, on the screen: below it, or above it when there is no
+     room below, never past either side. They follow the box when the page scrolls, and close when the box is gone. */
+  function popAt(p, a){
+    var r=a.getBoundingClientRect(), vw=document.documentElement.clientWidth, vh=window.innerHeight, pw=p.offsetWidth, ph=p.offsetHeight;
+    var top=r.bottom+6; if(top+ph>vh-8&&r.top-6-ph>=8) top=r.top-6-ph;
+    p.style.left=Math.max(8, Math.min(r.left, vw-8-pw))+'px'; p.style.top=top+'px'; }
+  var CLK=null;   /* the clock open now: { inp, btn, h, m, was, sh, sm } (h, m: chosen, -1 none; sh, sm: where it opened) */
+  function clkPlace(){ if(CLK) popAt($('clk'), CLK.inp.closest('.tbox')||CLK.inp); }
+  function clkSay(){ var n=$('clknow'); if(n&&CLK) n.textContent=CLK.h>=0&&CLK.m>=0?two(CLK.h)+':'+two(CLK.m):'--:--'; }
+  function clkOpen(btn){
+    var inp=$(btn.getAttribute('data-clock')); if(!inp) return;
+    if(CLK&&CLK.inp===inp){ clkClose(true,'btn'); return; }
+    clkClose(true); cbxClose(); popWire();
+    var p=$('clk');
+    if(!p){ p=document.createElement('div'); p.id='clk'; p.className='clk'; p.setAttribute('role','dialog'); p.hidden=true; document.body.appendChild(p); clkWire(p); }
+    var r=hmRead(inp.value), now=new Date(), h=r.ok?+r.hm.slice(0,2):-1, m=r.ok?+r.hm.slice(3):-1;
+    CLK={ inp:inp, btn:btn, h:h, m:m, was:inp.value, sh:h>=0?h:now.getHours(), sm:m>=0?m:now.getMinutes() };
+    var col=function(k,n,sel,at){ var out=''; for(var v=0;v<n;v++) out+='<button type="button" class="clk__c" role="option" data-c'+k+'="'+v+'" aria-selected="'+(v===sel?'true':'false')+'" tabindex="'+(v===at?'0':'-1')+'">'+two(v)+'</button>'; return out; };
+    p.setAttribute('aria-label','Choose '+(btn.getAttribute('data-what')||'the time'));
+    p.innerHTML='<div class="clk__now" id="clknow" aria-live="polite"></div>'+
+      '<div class="clk__h"><span class="clk__k">Hour</span><span class="clk__k">Minute</span></div>'+
+      '<div class="clk__cols"><div class="clk__col" role="listbox" aria-label="Hour" id="clkh">'+col('h',24,h,CLK.sh)+'</div>'+
+      '<div class="clk__col" role="listbox" aria-label="Minute" id="clkm">'+col('m',60,m,CLK.sm)+'</div></div>'+
+      '<div class="clk__f"><button type="button" class="act" data-clk="clear">Clear</button><button type="button" class="act" data-clk="done">Done</button></div>';
+    p.hidden=false; btn.setAttribute('aria-expanded','true');
+    clkSay(); clkPlace();
+    ['h','m'].forEach(function(k){ var c=$('clk'+k), e=c.querySelector('[data-c'+k+'="'+(k==='h'?CLK.sh:CLK.sm)+'"]');
+      if(e) c.scrollTop=e.offsetTop-(c.clientHeight-e.offsetHeight)/2; });
+    var f=$('clkh').querySelector('[tabindex="0"]'); if(f) f.focus({ preventScroll:true });
+  }
+  /* an hour or a minute chosen: written into the box at once (a minute with no hour yet takes the hour it opened at) */
+  function clkPick(k, v){
+    if(!CLK) return;
+    if(k==='h'){ CLK.h=v; if(CLK.m<0) CLK.m=0; } else { CLK.m=v; if(CLK.h<0) CLK.h=CLK.sh; }
+    ['h','m'].forEach(function(c){ var sel=c==='h'?CLK.h:CLK.m;
+      Array.prototype.forEach.call($('clk'+c).children, function(e){ var on=+e.getAttribute('data-c'+c)===sel; e.setAttribute('aria-selected',on?'true':'false'); e.tabIndex=on?0:-1; }); });
+    CLK.inp.value=two(CLK.h)+':'+two(CLK.m); CLK.inp.dispatchEvent(new Event('input',{bubbles:true}));
+    clkSay();
+  }
+  /* keep: what was chosen stays (Done, a minute, a click outside); not kept (Esc): the box goes back to what it held */
+  function clkClose(keep, to){
+    var p=$('clk'), c=CLK; if(!c) return;
+    CLK=null; if(p){ p.hidden=true; p.innerHTML=''; }
+    c.btn.setAttribute('aria-expanded','false');
+    if(!keep&&c.inp.value!==c.was){ c.inp.value=c.was; c.inp.dispatchEvent(new Event('input',{bubbles:true})); }
+    var b=c.inp.closest('.tbox'); if(b) b.classList.toggle('is-bad', !!hmRead(c.inp.value).bad);
+    if(document.body.contains(c.inp)){ var t=to==='btn'?c.btn:(to==='inp'?c.inp:null); if(t) t.focus(); }
+  }
+  function clkWire(p){
+    p.addEventListener('click', function(ev){
+      var b=ev.target.closest('button'); if(!b||!CLK) return;
+      if(b.hasAttribute('data-ch')) clkPick('h', +b.getAttribute('data-ch'));
+      else if(b.hasAttribute('data-cm')){ clkPick('m', +b.getAttribute('data-cm')); clkClose(true,'inp'); }
+      else if(b.getAttribute('data-clk')==='clear'){ CLK.inp.value=''; CLK.inp.dispatchEvent(new Event('input',{bubbles:true})); clkClose(true,'inp'); }
+      else if(b.getAttribute('data-clk')==='done') clkClose(true,'inp'); });
+    p.addEventListener('keydown', function(ev){
+      if(!CLK) return;
+      if(ev.key==='Escape'){ ev.preventDefault(); clkClose(false,'btn'); return; }
+      var b=ev.target.closest('.clk__c'); if(!b) return;
+      var k=b.hasAttribute('data-ch')?'h':'m', v=+b.getAttribute('data-c'+k), n=k==='h'?24:60, to=-1;
+      if(ev.key==='ArrowLeft'||ev.key==='ArrowRight'){ ev.preventDefault(); var o=$('clk'+(k==='h'?'m':'h')).querySelector('[tabindex="0"]'); if(o) o.focus(); return; }
+      if(ev.key==='ArrowDown') to=(v+1)%n; else if(ev.key==='ArrowUp') to=(v+n-1)%n; else return;
+      ev.preventDefault(); clkPick(k, to);
+      var e=$('clk'+k).querySelector('[data-c'+k+'="'+to+'"]'); if(e){ e.focus({ preventScroll:true }); e.scrollIntoView({ block:'nearest' }); } });
+    p.addEventListener('focusout', function(ev){ var t=ev.relatedTarget; if(CLK&&t&&!p.contains(t)&&t!==CLK.btn) clkClose(true); });
+  }
+  /* The topic box's list (19 Nov 2026): this page's own, so it can say "Loading 11C’s Classroom topics…" the moment it is
+     opened and fill itself when they come (a browser's own list shows nothing until it has something, and cannot be opened
+     by the page). It lists the class's topics, the ones holding what is typed once something is typed; ↓ ↑ and Enter
+     choose, Esc closes; anything typed is kept, and a new name is made in Classroom when the homework is set. */
+  var CBX=null;   /* the topic list open now: { inp, q, act, opts } */
+  function topicOf(cls){ return cls?(hState.ctopics[String(cls).trim().toUpperCase()]||null):null; }
+  function cbxCls(inp){ var k=inp.getAttribute('data-topic'), r=hState.rows[k==null?0:+k]; return r?r.cls:''; }
+  function cbxPlace(){ if(!CBX) return; var a=CBX.inp.closest('.cbx')||CBX.inp, p=$('cbxl');
+    p.style.width=Math.min(document.documentElement.clientWidth-16, Math.max(240, a.offsetWidth))+'px'; popAt(p, a); }
+  function cbxOpen(inp){
+    if(CBX&&CBX.inp===inp) return;
+    cbxClose(); clkClose(true); popWire();
+    var p=$('cbxl');
+    if(!p){ p=document.createElement('div'); p.id='cbxl'; p.className='cbxl'; p.setAttribute('role','listbox'); p.setAttribute('aria-label','Classroom topics'); p.hidden=true; document.body.appendChild(p);
+      p.addEventListener('mousedown', function(ev){ ev.preventDefault(); });   /* the box keeps the focus */
+      p.addEventListener('click', function(ev){ var o=ev.target.closest('[data-cbxo]'); if(o&&CBX) cbxPick(+o.getAttribute('data-cbxo')); }); }
+    CBX={ inp:inp, q:'', act:-1, opts:[] };
+    inp.setAttribute('aria-expanded','true'); p.hidden=false; cbxFill();
+  }
+  function cbxClose(){ var p=$('cbxl'), c=CBX; if(!c) return; CBX=null; if(p){ p.hidden=true; p.innerHTML=''; }
+    c.inp.setAttribute('aria-expanded','false'); c.inp.removeAttribute('aria-activedescendant'); }
+  function cbxFill(){
+    var p=$('cbxl'); if(!p||!CBX) return;
+    var cls=cbxCls(CBX.inp), t=topicOf(cls), q=CBX.q.replace(/\s+/g,' ').trim(), lq=q.toLowerCase(), html='';
+    var line=function(w, spin){ return '<div class="cbxl__s" role="status">'+(spin?'<span class="spin14" aria-hidden="true"></span>':'')+'<span>'+esc(w)+'</span></div>'; };
+    CBX.opts=[];
+    if(!cls) html=line('Choose the class first: then its Classroom topics are listed here.');
+    else if(!t||t.st==='load') html=line('Loading '+cls+'’s Classroom topics…', true);
+    else if(t.st==='bad') html=line(t.why+' You can still type a topic.');
+    else if(!t.list.length) html=line(cls+'’s Classroom has no topics yet. Type one: it is made there when you set the homework.');
+    else {
+      CBX.opts=t.list.filter(function(n){ return !lq||n.toLowerCase().indexOf(lq)>=0; });
+      if(CBX.act>=CBX.opts.length) CBX.act=CBX.opts.length-1;
+      html=CBX.opts.map(function(n,i){ var at=lq?n.toLowerCase().indexOf(lq):-1;
+        return '<div class="cbxl__o" role="option" id="cbxo'+i+'" data-cbxo="'+i+'" aria-selected="'+(i===CBX.act?'true':'false')+'">'+
+          (at<0?esc(n):esc(n.slice(0,at))+'<b>'+esc(n.slice(at,at+q.length))+'</b>'+esc(n.slice(at+q.length)))+'</div>'; }).join('')+
+        (CBX.opts.length?'':line('No topic in '+cls+'’s Classroom has “'+q+'” in its name. Keep it, and it is made there when you set the homework.'));
+    }
+    p.innerHTML=html;
+    if(CBX.act>=0) CBX.inp.setAttribute('aria-activedescendant','cbxo'+CBX.act); else CBX.inp.removeAttribute('aria-activedescendant');
+    cbxPlace();
+  }
+  function cbxPick(i){ var n=CBX&&CBX.opts[i]; if(n==null) return; var inp=CBX.inp;
+    inp.value=n; inp.dispatchEvent(new Event('input',{bubbles:true})); cbxClose(); }
+  function cbxType(inp){ if(!CBX||CBX.inp!==inp) cbxOpen(inp); CBX.q=inp.value; CBX.act=-1; cbxFill(); }
+  function cbxKey(ev, inp){
+    var open=!!(CBX&&CBX.inp===inp);
+    if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){
+      ev.preventDefault(); if(!open){ cbxOpen(inp); return; }
+      var n=CBX.opts.length; if(!n) return;
+      CBX.act=ev.key==='ArrowDown'?Math.min(n-1,CBX.act+1):Math.max(0,CBX.act-1);
+      cbxFill(); var o=$('cbxo'+CBX.act); if(o) o.scrollIntoView({ block:'nearest' }); }
+    else if(ev.key==='Enter'&&open&&CBX.act>=0){ ev.preventDefault(); cbxPick(CBX.act); }
+    else if(ev.key==='Escape'&&open){ ev.preventDefault(); cbxClose(); }
+  }
+  /* the page-wide listeners, set the first time a pop-up opens: a click outside the clock closes it (keeping what was
+     chosen); a scroll or a new window size moves a pop-up with its box */
+  var popWired=false;
+  function popWire(){ if(popWired) return; popWired=true;
+    document.addEventListener('mousedown', function(ev){
+      if(CLK){ var p=$('clk'); if(p&&!p.contains(ev.target)&&!CLK.btn.contains(ev.target)) clkClose(true); } }, true);
+    window.addEventListener('resize', popFollow);
+    window.addEventListener('scroll', popFollow, true); }
+  function popFollow(){ if(CLK){ if(document.body.contains(CLK.inp)) clkPlace(); else clkClose(true); }
+    if(CBX){ if(document.body.contains(CBX.inp)) cbxPlace(); else cbxClose(); } }
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   var WUID = 'write-up-lab';      /* and the Write-Up Lab (3 Oct 2026): its parts are the stations */
   window.vHomework = function(D){
@@ -2479,7 +2668,7 @@ var BOOT = __BOOT__;
     function rowPicked(r){ var on={}; rowPupils(r).forEach(function(s){ on[s.email]=1; });
       return Object.keys(r.pick||{}).filter(function(e){ return on[e]; }); }
     function rowCount(r){ return r.some?rowPicked(r).length:rowPupils(r).length; }
-    function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due&&(!r.some||rowPicked(r).length);}); }
+    function ready(){ return hState.rows.length && hState.rows.every(function(r){return r.cls&&r.due&&(!r.some||rowPicked(r).length);}) && !timesBad(); }
     function setWords(){
       var rs=hState.rows, bits=rs.map(function(r){ var n=rowPicked(r).length;
         return r.some?(n+' pupil'+(n===1?'':'s')+(r.cls?' in '+r.cls:'')):(r.cls||'a class'); });
@@ -2487,6 +2676,7 @@ var BOOT = __BOOT__;
       if(rs.length>3) return 'Set for '+rs.length+' classes';
       return 'Set for '+bits.slice(0,-1).join(', ')+' and '+bits[bits.length-1]; }
     function hintText(){
+      if(timesBad()) return 'Type each time like 15:30 or 3:30 pm, or leave the box empty: Set homework waits until then.';
       var p=picked(), nC=hState.rows.filter(function(r){return r.cls;}).length, nP=0;
       hState.rows.forEach(function(r){ nP+=rowCount(r); });
       return p.questions?('About '+Math.max(5,r0(p.questions*0.8))+' minutes of practice'+
@@ -2497,59 +2687,80 @@ var BOOT = __BOOT__;
     function sayPicks(i){
       var r=hState.rows[i]; if(!r) return;
       var c=$('hpc'+i); if(c) c.textContent=rowPicked(r).length+' of '+rowPupils(r).length+' ticked';
-      var g=$('hset'); if(g){ g.disabled=!(picked().any&&ready()); g.textContent=setWords(); }
+      sayReady(); }
+    /* the Set button (can it be pressed, and its words) and the line beside it, in place */
+    function sayReady(){ var g=$('hset'); if(g){ g.disabled=!(picked().any&&ready()); g.textContent=setWords(); }
       var h=$('hhint'); if(h) h.textContent=hintText(); }
-    /* The Classroom topic: one of the course's own, or a new name (it is made in the course when the homework is posted).
-       The course's topics are asked for only when the box is used, once for each set of classes. */
-    function topicKey(){ return hState.rows.map(function(r){ return r.cls; }).filter(Boolean).join(','); }
-    /* Since 2 Oct 2026 the answer is kept as { loaded, all, by }: `all` for the one box of a single class, `by[CLASS]`
-       for each class's own box when several classes are set (Daniel: "what happens if different classes have different
-       section names?" — one name for all made a new topic of that name in every class that did not have it). */
-    function topicsGot(){ return hState.topics[topicKey()]||null; }
-    function rowTopics(r){ var g=topicsGot(), by=g&&g.by?g.by[String(r.cls||'').toUpperCase()]:null; return by||[]; }
-    function rowNote(r){ var g=topicsGot(), t=String(r.topic||'').replace(/\s+/g,' ').trim();
-      if(!t||!r.cls||!g||!g.loaded||!g.by) return '';
-      var by=g.by[String(r.cls).toUpperCase()]; if(!by) return '';
-      return by.some(function(n){ return n.toLowerCase()===t.toLowerCase(); }) ? ''
+    /* The Classroom topic: one of the class's own, or a new name (it is made in that class's course when the homework is
+       posted). Since 2 Oct 2026 several classes each have their own box, with their own topics (Daniel: "what happens if
+       different classes have different section names?").
+       Since 19 Nov 2026 (Daniel: "I have to click on the classroom topic for you to look at the topics. So I have to click,
+       then nothing shows … make sure that classroom topic is loaded as soon as you … select a class") each class's topics
+       are asked for the moment the class is chosen (paint() asks for every chosen class not known yet) and kept for that
+       class while the page is open, so going back to a class lists them at once. The box shows it is loading, and its list
+       says so until they come. A read that failed is asked again when the box is used; Classroom's own answer is kept. */
+    function wantTopics(){
+      if(!(hState.post&&D.classroomOk)) return;
+      hState.rows.forEach(function(r){
+        var k=String(r.cls||'').trim().toUpperCase(); if(!k||hState.ctopics[k]) return;
+        hState.ctopics[k]={ st:'load', list:[] }; topicsCame(k);
+        google.script.run
+          .withSuccessHandler(function(x){
+            var by=x&&x.ok?(x.byClass||[{ cls:k, known:true, topics:x.topics||[] }]):[];
+            var c=by.filter(function(e){ return String(e&&e.cls||'').trim().toUpperCase()===k; })[0];
+            hState.ctopics[k]=x&&x.ok
+              ?(c&&c.known!==false?{ st:'ok', list:c.topics||[] }:{ st:'bad', why:'Nobody in '+k+' was imported from Google Classroom, so there is no course to ask.' })
+              :{ st:'bad', why:(x&&x.why)||'The Classroom topics could not be read.' };
+            topicsCame(k); })
+          .withFailureHandler(function(){ hState.ctopics[k]={ st:'bad', retry:true, why:'The Classroom topics could not be read.' }; topicsCame(k); })
+          .homeworkTopics({ classes:[{ cls:k, emails:[] }] });
+      });
+    }
+    function topicRetry(i){ var k=String(cbxCls(i)||'').trim().toUpperCase(), t=hState.ctopics[k]; if(t&&t.retry){ delete hState.ctopics[k]; wantTopics(); } }
+    function topicPh(cls){ var t=topicOf(cls); return t&&t.st==='load'?'Loading '+cls+'’s topics…':'Choose or type a topic'; }
+    function topicInput(id, attr, val, cls){ var t=topicOf(cls);
+      return '<span class="cbx'+(t&&t.st==='load'?' is-load':'')+'"><input id="'+id+'" type="text" '+attr+' data-cbxin role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cbxl" maxlength="100" autocomplete="off" spellcheck="false" placeholder="'+esc(topicPh(cls))+'" value="'+esc(val||'')+'">'+
+        '<span class="cbx__spin" aria-hidden="true"></span><button type="button" class="cbx__b" tabindex="-1" data-cbx="'+id+'" aria-label="Show the Classroom topics">'+CHEV_SVG+'</button></span>'; }
+    /* one class's topics came (or began loading): its boxes, the notes and an open list change in place (no redraw) */
+    function topicsCame(k){
+      document.querySelectorAll('[data-cbxin]').forEach(function(i){
+        var cls=cbxCls(i); if(String(cls||'').trim().toUpperCase()!==k) return;
+        var t=topicOf(cls), w=i.closest('.cbx'); if(w) w.classList.toggle('is-load', !!(t&&t.st==='load'));
+        i.placeholder=topicPh(cls); });
+      var m=$('htopicmsg'); if(m&&hState.rows.length===1) m.textContent=topicSay();
+      hState.rows.forEach(function(r,i){ var n=$('htn'+i); if(n){ var w=rowNote(r); n.textContent=w; n.hidden=!w; } });
+      if(CBX&&String(cbxCls(CBX.inp)||'').trim().toUpperCase()===k) cbxFill();
+    }
+    /* the line under the one box (one class) */
+    function topicSay(){ var cls=(hState.rows[0]||{}).cls, t=topicOf(cls);
+      if(!cls) return 'Choose the class first: then its Classroom topics are listed here.';
+      if(!t||t.st==='load') return 'Loading '+cls+'’s Classroom topics…';
+      if(t.st==='bad') return t.why+' You can still type one: if it cannot be used, the homework is posted without it.';
+      var n=t.list.length;
+      return n?'Choose one of '+cls+'’s '+n+' Classroom topic'+(n===1?'':'s')+', or type a new one to make it there. Leave it empty to post with no topic.'
+              :cls+'’s Classroom has no topics yet. Type one to make it there, or leave it empty to post with no topic.'; }
+    function rowNote(r){ var g=topicOf(r.cls), t=String(r.topic||'').replace(/\s+/g,' ').trim();
+      if(!t||!r.cls||!g||g.st!=='ok') return '';
+      return g.list.some(function(n){ return n.toLowerCase()===t.toLowerCase(); }) ? ''
         : '“'+t+'” is not a topic in '+r.cls+'’s Classroom yet: it is made there when you set the homework.'; }
+    /* what a row says under its times: a time not typed, read (3:30 pm → "Due at 15:30"), or not a time */
+    function timeWords(t){ var r=hmRead(t);
+      if(r.empty) return 'No time typed: due at 23:59, the end of that day.';
+      if(r.bad) return '“'+String(t).trim()+'” is not a time yet. Type it like 15:30, or 3:30 pm: Set homework waits until it is a time, or empty.';
+      return String(t).trim()===r.hm?'':'Due at '+r.hm+' that day.'; }
+    function timeSay(k, firm){ var r=hState.rows[k], n=$('hth'+k); if(!r||!n) return; var w=timeWords(r.time), bad=!!hmRead(r.time).bad;
+      n.textContent=w; n.hidden=!w; if(firm||!bad) n.classList.toggle('is-bad', bad); }
     function startNote(r){ if(!hState.later) return '';
-      if(!r.start) return r.startTime?'A start time needs a start date.':'No start date: this class gets it at once, when you press Set homework.';
-      return r.startTime?'':'No start time typed: pupils get it at 08:00 that day.'; }
-    var TOPIC_ONE='A new name is made in the course. Leave it empty to post with no topic.';
+      var st=hmRead(r.startTime);
+      if(st.bad) return '“'+String(r.startTime).trim()+'” is not a time yet. Type it like 08:30, or 8:30 am: Set homework waits until it is a time, or empty.';
+      if(!r.start) return st.ok?'A start time needs a start date.':'No start date: this class gets it at once, when you press Set homework.';
+      return st.ok?(String(r.startTime).trim()===st.hm?'':'Starts at '+st.hm+' that day.'):'No start time typed: pupils get it at 08:00 that day.'; }
+    function timesBad(){ return hState.rows.some(function(r){ return hmRead(r.time).bad||(hState.later&&hmRead(r.startTime).bad); }); }
     var TOPIC_MANY='Each class has its own topic box, with that class’s own Classroom topics. A new name is made in that class only. Leave a box empty to post with no topic.';
-    function topicBox(){ var g=topicsGot(), have=g?g.all:[];
+    function topicBox(){
       return '<div class="fld" style="margin-top:12px;max-width:420px"><label for="htopic">Classroom topic (optional)</label>'+
-        '<input id="htopic" type="text" list="htopics" maxlength="100" autocomplete="off" placeholder="Choose a topic, or type a new one" value="'+esc(hState.topic||'')+'">'+
-        '<datalist id="htopics">'+have.map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('')+'</datalist>'+
-        '<div class="tmsg" id="htopicmsg">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_MANY?hState.topicMsg:TOPIC_ONE)+'</div></div>'; }
-    function loadTopics(){
-      var key=topicKey();
-      if(!key){ hState.topicMsg='Choose the class first: then its Classroom topics are listed here.'; var m0=$('htopicmsg'); if(m0) m0.textContent=hState.topicMsg; return; }
-      if(hState.topics[key]) return;
-      var many=hState.rows.length>1;
-      hState.topics[key]={loaded:false,all:[],by:{}}; hState.topicMsg='Looking for the course’s topics…';
-      var m=$('htopicmsg'); if(m) m.textContent=hState.topicMsg;
-      google.script.run
-        .withSuccessHandler(function(r){
-          if(r&&r.ok){ var by={}; (r.byClass||[]).forEach(function(c){ if(c&&c.cls&&c.known) by[String(c.cls).toUpperCase()]=c.topics||[]; });
-            hState.topics[key]={loaded:true,all:r.topics||[],by:by};
-            hState.topicMsg=many?TOPIC_MANY:(r.topics&&r.topics.length)?('Choose one of the course’s '+r.topics.length+' topic'+(r.topics.length===1?'':'s')+', or type a new one to make it.'):'The course has no topics yet. Type one to make it.'; }
-          else { delete hState.topics[key]; hState.topicMsg=(r&&r.why)||'The Classroom topics could not be read. You can still type one.'; }
-          if(key===topicKey()) fillTopics();
-          var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
-        .withFailureHandler(function(){ delete hState.topics[key]; hState.topicMsg='The Classroom topics could not be read. You can still type one: if it cannot be used, the homework is posted without it.';
-          var mm=$('htopicmsg'); if(mm) mm.textContent=hState.topicMsg; })
-        .homeworkTopics({ classes:hState.rows.map(function(r){ return {cls:r.cls,emails:[]}; }) });
-    }
-    /* The lists and notes of the topic boxes on the page, filled in place (no redraw: the box being typed in keeps its
-       cursor). One class: the one box's list. Several: each class's own list, and its "new here" note. */
-    function fillTopics(){
-      var opt=function(n){ return '<option value="'+esc(n)+'"></option>'; }, g=topicsGot();
-      var dl=$('htopics'); if(dl) dl.innerHTML=(g?g.all:[]).map(opt).join('');
-      hState.rows.forEach(function(r,i){
-        var d=$('htopics'+i); if(d) d.innerHTML=rowTopics(r).map(opt).join('');
-        var n=$('htn'+i); if(n){ var w=rowNote(r); n.textContent=w; n.hidden=!w; } });
-    }
+        topicInput('htopic','',hState.topic,(hState.rows[0]||{}).cls)+
+        '<div class="tmsg" id="htopicmsg">'+esc(topicSay())+'</div></div>'; }
     /* The server words the date and decides overdue/soon in the SCHOOL's timezone, so the browser
        does no date arithmetic at all — it cannot disagree about which day it is. */
     function fmtD(h){ return h.dueText || '—'; }
@@ -2559,6 +2770,7 @@ var BOOT = __BOOT__;
     function classNames(){ var cl={}; STUD.forEach(function(s){ if(s.cls)cl[s.cls]=1; }); return Object.keys(cl).sort(cmpClass); }
 
     function paint(){
+      clkClose(true); cbxClose();   /* their boxes are drawn again */
       var warn='';
       if (!D.hubSet) warn='<div class="warn">The hub address is not set, so the parts of each lab cannot be listed. Set it in 🧪 Biology Labs ▸ 👥 Teacher page: teachers and addresses.</div>';
       else if (!D.manifestOk) warn='<div class="warn">The station list could not be read from the hub, so the parts of each lab cannot be listed. 🧪 Biology Labs ▸ 🩺 Check the set-up says why; then press Refresh.</div>';
@@ -2567,7 +2779,7 @@ var BOOT = __BOOT__;
       /* several classes posted in Classroom: a topic box per class, in its row (the one box below is for one class) */
       var many=hState.rows.length>1, tpc=many&&hState.post&&D.classroomOk;
       var crows=hState.rows.map(function(r,i){
-        var note=tpc?rowNote(r):'', sn=startNote(r);
+        var note=tpc?rowNote(r):'', sn=startNote(r), tw=timeWords(r.time);
         return '<div class="bar2" style="margin:0 0 8px;padding:12px 14px">'+
           '<div class="fld" style="flex:0 0 180px"><label for="hc'+i+'">Class</label>'+
             '<select id="hc'+i+'" data-cls="'+i+'">'+opts(r.cls)+'</select></div>'+
@@ -2579,21 +2791,21 @@ var BOOT = __BOOT__;
           (hState.later?'<div class="fld" style="flex:0 0 180px"><label for="hs'+i+'">Starts</label>'+
             '<input id="hs'+i+'" type="date" data-start="'+i+'" value="'+esc(r.start||'')+'"></div>'+
             '<div class="fld" style="flex:0 0 172px"><label for="hst'+i+'">Start time (optional)</label>'+
-            '<input id="hst'+i+'" type="time" data-stime="'+i+'" value="'+esc(r.startTime||'')+'"></div>':'')+
+            timeBox('hst'+i, 'data-stime="'+i+'"', r.startTime, 'the start time')+'</div>':'')+
           '<div class="fld" style="flex:0 0 180px"><label for="hd'+i+'">Due</label>'+
             '<input id="hd'+i+'" type="date" data-due="'+i+'" value="'+esc(r.due||'')+'"></div>'+
           /* optional: empty keeps the end of that day, in the school's zone */
           '<div class="fld" style="flex:0 0 130px"><label for="htm'+i+'">Time (optional)</label>'+
-            '<input id="htm'+i+'" type="time" data-time="'+i+'" value="'+esc(r.time||'')+'"></div>'+
+            timeBox('htm'+i, 'data-time="'+i+'"', r.time, 'the due time')+'</div>'+
           (tpc?'<div class="fld" style="flex:1 1 200px;min-width:160px"><label for="htp'+i+'">Classroom topic (optional)</label>'+
-            '<input id="htp'+i+'" type="text" data-topic="'+i+'" list="htopics'+i+'" maxlength="100" autocomplete="off" placeholder="Choose a topic, or type a new one" value="'+esc(r.topic||'')+'">'+
-            '<datalist id="htopics'+i+'">'+rowTopics(r).map(function(n){ return '<option value="'+esc(n)+'"></option>'; }).join('')+'</datalist></div>':'')+
+            topicInput('htp'+i, 'data-topic="'+i+'"', r.topic, r.cls)+'</div>':'')+
           /* Daniel, 2 Oct 2026: "a little button… so that the same information is set for the next class" */
           (i>0?'<button class="act" data-same="'+i+'" data-tip="'+(hState.later?'Copy the start and the due date and time from the class above':'Copy the date and the time from the class above')+'">↑ Same date and time</button>':'')+
           (many?'<button class="act" data-rmrow="'+i+'">Remove</button>':'')+
-          (hState.later?'<div class="tmsg" id="hsn'+i+'" style="flex:1 1 100%"'+(sn?'':' hidden')+'>'+esc(sn)+'</div>':'')+
-          /* Daniel, 2 Oct 2026: with no time "it's not clear what time is set". Said in the row, until a time is typed. */
-          '<div class="tmsg" id="hth'+i+'" style="flex:1 1 100%"'+(r.time?' hidden':'')+'>No time typed: due at 23:59, the end of that day.</div>'+
+          (hState.later?'<div class="tmsg'+(hmRead(r.startTime).bad?' is-bad':'')+'" id="hsn'+i+'" style="flex:1 1 100%"'+(sn?'':' hidden')+'>'+esc(sn)+'</div>':'')+
+          /* Daniel, 2 Oct 2026: with no time "it's not clear what time is set". Said in the row, until a time is typed; since
+             19 Nov 2026 also what a time typed another way was read as ("Due at 15:30"), or that it is not a time. */
+          '<div class="tmsg'+(hmRead(r.time).bad?' is-bad':'')+'" id="hth'+i+'" style="flex:1 1 100%"'+(tw?'':' hidden')+'>'+esc(tw)+'</div>'+
           (tpc?'<div class="tmsg" id="htn'+i+'" style="flex:1 1 100%"'+(note?'':' hidden')+'>'+esc(note)+'</div>':'')+
           (r.some?pupBox(r,i):'')+
           '</div>'; }).join('');
@@ -2635,7 +2847,7 @@ var BOOT = __BOOT__;
           '<div class="tmsg" id="hlatersay" style="margin:3px 0 0 22px">'+(hState.later
             ?'Until its start, pupils see nothing: Google Classroom holds the post, and the labs do not show the homework. The reminders count from the start. A class with no start date gets it at once.'
             :'Not ticked: pupils get it at once, when you press Set homework.')+'</div>'+
-          (tpc?'<div class="tmsg" id="htopicmsg" style="margin-top:6px">'+esc(hState.topicMsg&&hState.topicMsg!==TOPIC_ONE?hState.topicMsg:TOPIC_MANY)+'</div>':'')+
+          (tpc?'<div class="tmsg" id="htopicmsg" style="margin-top:6px">'+esc(TOPIC_MANY)+'</div>':'')+
           '<div class="fld" style="margin-top:14px"><label>What to practise</label><div class="labs">'+labs+'</div></div>'+enBlock()+wuBlock()+
           '<div class="size"><span class="size__n">'+p.stations+'</span><span class="size__k">lab station'+(p.stations===1?'':'s')+'</span>'+
           (EN?'<span class="size__n">'+p.sets+'</span><span class="size__k">English set'+(p.sets===1?'':'s')+'</span>':'')+
@@ -2715,7 +2927,7 @@ var BOOT = __BOOT__;
       function dueForm(h){
         var dr=hState.dueDraft&&hState.dueDraft.id===h.id?hState.dueDraft:{ day:h.dueDay||'', hm:(h.dueHm&&h.dueHm!=='23:59'?h.dueHm:'') };
         return '<div class="duechg"><div class="fld"><label for="dd-'+esc(h.id)+'">New due date</label><input type="date" id="dd-'+esc(h.id)+'" data-dueday="'+esc(h.id)+'" value="'+esc(dr.day)+'"></div>'+
-          '<div class="fld"><label for="dt-'+esc(h.id)+'">Time (empty: end of the day)</label><input type="time" id="dt-'+esc(h.id)+'" data-duehm="'+esc(h.id)+'" value="'+esc(dr.hm)+'"></div>'+
+          '<div class="fld"><label for="dt-'+esc(h.id)+'">Time (empty: end of the day)</label>'+timeBox('dt-'+h.id, 'data-duehm="'+esc(h.id)+'"', dr.hm, 'the new due time')+'</div>'+
           '<div class="duechg__b"><button class="act" data-duesave="'+esc(h.id)+'">Save the new date</button><button class="act" data-duecancel="1">Cancel</button></div>'+
           '<div class="tmsg">'+(h.inClassroom?'Its Google Classroom assignment gets the new date too.':'It was not posted to Google Classroom, so only this list changes.')+
           ' Reminders already sent are not sent again; reminders still to come follow the new date.</div></div>';
@@ -2801,7 +3013,7 @@ var BOOT = __BOOT__;
         '<p class="sec__d">'+(showAll?'':'Only the homework you set is listed here. ')+'Open one to see each student. “Set again” refills the form above.</p>'+
         (D.remindAllowed===false?'<div class="warn">The reminders cannot be posted: Google has not been allowed to post Classroom announcements for this script. 🧪 Biology Labs ▸ 🩺 Check the set-up says what to do.</div>':'')+
         '<div class="hwlist">'+list+'</div></section>'+arch;
-      wireH();
+      wireH(); wantTopics();
     }
     function say(t,bad){ var m=$('hmsg'); if(m){ m.textContent=t||''; m.className='msg'+(t?(bad?' bad':' ok'):''); } }
     function wireH(){
@@ -2827,9 +3039,11 @@ var BOOT = __BOOT__;
         sayPicks(i); };
       document.querySelectorAll('[data-rall]').forEach(function(b){ b.addEventListener('click', function(){ tickRow(+b.getAttribute('data-rall'), true); }); });
       document.querySelectorAll('[data-rnone]').forEach(function(b){ b.addEventListener('click', function(){ tickRow(+b.getAttribute('data-rnone'), false); }); });
-      document.querySelectorAll('[data-time]').forEach(function(i){ i.addEventListener('input', function(){
-        var k=+i.getAttribute('data-time'); hState.rows[k].time=i.value;
-        var th=$('hth'+k); if(th) th.hidden=!!i.value; }); });
+      document.querySelectorAll('[data-time]').forEach(function(i){ var k=+i.getAttribute('data-time');
+        i.addEventListener('input', function(){ hState.rows[k].time=i.value; hmLive(i); timeSay(k); sayReady(); });
+        i.addEventListener('blur', function(){ hmTidy(i); timeSay(k, true); }); });
+      /* a time box's clock: opens at the time typed */
+      document.querySelectorAll('[data-clock]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation(); clkOpen(b); }); });
       /* "↑ Same date and time": the class above's date and time (and its start, when the homework is for later), copied into this row */
       document.querySelectorAll('[data-same]').forEach(function(b){ b.addEventListener('click', function(){
         var k=+b.getAttribute('data-same'), up=hState.rows[k-1]; if(!up) return;
@@ -2837,23 +3051,35 @@ var BOOT = __BOOT__;
         if(hState.later){ hState.rows[k].start=up.start||''; hState.rows[k].startTime=up.startTime||''; } paint(); }); });
       /* set for a later date: the switch, and each class's start */
       var hl=$('hlater'); if(hl) hl.addEventListener('change', function(){ hState.later=hl.checked; paint(); });
-      var startSay=function(k){ var n=$('hsn'+k); if(n){ var w=startNote(hState.rows[k]); n.textContent=w; n.hidden=!w; } };
+      var startSay=function(k, firm){ var n=$('hsn'+k); if(n){ var r=hState.rows[k], w=startNote(r), bad=!!hmRead(r.startTime).bad;
+        n.textContent=w; n.hidden=!w; if(firm||!bad) n.classList.toggle('is-bad', bad); } };
       document.querySelectorAll('[data-start]').forEach(function(i){ i.addEventListener('input', function(){
         var k=+i.getAttribute('data-start'); hState.rows[k].start=i.value; startSay(k); }); });
-      document.querySelectorAll('[data-stime]').forEach(function(i){ i.addEventListener('input', function(){
-        var k=+i.getAttribute('data-stime'); hState.rows[k].startTime=i.value; startSay(k); }); });
-      /* a class's own topic box (several classes) */
-      document.querySelectorAll('[data-topic]').forEach(function(i){
-        i.addEventListener('input', function(){ var k=+i.getAttribute('data-topic'), r=hState.rows[k]; r.topic=i.value;
-          var n=$('htn'+k); if(n){ var w=rowNote(r); n.textContent=w; n.hidden=!w; } });
-        i.addEventListener('focus', loadTopics); });
-      var tp=$('htopic'); if(tp){ tp.addEventListener('input', function(){ hState.topic=tp.value; });
-        tp.addEventListener('focus', loadTopics); }
+      document.querySelectorAll('[data-stime]').forEach(function(i){ var k=+i.getAttribute('data-stime');
+        i.addEventListener('input', function(){ hState.rows[k].startTime=i.value; hmLive(i); startSay(k); sayReady(); });
+        i.addEventListener('blur', function(){ hmTidy(i); startSay(k, true); }); });
+      /* the topic boxes: the one box (one class) and each class's own (several). What is typed is kept, a class's own box
+         says when the name is new in that class, and the box's own list opens on a click, on the focus and on typing. */
+      document.querySelectorAll('[data-cbxin]').forEach(function(i){
+        var k=i.getAttribute('data-topic');
+        i.addEventListener('input', function(){
+          if(k==null) hState.topic=i.value;
+          else { var r=hState.rows[+k]; r.topic=i.value; var n=$('htn'+k); if(n){ var w=rowNote(r); n.textContent=w; n.hidden=!w; } }
+          cbxType(i); });
+        i.addEventListener('focus', function(){ topicRetry(i); cbxOpen(i); });
+        i.addEventListener('click', function(){ cbxOpen(i); });
+        i.addEventListener('keydown', function(ev){ cbxKey(ev, i); });
+        i.addEventListener('blur', function(){ if(CBX&&CBX.inp===i) cbxClose(); }); });
+      document.querySelectorAll('[data-cbx]').forEach(function(b){
+        b.addEventListener('mousedown', function(ev){ ev.preventDefault(); });
+        b.addEventListener('click', function(){ var i=$(b.getAttribute('data-cbx')); if(!i) return;
+          if(document.activeElement!==i){ i.focus(); return; }
+          if(CBX&&CBX.inp===i) cbxClose(); else cbxOpen(i); }); });
       var ar=$('addrow'); if(ar) ar.addEventListener('click', function(){
         if(hState.rows.length===1) hState.rows[0].topic=hState.topic||'';   /* the one box's topic goes with its class */
-        hState.rows.push(newRow()); hState.topicMsg=''; paint(); });
+        hState.rows.push(newRow()); paint(); });
       document.querySelectorAll('[data-rmrow]').forEach(function(b){ b.addEventListener('click', function(){ hState.rows.splice(+b.getAttribute('data-rmrow'),1);
-        if(hState.rows.length===1){ hState.topic=hState.rows[0].topic||''; hState.topicMsg=''; } paint(); }); });
+        if(hState.rows.length===1) hState.topic=hState.rows[0].topic||''; paint(); }); });
       document.querySelectorAll('.lab__h[data-lab]').forEach(function(h){ h.addEventListener('click', function(ev){
         if(ev.target.closest('[data-all]')) return;
         var id=h.getAttribute('data-lab'); hState.open[id]=!hState.open[id]; paint(); }); });
@@ -2901,6 +3127,7 @@ var BOOT = __BOOT__;
       ['data-dueday','data-duehm'].forEach(function(a){ document.querySelectorAll('['+a+']').forEach(function(i){ i.addEventListener('input', function(){
         var id=i.getAttribute(a), dd=$('dd-'+id), dt=$('dt-'+id);
         hState.dueDraft={ id:id, day:dd?dd.value:'', hm:dt?dt.value:'' }; }); }); });
+      document.querySelectorAll('[data-duehm]').forEach(function(i){ i.addEventListener('input', function(){ hmLive(i); }); i.addEventListener('blur', function(){ hmTidy(i); }); });
       document.querySelectorAll('[data-duecancel]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
         hState.editDue=null; hState.dueDraft=null; hState.cardMsg=null; paint(); }); });
       document.querySelectorAll('[data-outpick]').forEach(function(i){ i.addEventListener('change', function(ev){ ev.stopPropagation();
@@ -2918,8 +3145,10 @@ var BOOT = __BOOT__;
         var id=b.getAttribute('data-duesave'), dd=$('dd-'+id), dt=$('dt-'+id);
         hState.dueDraft={ id:id, day:dd?dd.value:'', hm:dt?dt.value:'' };
         if(!hState.dueDraft.day){ hState.cardMsg={ id:id, text:'Choose the new due date.', bad:true }; paint(); return; }
+        var hr=hmRead(hState.dueDraft.hm);
+        if(hr.bad){ hState.cardMsg={ id:id, text:'“'+String(hState.dueDraft.hm).trim()+'” is not a time. Type it like 15:30, or 3:30 pm, or leave the box empty for the end of the day.', bad:true }; paint(); return; }
         b.disabled=true; b.textContent='Saving…';
-        cardCall('homeworkChangeDue', { id:id, due:hState.dueDraft.day, time:hState.dueDraft.hm }, id, function(){ hState.editDue=null; hState.dueDraft=null; }); }); });
+        cardCall('homeworkChangeDue', { id:id, due:hState.dueDraft.day, time:hr.hm }, id, function(){ hState.editDue=null; hState.dueDraft=null; }); }); });
       document.querySelectorAll('[data-enyr]').forEach(function(b){ b.addEventListener('click', function(){ hState.enYr=b.getAttribute('data-enyr'); paint(); }); });
       document.querySelectorAll('[data-enu]').forEach(function(h){ h.addEventListener('click', function(ev){
         if(ev.target.closest('[data-enall]')) return;
@@ -3020,11 +3249,11 @@ var BOOT = __BOOT__;
         .withSuccessHandler(function(r){ hState.busy=false;
           if(r&&r.ok){ hState.req=''; hState.reqSig='';
             if(r.again){ D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn(); V.put('homework', {ok:true, data:D});
-              hState.title=''; hState.picked={}; hState.rows=[newRow()]; hState.topic=''; hState.topicMsg=''; hState.later=false;
+              hState.title=''; hState.picked={}; hState.rows=[newRow()]; hState.topic=''; hState.later=false;
               paint(); return say('It was set already: the first press worked, but the page did not hear back. Nothing was set twice; it is in the list below.'); }
             D=r.data; HW=D.homework||[]; STUD=D.students||[]; LABS=D.labs||[]; useEn();
             V.put('homework', {ok:true, data:D});      /* or leaving the tab shows the list from before */
-            hState.title=''; hState.picked={}; hState.rows=[newRow()]; hState.topic=''; hState.topicMsg=''; hState.later=false;
+            hState.title=''; hState.picked={}; hState.rows=[newRow()]; hState.topic=''; hState.later=false;
             var m=r.made&&r.made.length>1?('Set for '+r.made.length+' classes.'):'Set.';
             (r.later||[]).forEach(function(x){ m+=' '+x.who+' gets it on '+x.when+(x.classroom?' (Google Classroom posts it then)':'')+'.'; });
             var tps=r.topics||[], newIn=tps.filter(function(t){ return t.made; }).map(function(t){ return t.cls; }).filter(Boolean);
@@ -3045,9 +3274,9 @@ var BOOT = __BOOT__;
              Several classes posted in Classroom: each brings its own topic ('' = none). */
           classes:hState.rows.map(function(r){
             /* Some pupils: no class, only them (the labs script then posts it in Classroom to them alone) */
-            var o=r.some?{cls:'',due:r.due,time:r.time||'',emails:rowPicked(r)}:{cls:r.cls,due:r.due,time:r.time||'',emails:[]};
+            var o=r.some?{cls:'',due:r.due,time:hmOf(r.time),emails:rowPicked(r)}:{cls:r.cls,due:r.due,time:hmOf(r.time),emails:[]};
             if(hState.rows.length>1&&hState.post&&D.classroomOk) o.topic=String(r.topic||'').trim();
-            if(hState.later&&(r.start||r.startTime)){ o.start=r.start||''; o.startTime=r.startTime||''; }   /* set for a later date */
+            if(hState.later&&(r.start||r.startTime)){ o.start=r.start||''; o.startTime=hmOf(r.startTime); }   /* set for a later date */
             return o; }) });
     }
     paint();
