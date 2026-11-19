@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '19 Nov 2026 (later) — 📚 Homework on My assessments';
+var SCRIPT_EDITION = '19 Nov 2026 (night) — 📚 Homework by the due date, kept';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -1934,6 +1934,11 @@ function checkSetup() {
   put(remOn ? '✅  homework reminders: checked every 15 minutes' + (remNew ? ' (started just now)' : '')
            : remWant ? '❌  some homework has reminders switched on, but the 15-minute check could not be started. Run this check again; if it says the same, open Triggers (the clock in the left sidebar of the Apps Script editor) and see whether sendHomeworkReminders is there.'
            : '•  homework reminders: none waiting. The 15-minute check starts by itself when homework is posted in Google Classroom with “Remind pupils who have not finished” ticked, and stops when no reminder is left to send.');
+  /* the due-date record (19 Nov 2026): one timer, set here (again) for the soonest due time still to come */
+  var snapNext = openOk ? _hwSnapTrigger_() : 0;
+  put(snapNext > 0 ? '✅  homework by the due date: what each student has done is written down at each due time; the next is ' + _hwWhen_(snapNext)
+     : snapNext === 0 ? '•  homework by the due date: no homework is still to come, so nothing waits to be written down'
+     : '❌  homework by the due date: its timer could not be set. Run this check again; until it is set, “By the due date” counts each part finished by the due time.');
   if (clsOk) {
     var annOk = _hwAnnounceAllowed_();
     put(annOk === true ? '✅  the reminders can be posted: Google Classroom announcements are allowed'
@@ -4395,12 +4400,17 @@ function _hwPupilWhen_(c, e, D) {
 
 /* One pupil's homework, at `now` (ms; the tests pass a fake clock). Read only. Homework due in the last year (as ⏱️ Homework
    habits reads it) and all that is still to come; a homework with no due date counts from when it was set. Never throws for a
-   missing tab: no Homework tab is nothing set. */
+   missing tab: no Homework tab is nothing set.
+   Two numbers (Daniel, 19 Nov 2026: "one percentage that shows actually how you're doing the homework, and then another one
+   that … encourages you to finish that homework in the labs"): `done`/`total`, everything done today, whenever (it can reach
+   100%); `dueDone`/`dueTotal`, what was done by each due time, of the homework past it (_hwByDue_; never changed by later
+   work). The counters count a homework past its due time as it was then, when that can be told; `state` on each homework
+   stays today's, and `atDue` is the record. */
 function _hwPupilData_(email, now) {
   now = now || Date.now();
   email = _cleanEmail_(email);
   var out = { ok: true, onList: false, at: new Date(now).toISOString(), homework: [], says: null,
-              sum: { n: 0, done: 0, total: 0, finished: 0, partly: 0, notStarted: 0, missed: 0 } };
+              sum: { n: 0, done: 0, total: 0, finished: 0, partly: 0, notStarted: 0, missed: 0, dueN: 0, dueDone: 0, dueTotal: 0 } };
   var me = email ? _studentOf_(email) : null;
   if (!me) { out.says = { kind: 'list', say: HW_PUPIL_SAYS.list.say, why: HW_PUPIL_SAYS.list.why, next: '', n: 0, k: {} }; return out; }
   out.onList = true;
@@ -4444,15 +4454,19 @@ function _hwPupilData_(email, now) {
     var open = !D || now <= D;
     if (HW_CAT_PLACE[c] !== undefined) cats.push({ c: c, D: D });
     if (open && s.state !== 'done') openNotDone.push({ due: hw.dueText || '', D: D || Infinity });
+    var bd = open ? null : _hwByDue_(hw, email, s, index, extra, man, now);
+    if (bd && bd.unknown) bd = null;                                    /* work from before the times were kept: today's numbers only */
     rows.push({ D: D, hw: hw, o: {
       id: hw.id, title: hw.title, set: S ? _hwWhen_(S) : '', due: hw.dueText || '', open: open,
       soon: !!D && D >= now && D - now < 3 * 864e5,
       state: s.state, tried: !!s.tried, done: s.done, total: s.total,
+      atDue: bd ? { d: bd.d, n: bd.n, state: bd.state, how: bd.how } : null,
       k: HW_PUPIL_KIND[c] || 'unknown', when: _hwPupilWhen_(c, e, D), parts: parts } });
-    var sum = out.sum;
+    var sum = out.sum, st = bd ? bd.state : s.state;
     sum.n++; sum.done += s.done; sum.total += s.total;
-    if (s.state === 'done') sum.finished++;
-    else if (s.state === 'partly') sum.partly++;
+    if (bd) { sum.dueN++; sum.dueDone += bd.d; sum.dueTotal += bd.n; }
+    if (st === 'done') sum.finished++;
+    else if (st === 'partly') sum.partly++;
     else if (open) sum.notStarted++;
     else sum.missed++;
   });
@@ -7339,7 +7353,9 @@ function _studentDirectory_(now) {
    pupil, or a class of 25 across ten assignments would be 250 rows that immediately go stale.
    Completion is NEVER stored: it is recomputed from the lab tabs, which already hold every
    per-station score, each time the page or the summary asks. So the tab stays a summary a teacher
-   can read by eye, and it can never disagree with the marks.
+   can read by eye, and it can never disagree with the marks. One exception (19 Nov 2026, Daniel: a
+   record of how they did the homework that work after the due date does not change): the hidden
+   At due date column, written once at the due time (snapHomeworkAtDue), read only for "By the due date".
 
    THE ONE THING THIS CANNOT DO ALONE. The lab tabs record station IDS ("ileum-villi"), never names,
    and they only record a station a pupil actually reached. So the server cannot name a station, and
@@ -7353,7 +7369,8 @@ var T_HOMEWORK = '📚 Homework';
 var _HW_HEADERS_ = ['ID', 'Created', 'Teacher', 'Title', 'Who', 'What', 'Due', 'Spec', 'Course', 'CourseWork', 'Status', 'Reported', 'Group', 'Cohort',
                     'Remind', 'Reminder 1', 'Reminder 1 students', 'Reminder 2', 'Reminder 2 students',
                     'Starts',                  /* 2 Oct 2026: homework set for a later date; at the END, as the reminder columns are */
-                    'Hidden'];                 /* 7 Oct 2026: hidden from the Set homework list (homeworkHide); at the END too */
+                    'Hidden',                  /* 7 Oct 2026: hidden from the Set homework list (homeworkHide); at the END too */
+                    'At due date'];            /* 19 Nov 2026: what each pupil had done when it fell due (snapHomeworkAtDue); at the END */
 
 function _hwColDefs_() {
   return [
@@ -7377,7 +7394,8 @@ function _hwColDefs_() {
     { h:'Reminder 2', w:132, fmt:'dd MMM, HH:mm', note:'When the second reminder went, or was tried or skipped.' },
     { h:'Reminder 2 students', w:150, note:'How many students the second reminder went to (no names are kept), or why it was not posted.' },
     { h:'Starts',     w:132, fmt:'dd MMM, HH:mm', note:'When the students get it, for homework set for a later date. Empty — they got it when it was set.\nBefore this time they see nothing: Google Classroom holds its post until then, and the labs do not show it. Do not change it here: the post in Google Classroom keeps the time it was given.' },
-    { h:'Hidden',     w:132, fmt:'dd MMM, HH:mm', note:'When it was hidden from the Set homework list (its Archive, after the due date). Hidden homework still counts: it stays in ⏱️ Homework habits and in every student’s record, and students see it as before. Only a date here hides it. Empty — it is listed. Press “Show it again” on the list, or clear this cell, to list it again.' }
+    { h:'Hidden',     w:132, fmt:'dd MMM, HH:mm', note:'When it was hidden from the Set homework list (its Archive, after the due date). Hidden homework still counts: it stays in ⏱️ Homework habits and in every student’s record, and students see it as before. Only a date here hides it. Empty — it is listed. Press “Show it again” on the list, or clear this cell, to list it again.' },
+    { h:'At due date', w:150, hide:true, note:'What each student had done of this homework at its due time, written once, a minute after it (questions done, of how many). Their “By the due date” on My assessments and on Homework analysis reads it; work done after the due time never changes it. Changing the due date makes a new one at the new time. Not marks. Do not edit.' }
   ];
 }
 function _ensureHomeworkTab_() {
@@ -7548,6 +7566,7 @@ function _homeworkRows_() {
   /* Hidden (7 Oct 2026) is read under its own heading only, never by position: on a tab from before it, that column may
      hold something a teacher typed, which must not hide homework */
   var hid = head.indexOf('Hidden');
+  var adi = head.indexOf('At due date');                 /* 19 Nov 2026: by its heading only, as Hidden is */
   var v = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues(), out = [];
   for (var i = 0; i < v.length; i++) {
     var r = v[i], id = String(r[c.ID - 1] || '').trim();
@@ -7598,7 +7617,10 @@ function _homeworkRows_() {
          homeworkHide writes one: words typed into that column (a tab from before it, tidied) never hide anything, so
          "Show it again", which empties the cell, is never offered for them. */
       hidden: _hwIsDate_(hv),
-      hiddenAt: _hwIsDate_(hv) ? new Date(hv.getTime()).toISOString() : null
+      hiddenAt: _hwIsDate_(hv) ? new Date(hv.getTime()).toISOString() : null,
+      /* what each pupil had done at the due time (19 Nov 2026): { D the due time it was written for, T when, p { email: [done,
+         of] } }, or null. Only "By the due date" reads it, and only while D is still the due time. */
+      atDue: adi >= 0 && adi < r.length ? _hwAtDueParse_(r[adi]) : null
     });
   }
   return out;
@@ -7717,6 +7739,7 @@ function _homeworkData_(now, who) {
   var dir = _studentDirectory_(now);
   var roster = dir.students;
   var list = _homeworkRows_(), nowMs = Date.now(), anyRemind = false;
+  if (who) _hwSnapEnsure_(list);                       /* the due-date record's timer, after a paste (19 Nov 2026) */
   var seesAll = !who || who === _owner_();
   if (!seesAll) list = list.filter(function (hw) { return hw.teacher === who; });
 
@@ -7830,7 +7853,8 @@ function _homeworkData_(now, who) {
    progress does. Homework set for a later date that has not started sends no pupils: nobody has seen it yet. */
 function _hwAnalysisData_(now, who) {
   var man = _hwManifest_(), dir = _studentDirectory_(now), roster = dir.students;
-  var list = _homeworkRows_();
+  var list = _homeworkRows_(), nowMs = Number(now) || Date.now();
+  if (who) _hwSnapEnsure_(list);
   var seesAll = !who || who === _owner_();
   if (!seesAll) list = list.filter(function (hw) { return hw.teacher === who; });
   var ids = [], pupilsFor = {}, need = {};
@@ -7841,13 +7865,18 @@ function _hwAnalysisData_(now, who) {
     ps.forEach(function (p) { need[p.email] = 1; });
   });
   var index = _hwLabIndex_(ids, need), qx = _hwQIndex_(ids, need, man);
+  var ex = null, exf = function () { return ex || (ex = _hwTimesIndex_(ids, need)); };   /* the times, only if the part rule needs them */
   var out = list.map(function (hw) {
-    var S = _hwSections_(hw, man), fromMs = _hwMs_(hw.from);
+    var S = _hwSections_(hw, man), fromMs = _hwMs_(hw.from), D = _hwMs_(hw.due);
     var pupils = (pupilsFor[hw.id] || []).map(function (p) {
       var s = _hwScoreOne_(hw, p.email, index, man);
-      return { name: p.name, cls: p.cls, done: s.done, total: s.total,
-               state: (s.state === 'none' && s.tried) ? 'tried' : s.state,
-               sec: S.secs.map(function (x) { return _hwSecCell_(x, p.email, index, qx, fromMs); }) };
+      var o = { name: p.name, cls: p.cls, done: s.done, total: s.total,
+                state: (s.state === 'none' && s.tried) ? 'tried' : s.state,
+                sec: S.secs.map(function (x) { return _hwSecCell_(x, p.email, index, qx, fromMs); }) };
+      /* by the due date (19 Nov 2026): as their own Homework tab counts it, past its due time and when it can be told */
+      var bd = D && nowMs > D ? _hwByDue_(hw, p.email, s, index, exf, man, nowMs) : null;
+      if (bd && !bd.unknown) o.due = { d: bd.d, n: bd.n, state: bd.state };
+      return o;
     });
     return {
       id: hw.id, title: hw.title, who: hw.who, teacher: hw.teacher, mine: !!who && hw.teacher === who,
@@ -8422,6 +8451,7 @@ function homeworkCreate(d) {
     if (job.start) later.push({ who: job.cls || (job.setFor.length + ' student' + (job.setFor.length === 1 ? '' : 's')), when: _hwWhen_(job.start.getTime()), classroom: !!inClassroom[j] });
   });
   var anyPost = posted.length || later.some(function (x) { return x.classroom; });
+  _hwSnapTrigger_();                                   /* the due-date record's one timer, for the soonest due time (19 Nov 2026) */
   return { ok:true, made: made, group: group, posted: posted, later: later, notPosted: notPosted, topic: oneTopic || (topicsUsed.length ? '' : topic), topics: topicsUsed, topicMissed: topicMissed,
            remind: !remind ? 'off' : (anyPost ? 'on' : 'no post'),
            remindWhy: remind && anyPost && !remindOk ? 'The reminders could not be started: 🧪 Biology Labs ▸ 🩺 Check the set-up says why.' : '',
@@ -8494,7 +8524,7 @@ function homeworkHide(d) {
                    .map(function (x) { return String(x == null ? '' : x).replace(/^✎\s*/, '').trim(); });
       var col = head.indexOf('Hidden') + 1;
       if (!col) {
-        return { ok:false, why:'The 📚 Homework tab has no Hidden column: its column ' + String.fromCharCode(64 + _HW_HEADERS_.length) +
+        return { ok:false, why:'The 📚 Homework tab has no Hidden column: its column ' + String.fromCharCode(65 + _HW_HEADERS_.indexOf('Hidden')) +
                                ' holds something else. Move that to another column, then try again.' };
       }
       sh.getRange(hit.row, col).setValue(hide ? new Date() : '');
@@ -8603,6 +8633,7 @@ function homeworkChangeDue(d) {
   if (hit.status === 'reported') note += ' The summary email goes again after the new due time.';
   if (again.length && hit.remindOn) note += ' A reminder skipped for the old due time can go before the new one.';
   if (hit.hidden) note += ' It was hidden: it is listed again, with the homework still to come.';
+  _hwSnapTrigger_();                                   /* the record is written at the NEW due time (19 Nov 2026) */
   return { ok:true, note: note, data:_homeworkData_(undefined, who) };
 }
 
@@ -10416,6 +10447,150 @@ function _hwHeadCols_(sh) {
   var c = {};
   _HW_HEADERS_.forEach(function (h, i) { var k = head.indexOf(h); c[h] = k >= 0 ? k + 1 : i + 1; });
   return c;
+}
+
+/* ── By the due date (Daniel, 19 Nov 2026) ─────────────────────────────────────────────────────────────────────────
+   "If the deadline was due, they didn't finish, but then they practice again and they do it … one percentage that shows
+   actually how you're doing the homework, and then another … that encourages you to finish that homework in the labs …
+   the percentage can go to 100, but then you will see the one done, one half done, not started, missed, and that counter
+   still is there." The labs keep each part's first try and finish (the times cells), never each question's moment, so:
+     • kept: a minute after each due time, snapHomeworkAtDue writes down what each pupil had done (At due date). A part
+       first tried or finished after the due time (its exact moment) counts nought in it: it was not done by then.
+     • same: nothing of theirs has reached these labs since the due time (each lab row's Last saved), so today's count IS
+       the count at the due time.
+     • parts: otherwise each part finished by the due time counts whole and the rest nought; "half done" when a part was
+       begun by then. A part finished but with no moment (work from before 1 Oct 2026) cannot be told: { unknown }.
+   One timer (HW_SNAP_FN), set for the soonest due time by homeworkCreate, homeworkChangeDue, 🩺 and the teacher pages;
+   a record later than HW_SNAP_LATE after the due time is never written (the rules above stand in). */
+var HW_SNAP_FN = 'snapHomeworkAtDue', HW_SNAP_AFTER = 60 * 1000, HW_SNAP_LATE = 30 * 60 * 1000;
+function _hwAtDueParse_(v) {
+  var o = null;
+  try { o = JSON.parse(String(v == null ? '' : v) || 'null'); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o) || !(Number(o.D) > 0) || !o.p || typeof o.p !== 'object' || Array.isArray(o.p)) return null;
+  return { D: Number(o.D), T: Number(o.T) || 0, p: o.p };
+}
+/* What one pupil had done of one homework at its due time: { d, n, state done|partly|none, how kept|same|parts }; null while it
+   is open (no due date, or not due yet); { unknown: true } when it cannot be told. `s` is the scorer's answer for them now;
+   `extra` the times index, or a function that reads it (only the part rule needs it). */
+function _hwByDue_(hw, email, s, index, extra, man, now) {
+  var D = _hwMs_(hw.due);
+  if (!D || !(now > D)) return null;
+  var st = function (d, n, began) { return (n && d >= n) ? 'done' : (d > 0 || began) ? 'partly' : 'none'; };
+  var k = hw.atDue && hw.atDue.D === D ? hw.atDue.p[email] : null;
+  if (Array.isArray(k) && Number(k[1]) > 0) {
+    var kn = Number(k[1]), kd = Math.max(0, Math.min(Number(k[0]) || 0, kn));
+    return { d: kd, n: kn, state: st(kd, kn), how: 'kept' };
+  }
+  var same = hw.tasks.every(function (t) {
+    var idx = index[t.labId], rec = idx ? idx[email] : null;
+    return !rec || (rec.at ? rec.at <= D : !Object.keys(rec.byId || {}).length);
+  });
+  if (same) return { d: s.done, n: s.total, state: st(s.done, s.total), how: 'same' };
+  var X = typeof extra === 'function' ? extra() : (extra || {});
+  var d = 0, n = 0, began = false, unknown = false;
+  hw.tasks.forEach(function (t) {
+    var x = (X[t.labId] || {})[email] || { t: {} };
+    (t.stationIds || []).forEach(function (sid) {
+      var one = _hwScoreOne_({ tasks: [{ labId: t.labId, stationIds: [sid] }] }, email, index, man);
+      if (one.missing.length || !one.total) return;                     /* not scored by the list either */
+      n += one.total;
+      var p = x.t[sid] || [0, 0], T0 = Number(p[0]) || 0, F = Number(p[1]) || 0;
+      if (T0 && Math.abs(T0) <= D) began = true;
+      if (one.state !== 'done') return;                                 /* not finished: nought (what of it was done by then is not kept) */
+      if (F && Math.abs(F) <= D) { d += one.total; began = true; }
+      else if (!(F > D)) unknown = true;                                /* no moment, or only "at or before" a moment after the due time */
+    });
+  });
+  if (unknown || !n) return { unknown: true };
+  return { d: d, n: n, state: st(d, n, began), how: 'parts' };
+}
+/* [done, of] for the record, at the due time D: the scorer's count, part by part, without a part first tried or finished after D */
+function _hwAtDueOne_(hw, email, index, extra, man, D) {
+  var d = 0, n = 0;
+  hw.tasks.forEach(function (t) {
+    var x = (extra[t.labId] || {})[email] || { t: {} };
+    (t.stationIds || []).forEach(function (sid) {
+      var one = _hwScoreOne_({ tasks: [{ labId: t.labId, stationIds: [sid] }] }, email, index, man);
+      if (one.missing.length || !one.total) return;
+      n += one.total;
+      var p = x.t[sid] || [0, 0];
+      if (Number(p[1]) > D || Number(p[0]) > D) return;
+      d += one.done;
+    });
+  });
+  return [d, n];
+}
+/* The timer's work (a trigger, so not private): for each homework that fell due in the last HW_SNAP_LATE and has no record for
+   its due time, write one. It never writes over a record of the same due time, so running it again changes nothing. */
+function snapHomeworkAtDue() {
+  var now = Date.now(), lock = null, rows = null, wrote = 0;
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); } catch (e) { lock = null; }
+  if (lock) {
+    try { var r = _hwSnapNow_(now); rows = r.rows; wrote = r.wrote; }
+    catch (e) { rows = null; }
+    finally { try { lock.releaseLock(); } catch (e2) {} }
+  }
+  _hwSnapTrigger_(now, rows);
+  return wrote;
+}
+function _hwSnapNow_(now) {
+  var sh = _ss_().getSheetByName(T_HOMEWORK);
+  if (!sh || sh.getLastRow() < 2) return { rows: [], wrote: 0 };
+  var rows = _homeworkRows_();
+  var due = rows.filter(function (hw) {
+    var D = _hwMs_(hw.due);
+    return D && D <= now && now - D <= HW_SNAP_LATE && !(hw.atDue && hw.atDue.D === D);
+  });
+  if (!due.length) return { rows: rows, wrote: 0 };
+  _hwWiden_(sh);
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+               .map(function (x) { return String(x == null ? '' : x).replace(/^✎\s*/, '').trim(); });
+  var col = head.indexOf('At due date') + 1;
+  /* its column holds something a teacher typed: nothing is written, and the rules stand in (never asked again for these) */
+  if (!col) { due.forEach(function (hw) { hw.atDue = { D: _hwMs_(hw.due), T: now, p: {} }; }); return { rows: rows, wrote: 0 }; }
+  var man = _hwManifest_(), roster = _studentDirectory_(new Date(now)).students, ids = [], need = {}, who = {};
+  due.forEach(function (hw) {
+    hw.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); });
+    who[hw.id] = _hwPupils_(hw, roster);
+    who[hw.id].forEach(function (p) { need[p.email] = 1; });
+  });
+  var index = _hwLabIndex_(ids, need), extra = _hwTimesIndex_(ids, need), wrote = 0;
+  due.forEach(function (hw) {
+    var D = _hwMs_(hw.due), p = {};
+    who[hw.id].forEach(function (x) { var k = _hwAtDueOne_(hw, x.email, index, extra, man, D); if (k[1]) p[x.email] = k; });
+    var rec = { D: D, T: now, p: p }, txt = JSON.stringify(rec);
+    hw.atDue = rec;
+    if (txt.length > 45000) return;                                     /* past what a cell holds: the rules stand in */
+    sh.getRange(hw.row, col).setValue(txt);
+    wrote++;
+  });
+  return { rows: rows, wrote: wrote };
+}
+/* The one timer: removed and made again for the soonest due time still to come (or at once, for one that fell due in the last
+   HW_SNAP_LATE with no record yet), a minute after it. Returns that moment (ms), 0 when nothing waits, -1 when it failed. */
+function _hwSnapTrigger_(now, rows) {
+  now = now || Date.now();
+  try {
+    var next = 0;
+    (rows || _homeworkRows_()).forEach(function (hw) {
+      var D = _hwMs_(hw.due);
+      if (!D) return;
+      var want = D > now ? D : (now - D <= HW_SNAP_LATE && !(hw.atDue && hw.atDue.D === D)) ? now : 0;
+      if (want && (!next || want < next)) next = want;
+    });
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === HW_SNAP_FN) ScriptApp.deleteTrigger(t); });
+    if (next) ScriptApp.newTrigger(HW_SNAP_FN).timeBased().at(new Date(next + HW_SNAP_AFTER)).create();
+    return next;
+  } catch (e) { return -1; }
+}
+/* the teacher pages: make sure the timer is there, at most once in 6 hours (one cache read otherwise) */
+function _hwSnapEnsure_(rows) {
+  try {
+    var c = CacheService.getScriptCache();
+    if (c.get('HWSNAP1')) return;
+    c.put('HWSNAP1', '1', 21600);
+    if (!ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === HW_SNAP_FN; })) _hwSnapTrigger_(Date.now(), rows);
+  } catch (e) {}
 }
 
 /* ── The due-date email ─────────────────────────────────────────────────────
