@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '19 Nov 2026 (night) — 📚 Homework by the due date, kept';
+var SCRIPT_EDITION = '20 Nov 2026 (evening) — 🗄️ Archive a finished year group';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -313,6 +313,7 @@ function onOpen() {
     .addSeparator()
     .addItem('📊  Refresh everyone\'s progress', 'refreshDashboardMENU_')
     .addItem('🎨  Tidy up  (rebuild anything missing, re-apply the formatting)', 'tidyUpMENU_')
+    .addItem('🗄️  Archive a finished year group…', 'archiveCohortMENU_')
     .addSeparator()
     .addItem('🔗  Add or remove links on the teacher page (tests, reflections, surveys)…', 'showTeacherPanel')
     .addItem('🔎  Find new reflection and test spreadsheets', 'findSpreadsheetsMENU_')
@@ -1055,13 +1056,14 @@ function _studentOf_(email) {
 /* The Students tab's email and Accommodation columns, from ONE read of the heading row (as _emailCol_ alone did, so a
    save costs no more calls). acc is 0 on a tab Tidy up has not given the column yet. */
 function _studentCols_(sh) {
-  var n = sh.getLastColumn(), out = { email: 3 + LABS.length + 2, acc: 0 }, seenEmail = false;
+  var n = sh.getLastColumn(), out = { email: 3 + LABS.length + 2, acc: 0, cohort: 0 }, seenEmail = false;
   if (n > 0) {
     var head = sh.getRange(1, 1, 1, n).getValues()[0];
     for (var i = 0; i < head.length; i++) {
       var h = String(head[i] || '').replace(/^✎\s*/, '').trim();
       if (h === 'School email' && !seenEmail) { out.email = i + 1; seenEmail = true; }
       else if (h === 'Accommodation' && !out.acc) out.acc = i + 1;
+      else if (h === 'Cohort' && !out.cohort) out.cohort = i + 1;   /* 20 Nov 2026, §cohort-archive */
     }
   }
   return out;
@@ -1669,7 +1671,9 @@ function _upsertLocked_(students, classCode, courseName, courseId, opt) {
   /* the Classroom user id and course id are TEXT (5 Oct 2026): a user id has about 21 digits, and as a number Sheets
      keeps only 15 of them. A pupil already listed gets them rewritten too, so importing again repairs a rounded id. */
   var UID_COL = col('Classroom user id', EMAIL_COL + 3), CID_COL = col('Course id', EMAIL_COL + 4);
-  var W = Math.max(EMAIL_COL, COURSE_COL, IMP_COL, UID_COL, CID_COL);
+  /* the year group (20 Nov 2026, §cohort-archive): only once the tab has its Cohort column (Tidy up adds it) */
+  var COH_COL = col('Cohort', 0), GRAD = COH_COL ? ((_classCohort_(classCode) || {}).grad || '') : '';
+  var W = Math.max(EMAIL_COL, COURSE_COL, IMP_COL, UID_COL, CID_COL, COH_COL);
   if (W > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), W - sh.getMaxColumns());
 
   var n = Math.max(0, sh.getLastRow() - 1);
@@ -1688,7 +1692,7 @@ function _upsertLocked_(students, classCode, courseName, courseId, opt) {
     catch (e) { cache = null; placed = {}; }
   }
   var add = [], skipped = 0, moved = 0, clashes = [], once = {}, now = new Date();
-  var clsW = [], uidW = [], cidW = [];
+  var clsW = [], uidW = [], cidW = [], cohW = [];
   students.forEach(function (st) {
     var em = st.email;
     if (!em || once[em]) return;                       /* listed twice by Classroom: added once */
@@ -1698,6 +1702,7 @@ function _upsertLocked_(students, classCode, courseName, courseId, opt) {
     var i = rowOf[em];
     if (i === undefined) { add.push(st); return; }
     if (String(vals[i][1]).toUpperCase() !== classCode) { clsW.push([i, classCode]); moved++; }
+    if (GRAD && Number(vals[i][COH_COL - 1]) !== GRAD) cohW.push([i, GRAD]);   /* put in this class now: this class's year group */
     if (st.userId && String(uidShown[i][0]) !== String(st.userId)) uidW.push([i, String(st.userId)]);
     if (courseId && String(cidShown[i][0]) !== String(courseId)) cidW.push([i, String(courseId)]);
     skipped++;
@@ -1706,6 +1711,7 @@ function _upsertLocked_(students, classCode, courseName, courseId, opt) {
   _writeRuns_(sh, 2, clsW, false);
   _writeRuns_(sh, UID_COL, uidW, true);
   _writeRuns_(sh, CID_COL, cidW, true);
+  if (COH_COL) _writeRuns_(sh, COH_COL, cohW, false);
   if (add.length) {
     var at = sh.getLastRow() + 1;
     _room_(sh, at + add.length - 1);
@@ -1715,6 +1721,7 @@ function _upsertLocked_(students, classCode, courseName, courseId, opt) {
       var r = new Array(W).fill('');
       r[0] = st.name; r[1] = classCode; r[EMAIL_COL - 1] = st.email; r[COURSE_COL - 1] = courseName;
       r[IMP_COL - 1] = now; r[UID_COL - 1] = String(st.userId || ''); r[CID_COL - 1] = String(courseId || '');
+      if (COH_COL) r[COH_COL - 1] = GRAD;
       return r;
     }));
   }
@@ -2267,7 +2274,11 @@ var JE_KINDS = {
           how: function (job) { return (job.i || 0) + ' of ' + _buildSteps_().length + ' parts done'; } },
   imp:  { title: '🎓 Import students from Classroom', fn: 'continueBatchImport_',
           load: function () { return _importJob_(); }, end: function (job, w) { return _importEnd_(job, w); },
-          how: function (job) { return Math.min(job.i || 0, (job.sels || []).length) + ' of ' + (job.sels || []).length + ' classes done' + (job.phase === 'finish' ? ', building the tabs' : ''); } }
+          how: function (job) { return Math.min(job.i || 0, (job.sels || []).length) + ' of ' + (job.sels || []).length + ' classes done' + (job.phase === 'finish' ? ', building the tabs' : ''); } },
+  /* 20 Nov 2026, §cohort-archive: a finished year group copied to the hidden 🗄️ tabs, then taken out of the live ones */
+  arch: { title: '🗄️ Archive a finished year group', fn: 'continueCohortArchive_',
+          load: function () { return _arcJob_(); }, end: function (job, w) { return _arcEnd_(job, w, false); },
+          how: function (job) { return _arcHow_(job); } }
 };
 var _JE_TOK_ = {}, _JE_BEGAN_ = {};   /* this run's lease of each job, and when its piece began */
 function _jeToday_() { return Utilities.formatDate(new Date(Date.now()), _tz_(), 'yyyyMMdd'); }
@@ -2491,7 +2502,7 @@ function _jeEnd_(kind) {
 }
 /* When the next run is due, for a line that says when the job carries on ("" when not known). */
 function _jeDueAt_(kind) { var st = _jeState_(kind); return st.due ? _jeHHMM_(st.due) : ''; }
-function _jePressAgain_(kind) { return kind === 'tidy' ? 'Tick 🎨 Tidy up again to do the rest.' : 'Import again to do the rest: nobody is added twice.'; }
+function _jePressAgain_(kind) { return kind === 'tidy' ? 'Tick 🎨 Tidy up again to do the rest.' : kind === 'arch' ? 'Press Carry on (teacher page, Set homework) to do the rest: nothing is copied twice, and nothing is taken out before its copy.' : 'Import again to do the rest: nobody is added twice.'; }
 /* ⏹ Stop pressed for THIS job: its words ('' when not). A Stop left from an older job is removed. */
 function _jeStopWords_(kind, job) {
   var sp = PropertiesService.getScriptProperties(), o = null;
@@ -3302,6 +3313,7 @@ function _styleStudents_() {
      everyone's progress, the restyle: every path comes here; the audit, 8 Oct 2026, found Refresh writing "Accommodation"
      over a teacher's own column), and the guard below refuses to write over any heading that is not the one planned */
   _studentTrailColumns_(sh);
+  _cohortFill_(sh);   /* 20 Nov 2026: a pupil with no Cohort yet, in a class of this school year, gets that class's */
   var built = {};
   /* built = live: its questions are counted in LABS, as Lab progress on the teacher page reads it. Every lab has a tab
      from the first Tidy up, so a tab is no sign of a built lab (labs-script-025, 1 Oct 2026). */
@@ -3344,6 +3356,13 @@ function _styleStudents_() {
                    'as for everyone else.\n\nType Yes here, or use ' +
                    'the teacher page (Students, a pupil\'s card). Not X: in Korea X means no. The pupil sees it the next time a page ' +
                    'loads. Keep it right after Course id: while a column is out of its place, Tidy up does not restyle this tab, and says so.' });
+  /* 20 Nov 2026 (§cohort-archive): the year group, kept, so a year group that has left can be archived after its class codes are
+     used again. At the END, for the same reason as Accommodation. */
+  cols.push({ h:'Cohort', w:96, align:'center', fmt:'0', edit:true,
+              note:'The year group, by the year it finishes Year 11: in 2026–27, Y11 is 2027, Y10 is 2028 and Y9 is 2029. Written when the ' +
+                   'pupil is put in a class (an import, or Move on the teacher page) and kept when they leave, so a year group that has left ' +
+                   'can be archived even after its class codes are used again (the teacher page, Set homework). Change it only if a pupil ' +
+                   'changes year group. Keep it right after Accommodation.' });
 
   /* THE GUARD (the verification audit, 8 Oct 2026): _dress2_ writes the heading row BY POSITION, so it may only run where
      every column already carries its own heading, or none. A column out of its place (Accommodation or Labs started
@@ -3355,7 +3374,7 @@ function _styleStudents_() {
   var have = sh.getLastColumn() ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
                .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); }) : [];
   var ORDER = ' Put the columns back in their order (Name, Class, the labs, Labs started, Average, School email, Classroom course, ' +
-              'Imported, Classroom user id, Course id, Accommodation; columns of your own after those), then press Tidy up again ' +
+              'Imported, Classroom user id, Course id, Accommodation, Cohort; columns of your own after those), then press Tidy up again ' +
               '(it also gives a newly added lab its column).';
   for (var gi = 0; gi < cols.length; gi++) {
     /* a heading twice (the script reads the first, which may be the empty one); the planned heading standing somewhere else
@@ -3368,7 +3387,7 @@ function _styleStudents_() {
     else if (seenAt >= 0 && seenAt !== gi) why = '"' + want + '" stands in column ' + _colA1_(seenAt + 1) + ', but belongs in column ' +
       _colA1_(gi + 1) + (have[gi] ? ', where "' + have[gi] + '" is.' + ORDER
         : ', which has no heading. Tidy up removes that column when it is empty; if it holds something of yours, move it after ' +
-          'the last column (Accommodation), then press Tidy up again.');
+          'the last column (Cohort), then press Tidy up again.');
     else if (have[gi] && have[gi] !== want) {
       var k1 = have[gi].toLowerCase().replace(/[^a-z]/g, ''), k2 = want.toLowerCase().replace(/[^a-z]/g, '');
       why = 'column ' + _colA1_(gi + 1) + ' holds "' + have[gi] + '", where "' + want + '" belongs.' + (k1.indexOf(k2) === 0 || k2.indexOf(k1) === 0
@@ -3906,9 +3925,10 @@ function _repairStudentColumns_() {
    next to the names it pulled the hidden addresses along and every save was refused (the verification audit, 8 Oct 2026).
    A column out of its place is left where it is; the guard then refuses to restyle the tab and says which one. A heading
    whose neighbour is missing too is left to _repairStudentSheet_ and the teacher. Returns the headings added. */
-var STUDENT_TRAIL = ['Labs started', 'Average', 'School email', 'Classroom course', 'Imported', 'Classroom user id', 'Course id', 'Accommodation'];
-var STUDENT_TRAIL_NEW = {                     /* the heading added after tabs were in use, and the values its own column holds */
-  'Accommodation': /^(yes|y|true|no|n|x|o|false|[✓✔✅☑✗✘]️?)$/i };
+var STUDENT_TRAIL = ['Labs started', 'Average', 'School email', 'Classroom course', 'Imported', 'Classroom user id', 'Course id', 'Accommodation', 'Cohort'];
+var STUDENT_TRAIL_NEW = {                     /* the headings added after tabs were in use, and the values their own column holds */
+  'Accommodation': /^(yes|y|true|no|n|x|o|false|[✓✔✅☑✗✘]️?)$/i,
+  'Cohort': /^(19|20)\d\d$/ };                  /* 20 Nov 2026, §cohort-archive */
 function _studentTrailColumns_(sh) {
   var n = sh.getLastColumn(), done = [];
   if (n < 3) return done;
@@ -3936,6 +3956,32 @@ function _studentTrailColumns_(sh) {
     head = heads();
   }
   return done;
+}
+
+/* The Cohort column (20 Nov 2026, §cohort-archive): the year a pupil finishes Year 11, so a year group that has left can be found
+   after its class codes are used again (last year's 11C and this year's 11C). Written when a pupil is put in a class (an import,
+   Move on the teacher page) and kept when they leave (LEFT …). Filled here, once, for a pupil with none, from their class: only a
+   class of THIS school year (never before a class has been imported since 1 August, nor for a pupil in none of this year's
+   classes, whose class code may be last year's). The teacher may type it too. Returns how many were filled. */
+function _cohortFill_(sh) {
+  try {
+    var SC = _studentCols_(sh);
+    if (!SC.cohort || sh.getLastRow() < 2 || SC.cohort > sh.getLastColumn()) return 0;
+    var n = sh.getLastRow() - 1, cls = sh.getRange(2, 2, n, 1).getValues(), coh = sh.getRange(2, SC.cohort, n, 1).getValues(), blank = [];
+    for (var i = 0; i < n; i++) if (String(coh[i][0] == null ? '' : coh[i][0]).trim() === '') blank.push(i);
+    if (!blank.length) return 0;
+    var L = _notThisYear_();
+    if (!L.imported) return 0;
+    var away = {}; L.rows.forEach(function (r) { away[r.email] = 1; });
+    var em = sh.getRange(2, SC.email, n, 1).getValues(), w = [];
+    blank.forEach(function (k) {
+      var c = String(cls[k][0] || '').trim().toUpperCase(), e = _cleanEmail_(em[k][0]);
+      if (!e || !c || c === 'TEST' || _isLeftClass_(c) || away[e]) return;
+      var co = _classCohort_(c); if (co) w.push([k, co.grad]);
+    });
+    _writeRuns_(sh, SC.cohort, w, false);
+    return w.length;
+  } catch (e) { return 0; }
 }
 
 /* Put the tabs in order: Setup, Labs, Students, ✍️ Bio English, 📚 Homework, 👩‍🏫 Teachers,
@@ -4353,15 +4399,20 @@ var HW_PUPIL_KIND = { before: 'ahead', early: 'ontime', good: 'ontime', last: 'l
 function _hwAnd_(a) { return a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join(''); }
 
 /* The sentence. `cats`: [{ c }] the bands of every homework that has one (before … none), oldest due first; `open`: the
-   homework still open and not done, soonest due first ([{ due: words or '' }]); `any`: some homework is set at all.
+   homework still open and not done, soonest due first ([{ due: words or '' }]); `any`: some homework is set at all;
+   `past` (§ by school year, 20 Nov 2026): a year group that is over (9 …), said in the past tense, with no next step.
    { kind, say, why, next, n (homework read), k (how many of each) }. */
-function _hwPupilSays_(cats, open, any) {
+var HW_PUPIL_SAID = { miss: 'you missed homework.', last: 'you finished your homework at the last minute.',
+                      ahead: 'you were ahead: you finished the work before your teacher set it.',
+                      ontime: 'you did your job: you finished your homework on time.' };
+function _hwPupilSays_(cats, open, any, past) {
   var use = (cats || []).filter(function (x) { return HW_CAT_PLACE[x.c] !== undefined; });
   var more = use.length > HW_HABIT_LAST;
   use = use.slice(-HW_HABIT_LAST);
   var k = { ahead: 0, ontime: 0, last: 0, late: 0, none: 0 };
   use.forEach(function (x) { k[HW_PUPIL_KIND[x.c]]++; });
   var n = use.length, o = open || [];
+  if (!n && past) return { kind: 'wait', say: 'This page cannot say when you did your Year ' + past + ' homework.', why: '', next: '', n: 0, k: k };
   if (!n) {
     if (!any) return { kind: 'none', say: HW_PUPIL_SAYS.none.say, why: HW_PUPIL_SAYS.none.why, next: '', n: 0, k: k };
     if (o.length) {
@@ -4380,11 +4431,13 @@ function _hwPupilSays_(cats, open, any) {
   if (k.last) said.push(k.last + ' at the last minute');
   if (k.late) said.push(k.late + ' finished after the due date');
   if (k.none) said.push(k.none + ' not finished by the due date');
-  var why = (more ? 'Your last ' + n + ' homework: ' : 'Your homework so far: ') + _hwAnd_(said) + '.';
+  var inY = past ? ' in Year ' + past : '';
+  var why = (more ? 'Your last ' + n + ' homework' + inY + ': ' : past ? 'Your homework' + inY + ': ' : 'Your homework so far: ') + _hwAnd_(said) + '.';
   var kind = (k.late + k.none) * 3 >= n ? 'miss'
            : (k.last + k.late + k.none) * 2 >= n ? 'last'
            : k.ahead * 2 >= n ? 'ahead' : 'ontime';
   var W = HW_PUPIL_SAYS[kind];
+  if (past) return { kind: kind, say: 'In Year ' + past + ' ' + HW_PUPIL_SAID[kind], why: why, next: '', n: n, k: k };
   return { kind: kind, say: W.say, why: why, next: (kind === 'miss' && !o.length) ? W.nextNoOpen : W.next, n: n, k: k };
 }
 
@@ -4398,9 +4451,17 @@ function _hwPupilWhen_(c, e, D) {
   return '';
 }
 
-/* One pupil's homework, at `now` (ms; the tests pass a fake clock). Read only. Homework due in the last year (as ⏱️ Homework
-   habits reads it) and all that is still to come; a homework with no due date counts from when it was set. Never throws for a
-   missing tab: no Homework tab is nothing set.
+/* One pupil's homework, at `now` (ms; the tests pass a fake clock). Read only. Every homework of theirs, of every school year
+   (until 20 Nov 2026 only the last 12 months, as ⏱️ Homework habits reads it), and all that is still to come; a homework with
+   no due date counts from when it was set. Never throws for a missing tab: no Homework tab is nothing set.
+   By school year (Daniel, 20 Nov 2026: "show per year how they were doing … if they were very lazy in year 9, and then in
+   year 10 actually they're doing better, and in year 11 they're excellent … the toggle should be there" even with no data):
+   each homework's `yr` is the year group it was set in (_hwYearOf_: the graduation year of the class it was set for — its
+   Cohort column, written once — else the pupil's own, at the moment they got it, the school year starting 1 August);
+   `yearNow` is the pupil's year now (from their class on the Students tab); `years` lists Year 9, 10 and 11 always (and any
+   other year with homework), each { y, state: past | now | next, n, sum, says }: the same numbers and sentence as before,
+   for that year only (a year that is over in the past tense), or, with no homework, why (not yet; homework in the labs began
+   after it; none was set). `sum` and `says` are the year now's (a My assessments page from before reads them).
    Two numbers (Daniel, 19 Nov 2026: "one percentage that shows actually how you're doing the homework, and then another one
    that … encourages you to finish that homework in the labs"): `done`/`total`, everything done today, whenever (it can reach
    100%); `dueDone`/`dueTotal`, what was done by each due time, of the homework past it (_hwByDue_; never changed by later
@@ -4409,30 +4470,36 @@ function _hwPupilWhen_(c, e, D) {
 function _hwPupilData_(email, now) {
   now = now || Date.now();
   email = _cleanEmail_(email);
-  var out = { ok: true, onList: false, at: new Date(now).toISOString(), homework: [], says: null,
-              sum: { n: 0, done: 0, total: 0, finished: 0, partly: 0, notStarted: 0, missed: 0, dueN: 0, dueDone: 0, dueTotal: 0 } };
+  var zero = function () { return { n: 0, done: 0, total: 0, finished: 0, partly: 0, notStarted: 0, missed: 0, dueN: 0, dueDone: 0, dueTotal: 0 }; };
+  var out = { ok: true, onList: false, at: new Date(now).toISOString(), homework: [], says: null, sum: zero(), yearNow: 0, years: [] };
   var me = email ? _studentOf_(email) : null;
   if (!me) { out.says = { kind: 'list', say: HW_PUPIL_SAYS.list.say, why: HW_PUPIL_SAYS.list.why, next: '', n: 0, k: {} }; return out; }
   out.onList = true;
+  var co = _classCohort_(me.cls, new Date(now)), grad = co ? co.grad : 0, first = 0;
+  var yNow = co && co.yearGroup ? Number(co.yearGroup.slice(1)) : 0;
   var list = [];
   if (_ss_().getSheetByName(T_HOMEWORK)) {
-    var since = now - HW_HABIT_DAYS * 864e5;
     _homeworkRows_().forEach(function (hw) {
       if (hw.start && _hwMs_(hw.start) > now) return;                  /* set for a later date: nobody has it yet */
+      var S = _hwMs_(hw.from || hw.created), D = _hwMs_(hw.due);
+      if (S && (!first || S < first)) first = S;                        /* when homework in the labs began (any class) */
       if (!_hwIsFor_(hw, email, me.cls)) return;
-      var S = _hwMs_(hw.from || hw.created), D = _hwMs_(hw.due), ref = D || S;
-      if (ref && ref < since) return;                                   /* more than a year ago */
-      hw.S = S; hw.D = D; list.push(hw);
+      hw.S = S; hw.D = D; hw.Y = _hwYearOf_(hw, grad, S || D); list.push(hw);
     });
   }
+  if (!yNow) list.forEach(function (hw) { if (hw.Y > yNow) yNow = hw.Y; });   /* a class with no year in its name: their newest */
+  out.yearNow = yNow;
+  var B = {};                                                           /* each year group's own numbers, sentence and list */
+  var inYear = function (y) { return B[y] || (B[y] = { sum: zero(), cats: [], open: [], n: 0 }); };
   var man = _hwManifest_(), ids = [], need = {};
   need[email] = 1;
   list.forEach(function (hw) { hw.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); }); });
   var index = ids.length ? _hwLabIndex_(ids, need) : {}, extra = ids.length ? _hwTimesIndex_(ids, need) : {};
-  var cats = [], openNotDone = [], rows = [];
+  var rows = [];
   list.forEach(function (hw) {
     var s = _hwScoreOne_(hw, email, index, man);
     if (!s.total) return;                                               /* nothing in it can be scored: the labs no longer have it */
+    var yr = hw.Y || yNow, Y = inYear(yr);
     var parts = [];
     _hwSections_(hw, man).secs.forEach(function (x) {
       var one = _hwScoreOne_({ tasks: [{ labId: x.lab, stationIds: [x.id] }] }, email, index, man);
@@ -4452,18 +4519,18 @@ function _hwPupilData_(email, now) {
       else c = s.state === 'done' ? 'unknown' : (now > D ? 'none' : 'open');
     }
     var open = !D || now <= D;
-    if (HW_CAT_PLACE[c] !== undefined) cats.push({ c: c, D: D });
-    if (open && s.state !== 'done') openNotDone.push({ due: hw.dueText || '', D: D || Infinity });
+    if (HW_CAT_PLACE[c] !== undefined) Y.cats.push({ c: c, D: D });
+    if (open && s.state !== 'done') Y.open.push({ due: hw.dueText || '', D: D || Infinity });
     var bd = open ? null : _hwByDue_(hw, email, s, index, extra, man, now);
     if (bd && bd.unknown) bd = null;                                    /* work from before the times were kept: today's numbers only */
     rows.push({ D: D, hw: hw, o: {
-      id: hw.id, title: hw.title, set: S ? _hwWhen_(S) : '', due: hw.dueText || '', open: open,
+      id: hw.id, title: hw.title, yr: yr, set: S ? _hwWhen_(S) : '', due: hw.dueText || '', open: open,
       soon: !!D && D >= now && D - now < 3 * 864e5,
       state: s.state, tried: !!s.tried, done: s.done, total: s.total,
       atDue: bd ? { d: bd.d, n: bd.n, state: bd.state, how: bd.how } : null,
       k: HW_PUPIL_KIND[c] || 'unknown', when: _hwPupilWhen_(c, e, D), parts: parts } });
-    var sum = out.sum, st = bd ? bd.state : s.state;
-    sum.n++; sum.done += s.done; sum.total += s.total;
+    var sum = Y.sum, st = bd ? bd.state : s.state;
+    Y.n++; sum.n++; sum.done += s.done; sum.total += s.total;
     if (bd) { sum.dueN++; sum.dueDone += bd.d; sum.dueTotal += bd.n; }
     if (st === 'done') sum.finished++;
     else if (st === 'partly') sum.partly++;
@@ -4478,10 +4545,44 @@ function _hwPupilData_(email, now) {
     return b.D - a.D;
   });
   out.homework = rows.map(function (r) { return r.o; });
-  cats.sort(function (a, b) { return a.D - b.D; });
-  openNotDone.sort(function (a, b) { return a.D - b.D; });
-  out.says = _hwPupilSays_(cats, openNotDone, rows.length > 0);
+  /* the years: 9, 10 and 11 always, and any other year with homework */
+  var ys = [9, 10, 11];
+  Object.keys(B).concat(yNow ? [yNow] : []).forEach(function (y) { y = Number(y); if (y && ys.indexOf(y) < 0) ys.push(y); });
+  ys.sort(function (a, b) { return a - b; });
+  var d0 = new Date(now), start0 = d0.getMonth() >= 7 ? d0.getFullYear() : d0.getFullYear() - 1;   /* this school year began 1 Aug start0 */
+  var others = rows.length > 0;
+  out.years = ys.map(function (y) {
+    var Y = B[y], state = !yNow ? 'past' : y < yNow ? 'past' : y === yNow ? 'now' : 'next', says;
+    var begins = start0 + (yNow ? y - yNow : 0);                        /* the 1 August that year group begins (began) */
+    if (Y && Y.n) {
+      Y.cats.sort(function (a, b) { return a.D - b.D; });
+      Y.open.sort(function (a, b) { return a.D - b.D; });
+      says = state === 'past' ? _hwPupilSays_(Y.cats, [], true, y) : _hwPupilSays_(Y.cats, Y.open, true);
+    } else if (state === 'next') {
+      says = { kind: 'next', say: 'Your Year ' + y + ' homework will show here from August ' + begins + '.', why: '', next: '', n: 0, k: {} };
+    } else if (state === 'now') {
+      says = others ? { kind: 'none', say: 'Your teacher has not set you any Year ' + y + ' homework yet.', why: HW_PUPIL_SAYS.none.why, next: '', n: 0, k: {} }
+                    : _hwPupilSays_([], [], false);
+    } else if (!first || first >= new Date(begins + 1, 7, 1).getTime()) {
+      var f = new Date(first || now), then = grad ? _cohortLabel_(grad, f) : null, ty = then && then.yearGroup ? Number(then.yearGroup.slice(1)) : 0;
+      says = { kind: 'before', say: 'You have no Year ' + y + ' homework here.', next: '', n: 0, k: {},
+               why: 'Homework in the labs started in ' + HW_MONTHS[f.getMonth()] + ' ' + f.getFullYear() + (ty ? ', when you were in Year ' + ty : '') + '.' };
+    } else {
+      says = { kind: 'none', say: 'Your teacher set you no homework in the labs in Year ' + y + '.', why: '', next: '', n: 0, k: {} };
+    }
+    return { y: y, state: state, n: Y ? Y.n : 0, sum: Y ? Y.sum : zero(), says: says };
+  });
+  var cur = out.years.filter(function (x) { return x.state === 'now'; })[0];
+  if (cur) { out.sum = cur.sum; out.says = cur.says; }
+  else out.says = _hwPupilSays_([], [], rows.length > 0);
   return out;
+}
+/* The year group a homework was set in, for the pupil: the graduation year of the class it was set for (its Cohort column,
+   written once at Set), else the pupil's own (`grad`), at the moment they got it (`t`, ms), the school year from 1 August;
+   0 when it cannot be told (the pupil's year now is used then). */
+function _hwYearOf_(hw, grad, t) {
+  var co = t ? _cohortLabel_(Number(hw.cohort) || grad, new Date(t)) : null;
+  return co && co.yearGroup ? Number(co.yearGroup.slice(1)) : 0;
 }
 
 /* Is this access token the owner's own (a script of theirs, "Execute as: Me")? Asked of Google's tokeninfo once per token,
@@ -7102,9 +7203,11 @@ function _teacherPageGroups_(now) {
      if they like, hide everyone who has left or is not here yet */
   var d = now || new Date();
   var startYear = d.getMonth() >= 7 ? d.getFullYear() : d.getFullYear() - 1;
+  var archived = {}; try { _pastCohorts_().forEach(function (p) { archived[p.grad] = 1; }); } catch (eA) {}
   var out = { unreadable: scan.unreadable, typed: scan.typed, gone: gone, chipsOn: scan.chipsOn, chipTrouble: scan.chipTrouble, records: records, cohorts: order.map(function (g) {
     var c = cohorts[g];
     c.current = !!c.yearGroup;                            /* a year group only comes out for Y7–Y13 */
+    if (archived[c.grad]) { c.current = false; c.archived = true; }   /* archived (20 Nov 2026): a past year, filtered with the others */
     c.typeOrder.sort(function (a, b) { return _typeRank_(a) - _typeRank_(b) || (a < b ? -1 : 1); });
     c.types = c.typeOrder.map(function (t) { return { type: t, links: c.byType[t] }; });
     return c;
@@ -7461,7 +7564,7 @@ function _manifest_() {
    Google has already proved who they are, and google.script.run calls from the page arrive with the same
    active user. Every read and write the teacher page makes checks this (uiData, homeworkCreate, homeworkDelete,
    homeworkTopics, homeworkRemind, homeworkChangeDue, homeworkAddPupils, homeworkHide, studentMove, studentAccommodation,
-   studentRelease). */
+   studentRelease, cohortArchiveStart and cohortArchiveStop, which also ask for the analysis website's 👥 list). */
 function _hwCaller_() {
   var email = '';
   try { email = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
@@ -7651,7 +7754,7 @@ function _hwPupils_(hw, roster) {
   }
   (hw.targets.emails || []).forEach(function (e) { e = _cleanEmail_(e); if (byEmail[e]) want[e] = 1; });
   var cls = String(hw.targets.cls || '').trim().toUpperCase();
-  if (cls) roster.forEach(function (p) { if (p.cls === cls) want[p.email] = 1; });
+  if (cls) roster.forEach(function (p) { if (p.cls === cls && _hwSameCohort_(hw, cls)) want[p.email] = 1; });   /* not last year's 10A */
   return Object.keys(want).map(function (e) { return byEmail[e]; })
     .sort(function (a, b) { return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || ''); });
 }
@@ -8713,6 +8816,8 @@ function studentMove(d) {
     if (left && _isLeftClass_(from)) return { ok:false, why:(name || 'They') + ' is in none of the classes already.' };
     if (from === to) return { ok:false, why:(name || 'They') + ' is in ' + to + ' already.' };
     stu.getRange(at + 2, 2).setValue(to);
+    /* their year group follows a class (20 Nov 2026, §cohort-archive); LEFT keeps it, so the year group can still be archived */
+    if (!left) { var SCm = _studentCols_(stu), com = _classCohort_(to); if (SCm.cohort && com) stu.getRange(at + 2, SCm.cohort).setValue(com.grad); }
     /* their Course id follows them: the course most of their new class came from, or none (a class made by hand). Left with
        the old one, the next import of the old course listed them as "not in its Classroom course now" (the audit, 7 Oct 2026). */
     if (!left) {
@@ -8962,6 +9067,693 @@ function studentRelease(d) {
            held: _heldResultsSafe_(who) };
 }
 
+/* ── 🗄️ Archive a finished year group (20 Nov 2026, §cohort-archive) ──
+   Daniel, 20 Nov 2026: "have a tab that archives this information, not necessarily remove it … so it's very easy to create a
+   copy later with just the archives … in the same spreadsheet … beautifully, nicely organize the information of archived
+   students"; the archive tabs hidden ("so we don't have a lot of tabs"); archived pupils taken out of the live tabs; only the
+   people with the analysis website (its 👥 list) may do it; "very delicate … so that you don't have blank rows, and then that
+   it doesn't break the system". The same day: only THIS spreadsheet is archived (the test and reflection spreadsheets belong
+   to one year group and are not touched); past years are shown filtered as past years, not hidden; the button belongs to the
+   homework part of the teacher page.
+   WHO IS ARCHIVED. A year group (its Cohort, the year it finishes Year 11) has finished from 1 August of that year. Its pupils
+   are archived when they are in none of this year's classes: their class is LEFT …, or a class code that now belongs to
+   another year group (last year's 11C). A pupil of that year group in a class of this year (12IB: most Y11s carry on into
+   the IB with the same address) stays as they are. Its homework goes too: the 📚 Homework rows of that Cohort set before
+   1 August of that year (Years 9–11); homework set for 12IB later stays. The button works only once a class has been
+   imported this school year (_notThisYear_().imported), so pupils going into Year 12 are in their new class first.
+   THE JOB (kind `arch` in the job engine, one piece at a time, carried on by trigger after Google's six minutes):
+     1. summary: 🗄️ Past pupils (one line per pupil) and 🗄️ Past homework (one line per homework and pupil: by the due date,
+        in the end), from the live tabs. Its Past pupils lines (column Run = the job's id) are the list every later step reads.
+     2. copy:<tab>: every row of those pupils (📚 Homework: those rows), word for word, into 🗄️ Every row (Came from · Year
+        group · Archived · Run · Line, then the tab's own cells; a 'headings' line first). A step run again first takes out
+        the lines it wrote before, so nothing is copied twice.
+     3. remove:Students: under the script lock, each row of the list that is still in none of this year's classes, after its
+        copy is found (or written again: a save that arrived after the copy). Their saves are refused from then on.
+     4. remove:<tab>: the rows of the pupils who left the Students tab in step 3, bottom up, a few seconds at a time under the
+        lock pupils' saves take, each row checked against its copy first; then the 📚 Homework rows. No empty row is left.
+     5. finish: the four 🗄️ tabs hidden, a line in 🗄️ Archive, the caches that name those pupils cleared.
+   A job stopped part way (⏹ Stop, the day's brake, an error) is kept (ARCHIVE_PART): the next press carries on with the same
+   run, so nothing is copied twice and nothing is removed without its copy. */
+var T_ARC = '🗄️ Archive', T_ARC_PUPILS = '🗄️ Past pupils', T_ARC_HW = '🗄️ Past homework', T_ARC_ROWS = '🗄️ Every row';
+var ARC_TABS = [T_ARC, T_ARC_PUPILS, T_ARC_HW, T_ARC_ROWS];
+var ARC_JOB_KEY = 'ARCHIVE_JOB', ARC_LAST_KEY = 'ARCHIVE_LAST', ARC_PART_KEY = 'ARCHIVE_PART';
+var ARC_STEP_BY_MS = 4 * 60 * 1000, ARC_FIRST_MS = 20 * 1000, ARC_LOCK_MS = 4000, ARC_LAST_DAYS = 7;
+var ARC_PRE = ['Came from', 'Year group', 'Archived', 'Run', 'Line'];
+var ARC_HEAD = ['Year group', 'Archived', 'By', 'Pupils', 'Homework', 'Rows copied', 'Where they came from', 'Stayed', 'Run'];
+var ARC_HW_HEAD = ['Year group', 'Homework', 'Set by', 'Class', 'Year', 'Due', 'Pupil', 'Class then', 'By the due date', 'In the end',
+                   'Done', 'Out of', 'Homework id', 'Archived', 'Run'];
+var ARC_SAY = { done: 'done', partly: 'part done', none: 'not started', tried: 'tried, none right' };
+
+/* 1 August of a graduation year, in the school's zone: the day that year group has left Year 11 */
+function _arcFinishMs_(grad) {
+  try { return Utilities.parseDate(grad + '-08-01 00:00:00', _tz_(), 'yyyy-MM-dd HH:mm:ss').getTime(); }
+  catch (e) { return new Date(grad, 7, 1).getTime(); }
+}
+/* a class of this school year that still holds that year group (12IB for the Class of 2027 in 2027–28): the pupil stays */
+function _arcCurrent_(cls, grad, now) {
+  cls = String(cls || '').trim().toUpperCase();
+  if (!cls || cls === 'TEST' || _isLeftClass_(cls)) return false;
+  var co = _classCohort_(cls, now);
+  return !!(co && co.grad === grad);
+}
+/* The year groups that have finished Year 11 and still have pupils or homework in the live tabs:
+   { sy, ready (a class imported this school year), list: [{ grad, title, pupils:[{email,name,cls}], stay:[{name,cls}], hw:[id] }] } */
+function _finishedCohorts_(now) {
+  now = now || new Date();
+  var sy = _schoolStartYear_(now), out = { sy: sy, ready: false, list: [], imported: [], noCohort: 0 }, by = {}, noCohort = 0;
+  var mk = function (g) { return by[g] || (by[g] = { grad: g, title: 'Class of ' + g, pupils: [], stay: [], hw: [] }); };
+  var sh = _ss_().getSheetByName(T_STUDENTS);
+  if (sh && sh.getLastRow() >= 2) {
+    var SC = _studentCols_(sh);
+    if (SC.cohort) {
+      var v = sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(SC.email, SC.cohort)).getValues(), seen = {};
+      for (var i = 0; i < v.length; i++) {
+        var em = _cleanEmail_(v[i][SC.email - 1]), g = Number(v[i][SC.cohort - 1]) || 0;
+        if (em && !g && _isLeftClass_(v[i][1])) noCohort++;   /* left before the Cohort column: no year group takes them */
+        if (!em || seen[em] || !(g >= 2000 && g <= sy)) continue;
+        seen[em] = 1;
+        var cls = String(v[i][1] || '').trim().toUpperCase();
+        if (cls === 'TEST') continue;
+        var p = { email: em, name: String(v[i][0] || '').trim(), cls: cls };
+        if (_arcCurrent_(cls, g, now)) mk(g).stay.push({ name: p.name, cls: cls }); else mk(g).pupils.push(p);
+      }
+    }
+  }
+  if (_ss_().getSheetByName(T_HOMEWORK)) {
+    _homeworkRows_().forEach(function (hw) {
+      var g = Number(hw.cohort) || 0, made = _hwMs_(hw.created);
+      if (g >= 2000 && g <= sy && made && made < _arcFinishMs_(g)) mk(g).hw.push(hw.id);
+    });
+  }
+  out.list = Object.keys(by).map(Number).sort(function (a, b) { return a - b; }).map(function (g) { return by[g]; })
+    .filter(function (c) { return c.pupils.length || c.hw.length; });
+  if (out.list.length) {
+    try { out.ready = _notThisYear_().imported > 0; } catch (e) { out.ready = false; }
+    out.imported = _arcImportedClasses_(sy);     /* the review, 20 Nov 2026: say WHICH classes, so a Year 12 not imported yet shows */
+    out.noCohort = noCohort;
+  }
+  return out;
+}
+/* The classes imported this school year (the import's own record, read without writing it), for the confirm step */
+function _arcImportedClasses_(sy) {
+  var o = null, out = [];
+  try { o = JSON.parse(PropertiesService.getScriptProperties().getProperty(IMPORTED_INDEX_KEY + sy) || 'null'); } catch (e) { o = null; }
+  var at = (o && o.at) || {};
+  if (!Object.keys(at).length) return out;
+  var sh = _ss_().getSheetByName(T_STUDENTS);
+  if (!sh || sh.getLastRow() < 2) return out;
+  var ec = _emailCol_(sh), cc = _headerCol_(sh, 'Course id', ec + 4);
+  if (cc > sh.getLastColumn()) return out;
+  var n = sh.getLastRow() - 1, cls = sh.getRange(2, 2, n, 1).getValues(), cid = sh.getRange(2, cc, n, 1).getDisplayValues();
+  for (var i = 0; i < n; i++) {
+    var c = String(cls[i][0] || '').trim().toUpperCase(), k = String(cid[i][0] || '').trim();
+    if (c && k && c !== 'TEST' && !_isLeftClass_(c) && Object.prototype.hasOwnProperty.call(at, k) && out.indexOf(c) < 0) out.push(c);
+  }
+  return out.sort(_byClass_);
+}
+/* The tabs that hold one row per pupil, with the column their address is in (Students: by its heading) */
+function _arcSources_() {
+  var out = [{ tab: T_STUDENTS, col: 0 }];
+  LABS.forEach(function (l) { out.push({ tab: l.name, col: LAB_EMAIL }); });
+  out.push({ tab: T_ENGLISH, col: EN_EMAIL }, { tab: T_WRITEUP, col: WU_EMAIL }, { tab: T_PRACT, col: PR_EMAIL }, { tab: T_MODEL_VISITS, col: -1 });
+  return out.filter(function (s) { return !!_ss_().getSheetByName(s.tab); });
+}
+function _arcSourceOf_(tab) { var o = { tab: tab, col: 0 }; _arcSources_().forEach(function (s) { if (s.tab === tab) o = s; }); return o; }
+function _arcEmailCol_(sh, src) {
+  if (src.tab === T_STUDENTS) return _emailCol_(sh);
+  if (src.col < 0) return _headerCol_(sh, 'School email', 2);
+  return src.col;
+}
+/* A cell as the words a copy keeps: 🗄️ Every row is plain text (written as text, so Sheets never turns a 21-digit Classroom id
+   into a rounded number, "8/8" into a date or "=…" into a formula); a date as its exact moment (ISO, UTC) */
+function _arcText_(x) { return _hwIsDate_(x) ? x.toISOString() : String(x == null ? '' : x); }
+/* A row as text, to compare a row with its copy: empty cells at the end dropped */
+function _arcKey_(cells) {
+  var a = (cells || []).map(_arcText_);
+  while (a.length && a[a.length - 1] === '') a.pop();
+  return JSON.stringify(a);
+}
+/* An archive tab, made the first time it is needed, with its headings and a light look; hidden with the others at the end */
+function _arcTab_(name, head) {
+  var ss = _ss_(), sh = ss.getSheetByName(name);
+  if (sh) return sh;
+  var was = null; try { was = ss.getActiveSheet(); } catch (e) { was = null; }
+  sh = ss.insertSheet(name);
+  if (sh.getMaxColumns() < head.length) sh.insertColumnsAfter(sh.getMaxColumns(), head.length - sh.getMaxColumns());
+  sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#1E3A4C');
+  try { sh.setFrozenRows(1); sh.setTabColor('#5B707E'); } catch (e) {}
+  /* hidden from the start (the review: from the menu a new tab came up in front of the teacher until the end) */
+  try { if (was && was !== sh) ss.setActiveSheet(was); sh.hideSheet(); } catch (e) {}
+  return sh;
+}
+/* Lines added under the last row, the tab widened first when a line is wider than it */
+function _arcAppend_(sh, lines, asText) {
+  if (!lines.length) return;
+  var w = 0; lines.forEach(function (l) { if (l.length > w) w = l.length; });
+  if (sh.getMaxColumns() < w) sh.insertColumnsAfter(sh.getMaxColumns(), w - sh.getMaxColumns());
+  var at = sh.getLastRow() + 1;
+  _room_(sh, at + lines.length - 1);
+  var rg = sh.getRange(at, 1, lines.length, w);
+  if (asText) rg.setNumberFormat('@');
+  rg.setValues(lines.map(function (l) { var r = l.slice(); while (r.length < w) r.push(''); return r; }));
+}
+/* Google refuses to delete every row under the frozen ones: a spare row is added first when the rows going are all of them */
+function _arcRoom_(sh, n) {
+  var f = 0; try { f = sh.getFrozenRows() || 0; } catch (e) { f = 0; }
+  if (n && sh.getMaxRows() - f <= n) sh.insertRowsAfter(sh.getMaxRows(), 1);
+}
+/* Rows (2-based numbers) removed bottom up, a run of neighbours at a time */
+function _arcDeleteRows_(sh, rows) {
+  _arcRoom_(sh, rows.length);
+  rows = rows.slice().sort(function (a, b) { return b - a; });
+  for (var k = 0; k < rows.length; ) {
+    var j = k;
+    while (j + 1 < rows.length && rows[j + 1] === rows[j] - 1) j++;
+    sh.deleteRows(rows[j], j - k + 1);
+    k = j + 1;
+  }
+}
+/* The lines of one run (and one tab, when asked) in a tab whose column `runCol` holds the run: their row numbers */
+function _arcLinesOf_(sh, runCol, run, tabCol, tab) {
+  var out = [];
+  if (!sh || sh.getLastRow() < 2) return out;
+  var w = Math.max(runCol, tabCol || 0), v = sh.getRange(2, 1, sh.getLastRow() - 1, w).getValues();
+  v.forEach(function (r, i) { if (String(r[runCol - 1]) === run && (!tabCol || String(r[tabCol - 1]) === tab)) out.push(i + 2); });
+  return out;
+}
+/* The run's pupils: the addresses on its 🗄️ Past pupils lines */
+function _arcPupils_(job) {
+  var sh = _ss_().getSheetByName(T_ARC_PUPILS), out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var ec = head.indexOf('School email') + 1, rc = head.indexOf('Run') + 1;
+  if (!ec || !rc) return out;
+  sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(ec, rc)).getValues().forEach(function (r) {
+    if (String(r[rc - 1]) === job.id) { var e = _cleanEmail_(r[ec - 1]); if (e) out[e] = 1; }
+  });
+  return out;
+}
+/* The copies already in 🗄️ Every row for one run and tab: their text, to check a row against before it is removed */
+function _arcCopies_(job, tab) {
+  var sh = _ss_().getSheetByName(T_ARC_ROWS), keys = {};
+  if (!sh || sh.getLastRow() < 2) return keys;
+  var rows = _arcLinesOf_(sh, 4, job.id, 1, tab), w = sh.getLastColumn();
+  if (!rows.length || w <= ARC_PRE.length) return keys;
+  var lo = rows[0], hi = rows[rows.length - 1];
+  var v = sh.getRange(lo, 1, hi - lo + 1, w).getValues();
+  rows.forEach(function (r) { var line = v[r - lo]; if (String(line[4]) !== 'headings') keys[_arcKey_(line.slice(ARC_PRE.length))] = 1; else keys.__head = true; });
+  return keys;
+}
+function _arcLine_(job, tab, line, cells) {
+  return [tab, 'Class of ' + job.grad, Utilities.formatDate(new Date(job.started || Date.now()), _tz_(), 'yyyy-MM-dd'), job.id, String(line)]
+    .concat(cells.map(_arcText_));
+}
+
+/* ── the steps ── */
+function _arcSteps_(job) {
+  var src = (job.src || []);
+  return ['summary'].concat(src.map(function (t) { return 'copy:' + t; }), ['copy:' + T_HOMEWORK],
+    ['remove:' + T_STUDENTS], src.filter(function (t) { return t !== T_STUDENTS; }).map(function (t) { return 'remove:' + t; }),
+    ['remove:' + T_HOMEWORK, 'sweep', 'finish']);
+}
+/* One step: true when it is done, false when it must carry on in the next piece (time, or pupils' saves holding the lock) */
+function _arcStep_(job, name, deadline) {
+  if (name === 'summary') return _arcSummary_(job);
+  if (name.indexOf('copy:') === 0) return _arcCopy_(job, name.slice(5));
+  if (name.indexOf('remove:') === 0) return _arcRemove_(job, name.slice(7), deadline);
+  if (name === 'sweep') return _arcSweep_(job, deadline);
+  if (name === 'finish') return _arcFinish_(job);
+  return true;
+}
+/* Once more over every tab but Students (the review, 20 Nov 2026): a save that read the class list before the Students step
+   and then waited for the lock may have made a new row for a pupil who has left; it is copied and taken out too */
+function _arcSweep_(job, deadline) {
+  job.swept = job.swept || {};
+  var tabs = (job.src || []).filter(function (t) { return t !== T_STUDENTS; });
+  for (var i = 0; i < tabs.length; i++) {
+    if (job.swept[tabs[i]]) continue;
+    if (!_arcRemove_(job, tabs[i], deadline)) return false;
+    job.swept[tabs[i]] = 1;
+  }
+  return true;
+}
+/* 1. 🗄️ Past pupils and 🗄️ Past homework, from the live tabs, before anything moves */
+function _arcSummary_(job) {
+  var now = new Date(job.started || Date.now());
+  var F = _finishedCohorts_(new Date()), C = null;
+  F.list.forEach(function (c) { if (c.grad === job.grad) C = c; });
+  var pupils = C ? C.pupils : [], want = {};
+  pupils.forEach(function (p) { want[p.email] = p; });
+  job.stayed = C ? C.stay.length : 0;
+  job.stayCls = C ? C.stay.map(function (s) { return s.cls; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).slice(0, 6) : [];
+  if (!job.hw) job.hw = C ? C.hw.slice(0, 400) : [];
+  /* homework: who it was for and how they did, by the same rules as Set homework and the pupil's own Homework tab */
+  var man = _hwManifest_(), dir = _studentDirectory_(), roster = dir.students, nowMs = Date.now();
+  var list = _homeworkRows_().filter(function (hw) { return job.hw.indexOf(hw.id) >= 0; });
+  var ids = [], need = {}, pf = {};
+  list.forEach(function (hw) {
+    hw.tasks.forEach(function (t) { if (ids.indexOf(t.labId) < 0) ids.push(t.labId); });
+    var ps = _hwPupils_(hw, roster); pf[hw.id] = ps; ps.forEach(function (p) { need[p.email] = 1; });
+  });
+  var index = ids.length ? _hwLabIndex_(ids, need) : {}, ex = null, exf = function () { return ex || (ex = _hwTimesIndex_(ids, need)); };
+  var hwLines = [], tally = {};
+  list.forEach(function (hw) {
+    var D = _hwMs_(hw.due), cls = String((hw.targets || {}).cls || '').trim().toUpperCase() || hw.who;
+    var yr = _hwYearOf_(hw, job.grad, D || _hwMs_(hw.created));
+    (pf[hw.id] || []).forEach(function (p) {
+      var s = _hwScoreOne_(hw, p.email, index, man), endSt = (s.state === 'none' && s.tried) ? 'tried' : s.state;
+      var bd = D && nowMs > D ? _hwByDue_(hw, p.email, s, index, exf, man, nowMs) : null;
+      var dueSt = bd && !bd.unknown ? bd.state : '';
+      var t = tally[p.email] || (tally[p.email] = { set: 0, due: 0 });
+      t.set++; if (dueSt === 'done') t.due++;
+      hwLines.push(['Class of ' + job.grad, hw.title, hw.teacher, cls, yr ? 'Year ' + yr : '', D ? new Date(D) : '', p.name, p.cls,
+                    dueSt ? (ARC_SAY[dueSt] || dueSt) : (D ? 'not known' : 'no due date'), ARC_SAY[endSt] || endSt,
+                    s.done, s.total, hw.id, now, job.id]);
+    });
+  });
+  /* the pupils: their Students row (each lab's best, Labs started, Average, Accommodation), and their other tabs in numbers */
+  var stu = _ss_().getSheetByName(T_STUDENTS), SC = _studentCols_(stu), head = stu.getRange(1, 1, 1, stu.getLastColumn()).getValues()[0]
+    .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); });
+  var colOf = function (h) { return head.indexOf(h); };
+  var rows = stu.getLastRow() > 1 ? stu.getRange(2, 1, stu.getLastRow() - 1, stu.getLastColumn()).getValues() : [];
+  var countOf = function (tab, col, valCol) {
+    var sh = _ss_().getSheetByName(tab), o = {};
+    if (!sh || sh.getLastRow() < 2 || sh.getLastColumn() < col) return o;
+    sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(col, valCol || 0)).getValues().forEach(function (r) {
+      var e = _cleanEmail_(r[col - 1]); if (!e || !want[e]) return;
+      o[e] = valCol ? (Number(r[valCol - 1]) || 0) : (o[e] || 0) + 1;
+    });
+    return o;
+  };
+  var enDone = countOf(T_ENGLISH, EN_EMAIL, 7), wuDone = countOf(T_WRITEUP, WU_EMAIL, 3), prN = countOf(T_PRACT, PR_EMAIL, 0);
+  var labNames = LABS.map(function (l) { return l.name; });
+  var pHead = ['Year group', 'Name', 'Last class', 'School email'].concat(labNames,
+    ['Labs started', 'Average', 'Bio English sets finished', 'Write-Up parts finished', 'Practicals', 'Homework set', 'Done by the due date',
+     'Accommodation', 'Archived', 'Run']);
+  var pLines = [], seen = {};
+  rows.forEach(function (r) {
+    var e = _cleanEmail_(r[SC.email - 1]); if (!e || !want[e] || seen[e]) return;
+    seen[e] = 1;
+    var t = tally[e] || { set: 0, due: 0 };
+    pLines.push(['Class of ' + job.grad, String(r[0] || '').trim(), String(r[1] || '').trim(), e]
+      .concat(labNames.map(function (n) { var c = colOf(n); return c >= 0 ? r[c] : ''; }),
+        [colOf('Labs started') >= 0 ? r[colOf('Labs started')] : '', colOf('Average') >= 0 ? r[colOf('Average')] : '',
+         enDone[e] || 0, wuDone[e] || 0, prN[e] || 0, t.set, t.due,
+         SC.acc && _accOn_(r[SC.acc - 1]) ? 'Yes' : '', now, job.id]));
+  });
+  /* written: this run's earlier lines out first (a step run again writes nothing twice) */
+  var ps = _arcTab_(T_ARC_PUPILS, pHead);
+  var have = ps.getRange(1, 1, 1, ps.getLastColumn()).getValues()[0].map(String), pRun = have.indexOf('Run') + 1;
+  if (pRun) _arcDeleteRows_(ps, _arcLinesOf_(ps, pRun, job.id));
+  if (have.join('|') !== pHead.join('|')) {     /* a lab added since the tab was made: its own headings, the same order */
+    pLines = pLines.map(function (l) { return have.map(function (h) { var k = pHead.indexOf(h); return k >= 0 ? l[k] : ''; }); });
+  }
+  _arcAppend_(ps, pLines);
+  var hs = _arcTab_(T_ARC_HW, ARC_HW_HEAD);
+  _arcDeleteRows_(hs, _arcLinesOf_(hs, ARC_HW_HEAD.length, job.id));
+  _arcAppend_(hs, hwLines);
+  job.counts = job.counts || {};
+  job.counts.pupils = pLines.length; job.counts.homework = list.length;
+  return true;
+}
+/* 2. One tab's rows of the run, word for word, into 🗄️ Every row */
+function _arcCopy_(job, tab) {
+  var sh = _ss_().getSheetByName(tab), out = _arcTab_(T_ARC_ROWS, ARC_PRE);
+  _arcDeleteRows_(out, _arcLinesOf_(out, 4, job.id, 1, tab));
+  job.counts = job.counts || {};
+  if (!sh || sh.getLastRow() < 1) { job.counts[tab] = 0; return true; }
+  var w = sh.getLastColumn(), lines = [], n = 0;
+  var head = sh.getRange(1, 1, 1, w).getValues()[0];
+  if (sh.getLastRow() >= 2) {
+    var v = sh.getRange(2, 1, sh.getLastRow() - 1, w).getValues();
+    var pick;
+    if (tab === T_HOMEWORK) {
+      var ic = head.map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); }).indexOf('ID');
+      var ids = {}; (job.hw || []).forEach(function (x) { ids[x] = 1; });
+      pick = function (r) { return ic >= 0 && ids[String(r[ic])]; };
+    } else {
+      var want = _arcPupils_(job), ec = _arcEmailCol_(sh, _arcSourceOf_(tab));
+      pick = function (r) { return !!want[_cleanEmail_(r[ec - 1])]; };
+    }
+    v.forEach(function (r, i) { if (pick(r)) { lines.push(_arcLine_(job, tab, i + 2, r)); n++; } });
+  }
+  if (lines.length) lines.unshift(_arcLine_(job, tab, 'headings', head));
+  _arcAppend_(out, lines, true);
+  job.counts[tab] = n;
+  return true;
+}
+/* 3–4. Remove one tab's rows of the run: each row's copy found first (or written now, under the lock), bottom up, a few seconds
+   at a time under the script lock pupils' saves take, each time read afresh. Students: only a pupil still in none of this year's
+   classes; every other tab: only the pupils the Students step took out; 📚 Homework: the run's homework. */
+function _arcRemove_(job, tab, deadline) {
+  var sh = _ss_().getSheetByName(tab);
+  if (!sh) return true;
+  var who = null, ids = null;
+  if (tab === T_HOMEWORK) { ids = {}; (job.hw || []).forEach(function (x) { ids[x] = 1; }); }
+  else {
+    who = _arcPupils_(job);
+    if (tab !== T_STUDENTS) {             /* only those no longer on the Students tab */
+      var stu = _ss_().getSheetByName(T_STUDENTS);
+      if (stu && stu.getLastRow() > 1) {
+        var ec0 = _emailCol_(stu);
+        stu.getRange(2, ec0, stu.getLastRow() - 1, 1).getValues().forEach(function (r) { var e = _cleanEmail_(r[0]); if (e) delete who[e]; });
+      }
+    }
+  }
+  var copies = _arcCopies_(job, tab), kept = 0;
+  for (;;) {
+    if (Date.now() > deadline) return false;
+    var lock = LockService.getScriptLock();
+    try { lock.waitLock(20000); } catch (e) { job.busyStop = true; return false; }
+    var left = 0;
+    try {
+      if (sh.getLastRow() < 2) return true;
+      var w = sh.getLastColumn(), v = sh.getRange(2, 1, sh.getLastRow() - 1, w).getValues(), head = sh.getRange(1, 1, 1, w).getValues()[0];
+      var match;
+      if (ids) {
+        var ic = head.map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); }).indexOf('ID');
+        match = function (r) { return ic >= 0 && ids[String(r[ic])]; };
+      } else {
+        var ec = _arcEmailCol_(sh, _arcSourceOf_(tab)), now = new Date(), grad = job.grad, coh = tab === T_STUDENTS ? _studentCols_(sh).cohort : 0;
+        match = function (r) {
+          var e = _cleanEmail_(r[ec - 1]);
+          if (!e || !who[e]) return false;
+          if (tab === T_STUDENTS && _arcCurrent_(r[1], grad, now)) return false;   /* put in a class of this year since: stays */
+          if (coh && String(r[coh - 1]).trim() !== '' && Number(r[coh - 1]) !== grad) return false;   /* moved to another year group since (the review) */
+          return true;
+        };
+      }
+      var del = [], fresh = [];
+      if (!copies.__head) { fresh.push(_arcLine_(job, tab, 'headings', head)); }   /* dropped below when nothing is written */
+      for (var i = v.length - 1; i >= 0; i--) {
+        if (!match(v[i])) continue;
+        var k = _arcKey_(v[i]);
+        if (!copies[k]) { fresh.push(_arcLine_(job, tab, i + 2, v[i])); copies[k] = 1; kept++; }   /* changed since its copy */
+        del.push(i + 2);
+      }
+      if (!del.length) return true;
+      if (!copies.__head && fresh.length === 1) fresh = [];                         /* only the headings: every row has its copy */
+      if (fresh.length) { _arcAppend_(_arcTab_(T_ARC_ROWS, ARC_PRE), fresh, true); copies.__head = true; }
+      var t0 = Date.now();
+      _arcRoom_(sh, del.length);
+      del.sort(function (a, b) { return b - a; });
+      /* a few seconds of removing, then the lock goes back to the pupils' saves; the rest is read again */
+      for (var j = 0; j < del.length; ) {
+        var m = j; while (m + 1 < del.length && del[m + 1] === del[m] - 1) m++;
+        sh.deleteRows(del[m], m - j + 1);
+        j = m + 1;
+        if (Date.now() - t0 > ARC_LOCK_MS && j < del.length) { left = del.length - j; break; }
+      }
+      if (tab === T_STUDENTS) _classesChanged_();
+    } finally { try { lock.releaseLock(); } catch (eR) {} }
+    job.counts = job.counts || {};
+    job.counts['kept:' + tab] = (job.counts['kept:' + tab] || 0) + kept; kept = 0;
+    if (!left) return true;
+  }
+}
+/* 5. The archive tabs hidden, the front page's line, the caches naming those pupils cleared */
+function _arcFinish_(job) {
+  var c = job.counts || {}, from = [], total = 0;
+  (job.src || []).concat([T_HOMEWORK]).forEach(function (t) { if (c[t]) { from.push(t + ' ' + c[t]); total += c[t]; } });
+  var a = _arcTab_(T_ARC, ARC_HEAD);
+  _arcDeleteRows_(a, _arcLinesOf_(a, ARC_HEAD.length, job.id));
+  if (a.getLastRow() < 2) {
+    _arcAppend_(a, [['How to read the archive', '', '', '', '', '', '🗄️ Past pupils: one line per pupil. 🗄️ Past homework: one line per homework and pupil. ' +
+      '🗄️ Every row: every row exactly as it was, with the tab it came from. A spreadsheet of the archive alone: right-click each 🗄️ tab ▸ Copy to ▸ New spreadsheet.', '', '']]);
+  }
+  _arcAppend_(a, [['Class of ' + job.grad, new Date(), job.by || '', c.pupils || 0, (job.hw || []).length, total, from.join(' · '),
+    job.stayed ? job.stayed + ' pupil' + (job.stayed === 1 ? '' : 's') + ' in ' + (job.stayCls || []).join(', ') : '', job.id]]);
+  ARC_TABS.forEach(function (n) { var s = _ss_().getSheetByName(n); if (s) { try { if (!s.isSheetHidden()) s.hideSheet(); } catch (e) {} } });
+  try {
+    var cache = CacheService.getScriptCache(), who = Object.keys(_arcPupils_(job));
+    who.forEach(function (e) { ['PRAC_', 'MWR1_', 'MWR2_'].forEach(function (p) { try { cache.remove(p + e); } catch (x) {} }); });
+  } catch (e) {}
+  _classesChanged_();
+  return true;
+}
+
+/* ── the job, through the engine ── */
+function _arcJob_() {
+  try { var raw = PropertiesService.getScriptProperties().getProperty(ARC_JOB_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function _arcSave_(job) { try { PropertiesService.getScriptProperties().setProperty(ARC_JOB_KEY, JSON.stringify(job)); return true; } catch (e) { return false; } }
+function _arcLast_() {
+  try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty(ARC_LAST_KEY) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; }
+}
+function _arcPart_() {
+  try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty(ARC_PART_KEY) || 'null'); return o && typeof o === 'object' ? o : null; } catch (e) { return null; }
+}
+/* The job ends in words: kept for the teacher page (ARCHIVE_LAST, a week); a job not done is kept to carry on (ARCHIVE_PART) */
+function _arcEnd_(job, words, ok) {
+  var sp = PropertiesService.getScriptProperties();
+  try { sp.setProperty(ARC_LAST_KEY, JSON.stringify({ grad: job.grad, ok: !!ok, words: String(words || ''), at: Date.now(), by: job.by || '',
+                                                     pupils: (job.counts || {}).pupils || 0, homework: (job.hw || []).length })); } catch (e) {}
+  try {
+    if (ok) sp.deleteProperty(ARC_PART_KEY);
+    else { var keep = JSON.parse(JSON.stringify(job)); delete keep.busyStop; sp.setProperty(ARC_PART_KEY, JSON.stringify(keep)); }
+  } catch (e) {}
+  try { sp.deleteProperty(ARC_JOB_KEY); } catch (e) {}
+  _jeEnd_('arch');
+  return String(words || '');
+}
+function _arcHow_(job) { return Math.min(job.i || 0, _arcSteps_(job).length) + ' of ' + _arcSteps_(job).length + ' steps done'; }
+/* What a step is doing, in words for the teacher page */
+function _arcNow_(job) {
+  var s = _arcSteps_(job)[job.i || 0] || '';
+  if (s === 'summary') return 'writing 🗄️ Past pupils and 🗄️ Past homework';
+  if (s.indexOf('copy:') === 0) return 'copying ' + s.slice(5) + '. Nothing has been taken out yet: the copy comes first';
+  if (s.indexOf('remove:') === 0) return 'taking ' + s.slice(7) + ' rows out, each after its copy is checked';
+  if (s === 'sweep') return 'looking once more for a row a late save made';
+  if (s === 'finish') return 'hiding the archive tabs';
+  return '';
+}
+/* The trigger that carries the job on. Private: a trigger runs it, google.script.run cannot. */
+function continueCohortArchive_() {
+  if (!_arcJob_()) { _jeTriggersClear_('arch'); return; }
+  _LABS_JOB_TRUSTED_ = true;
+  try { _arcPiece_(ARC_STEP_BY_MS); } finally { _LABS_JOB_TRUSTED_ = false; }
+}
+function _arcPiece_(budgetMs) {
+  var job = _arcJob_();
+  if (!job) { _jeTriggersClear_('arch'); return ''; }
+  var b = _jePieceBegin_('arch', job);
+  if (b.gone) return '';
+  if (b.busy || b.wait) {
+    var tooLong = _jeBusyCount_('arch', b.wait || '');
+    if (tooLong) return _arcEnd_(job, tooLong, false);
+    if (!_jeHandOn_('arch')) return _arcEnd_(job, ARC_NO_TRIGGER, false);
+    return 'waiting';
+  }
+  if (b.stop) return _arcEnd_(job, b.stop, false);
+  try {
+    var t0 = Date.now(), steps = _arcSteps_(job), deadline = t0 + budgetMs;
+    while ((job.i || 0) < steps.length) {
+      if (Date.now() > deadline) break;
+      job.busyStop = false;
+      var done = _arcStep_(job, steps[job.i || 0], deadline);
+      job.tickAt = Date.now();
+      if (!done) break;
+      job.i = (job.i || 0) + 1;
+      if (!_arcSave_(job)) return _arcEnd_(job, '⚠️ Stopped: Google would not keep where the job is (the script\'s storage is full). ' + _jeStoreLine_(_jeStore_()), false);
+      _jeProgress_('arch');
+    }
+    if ((job.i || 0) >= steps.length) {
+      var c = job.counts || {};
+      return _arcEnd_(job, 'Class of ' + job.grad + ' is archived: ' + (c.pupils || 0) + ' pupil' + ((c.pupils || 0) === 1 ? '' : 's') + ' and ' +
+        (job.hw || []).length + ' homework, copied, checked and taken out of the live tabs.', true);
+    }
+    var stopW = _jeStopWords_('arch', job);
+    if (stopW) return _arcEnd_(job, stopW, false);
+    if (job.busyStop) { var tooLongB = _jeBusyWait_('arch', 'pupils’ saves'); if (tooLongB) return _arcEnd_(job, tooLongB, false); }
+    if (!_arcSave_(job) || !_jeHandOn_('arch')) return _arcEnd_(job, ARC_NO_TRIGGER, false);
+    return 'going';
+  } catch (e) {
+    var w = _jeError_('arch', e), now = _arcJob_() || job;
+    if (w) return _arcEnd_(now, w, false);
+    if (!_jeHandOn_('arch')) return _arcEnd_(now, ARC_NO_TRIGGER, false);
+    return 'again';
+  } finally { _jePieceEnd_('arch'); }
+}
+var ARC_NO_TRIGGER = 'Google would not let the archive carry on by itself, so it stopped part way. Press Carry on: it does only what is still to do, and nothing twice.';
+
+/* Who may archive: a teacher of the page on the analysis website's 👥 list, read afresh (never the five-minute copy) */
+function _mayArchive_(email) {
+  email = _cleanEmail_(email);
+  return !!email && _isTeacher_(email) && _analysisViewers_(true).indexOf(email) >= 0;
+}
+/* Begins (or carries on) the archive of one year group: { ok, view } or { ok:false, why } */
+function _arcStart_(grad, by) {
+  grad = Number(grad) || 0;
+  /* the review, 20 Nov 2026: two presses at once (two teachers, or the menu and the page) must not both begin a job */
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (e) { return { ok: false, why: 'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  try {
+    var cur = _arcJob_(), job = null;
+    if (cur) {
+      var s0 = _jeStatus_('arch').state;
+      if (s0 === 'running' || s0 === 'waiting') return { ok: false, why: 'The archive of Class of ' + cur.grad + ' is already running (' + _arcHow_(cur) + ').' };
+      /* stopped: Google never started its next step. The same run carries on (a new one would copy twice and leave the rows of
+         pupils already taken off Students behind: the review, 20 Nov 2026) */
+      if (cur.grad !== grad) return { ok: false, why: 'The archive of Class of ' + cur.grad + ' stopped part way. Carry it on first.' };
+      job = cur; job.tickAt = Date.now(); job.by = by || job.by; delete job.busyStop;
+    }
+    var can = _jeCanStart_('arch');
+    if (can.refuse) return { ok: false, why: can.refuse };
+    var part = _arcPart_();
+    if (!job && part && part.grad === grad) {
+      job = part; job.tickAt = Date.now(); job.by = by || job.by; delete job.busyStop;
+    } else if (!job) {
+      if (part && part.grad !== grad) return { ok: false, why: 'The archive of Class of ' + part.grad + ' stopped part way. Carry it on first.' };
+      var F = _finishedCohorts_(), C = null;
+      F.list.forEach(function (c) { if (c.grad === grad) C = c; });
+      if (!C) return { ok: false, why: 'Class of ' + grad + ' has nothing left to archive, or has not finished Year 11 yet.' };
+      if (!F.ready) return { ok: false, why: 'Import this year’s classes first (🧪 Biology Labs ▸ 🎓 Import students from Classroom), so pupils who carry on into Year 12 are in their new class. Then archive Class of ' + grad + '.' };
+      var t0 = Date.now();
+      job = _jeStamp_({ id: 'arch_' + grad + '_' + t0, grad: grad, i: 0, by: by || '', started: t0, tickAt: t0, counts: {}, hw: C.hw.slice(0, 400),
+                        src: _arcSources_().map(function (s) { return s.tab; }) });
+    }
+    if (!_arcSave_(job)) return { ok: false, why: 'Google would not keep where the job is (the script\'s storage is full). ' + _jeStoreLine_(_jeStore_()) };
+    try { PropertiesService.getScriptProperties().deleteProperty(ARC_PART_KEY); } catch (e) {}
+  } finally { try { lock.releaseLock(); } catch (eR) {} }
+  _arcPiece_(ARC_FIRST_MS);
+  return { ok: true };
+}
+/* What the teacher page shows at the top of Set homework (only to the 👥 list; null when there is nothing to show) */
+function _archiveView_(who, fresh) {
+  if (!who || _analysisViewers_(!!fresh).indexOf(_cleanEmail_(who)) < 0) return null;
+  var out = { finished: [], ready: true, job: null, last: null, part: null };
+  var job = _arcJob_();
+  if (job) {
+    var st = _jeStatus_('arch');
+    out.job = { grad: job.grad, state: st.state, how: _arcHow_(job), now: _arcNow_(job), by: job.by || '', began: job.began || 0,
+                step: Math.min(job.i || 0, _arcSteps_(job).length), steps: _arcSteps_(job).length,
+                at: st.at ? _jeHHMM_(st.at) : '', beganText: job.began ? _jeHHMM_(job.began) : '' };
+  }
+  var part = _arcPart_();
+  if (part && !job) out.part = { grad: part.grad, how: _arcHow_(part) };
+  var last = _arcLast_();
+  if (last && Date.now() - (last.at || 0) < ARC_LAST_DAYS * 86400000) out.last = { grad: last.grad, ok: !!last.ok, words: last.words,
+    at: Utilities.formatDate(new Date(last.at), _tz_(), 'd MMM yyyy') + ', ' + _jeHHMM_(last.at) };
+  if (!job) {
+    var F = _finishedCohorts_();
+    out.ready = F.ready;
+    out.imported = F.imported || [];
+    out.noY12 = !out.imported.some(function (c) { var m = String(c).match(/\d+/); return m && +m[0] >= 12; });
+    out.noCohort = F.noCohort || 0;
+    var src = _arcSources_();
+    out.finished = F.list.filter(function (c) { return !part || part.grad !== c.grad; }).map(function (c) {
+      var want = {}; c.pupils.forEach(function (p) { want[p.email] = 1; });
+      var counts = [], labs = 0, labRows = 0;
+      src.forEach(function (s) {
+        if (s.tab === T_STUDENTS) return;
+        var sh = _ss_().getSheetByName(s.tab), n = 0;
+        if (sh && sh.getLastRow() > 1) {
+          var ec = _arcEmailCol_(sh, s);
+          if (ec <= sh.getLastColumn()) sh.getRange(2, ec, sh.getLastRow() - 1, 1).getValues().forEach(function (r) { if (want[_cleanEmail_(r[0])]) n++; });
+        }
+        if (LABS.some(function (l) { return l.name === s.tab; })) { labs++; labRows += n; } else counts.push({ tab: s.tab, n: n });
+      });
+      var stayCls = c.stay.map(function (s) { return s.cls; }).filter(function (x, i, a) { return a.indexOf(x) === i; });
+      return { grad: c.grad, title: c.title, pupils: c.pupils.length, stay: c.stay.length, stayCls: stayCls, homework: c.hw.length,
+               labs: labs, labRows: labRows, counts: counts, finishText: '31 July ' + c.grad };
+    });
+  }
+  if (!out.job && !out.part && !out.last && !out.finished.length) return null;
+  return out;
+}
+/* The year groups in the archive, for Set homework's Past years (any teacher of the page): [{ grad, title, at, pupils, homework }] */
+function _pastCohorts_() {
+  var sh = _ss_().getSheetByName(T_ARC), out = [], seen = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(sh.getLastColumn(), ARC_HEAD.length)).getValues().forEach(function (r) {
+    var m = String(r[0] || '').match(/^Class of (\d{4})$/); if (!m) return;
+    var g = Number(m[1]), at = _hwIsDate_(r[1]) ? Utilities.formatDate(r[1], _tz_(), 'd MMM yyyy') : '';
+    if (seen[g]) { seen[g].pupils += Number(r[3]) || 0; seen[g].homework += Number(r[4]) || 0; seen[g].at = at || seen[g].at; return; }
+    seen[g] = { grad: g, title: 'Class of ' + g, at: at, pupils: Number(r[3]) || 0, homework: Number(r[4]) || 0 };
+    out.push(seen[g]);
+  });
+  return out.sort(function (a, b) { return b.grad - a.grad; });
+}
+/* One archived year group's homework, read only: from 🗄️ Past homework, each homework's parts from its copy in 🗄️ Every row (for
+   Set again). { grad, homework: [{ id, title, teacher, cls, year, due, dueText, n, byDue, inEnd, tasks, pupils:[{name, cls, due, end, done, total}] }] } */
+function _pastHomework_(grad) {
+  grad = Number(grad) || 0;
+  var title = 'Class of ' + grad, out = { grad: grad, title: title, homework: [] }, by = {};
+  var hs = _ss_().getSheetByName(T_ARC_HW);
+  if (hs && hs.getLastRow() > 1) {
+    var head = hs.getRange(1, 1, 1, hs.getLastColumn()).getValues()[0].map(String), c = function (h) { return head.indexOf(h); };
+    hs.getRange(2, 1, hs.getLastRow() - 1, hs.getLastColumn()).getValues().forEach(function (r) {
+      if (String(r[c('Year group')]) !== title) return;
+      var id = String(r[c('Homework id')] || ''); if (!id) return;
+      var h = by[id];
+      if (!h) {
+        var due = r[c('Due')];
+        h = by[id] = { id: id, title: String(r[c('Homework')] || ''), teacher: String(r[c('Set by')] || ''), cls: String(r[c('Class')] || ''),
+                       year: String(r[c('Year')] || ''), due: _hwIsDate_(due) ? due.toISOString() : '', dueText: _hwIsDate_(due) ? _hwDueText_(due.getTime()) : '',
+                       n: 0, byDue: 0, inEnd: 0, tasks: [], pupils: [] };
+        out.homework.push(h);
+      }
+      var dueSt = String(r[c('By the due date')] || ''), endSt = String(r[c('In the end')] || '');
+      h.n++; if (dueSt === 'done') h.byDue++; if (endSt === 'done') h.inEnd++;
+      h.pupils.push({ name: String(r[c('Pupil')] || ''), cls: String(r[c('Class then')] || ''), due: dueSt, end: endSt,
+                      done: Number(r[c('Done')]) || 0, total: Number(r[c('Out of')]) || 0 });
+    });
+  }
+  var rs = _ss_().getSheetByName(T_ARC_ROWS);
+  if (rs && rs.getLastRow() > 1 && out.homework.length) {
+    var v = rs.getRange(2, 1, rs.getLastRow() - 1, rs.getLastColumn()).getValues(), hd = null, idc = -1, spc = -1;
+    v.forEach(function (r) {
+      if (String(r[0]) !== T_HOMEWORK || String(r[1]) !== title) return;
+      if (String(r[4]) === 'headings') { hd = r.slice(ARC_PRE.length).map(function (x) { return String(x || '').replace(/^✎\s*/, '').trim(); }); idc = hd.indexOf('ID'); spc = hd.indexOf('Spec'); return; }
+      if (idc < 0 || spc < 0) return;
+      var cells = r.slice(ARC_PRE.length), h = by[String(cells[idc])];
+      if (!h) return;
+      try { var spec = JSON.parse(String(cells[spc])); if (spec && Array.isArray(spec.tasks)) h.tasks = spec.tasks; } catch (e) {}
+    });
+  }
+  out.homework.sort(function (a, b) { return String(b.due).localeCompare(String(a.due)); });
+  return out;
+}
+
+/* google.script.run from the teacher page (Set homework): start or carry on; ⏹ Stop. Both only for the 👥 list. */
+function cohortArchiveStart(grad) {
+  var who = _hwCaller_();
+  if (!who) return { ok: false, why: 'Not allowed.' };
+  if (!_mayArchive_(who)) return { ok: false, why: 'Only the people on the analysis website’s 👥 list can archive a year group.' };
+  var r;
+  try { r = _arcStart_(grad, who); } catch (e) { r = { ok: false, why: 'Could not start: ' + String((e && e.message) || e).slice(0, 160) }; }
+  r.archive = _archiveView_(who, false);
+  return r;
+}
+function cohortArchiveStop() {
+  var who = _hwCaller_();
+  if (!who) return { ok: false, why: 'Not allowed.' };
+  if (!_mayArchive_(who)) return { ok: false, why: 'Only the people on the analysis website’s 👥 list can do this.' };
+  var s = _labsStop_('arch');
+  return { ok: s !== 'fail' && s !== 'none', said: s, archive: _archiveView_(who, false) };
+}
+/* The same job from the spreadsheet's menu: the owner, or someone on the 👥 list */
+function archiveCohortMENU_() {
+  var ui = SpreadsheetApp.getUi(), act = '';
+  try { act = _cleanEmail_(Session.getActiveUser().getEmail()); } catch (e) {}
+  /* the 👥 list only (the review, 20 Nov 2026: in a menu run Google's "effective user" is whoever pressed it, so an owner
+     shortcut let every editor through) */
+  if (!act || !_mayArchive_(act)) { ui.alert('🗄️ Archive a finished year group', 'Only the people on the analysis website’s 👥 list can do this.', ui.ButtonSet.OK); return; }
+  var job = _arcJob_(), js = job ? _jeStatus_('arch').state : '';
+  if (job && (js === 'running' || js === 'waiting')) { ui.alert('🗄️ Archive a finished year group', 'The archive of Class of ' + job.grad + ' is running (' + _arcHow_(job) + '). The teacher page (Set homework) shows how far it is.', ui.ButtonSet.OK); return; }
+  var part = job || _arcPart_(), F = _finishedCohorts_(), grad = part ? part.grad : (F.list[0] ? F.list[0].grad : 0);
+  if (!grad) { ui.alert('🗄️ Archive a finished year group', 'No year group has finished Year 11 with pupils or homework still here. Nothing to archive.', ui.ButtonSet.OK); return; }
+  var C = null; F.list.forEach(function (c) { if (c.grad === grad) C = c; });
+  var q = part ? 'The archive of Class of ' + grad + ' stopped part way (' + _arcHow_(part) + '). Carry it on?'
+               : 'Archive Class of ' + grad + '? ' + (C ? C.pupils.length : 0) + ' pupils in none of this year’s classes and ' + (C ? C.hw.length : 0) +
+                 ' homework move to hidden 🗄️ tabs in this spreadsheet: copied first, checked, then taken out of the live tabs.' +
+                 (C && C.stay.length ? ' ' + C.stay.length + ' pupils of that year in a class of this year stay.' : '');
+  if (ui.alert('🗄️ Archive a finished year group', q, ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  var r = _arcStart_(grad, act);
+  ui.alert('🗄️ Archive a finished year group', r.ok ? 'It has begun and carries on by itself. The teacher page (Set homework) shows how far it is.' : r.why, ui.ButtonSet.OK);
+}
+/* §cohort-archive end */
+
 /* 📊 Analysis ↗ (Daniel, 1 Oct 2026): the teacher page links to the analysis website, for the people on that website's
    👥 list only. The list is kept by the tracker's own script (AppScript Master Tracker, _publishViewers_) as
    SPREADSHEET-level developer metadata on the Student Progress Tracker: key ANALYSIS_VIEWERS, visibility DOCUMENT, value
@@ -8971,12 +9763,20 @@ function studentRelease(d) {
 var ANALYSIS_KEY = 'ANALYSIS_VIEWERS', ANALYSIS_CACHE = 'analysis-viewers', ANALYSIS_CACHE_S = 300;
 function _analysisLink_(email) {
   try {
-    var hub = _hubUrl_(), id = _trackerId_(), me = _cleanEmail_(email);
-    if (!hub || !id || !me) return '';
+    var hub = _hubUrl_(), me = _cleanEmail_(email);
+    if (!hub || !me) return '';
+    return _analysisViewers_(false).indexOf(me) >= 0 ? hub + '/analysis.html' : '';
+  } catch (e) { return ''; }
+}
+/* The addresses on the analysis website's 👥 list ([] when it cannot be read). fresh: read from the tracker now, never the
+   five-minute copy (🗄️ Archive a finished year group asks so, 20 Nov 2026: someone just taken off the list cannot archive). */
+function _analysisViewers_(fresh) {
+  try {
+    var id = _trackerId_();
+    if (!id) return [];
     var cache = null, list = null;
     try { cache = CacheService.getScriptCache(); } catch (e) { cache = null; }
-    var hit = cache ? cache.get(ANALYSIS_CACHE) : null;
-    if (hit) { try { list = JSON.parse(hit); } catch (e) { list = null; } }
+    if (!fresh && cache) { var hit = cache.get(ANALYSIS_CACHE); if (hit) { try { list = JSON.parse(hit); } catch (e) { list = null; } } }
     if (!Array.isArray(list)) {
       list = [];
       var found = SpreadsheetApp.openById(id).createDeveloperMetadataFinder().withKey(ANALYSIS_KEY).find();
@@ -8986,8 +9786,8 @@ function _analysisLink_(email) {
       }
       if (cache) { try { cache.put(ANALYSIS_CACHE, JSON.stringify(list), ANALYSIS_CACHE_S); } catch (e) {} }
     }
-    return list.indexOf(me) >= 0 ? hub + '/analysis.html' : '';
-  } catch (e) { return ''; }
+    return list;
+  } catch (e) { return []; }
 }
 
 /* The one page, and the one endpoint behind it (uiData). The page is served with no data in it: the tab it opens
@@ -9027,7 +9827,14 @@ function uiData(which, arg) {
     if (which === 'teachers')  return { ok:true, data:_teacherViewData_() };   /* + the 📘 model pages (14 Nov 2026) */
     if (which === 'progress')  return { ok:true, data:_labProgressData_() };
     if (which === 'students')  return { ok:true, data:_studentDirectory_(), trackerBase:_trackerAppUrl_(), held:_heldResultsSafe_(who) };   /* + results held for this teacher to release (§held-results; only their classes, §40.248) */
-    if (which === 'homework')  return { ok:true, data:_homeworkData_(undefined, who) };   /* their own homework (the owner: everyone's) */
+    if (which === 'homework') {   /* their own homework (the owner: everyone's); + the archive banner (👥 list only) and Past years (20 Nov 2026) */
+      var hd = _homeworkData_(undefined, who);
+      try { hd.archive = _archiveView_(who, false); } catch (eA) { hd.archive = null; }
+      try { hd.past = _pastCohorts_(); } catch (eP) { hd.past = []; }
+      return { ok:true, data:hd };
+    }
+    if (which === 'archive')   return { ok:true, data:_archiveView_(who, false) };   /* how far the archive is (the banner asks while it runs) */
+    if (which === 'past')      return { ok:true, data:_pastHomework_(arg) };          /* an archived year group's homework, read only */
     if (which === 'english')   return { ok:true, data:_englishProgressData_() };
     if (which === 'writeup')   return { ok:true, data:_writeupProgressData_() };   /* the Write-Up view (8 Oct 2026): read only */
     if (which === 'habits')    return { ok:true, data:_habitsData_() };      /* ⏱️ Homework habits (1 Oct 2026): read only */
@@ -9641,7 +10448,15 @@ function _hwIsFor_(hw, email, cls) {
     return !!hw.inCourse && hw.inCourse.indexOf(email) >= 0 && !!hw.targets.cls && String(hw.targets.cls).trim().toUpperCase() === String(cls || '').toUpperCase();
   }
   if ((hw.targets.emails || []).map(_cleanEmail_).indexOf(email) >= 0) return true;
-  return !!hw.targets.cls && String(hw.targets.cls).toUpperCase() === cls;
+  return !!hw.targets.cls && String(hw.targets.cls).toUpperCase() === cls && _hwSameCohort_(hw, cls);
+}
+/* A homework kept with no list of its pupils is matched by its class's NAME, and a name comes back each year (this year's 10A
+   is not last year's): its Cohort (graduation year, written once) must be the class's now too (20 Nov 2026). No Cohort: as
+   before. */
+function _hwSameCohort_(hw, cls) {
+  if (!hw.cohort) return true;
+  var co = _classCohort_(cls);
+  return !co || co.grad === Number(hw.cohort);
 }
 function _englishTeacherUrl_() {
   var u = _teacherPageUrl_();
@@ -10619,12 +11434,26 @@ function sendDueSummaries() {
       (page ? '\n\nThe teacher page has the detail: ' + page.replace(/\?page=teachers$/, '?page=homework') : '');
     try {
       MailApp.sendEmail(r.teacher, 'Homework due: ' + h.title + ' (' + h.who + ')', body);
-      sh.getRange(r.row, hc.Status).setValue('reported');
-      sh.getRange(r.row, hc.Reported).setValue(new Date());
+      _hwMarkReported_(sh, hc, h.id);   /* found by its id now: 🗄️ the archive (or Remove) may have taken rows out meanwhile */
       sent++;
     } catch (e) {}
   });
   return sent;
+}
+/* A homework's Status and Reported, its row found by its ID under the script lock at the moment of writing (20 Nov 2026) */
+function _hwMarkReported_(sh, hc, id) {
+  var lock = null;
+  try { lock = LockService.getScriptLock(); lock.waitLock(10000); } catch (e) { lock = null; }
+  try {
+    if (sh.getLastRow() < 2) return false;
+    var v = sh.getRange(2, hc.ID, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < v.length; i++) if (String(v[i][0]) === String(id)) {
+      sh.getRange(i + 2, hc.Status).setValue('reported');
+      sh.getRange(i + 2, hc.Reported).setValue(new Date());
+      return true;
+    }
+    return false;
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e2) {} } }
 }
 function installDailySummary() {
   if (!_isAdminCaller_()) return;   /* reachable by anyone via google.script.run: it changes the project's triggers */

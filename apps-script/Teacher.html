@@ -891,6 +891,42 @@ details.ha-how li b{color:var(--chalk)}
 .ha-keybox{margin-top:12px;border:1.5px dashed var(--accent);border-radius:10px;padding:12px}
 .ha-keybox label{font-size:13.5px;color:var(--chalk);font-weight:600}
 .ha-keyrow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.ha-keyrow input{flex:1 1 220px}
+/* 🗄️ Archive a finished year group (20 Nov 2026, §cohort-archive): the banner at the top of Set homework (the 👥 list only) and
+   Past years under the Archive; the year-group colour (the pill--yg tokens), never a warning's */
+.arc{margin:4px 0 26px;border:1px solid var(--yg-edge);background:var(--card);border-radius:14px;overflow:hidden}
+.arc__in{padding:16px 18px;border-left:4px solid var(--cyan)}
+.arc--ok{border-color:var(--good-edge)}.arc--ok .arc__in{border-left-color:var(--good)}
+.arc--warn{border-color:var(--warn-edge)}.arc--warn .arc__in{border-left-color:var(--warn)}
+.arc__k{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+.arc__t{font:400 22px/1.15 var(--serif);color:var(--chalk);margin:0 0 6px}
+.arc p{margin:0 0 6px;color:var(--lede);font-size:14px;line-height:1.55}
+.arc .warn{margin:10px 0 0}
+.arc__who{font:500 11px/1.45 var(--mono);color:var(--mute)}
+.arc__ok{color:var(--good);font-weight:600;font-size:13px}
+.arc__row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin-top:12px}
+.arc__h{font:600 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:14px 0 4px}
+.arc__tbl{border-collapse:collapse;margin:8px 0 10px;font-size:13.5px;width:100%;max-width:580px}
+.arc__tbl td{padding:6px 10px 6px 0;border-bottom:1px solid var(--line);color:var(--chalk);vertical-align:top}
+.arc__tbl td.n{text-align:right;font:500 13px/1.3 var(--mono);white-space:nowrap}
+.arc__tbl td.w{color:var(--mute);font-size:12.5px}
+.arc__stay{border:1px solid var(--line);background:var(--tint2);border-radius:10px;padding:10px 12px;margin:10px 0 8px;font-size:13.5px;color:var(--dim)}
+.arc__bar{max-width:580px}.arc__bar>i{background:var(--cyan)}
+.arcbtn{font:600 11px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--ink);background:var(--cyan);border:1px solid var(--cyan);border-radius:9px;padding:11px 15px;cursor:pointer}
+.arcbtn:disabled{opacity:.5;cursor:default}
+.arcbtn--q{color:var(--dim);background:transparent;border-color:var(--line2)}
+.pastbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}
+.ro{font:600 9.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);border:1px solid var(--line2);border-radius:999px;padding:5px 8px}
+.phw{border:1px solid var(--line);border-radius:12px;background:var(--card);margin:0 0 9px;overflow:hidden}
+.phw__h{display:grid;grid-template-columns:1fr auto;gap:4px 14px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:12px 14px 8px;cursor:pointer;color:inherit;font:inherit}
+.phw__m b{display:block;font-weight:600;color:var(--chalk);font-size:14.5px}.phw__m .m{font:500 11.5px/1.4 var(--mono);color:var(--mute)}
+.phw__r{font:500 12px/1.35 var(--mono);color:var(--chalk);text-align:right}.phw__r span{color:var(--mute)}
+.phw__bar{height:6px;border-radius:4px;background:var(--track);overflow:hidden;margin:0 14px 12px}.phw__bar>i{display:block;height:100%;background:var(--good)}
+.phw__t{border-collapse:collapse;width:calc(100% - 28px);margin:0 14px 10px;font-size:13px}
+.phw__t th{text-align:left;font:600 9.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);padding:6px 8px 6px 0;border-bottom:1px solid var(--line2)}
+.phw__t td{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);color:var(--chalk)}
+.phw .acts{margin:0 14px 12px}
+@media (max-width:560px){.arc__in{padding:14px}.arc__t{font-size:19px}.phw__h{grid-template-columns:1fr}.phw__r{text-align:left}
+  .phw__t{display:block;overflow-x:auto}}
 </style>
 </head>
 <body>
@@ -1359,7 +1395,7 @@ var BOOT = __BOOT__;
     g.cohorts.forEach(function(c){
       var n=0; c.types.forEach(function(t){ n+=t.links.length; });
       body += '<section class="grp" data-cur="'+(c.current?'1':'0')+'"><div class="coh"><span class="coh__t">'+esc(c.title)+'</span>'+
-        (c.yearGroup?'<span class="pill--yg">'+esc(c.yearGroup)+' this year</span>':'<span class="pill--past">not in school</span>')+
+        (c.archived?'<span class="pill--past">past year · archived</span>':c.yearGroup?'<span class="pill--yg">'+esc(c.yearGroup)+' this year</span>':'<span class="pill--past">not in school</span>')+
         '<span class="n">'+n+'</span></div>'+
         c.types.map(function(t){ var k=typeClass(t.type); present[k]=1;
           return '<div class="tb tb--'+k+'"><h3 class="tl">'+esc(t.type)+'<span class="tn">'+t.links.length+'</span></h3>'+
@@ -2587,9 +2623,156 @@ var BOOT = __BOOT__;
     if(CBX){ if(document.body.contains(CBX.inp)) cbxPlace(); else cbxClose(); } }
   var ENID = 'bio-english-lab';   /* Bio English Lab goes into homework as one lab more: its sets are the stations */
   var WUID = 'write-up-lab';      /* and the Write-Up Lab (3 Oct 2026): its parts are the stations */
+  /* 🗄️ Archive a finished year group (20 Nov 2026, §cohort-archive; Daniel: archive, not delete, in this spreadsheet, hidden;
+     only the people with the analysis website). The banner sits at the top of Set homework; the server decides who sees it
+     (uiData sends `archive` only to the analysis website's 👥 list) and asks again when it is pressed (cohortArchiveStart).
+     Past years, under the Archive, lists the homework of the year groups archived, read only, for any teacher of the page. Kept
+     outside the view, so an action's answer (which carries neither) leaves them as they were. */
+  var ARC=null, PAST=[], PASTD={}, arcPollT=null;
+  function arcMe(){ return String((typeof BOOT!=='undefined'&&BOOT&&BOOT.email)||'').toLowerCase(); }
+  function arcN(n, one, many){ return n+' '+(n===1?one:(many||one+'s')); }
+  function arcHtml(){
+    var A=ARC; if(!A) return '';
+    var msg=hState.arcMsg?'<div class="msg '+(hState.arcMsg.bad?'bad':'ok')+'" role="status">'+esc(hState.arcMsg.text)+'</div>':'';
+    var who='<span class="arc__who">Only you and the people on the analysis website’s 👥 list see this.</span>', out='';
+    if(A.job){
+      var j=A.job, pc=j.steps?Math.round(100*j.step/j.steps):0, by=(j.by&&String(j.by).toLowerCase()===arcMe())?'you':(j.by||'a teacher');
+      return '<div class="arc" id="arc"><div class="arc__in">'+
+        '<div class="arc__k"><span class="pill--yg">Class of '+esc(j.grad)+'</span><span class="pill--past">archiving · '+j.step+' of '+j.steps+' steps</span></div>'+
+        '<div class="arc__t">Archiving Class of '+esc(j.grad)+'…</div>'+
+        '<div class="pbar arc__bar"><i style="width:'+pc+'%"></i></div>'+
+        (j.now?'<p>Now: '+esc(j.now)+'.</p>':'')+
+        (j.state==='stopped'?'<p>Google has not started its next step. Press Carry on: it does only what is still to do.</p>'
+          :'<p>You can close this page. The job carries on by itself'+(j.state==='waiting'&&j.at?' (next at about '+esc(j.at)+')':'')+', and the next page you open shows how far it is.</p>')+
+        '<div class="arc__row">'+(j.state==='stopped'?'<button class="arcbtn" data-arcgo="'+esc(j.grad)+'">Carry on</button>':'')+
+        '<button class="arcbtn arcbtn--q" data-arcstop="1">⏹ Stop</button><span class="arc__who">Started by '+esc(by)+(j.beganText?' at '+esc(j.beganText):'')+'. ⏹ Stop ends it after the step it is on; nothing is taken out before its copy.</span></div>'+msg+'</div></div>';
+    }
+    if(A.last && hState.arcSeen!==A.last.at){
+      var L=A.last;
+      out+='<div class="arc '+(L.ok?'arc--ok':'arc--warn')+'" id="arcdone"><div class="arc__in">'+
+        '<div class="arc__k"><span class="pill--yg">Class of '+esc(L.grad)+'</span>'+(L.ok?'<span class="arc__ok">✓ archived</span>':'<span class="pill--past">stopped part way</span>')+'</div>'+
+        '<div class="arc__t">'+(L.ok?'Class of '+esc(L.grad)+' is archived':'The archive of Class of '+esc(L.grad)+' stopped')+'</div>'+
+        '<p>'+esc(L.words)+' · '+esc(L.at)+'</p>'+
+        (L.ok?'<p>To see it in the spreadsheet: Student data ▸ ☰ All sheets (bottom left) ▸ 🗄️ Archive. Its homework is on this page too: Past years, below.</p>':'')+
+        '<div class="arc__row">'+(L.ok&&hState.arcFresh?'<button class="arcbtn" data-arcrefresh="1">Show the lists without them</button>':'')+
+        '<button class="arcbtn arcbtn--q" data-arcseen="'+esc(L.at)+'">Close</button></div></div></div>';
+    }
+    if(A.part){
+      var P=A.part;
+      out+='<div class="arc arc--warn" id="arc"><div class="arc__in"><div class="arc__k"><span class="pill--yg">Class of '+esc(P.grad)+'</span><span class="pill--past">'+esc(P.how)+'</span></div>'+
+        '<div class="arc__t">The archive of Class of '+esc(P.grad)+' stopped part way</div>'+
+        '<p>What was done is kept. Carry on does only what is still to do: nothing is copied twice, and nothing is taken out before its copy.</p>'+
+        '<div class="arc__row"><button class="arcbtn" data-arcgo="'+esc(P.grad)+'"'+(hState.arcBusy?' disabled':'')+'>'+(hState.arcBusy?'Starting…':'Carry on')+'</button>'+who+'</div>'+msg+'</div></div>';
+    }
+    (A.finished||[]).forEach(function(c){
+      var ask=hState.arcAsk===c.grad, some=c.pupils>0, sc=(c.stayCls||[]).join(', ');
+      var stay=c.stay?'<p>'+arcN(c.stay,'pupil')+' of that year '+(c.stay===1?'is':'are')+' in a class of this year ('+esc(sc)+'). They stay as they are.</p>':'';
+      if(!ask){
+        out+='<div class="arc" id="arc-'+esc(c.grad)+'"><div class="arc__in"><div class="arc__k"><span class="pill--yg">'+esc(c.title)+'</span><span class="pill--past">left Year 11 · '+esc(c.finishText)+'</span></div>'+
+          '<div class="arc__t">'+esc(c.title)+' has finished Year 11</div>'+
+          (some?'<p>'+arcN(c.pupils,'of its pupils is','of its pupils are').replace(/^1 of its pupils are/,'1 of its pupils is')+' in none of this year’s classes. Their homework, lab work, Bio English, Write-Up and practicals can move to an archive in Student data. The archive is hidden, and they leave every list on this page.</p>'
+               :'<p>'+arcN(c.homework,'homework','homework')+' set for this year group before 1 August '+esc(c.grad)+' '+(c.homework===1?'is':'are')+' still here and can move to the archive in Student data.</p>')+
+          stay+
+          (A.noCohort?'<p class="arc__who">'+arcN(A.noCohort,'pupil')+' in LEFT '+(A.noCohort===1?'has':'have')+' no Cohort, so no year group takes '+(A.noCohort===1?'them':'them')+': type the year they finish Year 11 in the Students tab’s Cohort column to archive '+(A.noCohort===1?'them':'them')+' with it.</p>':'')+
+          (A.ready?'':'<div class="warn">Import this year’s classes first (🧪 Biology Labs ▸ 🎓 Import students from Classroom), so pupils who carry on into Year 12 are in their new class. Then this button works.</div>')+
+          '<div class="arc__row"><button class="arcbtn" data-arcopen="'+esc(c.grad)+'"'+(A.ready&&!A.part?'':' disabled')+'>Archive '+esc(c.title)+'…</button>'+who+'</div>'+(hState.arcAsk==null?msg:'')+'</div></div>';
+        return;
+      }
+      var rows='<tr><td>Students</td><td class="n">'+arcN(c.pupils,'pupil')+'</td><td class="w">in none of this year’s classes</td></tr>'+
+        (c.labs?'<tr><td>The '+c.labs+' lab tabs</td><td class="n">'+arcN(c.labRows,'row')+'</td><td class="w"></td></tr>':'')+
+        (c.counts||[]).filter(function(x){ return x.n; }).map(function(x){ return '<tr><td>'+esc(x.tab)+'</td><td class="n">'+arcN(x.n,'row')+'</td><td class="w"></td></tr>'; }).join('')+
+        '<tr><td>📚 Homework</td><td class="n">'+arcN(c.homework,'homework','homework')+'</td><td class="w">set for this year group before 1 August '+esc(c.grad)+'</td></tr>';
+      out+='<div class="arc" id="arc-'+esc(c.grad)+'"><div class="arc__in"><div class="arc__k"><span class="pill--yg">'+esc(c.title)+'</span></div>'+
+        '<div class="arc__t">Archive '+esc(c.title)+'?</div>'+
+        '<p>Each row is copied first, then checked against the copy, and only then taken out of the live tab. No row is left empty.</p>'+
+        '<h4 class="arc__h">What moves to the archive</h4><table class="arc__tbl">'+rows+'</table>'+
+        '<div class="arc__stay"><b>What stays:</b> '+(c.stay?esc('the '+arcN(c.stay,'pupil')+' in '+sc+' with all their work · homework set for them since 1 August '+c.grad)+' · ':'')+'every test and reflection spreadsheet (nothing in them changes).</div>'+
+        '<p>Where it goes: four hidden tabs in Student data: 🗄️ Archive, 🗄️ Past pupils, 🗄️ Past homework, 🗄️ Every row.</p>'+
+        ((A.imported||[]).length?'<p class="arc__who">Classes imported since 1 August: '+esc(A.imported.join(', '))+'.</p>':'')+
+        (A.noY12&&some?'<div class="warn">No Year 12 class has been imported since 1 August. A pupil of this year group who carries on into Year 12 here, in a class not imported yet, would be archived too (their work stays in the archive). Import that class first.</div>':'')+
+        '<div class="arc__row"><button class="arcbtn" data-arcgo="'+esc(c.grad)+'"'+(hState.arcBusy?' disabled':'')+'>'+(hState.arcBusy?'Starting…':some?'Archive '+arcN(c.pupils,'pupil'):'Archive its homework')+'</button>'+
+        '<button class="arcbtn arcbtn--q" data-arckeep="1"'+(hState.arcBusy?' disabled':'')+'>Keep them</button></div>'+msg+'</div></div>';
+    });
+    return out;
+  }
+  function paintArc(){ var b=$('arcbox'); if(!b) return; b.innerHTML=arcHtml(); wireArc(); arcPollMaybe(); }
+  function wireArc(){
+    document.querySelectorAll('[data-arcopen]').forEach(function(b){ b.addEventListener('click', function(){ hState.arcAsk=+b.getAttribute('data-arcopen'); hState.arcMsg=null; paintArc(); }); });
+    document.querySelectorAll('[data-arckeep]').forEach(function(b){ b.addEventListener('click', function(){ hState.arcAsk=null; hState.arcMsg=null; paintArc(); }); });
+    document.querySelectorAll('[data-arcseen]').forEach(function(b){ b.addEventListener('click', function(){ hState.arcSeen=b.getAttribute('data-arcseen'); paintArc(); }); });
+    document.querySelectorAll('[data-arcrefresh]').forEach(function(b){ b.addEventListener('click', function(){ hState.arcFresh=false; var rf=$('rf'); if(rf) rf.click(); }); });
+    document.querySelectorAll('[data-arcgo]').forEach(function(b){ b.addEventListener('click', function(){
+      if(hState.arcBusy) return;
+      hState.arcBusy=true; hState.arcMsg=null; paintArc();
+      google.script.run.withSuccessHandler(function(r){
+          hState.arcBusy=false;
+          if(r&&r.archive!==undefined) ARC=r.archive;
+          if(!(r&&r.ok)) hState.arcMsg={ bad:true, text:(r&&r.why)||'It did not start.' }; else { hState.arcAsk=null; hState.arcFresh=true; }
+          paintArc(); })
+        .withFailureHandler(function(){ hState.arcBusy=false; hState.arcMsg={ bad:true, text:'The page did not hear back from the spreadsheet. It may have begun: this page shows how far it is in a moment.' }; paintArc(); arcPoll(); })
+        .cohortArchiveStart(+b.getAttribute('data-arcgo')); }); });
+    document.querySelectorAll('[data-arcstop]').forEach(function(b){ b.addEventListener('click', function(){
+      google.script.run.withSuccessHandler(function(r){
+          if(r&&r.archive!==undefined) ARC=r.archive;
+          hState.arcMsg=(r&&r.ok)?{ bad:false, text:r.said==='later'?'It ends after the step it is on. What was done is kept.':'Stopped. What was done is kept.' }:{ bad:true, text:(r&&r.why)||'It could not be stopped just now.' };
+          paintArc(); })
+        .withFailureHandler(function(){ hState.arcMsg={ bad:true, text:'The page did not hear back from the spreadsheet.' }; paintArc(); })
+        .cohortArchiveStop(); }); });
+  }
+  /* while it runs, the banner asks every 15 seconds how far it is: only while Set homework is on the screen and the tab is seen,
+     and never for a job Google has stopped starting (Carry on asks then). When it has finished, a button reads the lists again;
+     nothing is redrawn under the teacher by itself (the review, 20 Nov 2026). */
+  var arcWake=false;
+  function arcMoving(){ return !!(ARC&&ARC.job&&(ARC.job.state==='running'||ARC.job.state==='waiting')); }
+  function arcPollMaybe(){
+    if(arcPollT||!arcMoving()||!$('arcbox')) return;
+    if(document.hidden){ if(!arcWake){ arcWake=true; document.addEventListener('visibilitychange', function w(){ if(document.hidden) return;
+      document.removeEventListener('visibilitychange', w); arcWake=false; arcPollMaybe(); }); } return; }
+    arcPollT=setTimeout(arcPoll, 15000);
+  }
+  function arcPoll(){
+    arcPollT=null;
+    if(!$('arcbox')||document.hidden){ arcPollMaybe(); return; }
+    google.script.run.withSuccessHandler(function(r){
+        if(!(r&&r.ok)){ arcPollMaybe(); return; }
+        var had=!!(ARC&&ARC.job); ARC=r.data; if(had&&!(ARC&&ARC.job)) hState.arcFresh=true; paintArc(); })
+      .withFailureHandler(function(){ arcPollMaybe(); })
+      .uiData('archive');
+  }
+  function pastHtml(){
+    if(!PAST||!PAST.length) return '';
+    var po=!!hState.pastOpen, g=hState.pastG||PAST[0].grad, P=PASTD[g], meta=PAST.filter(function(p){ return p.grad===g; })[0]||PAST[0], body='';
+    if(po){
+      body='<div class="pastbar">'+PAST.map(function(p){ var on=p.grad===g;
+          return '<button class="chip'+(on?' on':'')+'" data-pastg="'+esc(p.grad)+'" aria-pressed="'+(on?'true':'false')+'">'+esc(p.title)+'</button>'; }).join('')+
+        '<span class="ro">read only</span></div>'+
+        '<p class="sec__d">'+esc(meta.title)+(meta.at?' · archived '+esc(meta.at):'')+(P&&P.homework?' · '+arcN(P.homework.length,'homework','homework'):'')+
+        '. Open one to see each pupil by its due date. “Set again” fills the form above, for this year’s classes.</p>';
+      if(!P) body+='<div class="load">Loading</div>';
+      else if(P.err) body+='<div class="err">'+esc(P.err)+'</div>';
+      else if(!P.homework.length) body+='<div class="empty">No homework was archived for '+esc(meta.title)+'.</div>';
+      else body+=P.homework.map(function(h){
+        var open=hState.pastHw===h.id, pc=h.n?Math.round(100*h.byDue/h.n):0;
+        return '<div class="phw"><button class="phw__h" data-pasthw="'+esc(h.id)+'" aria-expanded="'+(open?'true':'false')+'">'+
+          '<span class="phw__m"><b>'+esc(h.title)+'</b><span class="m">'+esc([h.cls,h.year,h.dueText?'due '+h.dueText:''].filter(function(x){ return !!x; }).join(' · '))+'</span></span>'+
+          '<span class="phw__r">by the due date '+h.byDue+' of '+h.n+'<br><span>done in the end '+h.inEnd+' of '+h.n+'</span></span></button>'+
+          '<div class="phw__bar"><i style="width:'+pc+'%"></i></div>'+
+          (open?'<table class="phw__t"><tr><th>Pupil</th><th>Class</th><th>By the due date</th><th>In the end</th><th>Done</th></tr>'+
+              h.pupils.map(function(p){ return '<tr><td>'+esc(p.name)+'</td><td>'+esc(p.cls)+'</td><td>'+esc(p.due)+'</td><td>'+esc(p.end)+'</td><td>'+p.done+' of '+p.total+'</td></tr>'; }).join('')+'</table>'+
+              (h.tasks&&h.tasks.length?'<div class="acts"><button class="act" data-again="'+esc(h.id)+'">Set again</button></div>':''):'')+
+          '</div>'; }).join('');
+    }
+    return '<section class="sec" id="hpast"><div class="sec__h"><span class="sec__t">Past years</span><span class="arch__n">'+arcN(PAST.length,'year group')+' archived</span>'+
+      '<div class="hsort"><button class="chip'+(po?' on':'')+'" data-pastopen="1" aria-expanded="'+(po?'true':'false')+'" aria-controls="hpast">'+(po?'Close':'Open')+'</button></div></div>'+
+      (po?'':'<p class="sec__d">The homework of year groups that have left, from the archive in Student data. Read only.</p>')+body+'</section>';
+  }
+  /* a past homework, for “Set again”: its parts, never its class (a class of last year) */
+  function pastAgain(id){ var h=null; Object.keys(PASTD).forEach(function(g){ ((PASTD[g]||{}).homework||[]).forEach(function(x){ if(x.id===id) h={ id:x.id, title:x.title, tasks:x.tasks||[], targets:{} }; }); }); return h; }
   window.vHomework = function(D){
     var LABS=D.labs||[], STUD=D.students||[], HW=D.homework||[], EN=null, ENS={};
     hState.archMsg=null;   /* the Archive's last answer belongs to the list it was given for, not to a fresh read */
+    if (D && Object.prototype.hasOwnProperty.call(D,'archive')) ARC=D.archive||null;   /* 🗄️ only a read of the view carries them */
+    if (D && Array.isArray(D.past)) PAST=D.past;
     /* "Sort by: Due date · Class" (Daniel, 1 Oct 2026), remembered in this browser */
     if(!hState.sort){ var s0=''; try { s0=localStorage.getItem('homework.sort')||''; } catch(e){} hState.sort=(s0==='class')?'class':'due'; }
     if(!hState.whose){ var w0=''; try { w0=localStorage.getItem('homework.whose')||''; } catch(e){} hState.whose=(w0==='all')?'all':'mine'; }
@@ -3008,14 +3191,28 @@ var BOOT = __BOOT__;
       var whoseBar = all&&others ? '<div class="hsort" role="group" aria-label="Whose homework is listed"'+(sortBar?' style="margin-left:0"':'')+'><span class="hsort__k">Show</span>'+
         [['mine','Mine'],['all','All teachers']].map(function(o){ var on=(showAll?'all':'mine')===o[0];
           return '<button class="chip'+(on?' on':'')+'" data-hwhose="'+o[0]+'" aria-pressed="'+(on?'true':'false')+'">'+o[1]+'</button>'; }).join('')+'</div>' : '';
-      $('view').innerHTML = warn+
+      $('view').innerHTML = '<div id="arcbox">'+arcHtml()+'</div>'+warn+
         '<section class="sec"><div class="sec__h"><span class="sec__t">New homework</span></div>'+
         '<p class="sec__d">Practice works best on something already taught. Tick only the stations you have covered.</p>'+builder+'</section>'+
         '<section class="sec"><div class="sec__h"><span class="sec__t">'+(showAll?'What every teacher has set':'What you have set')+'</span>'+sortBar+whoseBar+'</div>'+
         '<p class="sec__d">'+(showAll?'':'Only the homework you set is listed here. ')+'Open one to see each student. “Set again” refills the form above.</p>'+
         (D.remindAllowed===false?'<div class="warn">The reminders cannot be posted: Google has not been allowed to post Classroom announcements for this script. 🧪 Biology Labs ▸ 🩺 Check the set-up says what to do.</div>':'')+
-        '<div class="hwlist">'+list+'</div></section>'+arch;
-      wireH(); wantTopics();
+        '<div class="hwlist">'+list+'</div></section>'+arch+pastHtml();
+      wireH(); wantTopics(); wireArc(); wirePast(); pastLoad(); arcPollMaybe();
+    }
+    function wirePast(){
+      document.querySelectorAll('[data-pastopen]').forEach(function(b){ b.addEventListener('click', function(){ hState.pastOpen=!hState.pastOpen; pastLoad(); paint(); }); });
+      document.querySelectorAll('[data-pastg]').forEach(function(b){ b.addEventListener('click', function(){ hState.pastG=+b.getAttribute('data-pastg'); hState.pastHw=null; pastLoad(); paint(); }); });
+      document.querySelectorAll('[data-pasthw]').forEach(function(b){ b.addEventListener('click', function(){ var id=b.getAttribute('data-pasthw'); hState.pastHw=hState.pastHw===id?null:id; paint(); }); });
+    }
+    function pastLoad(){
+      if(!hState.pastOpen||!PAST.length) return;
+      var g=hState.pastG||PAST[0].grad;
+      if(Object.prototype.hasOwnProperty.call(PASTD,g)) return;
+      PASTD[g]=null;
+      google.script.run.withSuccessHandler(function(r){ PASTD[g]=(r&&r.ok&&r.data)?r.data:{ err:(r&&r.why)||'Could not read the archive just now.', homework:[] }; paint(); })
+        .withFailureHandler(function(){ PASTD[g]={ err:'The page did not hear back from the spreadsheet.', homework:[] }; paint(); })
+        .uiData('past', g);
     }
     function say(t,bad){ var m=$('hmsg'); if(m){ m.textContent=t||''; m.className='msg'+(t?(bad?' bad':' ok'):''); } }
     function wireH(){
@@ -3099,7 +3296,7 @@ var BOOT = __BOOT__;
         if (window.haOpenFor) window.haOpenFor(b.getAttribute('data-see'), b.getAttribute('data-other')==='1');
         var t=document.getElementById('tab-hwanalysis'); if (t) t.click(); }); });
       document.querySelectorAll('[data-again]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation();
-        var id=b.getAttribute('data-again'), h=null; HW.forEach(function(x){ if(x.id===id) h=x; });
+        var id=b.getAttribute('data-again'), h=null; HW.forEach(function(x){ if(x.id===id) h=x; }); if(!h) h=pastAgain(id);   /* or a past year's (🗄️) */
         if(!h) return; hState.picked={}; hState.open={};
         (h.tasks||[]).forEach(function(t){ hState.picked[t.labId]={}; (t.stationIds||[]).forEach(function(x){ hState.picked[t.labId][x]=1; }); hState.open[t.labId]=true; });
         Object.keys(hState.picked[ENID]||{}).forEach(function(id){ var x=ENS[id]; if(!x) return;
