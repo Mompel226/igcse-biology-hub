@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '20 Nov 2026 (evening) — 🗄️ Archive a finished year group';
+var SCRIPT_EDITION = '21 Nov 2026 — Show the answers ticks picture questions';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -8136,6 +8136,10 @@ function _hwFit_(x, n) { x = String(x || '').slice(0, n); while (x.length < n) x
    fingerprints, and only these fields of it go to the page (never `k` or the hints). A station is given only when its
    fingerprint is the hub list's, the one its letters were checked against. Kept in the script cache a station at a time
    (a lab's whole list is more than one cache entry holds), under the lab's version and the hub list's stamp. */
+/* The number of the shape _actLean_ sends. It is part of the cache key: raise it whenever _actLean_ sends another shape, so a
+   paste shows at once and no copy kept under the older shape is served for six hours (2 on 21 Nov 2026: a picture's places
+   carry their id). */
+var ACT_SHAPE = 2;
 var ACT_KEEP = { mcq: ['options', 'multi'], blank: ['text'], sort: ['bins', 'items'], order: ['items'], match: ['left', 'right'],
                  drag: ['tokens', 'distractors'], grid: [], hotspot: ['need'], ph: ['enzyme'] };
 function _actLean_(a, base) {
@@ -8145,7 +8149,8 @@ function _actLean_(a, base) {
   if (t === 'drag') o.slots = (a.slots || []).map(function (s) { return String((s && s.label) || ''); });
   if (t === 'grid') { o.rows = (a.rows || []).map(function (r) { return { label: String((r && r.label) || ''), note: String((r && r.note) || '') }; });
                       o.cols = (a.cols || []).map(function (c) { return String((c && c.label) || ''); }); }
-  if (t === 'hotspot') o.regions = (a.regions || []).map(function (r) { return { x: Number(r.x) || 0, y: Number(r.y) || 0 }; });
+  /* each place with its id (public in the lab's stations.js): Show the answers ticks the right place by it (the audit, 21 Nov 2026) */
+  if (t === 'hotspot') o.regions = (a.regions || []).map(function (r) { return { id: String(r.id || ''), x: Number(r.x) || 0, y: Number(r.y) || 0 }; });
   if (a.img && /^[\w.\/-]{1,120}$/.test(String(a.img)) && !/\.\./.test(String(a.img))) o.img = base + '/assets/photos/' + String(a.img);
   if (a.imgCap) o.cap = String(a.imgCap).slice(0, 300);
   if (a.table && Array.isArray(a.table.rows)) o.table = { head: (a.table.head || []).map(String), rows: a.table.rows.map(function (r) { return (r || []).map(String); }) };
@@ -8191,7 +8196,7 @@ function _labFileStations_(F) {
 function _labActivities_(labId) {
   var F = _labFile_(String(labId || '').slice(0, 40));
   if (!F) return null;
-  var BASE = 'LABA_' + F.lab.id + '_' + (F.ver || 'none') + '_' + (F.stamp || 'h') + '_', sids = Object.keys(F.want), out = {};
+  var BASE = 'LABA_' + F.lab.id + '_' + (F.ver || 'none') + '_' + (F.stamp || 'h') + '_' + ACT_SHAPE + '_', sids = Object.keys(F.want), out = {};
   if (F.cache && F.ver) {
     var got = null;
     try { got = F.cache.getAll([BASE + '#'].concat(sids.map(function (s) { return BASE + s; }))); } catch (e) { got = null; }

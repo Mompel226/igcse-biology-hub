@@ -4045,9 +4045,18 @@ var BOOT = __BOOT__;
       case 'grid': return '<div class="ha-tw"><table class="ha-ftab"><thead><tr><th></th>'+(a.cols||[]).map(function(c){ return '<th>'+esc(c)+'</th>'; }).join('')+'</tr></thead><tbody>'+
         (a.rows||[]).map(function(r,ri){ return '<tr><td><b>'+esc(r.label)+'</b>'+(r.note?'<br><span class="ha-fcap">'+esc(r.note)+'</span>':'')+'</td>'+(a.cols||[]).map(function(c,ci){ var t = ans && ans.ticks && (ans.ticks[ri]||[]).indexOf(ci)>=0;
           return '<td class="ha-tick'+(t?' ok':'')+'">'+(t?'✓':'')+'</td>'; }).join('')+'</tr>'; }).join('')+'</tbody></table></div>';
-      case 'hotspot': return a.img ? '<div class="ha-hot"><img src="'+esc(a.img)+'" alt="'+esc(a.cap||'The picture of the question')+'" loading="lazy">'+
+      /* a photograph: each place a numbered dot, the right ones ✓ with the answers (by the place's id, which the server sends).
+         A question on one of the lab's own drawings has no picture to show here: with the answers, the right place or places
+         in words (the labels of the lab's master file); without them, one line that says where pupils answer it (21 Nov 2026) */
+      case 'hotspot':
+        if (!a.img) { var hn = [], hc = {}, hall = 0;
+          if (ans) (ans.c||[]).forEach(function(id){ var w = ans.labels && ans.labels[id]; if (!w) return; hall++; if (!hc[w]) hn.push(w); hc[w] = (hc[w]||0)+1; });
+          return hn.length ? '<div class="ha-lbl">'+(hall>1?'The right places':'The right place')+' on the lab’s own drawing</div>'+
+              haToks(hn.map(function(w){ return hc[w]>1 ? w+' ('+hc[w]+' places)' : w; }), function(){ return true; })
+            : '<p class="ha-task">Pupils answer this question on the lab’s own drawing, which is not shown on this page.</p>'; }
+        return '<div class="ha-hot"><img src="'+esc(a.img)+'" alt="'+esc(a.cap||'The picture of the question')+'" loading="lazy">'+
         (a.regions||[]).map(function(r,i){ var ids = ans ? (ans.c||[]) : [], on = r.id && ids.indexOf(r.id)>=0;
-          return '<i class="'+(on?'ok':'')+'" style="left:'+(+r.x||0)+'%;top:'+(+r.y||0)+'%"'+(on&&ans.labels&&ans.labels[r.id]?' data-tip="'+esc(ans.labels[r.id])+'"':'')+'>'+(on?'✓':i+1)+'</i>'; }).join('')+'</div>' : '';
+          return '<i class="'+(on?'ok':'')+'" style="left:'+(+r.x||0)+'%;top:'+(+r.y||0)+'%"'+(on&&ans.labels&&ans.labels[r.id]?' data-tip="'+esc(ans.labels[r.id])+'"':'')+'>'+(on?'✓':i+1)+'</i>'; }).join('')+'</div>';
       case 'ph': var c=''; for (var p=1;p<=14;p++) c+='<span'+(ans && Math.abs(p-ans.opt)<=ans.tol?' class="ok"':'')+'>'+p+'</span>';
         return '<div class="ha-ph" aria-hidden="true">'+c+'</div><p class="ha-task">'+(ans?'The optimum: <b>pH '+esc(ans.opt)+'</b> (pH '+esc(ans.opt-ans.tol)+' to '+esc(+ans.opt+ +ans.tol)+' is accepted).':'A slider from pH 1 to pH 14, for '+esc(a.enzyme||'the enzyme')+'.')+'</p>';
       case 'choose': i=0; return '<p class="ha-passage">'+haE(a.text||'').replace(/\[\[([^\]]*)\]\]/g, function(_,x){ var r = ans && ans.right ? ans.right[i++] : null;
