@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '23 Nov 2026 — Molecules Lab';
+var SCRIPT_EDITION = '23 Nov 2026 — Molecules and Respiration Labs';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -194,7 +194,7 @@ var LABS = [
   { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:122 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:59 },
   { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:60 },
-  { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:0 },
+  { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:77 },
   { id:'excretion-lab',       name:'Excretion',        topic:'13 · Excretion in humans',           questions:0 },
   { id:'coordination-lab',    name:'Coordination',     topic:'14 · Coordination and response',     questions:0 },
   { id:'drugs-lab',           name:'Drugs & AMR',      topic:'15 · Drugs',                         questions:0 },
