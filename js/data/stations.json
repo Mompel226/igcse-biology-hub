@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-22T18:20:07.792Z",
+  "generated": "2026-11-23T14:26:46.000Z",
   "labs": {
     "digestion-lab": {
       "name": "Digestion Lab",
@@ -777,6 +777,13 @@
           "syl": "11.1.2|11.1.2|11.1.2|11.1.2|11.1.7|11.1.2,11.1.8|11.1.2|11.1.6|11.1.2"
         },
         {
+          "id": "protect",
+          "name": "Protecting the breathing system",
+          "questions": 7,
+          "sig": "7:1ooac7c",
+          "syl": "11.1.11|11.1.11|11.1.11|11.1.11,2.1.6|2.1.6,11.1.11|11.1.11|11.1.11"
+        },
+        {
           "id": "surface",
           "name": "The gas exchange surface",
           "questions": 8,
@@ -810,13 +817,6 @@
           "questions": 7,
           "sig": "7:j9h20m",
           "syl": "11.1.10|11.1.10|11.1.10|11.1.5|11.1.5|11.1.5|11.1.10"
-        },
-        {
-          "id": "protect",
-          "name": "Protecting the breathing system",
-          "questions": 7,
-          "sig": "7:1ooac7c",
-          "syl": "11.1.11|11.1.11|11.1.11|11.1.11,2.1.6|2.1.6,11.1.11|11.1.11|11.1.11"
         },
         {
           "id": "investigation",
