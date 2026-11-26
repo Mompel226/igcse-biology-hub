@@ -47,7 +47,7 @@ window.HUB = {
       blurb:'Here you do not move across a body — you move down into one. Start with a whole organism and step inside: an organ, then a tissue, then a cell, then an organelle, and finally the molecules that do the work. Topics 2 to 5 sit at each step on the way down.',
       topics:[ {no:2,t:'Organisation of the organism'}, {no:3,t:'Movement in and out of cells'},
                {no:4,t:'Biological molecules'}, {no:5,t:'Enzymes'} ],
-      status:'live', url:'https://nlcsbiology.com/foundations-hub/', detail:'The zoom is open · 1\u00a0lab\u00a0open · 1\u00a0sim\u00a0open',
+      status:'live', url:'https://nlcsbiology.com/foundations-hub/', detail:'The zoom is open · 3\u00a0labs\u00a0open · 1\u00a0sim\u00a0open',
       accent:'#E879F9', tone:'dark', focus:'50% 50%',
       alt:'HeLa cells under a multiphoton microscope: microtubules in magenta, DNA in cyan' },
 
@@ -57,7 +57,7 @@ window.HUB = {
       topics:[ {no:7,t:'Human nutrition'}, {no:9,t:'Transport in animals'}, {no:10,t:'Diseases and immunity'},
                {no:11,t:'Gas exchange'}, {no:12,t:'Respiration'}, {no:13,t:'Excretion'},
                {no:14,t:'Coordination and response'}, {no:15,t:'Drugs'}, {no:16,t:'Reproduction'} ],
-      status:'live', url:'https://nlcsbiology.com/human-body-hub/', detail:'2 labs open · 7 being built',
+      status:'live', url:'https://nlcsbiology.com/human-body-hub/', detail:'5 labs open · 4 being built',
       accent:'#FF5C5C', tone:'dark', focus:'50% 40%',
       alt:'The heart and lungs with their vessels, from Bourgery and Jacob\'s anatomy of the 1830s, shown in red' },
 
@@ -75,7 +75,7 @@ window.HUB = {
       blurb:'Here you find out where you come from. Climb the tree of life from the first cells — perhaps at a vent like this one — to every kingdom alive today; see how one molecule, DNA, links all of it; then what we can do with that knowledge, from breeding crops to editing genes.',
       topics:[ {no:1,t:'Characteristics and classification'}, {no:17,t:'Inheritance'}, {no:18,t:'Variation and selection'},
                {no:19,t:'Organisms and their environment'}, {no:20,t:'Human influences on ecosystems'}, {no:21,t:'Biotechnology'} ],
-      status:'live', url:'https://nlcsbiology.com/life-on-earth-hub/', detail:'The tree is open · 1 lab open',
+      status:'live', url:'https://nlcsbiology.com/life-on-earth-hub/', detail:'The tree is open · 2 labs open',
       accent:'#5EEAD4', tone:'dark', focus:'50% 58%',
       alt:'White smokers venting liquid carbon dioxide at NW Eifuku volcano, 1,600 metres down' }
   ],

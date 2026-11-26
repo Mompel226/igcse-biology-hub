@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '23 Nov 2026 — Molecules and Respiration Labs';
+var SCRIPT_EDITION = '25 Nov 2026 — night work, boarders and the new labs';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -193,8 +193,8 @@ var LABS = [
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
   { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:122 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:59 },
-  { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:60 },
-  { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:77 },
+  { id:'gas-exchange-lab',    name:'Gas exchange',     topic:'11 · Gas exchange in humans',        questions:61 },
+  { id:'respiration-lab',     name:'Respiration',      topic:'12 · Respiration',                   questions:79 },
   { id:'excretion-lab',       name:'Excretion',        topic:'13 · Excretion in humans',           questions:0 },
   { id:'coordination-lab',    name:'Coordination',     topic:'14 · Coordination and response',     questions:0 },
   { id:'drugs-lab',           name:'Drugs & AMR',      topic:'15 · Drugs',                         questions:0 },
@@ -1053,10 +1053,10 @@ function _studentOf_(email) {
   }
   return null;
 }
-/* The Students tab's email and Accommodation columns, from ONE read of the heading row (as _emailCol_ alone did, so a
-   save costs no more calls). acc is 0 on a tab Tidy up has not given the column yet. */
+/* The Students tab's email, Accommodation, Cohort and Boarder columns, from ONE read of the heading row (as _emailCol_ alone
+   did, so a save costs no more calls). acc (and cohort, board) is 0 on a tab Tidy up has not given the column yet. */
 function _studentCols_(sh) {
-  var n = sh.getLastColumn(), out = { email: 3 + LABS.length + 2, acc: 0, cohort: 0 }, seenEmail = false;
+  var n = sh.getLastColumn(), out = { email: 3 + LABS.length + 2, acc: 0, cohort: 0, board: 0 }, seenEmail = false;
   if (n > 0) {
     var head = sh.getRange(1, 1, 1, n).getValues()[0];
     for (var i = 0; i < head.length; i++) {
@@ -1064,6 +1064,7 @@ function _studentCols_(sh) {
       if (h === 'School email' && !seenEmail) { out.email = i + 1; seenEmail = true; }
       else if (h === 'Accommodation' && !out.acc) out.acc = i + 1;
       else if (h === 'Cohort' && !out.cohort) out.cohort = i + 1;   /* 20 Nov 2026, §cohort-archive */
+      else if (h === 'Boarder' && !out.board) out.board = i + 1;    /* 25 Nov 2026, §boarders */
     }
   }
   return out;
@@ -3363,6 +3364,14 @@ function _styleStudents_() {
                    'pupil is put in a class (an import, or Move on the teacher page) and kept when they leave, so a year group that has left ' +
                    'can be archived even after its class codes are used again (the teacher page, Set homework). Change it only if a pupil ' +
                    'changes year group. Keep it right after Accommodation.' });
+  /* 25 Nov 2026 (§boarders): who boards, with the dates the teacher page writes. At the END, for the same reason as Accommodation. */
+  cols.push({ h:'Boarder', w:190, edit:true,
+              note:'A boarder: their boarding house (Pyoseon, Aewol, Yongduam, Iho), or Yes. Empty = a day pupil.\n\nBoarders hand in their ' +
+                   'devices at 21:00, so ⏱️ Homework habits (the teacher page) marks 📱 when a boarder worked on homework between 21:45 and ' +
+                   '06:00 on a school night (one that begins Sunday to Thursday).\n\nUse the teacher page (Students: the Boarder button on a ' +
+                   'pupil\'s card, or the Boarders box for a whole list). It writes the dates: "Iho · until 2026-11-25" = they stopped boarding ' +
+                   'that day, and their nights as a boarder before it still count; "Iho · from 2026-12-02" = they began that day. Keep it ' +
+                   'right after Cohort.' });
 
   /* THE GUARD (the verification audit, 8 Oct 2026): _dress2_ writes the heading row BY POSITION, so it may only run where
      every column already carries its own heading, or none. A column out of its place (Accommodation or Labs started
@@ -3374,7 +3383,7 @@ function _styleStudents_() {
   var have = sh.getLastColumn() ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
                .map(function (h) { return String(h || '').replace(/^✎\s*/, '').trim(); }) : [];
   var ORDER = ' Put the columns back in their order (Name, Class, the labs, Labs started, Average, School email, Classroom course, ' +
-              'Imported, Classroom user id, Course id, Accommodation, Cohort; columns of your own after those), then press Tidy up again ' +
+              'Imported, Classroom user id, Course id, Accommodation, Cohort, Boarder; columns of your own after those), then press Tidy up again ' +
               '(it also gives a newly added lab its column).';
   for (var gi = 0; gi < cols.length; gi++) {
     /* a heading twice (the script reads the first, which may be the empty one); the planned heading standing somewhere else
@@ -3387,7 +3396,7 @@ function _styleStudents_() {
     else if (seenAt >= 0 && seenAt !== gi) why = '"' + want + '" stands in column ' + _colA1_(seenAt + 1) + ', but belongs in column ' +
       _colA1_(gi + 1) + (have[gi] ? ', where "' + have[gi] + '" is.' + ORDER
         : ', which has no heading. Tidy up removes that column when it is empty; if it holds something of yours, move it after ' +
-          'the last column (Cohort), then press Tidy up again.');
+          'the last column (Boarder), then press Tidy up again.');
     else if (have[gi] && have[gi] !== want) {
       var k1 = have[gi].toLowerCase().replace(/[^a-z]/g, ''), k2 = want.toLowerCase().replace(/[^a-z]/g, '');
       why = 'column ' + _colA1_(gi + 1) + ' holds "' + have[gi] + '", where "' + want + '" belongs.' + (k1.indexOf(k2) === 0 || k2.indexOf(k1) === 0
@@ -3925,10 +3934,13 @@ function _repairStudentColumns_() {
    next to the names it pulled the hidden addresses along and every save was refused (the verification audit, 8 Oct 2026).
    A column out of its place is left where it is; the guard then refuses to restyle the tab and says which one. A heading
    whose neighbour is missing too is left to _repairStudentSheet_ and the teacher. Returns the headings added. */
-var STUDENT_TRAIL = ['Labs started', 'Average', 'School email', 'Classroom course', 'Imported', 'Classroom user id', 'Course id', 'Accommodation', 'Cohort'];
+var STUDENT_TRAIL = ['Labs started', 'Average', 'School email', 'Classroom course', 'Imported', 'Classroom user id', 'Course id', 'Accommodation', 'Cohort', 'Boarder'];
+/* §boarders (25 Nov 2026): NLCS Jeju's boarding houses; a house already on the Students tab counts too (_boardHouses_) */
+var BOARD_HOUSES = ['Pyoseon', 'Aewol', 'Yongduam', 'Iho'];
 var STUDENT_TRAIL_NEW = {                     /* the headings added after tabs were in use, and the values their own column holds */
   'Accommodation': /^(yes|y|true|no|n|x|o|false|[✓✔✅☑✗✘]️?)$/i,
-  'Cohort': /^(19|20)\d\d$/ };                  /* 20 Nov 2026, §cohort-archive */
+  'Cohort': /^(19|20)\d\d$/,                    /* 20 Nov 2026, §cohort-archive */
+  'Boarder': new RegExp('^(yes|y|true|no|n|x|false|boarder|' + BOARD_HOUSES.join('|') + ')?( · (from|until) \\d{4}-\\d\\d-\\d\\d){0,2}$', 'i') };   /* 25 Nov 2026, §boarders */
 function _studentTrailColumns_(sh) {
   var n = sh.getLastColumn(), done = [];
   if (n < 3) return done;
@@ -7420,27 +7432,30 @@ function _htmlOut_(html, title) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 function _studentDirectory_(now) {
-  var ss = _ss_(), out = [];
+  var ss = _ss_(), out = [], seenHouses = [];
   var stu = ss.getSheetByName(T_STUDENTS);
   if (stu && stu.getLastRow() >= 2) {
     var SC = _studentCols_(stu), ec = SC.email, last = stu.getLastRow();
     /* …and when each pupil was first imported (the import writes it two columns after the email), when the tab has it: the
        teacher's list says which pupils outside a homework came onto the tab after it was set (6 Oct 2026; _homeworkData_);
        and the teacher's accommodation (8 Oct 2026), for the Students view's switch */
-    var width = Math.max(ec, Math.min(ec + 2, stu.getLastColumn()), SC.acc || 0);
+    var width = Math.max(ec, Math.min(ec + 2, stu.getLastColumn()), SC.acc || 0, SC.board || 0), today = _todayYmd_(now);
     stu.getRange(2, 1, last - 1, width).getValues().forEach(function (r) {
       var email = _cleanEmail_(r[ec - 1]); if (!email) return;
       var cls = String(r[1] || '').trim().toUpperCase();
       var imp = width >= ec + 2 ? r[ec + 1] : '', since = (imp instanceof Date && !isNaN(imp.getTime())) ? imp.getTime() : 0;
       var row = { name: String(r[0] || '').trim(), cls: cls, email: email, cohort: _classCohort_(cls, now), since: since };
       if (SC.acc && _accOn_(r[SC.acc - 1])) row.acc = true;
+      /* §boarders (25 Nov 2026): the house and the dates, and whether they board today */
+      var bd = SC.board ? _boardOf_(r[SC.board - 1]) : null;
+      if (bd) { row.board = { h: bd.house, from: bd.from, until: bd.until, on: _boardOn_(bd, today) }; seenHouses.push(bd.house); }
       out.push(row);
     });
   }
   out.sort(function (a, b) { return _byClass_(a.cls, b.cls) || (a.name || '').localeCompare(b.name || ''); });
   /* pupils in none of the classes (LEFT …) stay on the list, for the Students view; never as a class (7 Oct 2026) */
   var cset = {}; out.forEach(function (s) { if (s.cls && !_isLeftClass_(s.cls)) cset[s.cls] = 1; });
-  return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort(_byClass_) };
+  return { generatedAt: new Date().toISOString(), students: out, classes: Object.keys(cset).sort(_byClass_), houses: _boardHouses_(seenHouses) };
 }
 /* ── Set homework, for teachers ─────────────────────────────────────────────
    The Set homework tab of the one teacher page (?page=homework opens on it). A teacher picks parts of labs — not whole labs —
@@ -8893,6 +8908,155 @@ function studentAccommodation(d) {
   var dir = null, base = '';
   try { dir = _studentDirectory_(); base = _trackerAppUrl_(); } catch (e) { dir = null; }
   return { ok:true, note: note + (dir ? '' : ' Press ↻ Refresh, at the top of the page, to see it on the card.'), data:dir, trackerBase:base };
+}
+
+/* ── §boarders (25 Nov 2026) ─────────────────────────────────────────────────────────────────────────────────────────────
+   Daniel: boarders "should hand their devices at 9 o'clock. So any work submitted after, let's say, 9:45 means that they have
+   a second device that they should not have … Up until 6 o'clock", and the status "should be easily editable from the student
+   page … a little cross, so if they … leave the boarding houses, I click there". The Students tab's Boarder column holds the
+   boarding house ("Iho"), or Yes; empty = a day pupil. The teacher page writes dates into it, in the school's zone:
+     "Iho · from 2026-12-02"   made a boarder on their card: nights before that day do not count (a day pupil may use a device);
+     "Iho · until 2026-11-25"  ✕: they stopped boarding that day; their nights as a boarder before it still count.
+   The Boarders box marks a whole list at once with NO date (the school's list says they board, and the times already kept
+   are read against it: Daniel, "make sure that you handle the data that already exists"). One period per pupil: a pupil who
+   stops and starts again keeps the newer one. 📱 itself is worked out in ⏱️ Homework habits (§night). */
+function _boardOf_(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return null;
+  var house = '', from = '', until = '';
+  s.split(/\s*·\s*/).forEach(function (p) {
+    var m = /^(from|until)\s+(\d{4}-\d\d-\d\d)$/i.exec(p);
+    if (m) { if (m[1].toLowerCase() === 'from') from = m[2]; else until = m[2]; }
+    else if (!house && p) house = p;
+  });
+  if (/^(no|n|x|false|[✗✘]️?)$/i.test(house)) return null;          /* in Korea X means no, as for Accommodation */
+  if (/^(yes|y|true|boarder|[✓✔✅☑]️?)$/i.test(house)) house = '';
+  return { house: house, from: from, until: until };
+}
+function _boardText_(b) {
+  return [b.house || 'Yes'].concat(b.from ? ['from ' + b.from] : [], b.until ? ['until ' + b.until] : []).join(' · ');
+}
+/* a boarder on the night that begins on day ymd (yyyy-MM-dd, the school's zone) */
+function _boardOn_(b, ymd) { return !!b && (!b.from || ymd >= b.from) && (!b.until || ymd < b.until); }
+function _todayYmd_(now) { return Utilities.formatDate(new Date(now || Date.now()), _tz_(), 'yyyy-MM-dd'); }
+/* the houses known: NLCS Jeju's four, then any other already written on the tab, each once (whatever its capitals) */
+function _boardHouses_(seen) {
+  var out = [], low = {};
+  BOARD_HOUSES.concat(seen || []).forEach(function (h) { h = String(h || '').trim(); if (h && !low[h.toLowerCase()]) { low[h.toLowerCase()] = 1; out.push(h); } });
+  return out;
+}
+/* a house as typed or pasted: one line, no "·" (it separates the dates), the list's separators off its ends, 40 characters */
+function _boardHouse_(h) {
+  h = String(h == null ? '' : h).replace(/[·\t\r\n]/g, ' ').replace(/\s+/g, ' ').replace(/^[\s,;:|\-–—]+|[\s,;:|\-–—]+$/g, '').slice(0, 40).trim();
+  return /^(yes|y|true|boarder|no|n|x|false)$/i.test(h) ? '' : h;
+}
+/* The Boarder button and ✕ on a pupil's card. on: a boarder from today (or, already one, a new house); off: no longer one,
+   from today. Every row with that address, as for Accommodation. */
+function studentBoarder(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  d = d || {};
+  var email = _cleanEmail_(d.email), on = d.on === true, house = _boardHouse_(d.house);
+  if (!email) return { ok:false, why:'Which pupil?' };
+  var lock = null, name = '', note = '';
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  try {
+    var stu = _sheet_(T_STUDENTS), n = stu.getLastRow() - 1;
+    if (n < 1) return { ok:false, why:'There is nobody on the Students tab.' };
+    _studentTrailColumns_(stu);                    /* a tab from before gets the column, after Cohort, never over a column */
+    var C = _studentCols_(stu), ec = C.email, bc = C.board;
+    if (!bc) return { ok:false, why:'The Students tab has no Boarder column, and one could not be added. Press Tidy up, then try again.' };
+    var v = stu.getRange(2, 1, n, Math.max(ec, bc)).getValues(), rows = [];
+    for (var i = 0; i < v.length; i++) { if (_cleanEmail_(v[i][ec - 1]) === email) rows.push(i); }
+    if (!rows.length) return { ok:false, why:'That pupil is not on the Students tab.' };
+    name = String(v[rows[0]][0] || '').trim() || 'This pupil';
+    var was = _boardOf_(v[rows[0]][bc - 1]), today = _todayYmd_(), now = _boardOn_(was, today), b;
+    if (on) {
+      if (now && (!house || house === was.house)) return { ok:false, why:name + ' is a boarder already.' };
+      b = now ? { house: house, from: was.from, until: '' } : { house: house || (was ? was.house : ''), from: today, until: '' };
+      note = now ? name + '’s boarding house is ' + house + ' now.'
+                 : name + ' is a boarder' + (b.house ? ' (' + b.house + ')' : '') + ' from today. ⏱️ Homework habits marks 📱 when they work on homework ' +
+                   'between 21:45 and 06:00 on a school night (Sunday to Thursday). Nights before today do not count.';
+    } else {
+      if (!now) return { ok:false, why:name + ' is not a boarder now.' };
+      /* made a boarder today and taken off today: a mistake undone, no period at all */
+      b = (was.from && was.from >= today) ? null : { house: was.house, from: was.from, until: today };
+      note = b ? name + ' is no longer a boarder, from today. Their nights as a boarder before today still count in ⏱️ Homework habits.'
+               : name + ' is not a boarder: today’s change is undone.';
+    }
+    var text = b ? _boardText_(b) : '';
+    rows.forEach(function (r) { stu.getRange(r + 2, bc).setValue(text); });
+  } catch (e) {
+    return { ok:false, why:'Could not change it.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  var dir = null, base = '';
+  try { dir = _studentDirectory_(); base = _trackerAppUrl_(); } catch (e) { dir = null; }
+  return { ok:true, note: note + (dir ? '' : ' Press ↻ Refresh, at the top of the page, to see it on the card.'), data:dir, trackerBase:base };
+}
+/* The Boarders box: a whole list at once, one pupil a line, their school email and their house (in any order: a copy of two
+   columns of a spreadsheet, or "email, house"). Only pupils on the Students tab are marked, with no date; a boarder already
+   keeps their dates (a new house is written); a pupil the teacher took off (✕, "until") is left as they are, by name, so a
+   list from before never undoes it. Read and written in one go each. */
+function studentBoardersFromList(d) {
+  var who = _hwCaller_();
+  if (!who) return { ok:false, why:'Not allowed.' };
+  var text = String((d && d.text) || '');
+  if (text.length > 200000) return { ok:false, why:'That is too long to read at once. Paste up to a few thousand lines at a time.' };
+  var lines = [], order = [], noEmail = 0;
+  text.split(/\r?\n/).forEach(function (line) {
+    if (!line.trim()) return;
+    var m = /[^\s,;<>"'()]+@[^\s,;<>"'()]+/.exec(line), em = m ? _cleanEmail_(m[0]) : '';
+    if (!em) { noEmail++; return; }
+    /* the house is a field that names a known house: a name or a class on the same line is never taken for one */
+    lines.push({ em: em, fields: (line.slice(0, m.index) + '\t' + line.slice(m.index + m[0].length)).split(/[\t,;|]+/) });
+    if (order.indexOf(em) < 0) order.push(em);
+  });
+  if (!order.length) return { ok:false, why:'There is no email address in what was pasted. Paste one pupil a line: their school email, then their boarding house.' };
+  var lock = null, marked = 0, moved = 0, already = 0, kept = [], seen = {};
+  try { lock = LockService.getScriptLock(); lock.waitLock(20000); }
+  catch (e) { return { ok:false, why:'The spreadsheet is busy just now (pupils saving). Try again in a moment.' }; }
+  try {
+    var stu = _sheet_(T_STUDENTS), n = stu.getLastRow() - 1;
+    if (n < 1) return { ok:false, why:'There is nobody on the Students tab.' };
+    _studentTrailColumns_(stu);
+    var C = _studentCols_(stu), ec = C.email, bc = C.board;
+    if (!bc) return { ok:false, why:'The Students tab has no Boarder column, and one could not be added. Press Tidy up, then try again.' };
+    var v = stu.getRange(2, 1, n, Math.max(ec, bc)).getValues(), col = v.map(function (r) { return [r[bc - 1]]; }), today = _todayYmd_(), changed = false;
+    var known = {}, want = {};
+    _boardHouses_(v.map(function (r) { var x = _boardOf_(r[bc - 1]); return x ? x.house : ''; })).forEach(function (h) { known[h.toLowerCase()] = h; });
+    lines.forEach(function (L) {
+      var h = '';
+      L.fields.forEach(function (f) { f = String(f).trim().toLowerCase(); if (!h && known[f]) h = known[f]; });
+      want[L.em] = h || want[L.em] || '';
+    });
+    v.forEach(function (r, i) {
+      var em = _cleanEmail_(r[ec - 1]);
+      if (!em || !(em in want)) return;
+      var first = !seen[em]; seen[em] = 1;
+      var was = _boardOf_(r[bc - 1]), house = want[em], b = null;
+      if (_boardOn_(was, today)) {
+        if (house && house !== was.house) { b = { house: house, from: was.from, until: '' }; if (first) moved++; }
+        else if (first) already++;
+      } else if (was && was.until) { if (first) kept.push(String(r[0] || '').trim() || em); }
+      else { b = { house: house, from: '', until: '' }; if (first) marked++; }
+      if (b) { col[i] = [_boardText_(b)]; changed = true; }
+    });
+    if (changed) stu.getRange(2, bc, n, 1).setValues(col);
+  } catch (e) {
+    return { ok:false, why:'Could not change it.' };
+  } finally { if (lock) { try { lock.releaseLock(); } catch (e) {} } }
+  var away = order.filter(function (em) { return !seen[em]; }).length, bits = [];
+  bits.push(marked ? marked + ' pupil' + (marked === 1 ? ' is' : 's are') + ' boarders now' : 'Nobody new was marked');
+  if (moved) bits.push(moved + ' boarder' + (moved === 1 ? '’s house was' : 's’ houses were') + ' changed');
+  if (already) bits.push(already + ' ' + (already === 1 ? 'was a boarder' : 'were boarders') + ' already');
+  if (kept.length) bits.push(kept.join(', ') + ' stopped boarding (you pressed ✕), so ' + (kept.length === 1 ? 'is' : 'are') + ' left as before: use the Boarder button on the card if that is wrong');
+  if (away) bits.push(away + ' on the list ' + (away === 1 ? 'is' : 'are') + ' not on your Students tab (pupils you do not teach), and nothing was done for them');
+  if (noEmail) bits.push(noEmail + ' line' + (noEmail === 1 ? ' has' : 's have') + ' no email address, and ' + (noEmail === 1 ? 'was' : 'were') + ' left out');
+  var dir = null, base = '';
+  try { dir = _studentDirectory_(); base = _trackerAppUrl_(); } catch (e) { dir = null; }
+  return { ok:true, marked: marked, moved: moved, already: already, kept: kept.length, away: away, noEmail: noEmail,
+           note: bits.join('. ') + '.' + (dir ? '' : ' Press ↻ Refresh, at the top of the page, to see them.'), data:dir, trackerBase:base };
 }
 
 /* §held-results (reflection §40.206, 23 Oct 2026). Daniel: "whatever is there is still put in sync into the tracker, but it's
@@ -12118,7 +12282,7 @@ function _hwTimesIndex_(labIds, need) {
    question count are the scorer's (_hwScoreOne_, each station on its own as _ownHomework_ does); the moments come from
    the times cells. { c band, r (⏰: the latest reminder that went before they finished, 0 none), k checks (null for Bio
    English only), f right first time, q questions, n lab stations, m Bio English sets, sm span ms or null, t first try,
-   e finish (ms; negative = at or before; 0 = none) }. */
+   e finish (ms; negative = at or before; 0 = none), tm every exact moment from when it was set, oldest first }. */
 function _hwHabitCell_(hw, email, index, extra, man, ids, now) {
   var live = _hwScoreOne_(hw, email, index, man);
   if (!live.total) return null;
@@ -12167,6 +12331,10 @@ function _hwHabitCell_(hw, email, index, extra, man, ids, now) {
     else { fin = { hi: hi }; e = -hi; }
   }
   var c = _hwHabitCat_(hw.S, hw.D, fin, now);
+  /* every exact moment of its stations and sets from the moment it was set (§night: 🌙 and 📱); an "at or before" never counts */
+  var tm = [];
+  parts.forEach(function (p) { [p[0], p[1]].forEach(function (x) { if (x > 0 && x >= hw.S && x <= now && tm.indexOf(x) < 0) tm.push(x); }); });
+  tm.sort(function (a, b) { return a - b; });
   /* ⏰: they finished after a reminder had gone to them — it went (its row says how many it went to), they were not done
      then, and they have a Classroom user id in the course it was posted to (the reminders' own rule). Never a name. */
   var r = 0, cid = ids[email];
@@ -12177,7 +12345,7 @@ function _hwHabitCell_(hw, email, index, extra, man, ids, now) {
     }
   }
   return { c: c, r: r, k: k, f: f, q: q, n: nLab, m: nEn, w: nWu,
-           sm: (tExact && tt && fin && fin.at !== undefined) ? Math.max(0, fin.at - tt) : null, t: first, e: e };
+           sm: (tExact && tt && fin && fin.at !== undefined) ? Math.max(0, fin.at - tt) : null, t: first, e: e, tm: tm };
 }
 /* "12 stations", "3 Bio English sets", "12 stations and 3 Bio English sets", "2 Write-Up parts" */
 function _hwPartsWords_(n, m, w) {
@@ -12215,6 +12383,51 @@ function _hwHabitFlag_(cell, med, base, earlier) {
     _hwSpanWords_(med) + '), ' + (cell.f >= cell.q ? 'all right first time' : Math.round(rft) + '% right first time') + '; ' + why + '.';
 }
 
+/* §night (25 Nov 2026): 🌙 and 📱 in ⏱️ Homework habits. Daniel: "students that submit after 11 o'clock and before 6 a.m. …
+   they're not sleeping. So I need to have a warning for those students. Make sure that you handle the data that already
+   exists"; and for boarders (§boarders), work "after … 9:45 means that they have a second device that they should not have …
+   Up until 6 o'clock". Read from every exact moment kept for a homework's stations and sets since it was set (each one's first
+   try and first finish: the times cells kept since 1 Oct 2026, so homework done before this change is read the same way), in
+   the school's zone:
+     🌙  between 23:00 and 06:00, any night;
+     📱  a boarder on that night, between 21:45 and 06:00 on a school night: one that begins Sunday to Thursday (Daniel's
+         choice, 25 Nov 2026: the boarding rules may differ at weekends).
+   Words only, a reason to talk: "worked … at 23:41", never more than the moments say. A moment known only as "at or before" is
+   never counted, nor work on a station after its first finish (only first tries and finishes are kept). */
+var HW_NIGHT_FROM = 23 * 60, HW_NIGHT_TO = 6 * 60, HW_BOARD_FROM = 21 * 60 + 45;   /* minutes after midnight, the school's zone */
+var HW_BOARD_NIGHTS = [0, 1, 2, 3, 4];                                               /* the nights that begin Sunday (0) to Thursday (4) */
+var HW_DAY3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/* a moment in the school's zone: minutes after midnight, day of the week (0 Sunday), yyyy-MM-dd. Z keeps each day's offset
+   (one formatDate a day; Korea keeps one offset all year) */
+function _hwLocal_(ms, Z) {
+  var day = Math.floor(ms / 864e5);
+  if (!(day in Z)) {
+    var m = /^([+-])(\d\d):?(\d\d)$/.exec(String(Utilities.formatDate(new Date(ms), Z.tz || (Z.tz = _tz_()), 'Z')));
+    Z[day] = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 6e4 : 0;
+  }
+  var L = new Date(ms + Z[day]);
+  return { min: L.getUTCHours() * 60 + L.getUTCMinutes(), dow: L.getUTCDay(), ymd: L.toISOString().slice(0, 10) };
+}
+/* one cell's moments: n 🌙, d 📱 (board: the pupil's Boarder entry, or null), each oldest first */
+function _hwNightOf_(tm, board, Z) {
+  var n = [], d = [];
+  (tm || []).forEach(function (ms) {
+    var L = _hwLocal_(ms, Z);
+    if (L.min >= HW_NIGHT_FROM || L.min < HW_NIGHT_TO) n.push(ms);
+    if (board && (L.min >= HW_BOARD_FROM || L.min < HW_NIGHT_TO)) {
+      var eve = L.min >= HW_BOARD_FROM, night = eve ? L : _hwLocal_(ms - 864e5, Z);   /* after midnight: the night began the day before */
+      if (HW_BOARD_NIGHTS.indexOf(night.dow) >= 0 && _boardOn_(board, night.ymd)) d.push(ms);
+    }
+  });
+  return { n: n, d: d };
+}
+/* "Tue 18 Nov, 23:41", the first three, and how many more */
+function _hwNightWords_(list, Z) {
+  if (!list.length) return '';
+  return list.slice(0, 3).map(function (ms) { return HW_DAY3[_hwLocal_(ms, Z).dow] + ' ' + _hwWhen_(ms); }).join('; ') +
+    (list.length > 3 ? ' and ' + (list.length - 3) + ' more' : '');
+}
+
 /* The view's whole payload (uiData('habits')), at `now` (ms; the tests pass a fake clock). Read only. Pupils come as
    name and class: no address, no id. */
 function _habitsData_(now) {
@@ -12240,14 +12453,16 @@ function _habitsData_(now) {
   var recorded = Object.keys(extra).some(function (l) {
     return Object.keys(extra[l]).some(function (em) { return Object.keys(extra[l][em].t).length > 0; });
   });
-  var ids = _classroomIds_(), base = _hwBaselines_(need), who = {}, order = [];
+  var ids = _classroomIds_(), base = _hwBaselines_(need), who = {}, order = [], Z = {}, boarders = 0;
   var hwOut = list.map(function (hw, i) {
     var spans = [];
     (pupilsFor[hw.id] || []).forEach(function (p) {
       var cell = _hwHabitCell_(hw, p.email, index, extra, man, ids, now);
       if (!cell) return;
       cell.h = i;
-      if (!who[p.email]) { who[p.email] = { p: p, cells: [] }; order.push(p.email); }
+      var nd = _hwNightOf_(cell.tm, p.board || null, Z);   /* the roster's entry has the dates _boardOn_ reads */
+      cell.nw = _hwNightWords_(nd.n, Z); cell.dw = _hwNightWords_(nd.d, Z);
+      if (!who[p.email]) { who[p.email] = { p: p, cells: [] }; order.push(p.email); if (p.board) boarders++; }
       who[p.email].cells.push(cell);
       if (cell.sm !== null) spans.push(cell.sm);
     });
@@ -12265,9 +12480,9 @@ function _habitsData_(now) {
       name: P.p.name, cls: P.p.cls,
       base: b ? 'Teacher-marked tests average ' + b.pct + '% (' + b.n + ' paper' + (b.n === 1 ? '' : 's') + ')' : '',
       habit: _hwHabitOf_(cells.filter(function (x) { return x.c !== 'open'; })),
-      /* [homework, band, ⏰, checks, right first time, questions, stations, sets, span words, first try, finish] */
+      /* [homework, band, ⏰, checks, right first time, questions, stations, sets, span words, first try, finish, 🌙 words, 📱 words] */
       cells: cells.map(function (x) {
-        return [x.h, x.c, x.r, x.k, x.f, x.q, x.n, x.m, x.sm === null ? '' : _hwSpanWords_(x.sm), _hwMomentWords_(x.t), _hwMomentWords_(x.e)];
+        return [x.h, x.c, x.r, x.k, x.f, x.q, x.n, x.m, x.sm === null ? '' : _hwSpanWords_(x.sm), _hwMomentWords_(x.t), _hwMomentWords_(x.e), x.nw, x.dw];
       }),
       flags: flags
     };
@@ -12280,6 +12495,10 @@ function _habitsData_(now) {
     flagWords: 'Worth a look: a homework finished in under a third of the median time from first try to finish for it, with ' +
       HW_FLAG_RFT + '% or more right first time, by a pupil whose teacher-marked tests average under ' + HW_FLAG_BASE + '% (with no ' +
       'marked test: the median right first time of their earlier homework). A reason to talk with them, never proof of anything.',
+    /* §night: the key's words, and how many pupils here are (or were) boarders */
+    nightWords: '🌙 worked on this homework between 23:00 and 06:00',
+    boardWords: '📱 a boarder worked on this homework between 21:45 and 06:00 on a school night (Sunday to Thursday); boarders hand in their devices at 21:00',
+    boarders: boarders,
     homework: hwOut, pupils: pupils
   };
 }

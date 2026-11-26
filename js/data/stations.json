@@ -830,7 +830,7 @@
     "respiration-lab": {
       "name": "Respiration Lab",
       "tab": "Respiration",
-      "questions": 77,
+      "questions": 79,
       "stations": [
         {
           "id": "respiration",
@@ -863,9 +863,9 @@
         {
           "id": "seeds",
           "name": "Seeds that respire",
-          "questions": 6,
-          "sig": "6:ujrbps",
-          "syl": "12.1.1|AO3.3,12.1.1|5.1.8|12.2.1|12.1.1|12.1.1"
+          "questions": 8,
+          "sig": "8:fu0kuf",
+          "syl": "12.1.1|AO3.3,12.1.1|5.1.8|12.2.1|12.1.1|12.1.1|AO3.3,AO3.6|AO3.3"
         },
         {
           "id": "yeast",

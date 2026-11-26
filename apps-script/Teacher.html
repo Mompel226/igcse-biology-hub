@@ -540,6 +540,20 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .accn{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .act.acc{color:var(--good);border-color:var(--good)}
 .act.acc.ok{color:var(--ink)}
+/* §boarders (25 Nov 2026): the Boarder label on a card and its ✕, and the Boarders box (the Accommodation box's shape) */
+.bdon{color:var(--accent);font-weight:600}.bdwas{color:var(--mute)}
+.bdtag{display:inline-flex;align-items:center;gap:4px;font:600 12px/1 var(--sans);color:var(--accent);border:1px solid var(--accent);
+  border-radius:999px;padding:3px 3px 3px 10px;cursor:help;white-space:nowrap}
+.bdx{border:0;background:transparent;color:inherit;font:700 13px/1 var(--sans);cursor:pointer;padding:4px 7px;border-radius:999px}
+.bdx:hover,.bdx:focus-visible{background:var(--tint2)}
+.bdbox{border-left:5px solid var(--accent);padding:14px 18px 16px}
+.bdbox .coh{align-items:center}.bdbox .coh__t{font:600 23px/1.15 var(--serif)}
+.bdlist summary{cursor:pointer;font-weight:700;color:var(--accent)}
+.bdhint{margin:8px 0;font-size:13.5px;line-height:1.5}
+.bdlist textarea{display:block;width:100%;min-height:110px;box-sizing:border-box;font:400 12.5px/1.45 var(--mono);color:var(--chalk);
+  background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;resize:vertical}
+.bdgo{margin-top:8px}
+@media (max-width:640px){.bdbox .coh__t{font-size:20px}}
 .accb-demo{color:var(--good);font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--good);border-radius:999px;padding:3px 8px;white-space:nowrap}
 /* a pupil's card holds four buttons (Copy, Open tracker, Move, Accommodation; 8 Oct 2026): when they do not fit beside the
    name they take a row of their own, so the name never shrinks to nothing (the audit: names ran one letter per line) */
@@ -597,6 +611,10 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hbm{position:relative;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;
   font:600 12px/1 var(--mono);border:1px solid transparent;cursor:help;vertical-align:middle;flex:none}
 .hbm i{position:absolute;top:-8px;right:-9px;font-style:normal;font-size:12px;line-height:1}
+/* 🌙 and 📱 (§night, 25 Nov 2026): beside the mark, on its line, so the column keeps its width and no border is crossed */
+.hbm .hbx{position:absolute;top:50%;left:calc(100% + 3px);transform:translateY(-50%);font-weight:400;font-size:12px;line-height:1;white-space:nowrap}
+.hbnt{font:500 10.5px/1.3 var(--mono);color:var(--dim);display:inline-block;margin:0 0 0 10px;cursor:help;white-space:nowrap}
+.hbx0{font-size:13px;line-height:1}
 .hbm--before{background:rgba(96,165,250,.32);border-color:rgba(96,165,250,.85);color:#DBEAFE}
 .hbm--early{background:rgba(45,212,191,.42);border-color:#2DD4BF;color:#CCFBF1}
 .hbm--good{background:rgba(190,227,92,.26);border-color:rgba(190,227,92,.8);color:#ECFCCB}
@@ -621,7 +639,7 @@ table.hb{border-collapse:separate;border-spacing:0;width:100%;font-variant-numer
 .hbwhy{font-size:12.5px;color:var(--dim);line-height:1.5;margin:0 0 6px}.hbwhy b{color:var(--chalk)}
 .hbwhen{font:500 11px/1.4 var(--mono);color:var(--mute);margin-top:4px}
 .hbflagw{margin-top:9px;padding:9px 11px;border:1px solid var(--mag-edge);border-radius:9px;background:var(--mag-bg);color:var(--mag-ink);font-size:12.5px;line-height:1.45}
-@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh{white-space:normal;display:block;margin:2px 0 0}.hm .cl,.hb .cl{display:block;margin:1px 0 0}}
+@media (max-width:560px){.hb th.cnr{min-width:128px}.hbn{max-width:118px}.hbh,.hbnt{white-space:normal;display:block;margin:2px 0 0}.hm .cl,.hb .cl{display:block;margin:1px 0 0}}
 /* A class's table and its key, together, are at most as tall as the window below the pinned header (6 Oct 2026, Daniel:
    on his screen the table ran past the foot of the window, and its key with it). One scroll of the page shows the whole
    box and its key, however many lines the key takes; the pupils scroll inside the box. While the table is on screen
@@ -1002,7 +1020,7 @@ var BOOT = __BOOT__;
       note:'A score is the average over the labs a student has saved work in: a lab not started does not count as zero. A lab’s % is their best, in any round: practising a station again (a new round) never lowers anything. Hover over any number for how it is worked out. “Reviewed” ticks are kept in this browser only.' },
     students:{ label:'Students', accent:'#2DD4BF', accentL:'#0F766E', h1:'<em>Students</em>',
       lede:'Find any pupil and open their reflection tracker — the same page they see.',
-      note:'Copy gives a link to that pupil’s tracker: only a teacher or the pupil can open it. The Accommodation box at the top says what it does and who has it.' },
+      note:'Copy gives a link to that pupil’s tracker: only a teacher or the pupil can open it. The Accommodation box at the top says what it does and who has it; the Boarders box under it says who boards, and takes a whole list at once.' },
     homework:{ label:'Set homework', accent:'#F5A623', accentL:'#B45309', h1:'Set <em>homework</em>',
       lede:'Pick what you have taught — lab stations, Bio English sets, Write-Up Lab parts — say who it is for and when it is due.',
       note:'Reminders (🔔) go in Google Classroom only to the pupils who have not finished, when 70% and 85% of the time from setting to due has passed, and never between 22:00 and 07:00.' },
@@ -1017,7 +1035,7 @@ var BOOT = __BOOT__;
       note:'A question’s words come from the lab’s own page, as the pupils see it, when you open a homework; Bio English’s without the answers. The words are read again after an hour, so a question rewritten since shows its new words only where its fingerprint still matches.' },
     habits:{ label:'Homework habits', accent:'#A78BFA', accentL:'#6D28D9', h1:'Homework <em>habits</em>',
       lede:'When each pupil finishes their homework, against the time it was set and its due time, and the habit their last six show.',
-      note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. Choose a name in Student to show that pupil alone, for example to their parents: no other pupil’s name is on the screen. ⏰ means they finished after a reminder had gone to them. “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
+      note:'Hover over or tap a mark for when the pupil finished; click a name for their timeline. Choose a name in Student to show that pupil alone, for example to their parents: no other pupil’s name is on the screen. ⏰ means they finished after a reminder had gone to them. 🌙 means they worked on it between 23:00 and 06:00; 📱 means a boarder worked on it between 21:45 and 06:00 on a school night (boarders hand in their devices at 21:00). “Worth a look” marks a homework finished very fast and almost all right first time by a pupil whose results are usually low: a reason to talk with them, never proof of anything. “From first try to finish” is the time between two saves, not time spent working.' }
   };
   VIEWS.practicals = { label:'Practicals', accent:'#22D3EE', accentL:'#0E7490', h1:'Class <em>practicals</em>',
       lede:'How each student is doing in a practical you run in class (IB or KS3), question by question: right first time, how many checks, and the wrong answers they gave.',
@@ -1449,7 +1467,7 @@ var BOOT = __BOOT__;
   });
 
   /* ─────────── Students ─────────── */
-  var stState = { grad:'all', cls:'all', q:'', move:'', msg:null }, stTimer = null;   /* move: the pupil whose Move is open (6 Oct 2026) */
+  var stState = { grad:'all', cls:'all', q:'', move:'', msg:null, bd:'', bdOpen:false }, stTimer = null;   /* bd: the pupil whose house choice is open (§boarders) */   /* move: the pupil whose Move is open (6 Oct 2026) */
   /* §held-results (23 Oct 2026, Daniel: "the teacher has to kind of have a conversation with that student and then click a
      button"): the results ✅ Sync teacher marks holds for pupils who have not finished the reflection, { list, recent }, or
      null when the tracker could not be read */
@@ -1528,6 +1546,26 @@ var BOOT = __BOOT__;
         : 'No pupil has it yet.')+'</dd>'+
       '</dl></section>';
   }
+  /* "2026-11-25" → "25 Nov 2026" (the Boarder column's dates) */
+  function ymdWords(x){ var m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(String(x||'')); return m ? (+m[3])+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[2]-1]+' '+m[1] : String(x||''); }
+  /* the Boarders box (25 Nov 2026, §boarders; Daniel: boarders "should hand their devices at 9 o'clock … any work submitted after
+     … 9:45 means that they have a second device"): why, one pupil, a whole list at once, and how many board now, by house */
+  function boardBlock(STUD){
+    var on=STUD.filter(function(s){ return s.board && s.board.on && !isLeft(s.cls); }), by={};
+    on.forEach(function(s){ var h=s.board.h||'No house given'; by[h]=(by[h]||0)+1; });
+    return '<section class="held bdbox" id="bdbox"><div class="coh"><span class="coh__t">Boarders</span>'+
+      '<span class="accbox__n">'+(on.length?on.length+' boarder'+(on.length===1?'':'s'):'Nobody is marked yet')+'</span></div>'+
+      '<dl class="accdl">'+
+      '<dt>Why</dt><dd>Boarders hand in their devices at <b>21:00</b>. On <b>Homework habits</b>, <b>📱</b> marks a boarder who worked on homework between <b>21:45 and 06:00</b> on a school night (Sunday to Thursday). <b>🌙</b> marks anyone who worked between <b>23:00 and 06:00</b>.</dd>'+
+      '<dt>One pupil</dt><dd>Press <span class="accb-demo">＋ Boarder</span> on their card and choose the house. When they leave the boarding house, press <b>✕</b> beside <b>Boarder</b>: <b>their nights as a boarder before that day still count.</b></dd>'+
+      '<dt>A whole list</dt><dd><details class="bdlist"'+(stState.bdOpen?' open':'')+'><summary>Paste a list</summary>'+
+        '<p class="bdhint">One pupil a line: their <b>school email</b> and their <b>boarding house</b> (two columns copied from a spreadsheet work). Only pupils on your Students tab are marked.</p>'+
+        '<textarea id="bdtext" rows="5" spellcheck="false" aria-label="The list of boarders" placeholder="name@pupils.nlcsjeju.kr    Iho"></textarea>'+
+        '<div class="bdgo"><button class="act" id="bdgo">Mark them as boarders</button></div></details></dd>'+
+      '<dt>Boarders now</dt><dd>'+(on.length ? '<div class="accn">'+Object.keys(by).sort().map(function(h){ return '<span class="chip">'+esc(h)+' · '+by[h]+'</span>'; }).join('')+'</div>'
+        : 'No pupil is marked as a boarder yet.')+'</dd>'+
+      '</dl></section>';
+  }
   function vStudents(dir, base){
     var STUD = dir.students||[];
     if (!STUD.length) return $('view').innerHTML = '<div class="empty">No students on the roster yet.</div>';
@@ -1548,10 +1586,25 @@ var BOOT = __BOOT__;
        between classes … and then everything is ported"): studentMove writes the new class on the Students tab and on their
        row of every lab tab; their homework and work go with them. Google Classroom is moved by the teacher. "Left: in no
        class" (7 Oct 2026) puts a pupil who leaves part way through the year in LEFT <year>; a class brings them back. */
-    function card(s){ var u=link(s.email), open=stState.move===s.email;
+    /* §boarders: "Boarder · Iho" with its ✕, or ＋ Boarder; the houses to choose from when it is open */
+    function boardCtl(s, bdOpen){
+      var b=s.board;
+      if (b && b.on) return '<span class="bdtag" data-tip="'+esc('A boarder'+(b.h?' in '+b.h:'')+(b.from?', from '+ymdWords(b.from):'')+
+          '. Homework habits marks 📱 when they work on homework between 21:45 and 06:00 on a school night. Press ✕ when they leave the boarding house.')+'">Boarder'+(b.h?' · '+esc(b.h):'')+
+        '<button class="bdx" data-bdx="'+esc(s.email)+'" aria-label="'+esc((s.name||'This pupil')+' is no longer a boarder')+'">✕</button></span>';
+      return '<button class="act" data-bdon="'+esc(s.email)+'" aria-expanded="'+(bdOpen?'true':'false')+'">＋ Boarder</button>';
+    }
+    function houseRow(s){
+      return '<div class="mvrow"><span class="card__d">Which boarding house?</span>'+
+        (dir.houses||[]).map(function(h){ return '<button class="act" data-bdgo="'+esc(s.email)+'" data-house="'+esc(h)+'">'+esc(h)+'</button>'; }).join('')+
+        '<button class="act" data-bdgo="'+esc(s.email)+'" data-house="">No house given</button><button class="act" data-bdno="1">Cancel</button>'+
+        '<span class="card__d">From today: their nights before today do not count.</span></div>';
+    }
+    function card(s){ var u=link(s.email), open=stState.move===s.email, bdOpen=stState.bd===s.email;
       return '<div class="card'+(open?' card--mv':'')+'"><div class="av">'+esc(initials(s.name)||'·')+'</div>'+
         '<div class="card__m"><div class="card__n" data-tip="'+esc(s.email)+'">'+esc(s.name||'(no name)')+'</div>'+
-        '<div class="card__d">'+esc(s.cls||'—')+(s.acc?' · <span class="accon">Accommodation</span>':'')+'</div></div><div class="card__a">'+
+        '<div class="card__d">'+esc(s.cls||'—')+(s.acc?' · <span class="accon">Accommodation</span>':'')+
+          (s.board&&!s.board.on&&s.board.until?' · <span class="bdwas">a boarder until '+esc(ymdWords(s.board.until))+'</span>':'')+'</div></div><div class="card__a">'+
         (u?'<button class="act" data-copy="'+esc(u)+'">Copy</button><a class="open" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open tracker</a>'
            :'<span class="card__d">no address set</span>')+
         '<button class="act" data-mv="'+esc(s.email)+'" aria-expanded="'+(open?'true':'false')+'">Move</button>'+
@@ -1560,12 +1613,13 @@ var BOOT = __BOOT__;
         '<button class="act acc'+(s.acc?' ok':'')+'" data-acc="'+esc(s.email)+'" aria-pressed="'+(s.acc?'true':'false')+'" data-tip="'+
           (s.acc?'Accommodation is on: when this pupil gives two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also show keyword meanings in Korean or Chinese, on the flashcards and the keyword pages. Press to turn it off.'
                 :'Accommodation is off. Turn it on for a pupil who needs extra support: when they give two different wrong answers to a question, the page explains why their answer is wrong. In Bio English they can also show keyword meanings in Korean or Chinese, on the flashcards and the keyword pages.')+
-          '">Accommodation: '+(s.acc?'on':'off')+'</button></div>'+
+          '">Accommodation: '+(s.acc?'on':'off')+'</button>'+boardCtl(s, bdOpen)+'</div>'+
         (open?'<div class="mvrow"><label class="card__d" for="mv-to">Move to</label><select id="mv-to"><option value="">Choose a class…</option>'+
           (dir.classes||[]).filter(function(c){ return c!==s.cls; }).map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join('')+
           (isLeft(s.cls)?'':'<option value="__left">Left: in no class</option>')+
           '</select><button class="act" data-mvgo="'+esc(s.email)+'">Move them</button><button class="act" data-mvno="1">Cancel</button>'+
-          '<span class="card__d">Their homework and work go with them. Move them in Google Classroom too.</span></div>':'')+'</div>';
+          '<span class="card__d">Their homework and work go with them. Move them in Google Classroom too.</span></div>':'')+
+        (bdOpen&&!(s.board&&s.board.on)?houseRow(s):'')+'</div>';
     }
     function wireMove(){
       document.querySelectorAll('[data-mv]').forEach(function(b){ b.addEventListener('click', function(){
@@ -1615,6 +1669,34 @@ var BOOT = __BOOT__;
             else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); } })
           .withFailureHandler(function(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); })
           .studentAccommodation({ email:e, on:on }); }); });
+      /* §boarders: ＋ Boarder opens the houses; a house, or ✕, writes it (studentBoarder); the box marks a whole list at once.
+         📱 in Homework habits follows who boards: its kept copy is dropped, so it is read again when its tab is opened. */
+      function boardDone(r){
+        if (r&&r.ok) { stState.bd=''; delete cache.habits; ssDel('habits'); fresh.habits=false; failed.habits=false; }
+        if(r&&r.ok&&r.data){ dir=r.data; STUD=dir.students||[]; stState.msg={ text:r.note, bad:false };
+          putView('students', { ok:true, data:dir, trackerBase:base, held:stHeld });
+          vStudents(dir, base); }
+        else if(r&&r.ok){ stState.msg={ text:r.note, bad:false }; delete cache.students; ssDel('students'); fresh.students=false; paint(); }
+        else { stState.msg={ text:(r&&r.why)||'That did not work.', bad:true }; paint(); }
+      }
+      function boardFail(){ stState.msg={ text:'That did not work: the spreadsheet could not be reached.', bad:true }; paint(); }
+      document.querySelectorAll('[data-bdon]').forEach(function(b){ b.addEventListener('click', function(){
+        var e=b.getAttribute('data-bdon'); stState.bd=stState.bd===e?'':e; stState.msg=null; paint(); }); });
+      document.querySelectorAll('[data-bdno]').forEach(function(b){ b.addEventListener('click', function(){ stState.bd=''; paint(); }); });
+      document.querySelectorAll('[data-bdgo]').forEach(function(b){ b.addEventListener('click', function(){
+        b.disabled=true; b.textContent='Saving…';
+        google.script.run.withSuccessHandler(boardDone).withFailureHandler(boardFail)
+          .studentBoarder({ email:b.getAttribute('data-bdgo'), on:true, house:b.getAttribute('data-house')||'' }); }); });
+      document.querySelectorAll('[data-bdx]').forEach(function(b){ b.addEventListener('click', function(){
+        b.disabled=true;
+        google.script.run.withSuccessHandler(boardDone).withFailureHandler(boardFail)
+          .studentBoarder({ email:b.getAttribute('data-bdx'), on:false }); }); });
+      var bg=$('bdgo'); if (bg) bg.addEventListener('click', function(){
+        var t=($('bdtext')||{}).value||'';
+        if (!t.trim()) { stState.msg={ text:'Paste the list first: one pupil a line, their school email and their boarding house.', bad:true }; paint(); return; }
+        bg.disabled=true; bg.textContent='Marking…';
+        google.script.run.withSuccessHandler(boardDone).withFailureHandler(boardFail).studentBoardersFromList({ text:t }); });
+      var bl=document.querySelector('.bdlist'); if (bl) bl.addEventListener('toggle', function(){ stState.bdOpen=bl.open; });
       document.querySelectorAll('[data-mvgo]').forEach(function(b){ b.addEventListener('click', function(){
         var e=b.getAttribute('data-mvgo'), sel=$('mv-to'), to=sel?sel.value:'';
         if(!to){ stState.msg={ text:'Choose the class to move them to.', bad:true }; paint(); return; }
@@ -1645,7 +1727,7 @@ var BOOT = __BOOT__;
         /* in none of the classes (LEFT …): last, records kept; Move brings one back */
         if (gone.length) body+=grpSection('gone', 'In none of the classes', '<span class="pill--past">left · records kept</span>', gone, card);
       }
-      body = heldBlock() + accBlock(STUD) + body;   /* §held-results: first, above the classes; then the Accommodation */
+      body = heldBlock() + accBlock(STUD) + boardBlock(STUD) + body;   /* §held-results: first, above the classes; then the Accommodation, then the Boarders */
       if (stState.msg) body='<div class="msg '+(stState.msg.bad?'bad':'ok')+'" role="status" style="margin:0 0 12px">'+esc(stState.msg.text)+'</div>'+body;
       $('slist2').innerHTML = body;
       wireMove();
@@ -3509,17 +3591,20 @@ var BOOT = __BOOT__;
     function cap(s){ s=String(s||''); return s.charAt(0).toUpperCase()+s.slice(1); }
     function word(b){ return W[b]||b; }
     function shortTitle(t){ t=String(t||''); return t.length>22 ? t.slice(0,21)+'…' : t; }
-    function mark(b, r, tip){
+    function mark(b, r, tip, nt, dv){
       return '<span class="hbm hbm--'+esc(b)+'"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(HB_GLYPH[b]||'')+
-        (r?'<i aria-hidden="true">⏰</i>':'')+'</span>';
+        (r?'<i aria-hidden="true">⏰</i>':'')+((nt||dv)?'<b class="hbx" aria-hidden="true">'+(nt?'🌙':'')+(dv?'📱':'')+'</b>':'')+'</span>';
     }
-    /* c: [homework, band, ⏰ reminder, checks, right first time, questions, stations, sets, span, first try, finish] */
-    function cellWords(h, c){
+    /* c: [homework, band, ⏰ reminder, checks, right first time, questions, stations, sets, span, first try, finish, 🌙, 📱]
+       (§night, 25 Nov 2026: 🌙 and 📱 hold the moments in words, or ''; alone, for the parents, 📱 is never shown) */
+    function cellWords(h, c, alone){
       var hw=HW[h], L=[hw.title, 'Set '+hw.set+' · due '+hw.due];
       if (c[1]==='unknown') L.push('Finished '+c[10]+', before the times began to be kept: when exactly is not known');
       else if (c[1]==='open' || c[1]==='none') L.push(cap(word(c[1])));
       else L.push(cap(word(c[1]))+': finished '+c[10]);
       if (c[2]) L.push('⏰ finished after reminder '+c[2]);
+      if (c[11]) L.push('🌙 Worked between 23:00 and 06:00: '+c[11]);
+      if (c[12] && !alone) L.push('📱 A boarder, worked between 21:45 and 06:00 on a school night: '+c[12]);
       if (c[8]) L.push('From first try to finish: '+c[8]);
       else if (c[9]) L.push('First try: '+c[9]);
       var bits=[];
@@ -3527,6 +3612,14 @@ var BOOT = __BOOT__;
       bits.push(c[4]+'/'+c[5]+' right first time'+(c[5]?' ('+Math.round(100*c[4]/c[5])+'%)':''));
       L.push(bits.join(' · '));
       return L.join('\n');
+    }
+    /* under a name: how many of the homework shown they worked on at night (🌙), and as a boarder after 21:45 (📱, never alone) */
+    function nightLine(p, cols, alone){
+      var nn=0, dd=0;
+      cols.forEach(function(i){ var c=p.__by[i]; if (!c) return; if (c[11]) nn++; if (c[12] && !alone) dd++; });
+      if (!nn && !dd) return '';
+      var say=[]; if (nn) say.push(nn+' homework worked on between 23:00 and 06:00'); if (dd) say.push(dd+' homework worked on between 21:45 and 06:00 on a school night, as a boarder');
+      return '<div class="hbnt" data-tip="'+esc(say.join('\n'))+'">'+(nn?'🌙 '+nn:'')+(nn&&dd?' · ':'')+(dd?'📱 '+dd:'')+'</div>';
     }
     function clsName(){ return hbState.cls==='all' ? 'All classes' : (hbState.cls||'No class'); }
     /* the Student list: the pupils of the class chosen, those "Find a student" matches, by name */
@@ -3566,16 +3659,18 @@ var BOOT = __BOOT__;
         if (fl.length) nFlag++;
         return '<tr><td class="name"><button type="button" class="hbn" data-hbp="'+p.__i+'">'+esc(p.name||'(no name)')+'</button>'+
           (showCls?'<span class="cl">'+esc(p.cls||'—')+'</span>':'')+
-          '<div class="hbh'+(hb?'':' none')+'" data-tip="'+esc(hb?hb.say+' — '+hb.why:'Fewer than 3 homework with times so far.')+'">'+esc(hb?hb.say:'—')+'</div></td>'+
+          '<div class="hbh'+(hb?'':' none')+'" data-tip="'+esc(hb?hb.say+' — '+hb.why:'Fewer than 3 homework with times so far.')+'">'+esc(hb?hb.say:'—')+'</div>'+nightLine(p, cols, alone)+'</td>'+
           (alone?'':'<td class="hbfl">'+(fl.length?'<span class="hbflag" data-tip="'+esc(fl.map(function(f){ return HW[f.h].title+': '+f.says; }).join('\n\n'))+'">⚑ '+fl.length+'</span>'
                                          :'<span class="hbnone">—</span>')+'</td>')+
           cols.map(function(i){ var c=p.__by[i];
             if (!c) return '<td class="cell"><span class="hbm hbm--unset" data-tip="'+esc(HW[i].title+': not set for this pupil.')+'"></span></td>';
-            return '<td class="cell">'+mark(c[1], c[2], cellWords(i, c))+'</td>'; }).join('')+'</tr>'; }).join('');
+            return '<td class="cell">'+mark(c[1], c[2], cellWords(i, c, alone), c[11], alone?'':c[12])+'</td>'; }).join('')+'</tr>'; }).join('');
       var key = '<div class="hbkey">'+HB_KEY.map(function(b){
           var more = b==='early' ? ' (by '+B.early+'% of the time)' : b==='good' ? ' (by '+B.good+'%)' : b==='last' ? ' (before the due time)' : '';
           return '<span>'+mark(b, 0, '')+esc(cap(word(b))+more)+'</span>'; }).join('')+
-        '<span>'+mark('good', 1, '')+'finished after a reminder</span>'+(alone?'':'<span><span class="hbflag">⚑</span>worth a look</span>')+'</div>';
+        '<span>'+mark('good', 1, '')+'finished after a reminder</span>'+(alone?'':'<span><span class="hbflag">⚑</span>worth a look</span>')+
+        '<span data-tip="'+esc(D.nightWords||'')+'"><span class="hbx0">🌙</span>worked between 23:00 and 06:00</span>'+
+        (alone?'':'<span data-tip="'+esc(D.boardWords||'')+'"><span class="hbx0">📱</span>'+(D.boarders?'a boarder, after 21:45 on a school night':'boarders: none marked yet (Students ▸ Boarders)')+'</span>')+'</div>';
       var nt=document.getElementById('note');   /* the view's note explains "Worth a look": not shown with one pupil */
       if (nt) nt.hidden = alone || !nt.textContent;
       $('hbbody').innerHTML =
@@ -3623,6 +3718,8 @@ var BOOT = __BOOT__;
               (c[9]?'<span class="dchip">First try <b>'+esc(c[9])+'</b></span>':'<span class="dchip">Not tried</span>')+
               (c[10]?'<span class="dchip">Finished <b>'+esc(c[10])+'</b></span>':'')+
               (c[8]?'<span class="dchip">From first try to finish <b>'+esc(c[8])+'</b></span>':'')+
+              (c[11]?'<span class="dchip">🌙 At night <b>'+esc(c[11])+'</b></span>':'')+
+              (c[12]&&!hbState.who?'<span class="dchip">📱 After 21:45, a boarder <b>'+esc(c[12])+'</b></span>':'')+
               (c[3]!==null&&c[3]!==undefined?'<span class="dchip"><b>'+c[3]+'</b> check'+(c[3]===1?'':'s')+'</span>':'')+
               '<span class="dchip"><b>'+c[4]+'</b>/'+c[5]+' right first time</span></div>'+
             fl.map(function(f){ return '<div class="hbflagw">⚑ Worth a look: '+esc(f.says)+'</div>'; }).join('')+'</div>'; }).join('');
