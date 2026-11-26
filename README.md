@@ -37,8 +37,9 @@ PC, and progress is saved in the student's own browser.
 | **Life on Earth** | 1 · 17–21 | [Life on Earth Hub](https://nlcsbiology.com/life-on-earth-hub/) 🟢 · [Classification Lab](https://nlcsbiology.com/classification-lab/) 🟢 · [Inheritance Lab](https://nlcsbiology.com/inheritance-lab/) 🟢 |
 
 The foot of the page lists only Key Stage 3 and IB pages (25 Oct 2026). Turn on **Key Stage 3** and a teal
-panel there lists the [Y7 Chemistry practical: separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/)
-and the [Y7 Chemistry revision: states of matter, atoms and mixtures](https://nlcsbiology.com/ks3-y7-chemistry-revision/); turn on
+panel there lists the [Y7 Chemistry practical: separating mixtures](https://nlcsbiology.com/ks3-separating-mixtures-pract/),
+the [Y7 Chemistry revision: states of matter, atoms and mixtures](https://nlcsbiology.com/ks3-y7-chemistry-revision/)
+and the [Y7 Biology practical: cell structures and organelles](https://nlcsbiology.com/ks3-y7-cell-organelles/); turn on
 **IB extension** and a violet one lists the IB practicals: [microscopy skills (A2.2.2)](https://nlcsbiology.com/A22-microscopy-skills-pract/),
 [starch calibration curve (B1.1)](https://nlcsbiology.com/B11-starch-calibration-curve-pract/) and
 [rocky shore fieldwork (B4.1)](https://nlcsbiology.com/B41-rocky-shore-fieldwork-pract/). The IGCSE hubs, labs and the
