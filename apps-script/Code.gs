@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '28 Nov 2026 — the Enzymes Lab (48 questions)';
+var SCRIPT_EDITION = '28 Nov 2026 — the Variation Lab (90 questions)';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -201,7 +201,7 @@ var LABS = [
   { id:'reproduction-lab',    name:'Reproduction',     topic:'16 · Reproduction',                  questions:0 },
   { id:'plants-lab',          name:'Plants',           topic:'6 · Plants: 6, 8, 14.5, 16.3, 18.2', questions:116 },
   { id:'inheritance-lab',     name:'Inheritance',      topic:'17 · Inheritance',                   questions:100 },
-  { id:'variation-lab',       name:'Variation',        topic:'18 · Variation and selection',       questions:0 },
+  { id:'variation-lab',       name:'Variation',        topic:'18 · Variation and selection',       questions:90 },
   { id:'ecology-lab',         name:'Ecology',          topic:'19 · Organisms and their environment', questions:0 },
   { id:'human-influences-lab', name:'Human influences', topic:'20 · Human influences on ecosystems', questions:0 },
   { id:'biotechnology-lab',   name:'Biotechnology',    topic:'21 · Biotechnology and genetic modification', questions:0 }
