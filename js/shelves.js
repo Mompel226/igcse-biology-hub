@@ -75,7 +75,7 @@ window.HUB = {
       blurb:'Here you find out where you come from. Climb the tree of life from the first cells — perhaps at a vent like this one — to every kingdom alive today; see how one molecule, DNA, links all of it; then what we can do with that knowledge, from breeding crops to editing genes.',
       topics:[ {no:1,t:'Characteristics and classification'}, {no:17,t:'Inheritance'}, {no:18,t:'Variation and selection'},
                {no:19,t:'Organisms and their environment'}, {no:20,t:'Human influences on ecosystems'}, {no:21,t:'Biotechnology'} ],
-      status:'live', url:'https://nlcsbiology.com/life-on-earth-hub/', detail:'The tree is open · 2 labs open',
+      status:'live', url:'https://nlcsbiology.com/life-on-earth-hub/', detail:'The tree is open · 3 labs open',
       accent:'#5EEAD4', tone:'dark', focus:'50% 58%',
       alt:'White smokers venting liquid carbon dioxide at NW Eifuku volcano, 1,600 metres down' }
   ],
