@@ -64,7 +64,7 @@ var SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
 /* What edition of this script is deployed: shown by the health check (open the /exec address in
    a browser). Change the date when the script changes in a way a teacher should be able to
    confirm has reached the deployment. */
-var SCRIPT_EDITION = '25 Nov 2026 — night work, boarders and the new labs';
+var SCRIPT_EDITION = '28 Nov 2026 — the Enzymes Lab (48 questions)';
 
 /* Sign-in — needed for ANY work to be recorded. The OAuth Client ID from Google Cloud: the SAME
    string as `googleClientId` in every lab's js/config.js. It ends .apps.googleusercontent.com. To
@@ -189,7 +189,7 @@ var LABS = [
   { id:'cells-lab',           name:'Cells',            topic:'2 · Organisation of the organism',   questions:131 },
   { id:'membrane-lab',        name:'In and out of cells', topic:'3 · Movement into and out of cells', questions:94 },
   { id:'molecules-lab',       name:'Molecules',        topic:'4 · Biological molecules',           questions:70 },
-  { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:0 },
+  { id:'enzymes-lab',         name:'Enzymes',          topic:'5 · Enzymes',                        questions:48 },
   { id:'digestion-lab',       name:'Digestion',        topic:'7 · Human nutrition',                questions:123 },
   { id:'circulation-lab',     name:'Circulation',      topic:'9 · Transport in animals',           questions:122 },
   { id:'immunity-lab',        name:'Immunity',         topic:'10 · Diseases and immunity',         questions:59 },

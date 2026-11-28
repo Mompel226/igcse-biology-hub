@@ -47,7 +47,7 @@ window.HUB = {
       blurb:'Here you do not move across a body — you move down into one. Start with a whole organism and step inside: an organ, then a tissue, then a cell, then an organelle, and finally the molecules that do the work. Topics 2 to 5 sit at each step on the way down.',
       topics:[ {no:2,t:'Organisation of the organism'}, {no:3,t:'Movement in and out of cells'},
                {no:4,t:'Biological molecules'}, {no:5,t:'Enzymes'} ],
-      status:'live', url:'https://nlcsbiology.com/foundations-hub/', detail:'The zoom is open · 3\u00a0labs\u00a0open · 1\u00a0sim\u00a0open',
+      status:'live', url:'https://nlcsbiology.com/foundations-hub/', detail:'The zoom is open · 4\u00a0labs\u00a0open · 1\u00a0sim\u00a0open',
       accent:'#E879F9', tone:'dark', focus:'50% 50%',
       alt:'HeLa cells under a multiphoton microscope: microtubules in magenta, DNA in cyan' },
 
@@ -158,6 +158,9 @@ window.HUB = {
     { title:'Molecules Lab',        kind:'lab',       shelf:'foundations',
       sub:'Topic 4 · Biological molecules',
       url:'https://nlcsbiology.com/molecules-lab/' },
+    { title:'Enzymes Lab',          kind:'lab',       shelf:'foundations',
+      sub:'Topic 5 · Enzymes',
+      url:'https://nlcsbiology.com/enzymes-lab/' },
     { title:'Protein & Enzyme Sim', kind:'sim',       shelf:'foundations',
       sub:'Topics 4 and 5 · build a protein, then watch heat and pH take it apart',
       url:'https://nlcsbiology.com/protein-enzyme-sim/', ib:'also IB B1.2' },
